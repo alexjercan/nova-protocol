@@ -1827,7 +1827,7 @@ mod tests {
     /// one-shot fired with NO scenario live belongs to the menu and is not
     /// the scenario's to take.
     #[test]
-    fn an_sfx_one_shot_cannot_play_into_the_next_scenario() {
+    fn a_one_shot_cannot_play_into_the_next_scenario() {
         use bevy::audio::AudioSource;
 
         let mut app = App::new();
@@ -1839,21 +1839,21 @@ mod tests {
         app.init_resource::<CurrentScenario>();
         app.init_resource::<GameObjectives>();
         // The production spawner and the production scoping wiring.
-        app.add_plugins(SfxPlugin);
+        app.add_plugins(NovaSoundPlugin);
         app.register_input_actions(scenario_bindings());
         app.add_observer(on_load_scenario);
         register_scenario_scoping(&mut app);
         // The first manual-Time frame runs at dt 0; warm up before asserting.
         app.update();
 
-        let handle = app
-            .world_mut()
-            .resource_mut::<Assets<AudioSource>>()
-            .reserve_handle();
+        // Two clips: one Ui voice per sound, so a second play of the same
+        // clip would retire the first itself.
+        let mut clips = app.world_mut().resource_mut::<Assets<AudioSource>>();
+        let (menu_clip, scenario_clip) = (clips.reserve_handle(), clips.reserve_handle());
+        let ui = |sound| PlaySound::ui(sound, SoundCategoryType::UiClick);
 
         // Menu control: fired before any scenario is live.
-        app.world_mut()
-            .trigger(PlaySfx::new(handle.clone(), AudioRoute::Interface));
+        app.world_mut().trigger(ui(menu_clip));
         app.update();
         let menu_sfx = app
             .world_mut()
@@ -1871,8 +1871,7 @@ mod tests {
 
         // Fired DURING the scenario. Headless there is no audio device, so no
         // sink ever despawns it: the teardown is its only possible owner.
-        app.world_mut()
-            .trigger(PlaySfx::new(handle, AudioRoute::Interface));
+        app.world_mut().trigger(ui(scenario_clip));
         app.update();
         let scenario_sfx = app
             .world_mut()

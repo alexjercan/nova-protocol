@@ -10,7 +10,8 @@
 //! `the_engine_is_the_only_place_an_audio_player_is_built` reads the
 //! workspace's sources and fails on a constructor outside this crate. To make
 //! a sound, trigger a [`PlaySound`] (a one-shot) or add a [`SoundLoop`] (a
-//! loop). The interface still plays its own caller-levelled [`PlaySfx`] cues.
+//! loop). Interface cues are categories on the [`SoundBus::Ui`] rows, played
+//! with [`PlaySound::ui`].
 //!
 //! # Categories
 //!
@@ -51,8 +52,7 @@
 //! master volume and the harness mute, `loudness` measures every clip as it
 //! loads, `mixing` holds the listener marker and the cell grouping the juice
 //! layer shares, `spatial` owns the stereo placement, `voice` owns playback
-//! and the loop cap, `sfx` is the interface one-shot and `registry` is the
-//! keyed handle bank. Nothing here knows what a ship is - the mapping from
+//! and the loop cap, and `registry` is the keyed handle bank. Nothing here knows what a ship is - the mapping from
 //! gameplay events to sounds is `nova_ship`'s `ship_audio`.
 //!
 //! A crate of its own, below `nova_gameplay`, so a crate that makes a sound
@@ -81,7 +81,6 @@ mod master;
 mod mixing;
 mod play;
 mod registry;
-mod sfx;
 mod spatial;
 mod voice;
 
@@ -92,26 +91,18 @@ mod voice;
 /// math) stay off the boundary - they are the
 /// engine's own machinery, re-exported at the crate root for the tests that pin
 /// them.
-///
-/// Every cue volume is on the boundary because every cue volume is defined here
-/// while the cues themselves fire from the crates above.
 pub mod prelude {
     pub use super::{
-        sounds_loaded, AudioRoute, ClipLoudness, HarnessMute, InterfaceVolume, MasterVolume,
-        NovaSoundPlugin, PlaySfx, PlaySound, SfxAudioMarker, SfxCommandsExt, SfxListenerMarker,
-        SfxPlugin, SfxVoice, SoundAt, SoundBank, SoundBus, SoundCategoryType, SoundFreeze,
-        SoundListenerAnchor, SoundLoop, SoundLoudness, SoundSystems, SoundVoice, UiSfx, VoiceGroup,
-        VoiceMix, VoicePlace, WorldVolume, EDITOR_DENY_VOLUME, EDITOR_PLACE_VOLUME,
-        EDITOR_REMOVE_VOLUME, EDITOR_ROTATE_VOLUME, MENU_BACK_VOLUME, MENU_FOCUS_VOLUME,
-        MENU_SELECT_VOLUME, MUTE_ENV, NOVA_OS_BACK_VOLUME, NOVA_OS_BED_VOLUME, NOVA_OS_COIL_VOLUME,
-        NOVA_OS_ENTER_VOLUME, NOVA_OS_ERROR_VOLUME, NOVA_OS_KEY_MIN_INTERVAL, NOVA_OS_KEY_VOLUME,
-        NOVA_OS_OK_VOLUME, NOVA_OS_POWER_VOLUME, NOVA_OS_TICK_VOLUME, OBJECTIVE_FAIL_VOLUME,
-        UI_SFX_FILES, UI_TICK_VOLUME, UI_TOGGLE_VOLUME,
+        sounds_loaded, ClipLoudness, HarnessMute, InterfaceVolume, MasterVolume, NovaSoundPlugin,
+        PlaySound, SfxAudioMarker, SfxListenerMarker, SoundAt, SoundBank, SoundBus,
+        SoundCategoryType, SoundFreeze, SoundListenerAnchor, SoundLoop, SoundLoudness,
+        SoundSystems, SoundVoice, UiSfx, VoiceGroup, VoiceMix, VoicePlace, WorldVolume, MUTE_ENV,
+        UI_SFX_FILES,
     };
 }
 
 pub use self::{
-    bus::{slider_gain, AudioRoute, InterfaceVolume, Mixer, WorldVolume, SLIDER_FLOOR_DB},
+    bus::{slider_gain, InterfaceVolume, Mixer, WorldVolume, SLIDER_FLOOR_DB},
     category::{db_to_gain, SoundBus, SoundCategory, SoundCategoryType},
     listener::{resolve_hearing, Hearing, SoundListenerAnchor},
     loudness::{
@@ -123,18 +114,17 @@ pub use self::{
         SFX_AUDIBLE_THRESHOLD,
     },
     play::{
-        place_one_shot, sound_root, PlaySound, SoundAt, SoundGroupBoundary, SoundLoop,
-        SoundRefusal, SoundRepeat, SoundVoice, VoiceGroup, VoicePlace,
+        place_one_shot, sound_root, PlaySound, SfxAudioMarker, SoundAt, SoundGroupBoundary,
+        SoundLoop, SoundRefusal, SoundRepeat, SoundVoice, VoiceGroup, VoicePlace,
     },
     registry::{sounds_loaded, SoundBank},
-    sfx::{PlaySfx, SfxAudioMarker, SfxCommandsExt, SfxPlugin},
     spatial::{
         emitter_point, listener_ears, local_bearing, pan_compensation, pan_gains, SPATIAL_EAR_GAP,
         SPATIAL_EMITTER_RADIUS,
     },
     voice::{
-        pause_world_voices, resume_world_voices, stop_world_voices, SfxVoice, SoundFreeze,
-        VoiceMarker, VoiceMix, MAX_EFFECT_LOOP_VOICES,
+        pause_world_voices, resume_world_voices, stop_world_voices, SoundFreeze, VoiceMarker,
+        VoiceMix, MAX_EFFECT_LOOP_VOICES,
     },
 };
 use self::{
@@ -244,73 +234,6 @@ pub const UI_SFX_FILES: [(UiSfx, &str); 24] = [
     (UiSfx::NovaOsBed, "nova_bed"),
 ];
 
-/// Volume for the button click cue. Non-positional and
-/// in the informational-tick band, like the ship's own cue volumes over in
-/// `nova_ship`'s `ship_audio`.
-pub const MENU_SELECT_VOLUME: f32 = 0.28;
-/// Volume for the [`UiSfx::UiToggle`] blip, fired from `nova_menu` and
-/// `nova_interface`.
-pub const UI_TOGGLE_VOLUME: f32 = 0.24;
-/// Volume for the panel-pop cue. Set to land on `MENU_SELECT_VOLUME`'s
-/// A-weighted level (about -39.6 dBA at unity master), not to match its linear
-/// factor: the two cues are a matched pair and have to read as one gesture in
-/// two directions, which is a LOUDNESS match.
-pub const MENU_BACK_VOLUME: f32 = 0.28;
-/// Volume for the focus-move cue. About 10 dB under the click, because this is
-/// the cue a pad user fires on every stick flick: at click level a menu sweep
-/// is a machine gun.
-pub const MENU_FOCUS_VOLUME: f32 = 0.20;
-/// Volume for the slider detent, in the same band as [`MENU_FOCUS_VOLUME`] and
-/// for the same reason - a dragged slider fires it many times a second.
-pub const UI_TICK_VOLUME: f32 = 0.14;
-/// Volume for the defeat cue. Matched to `OBJECTIVE_COMPLETE_VOLUME`'s measured
-/// level: the pair is a mirror, so a loss must be exactly as present as a win.
-pub const OBJECTIVE_FAIL_VOLUME: f32 = 0.53;
-/// Editor cue volumes. The editor is a workspace a player sits in for a long
-/// time, so the set is placed a band under the menus rather than at their
-/// level, and the two cues that fire on every gesture (rotate, and the deny
-/// that answers a dragged illegal ghost) are the quietest of the four.
-///
-/// A part seating - the heaviest cue the interface has, at click level.
-pub const EDITOR_PLACE_VOLUME: f32 = 0.47;
-/// A part lifting out, about 2 dB under the seat so the pair reads as a
-/// direction.
-pub const EDITOR_REMOVE_VOLUME: f32 = 0.21;
-/// One rotation detent.
-pub const EDITOR_ROTATE_VOLUME: f32 = 0.18;
-/// A refused placement.
-pub const EDITOR_DENY_VOLUME: f32 = 0.32;
-/// NOVA OS terminal cue volumes. The `nova_*.wav` files are peak-normalized to
-/// -3 dBFS, so these linear factors are what place each cue in the
-/// informational-tick band. Typing is the quietest and is throttled
-/// ([`NOVA_OS_KEY_MIN_INTERVAL`]) so a held key cannot machine-gun; the coil
-/// and power sweeps are the loudest "moment" cues. `pub` because the cues are
-/// fired from `nova_interface`, keeping every cue volume defined in this crate.
-/// One keystroke.
-pub const NOVA_OS_KEY_VOLUME: f32 = 0.10;
-/// Backspace / delete.
-pub const NOVA_OS_BACK_VOLUME: f32 = 0.12;
-/// Submitting a command line.
-pub const NOVA_OS_ENTER_VOLUME: f32 = 0.18;
-/// A command that succeeded.
-pub const NOVA_OS_OK_VOLUME: f32 = 0.20;
-/// A command that failed.
-pub const NOVA_OS_ERROR_VOLUME: f32 = 0.22;
-/// A knob detent or selection step.
-pub const NOVA_OS_TICK_VOLUME: f32 = 0.12;
-/// The degauss coil on a real app exit.
-pub const NOVA_OS_COIL_VOLUME: f32 = 0.26;
-/// The power-up / power-down sweep.
-pub const NOVA_OS_POWER_VOLUME: f32 = 0.30;
-/// Base volume of the ambient bed loop, before
-/// [`MasterVolume`]. The bed WAV is
-/// authored quiet (~-35 dBFS), so this sits it as a soft under-hum.
-pub const NOVA_OS_BED_VOLUME: f32 = 0.7;
-/// Minimum real seconds between successive typing clicks, so OS key-repeat on a
-/// held key does not spawn a storm of click one-shots (applied inline with a
-/// `Local`, since this is one global stream).
-pub const NOVA_OS_KEY_MIN_INTERVAL: f32 = 0.03;
-
 /// The audio engine: the buses, the mixer, and the one playback path every
 /// sound in the game goes through.
 ///
@@ -337,11 +260,6 @@ impl Plugin for NovaSoundPlugin {
     fn build(&self, app: &mut App) {
         trace!("NovaSoundPlugin: build");
 
-        // One-shot cues (PlaySfx -> SfxVoice).
-        if !app.is_plugin_added::<SfxPlugin>() {
-            app.add_plugins(SfxPlugin);
-        }
-
         app.init_resource::<MasterVolume>();
         // Unmuted until the app says otherwise: `nova_gameplay`'s settings
         // plugin resolves the harness mute from the environment, and the game
@@ -356,6 +274,7 @@ impl Plugin for NovaSoundPlugin {
         app.register_type::<InterfaceVolume>();
         app.register_type::<WorldVolume>();
         app.register_type::<SfxListenerMarker>();
+        app.register_type::<SfxAudioMarker>();
         app.register_type::<SoundListenerAnchor>();
         app.register_type::<SoundGroupBoundary>();
 

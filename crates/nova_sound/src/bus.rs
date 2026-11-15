@@ -31,26 +31,6 @@ pub fn slider_gain(setting: f32) -> f32 {
     }
 }
 
-/// The route of a legacy caller-levelled voice. Only the interface is left on
-/// it: the interface producers still pass their own volume through
-/// [`PlaySfx`](super::PlaySfx) and [`SfxVoice`](super::SfxVoice), and move to
-/// [`PlaySound`](super::PlaySound) with the rest of the interface.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
-pub enum AudioRoute {
-    /// UI chrome, on [`SoundBus::Ui`]. Non-positional.
-    #[default]
-    Interface,
-}
-
-impl AudioRoute {
-    /// The track this route is scaled by.
-    pub fn bus(self) -> SoundBus {
-        match self {
-            Self::Interface => SoundBus::Ui,
-        }
-    }
-}
-
 /// The Interface slider setting, `0.0..=1.0`. Scales [`SoundBus::Ui`].
 #[derive(Resource, Clone, Copy, PartialEq, Debug, Reflect)]
 #[reflect(Resource)]

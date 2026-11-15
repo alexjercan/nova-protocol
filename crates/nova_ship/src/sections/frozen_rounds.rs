@@ -151,7 +151,7 @@ mod tests {
     /// ship_audio crate's own `PlayedSfx`/`LastPlayed` are `pub(super)` to
     /// `ship_audio` and unreachable from here.
     #[derive(Resource, Default)]
-    struct PlaySfxCount(u32);
+    struct PlaySoundCount(u32);
 
     /// A ship + turret rig driven by the REAL production chain: the full
     /// `TurretSectionPlugin` (render on, so the real `on_projectile_marker_effect`
@@ -194,8 +194,8 @@ mod tests {
         app.init_resource::<crate::sections::torpedo_section::PlayerTorpedoEta>();
         app.add_plugins(ShipAudioPlugin);
 
-        app.init_resource::<PlaySfxCount>();
-        app.add_observer(|_: On<PlaySound>, mut count: ResMut<PlaySfxCount>| count.0 += 1);
+        app.init_resource::<PlaySoundCount>();
+        app.add_observer(|_: On<PlaySound>, mut count: ResMut<PlaySoundCount>| count.0 += 1);
         app
     }
 
@@ -323,7 +323,7 @@ mod tests {
              reads as completed until on_projectile_marker_effect calls reset())"
         );
         assert_eq!(
-            app.world().resource::<PlaySfxCount>().0,
+            app.world().resource::<PlaySoundCount>().0,
             1,
             "a real fire with an authored fire_sound must play exactly one sound"
         );
@@ -391,7 +391,7 @@ mod tests {
              RoundFired, so on_projectile_marker_effect never runs for it"
         );
         assert_eq!(
-            app.world().resource::<PlaySfxCount>().0,
+            app.world().resource::<PlaySoundCount>().0,
             1,
             "thaw_round must not play a fire sound: on_turret_fire_play_sfx \
              never runs for it either"
@@ -475,7 +475,7 @@ mod tests {
             "a real launch must reset the spawner's launch-burst effect"
         );
         assert_eq!(
-            app.world().resource::<PlaySfxCount>().0,
+            app.world().resource::<PlaySoundCount>().0,
             2,
             "a real launch with an authored launch_sound must play exactly \
              one more sound, on top of the turret's own one above"
@@ -551,7 +551,7 @@ mod tests {
              runs for it"
         );
         assert_eq!(
-            app.world().resource::<PlaySfxCount>().0,
+            app.world().resource::<PlaySoundCount>().0,
             2,
             "thaw_torpedo must not play a launch sound: \
              on_torpedo_launch_play_sfx never runs for it either"

@@ -5,8 +5,7 @@
 //! `the_engine_is_the_only_place_an_audio_player_is_built`, which reads every
 //! Rust source in the workspace. A category sound is a [`SoundVoice`] the
 //! engine spawns from a [`PlaySound`](super::PlaySound) or a
-//! [`SoundLoop`](super::SoundLoop); a legacy caller-levelled interface
-//! sound is an [`SfxVoice`].
+//! [`SoundLoop`](super::SoundLoop).
 //!
 //! What the engine owns, so no caller re-implements it: the file's loudness
 //! gain, the category level, the bus gain, the distance fade, the stereo
@@ -25,7 +24,7 @@ use bevy::{
 use nova_events::prelude::Meters;
 
 use super::{
-    bus::{AudioRoute, Mixer},
+    bus::Mixer,
     category::SoundBus,
     listener::{resolve_hearing, Hearing, SoundListenerAnchor},
     loudness::SoundLoudness,
@@ -53,74 +52,10 @@ pub const MAX_EFFECT_LOOP_VOICES: usize = 8;
 /// chattering.
 const VOICE_CAP_HYSTERESIS: f32 = 1.15;
 
-/// Marks every engine voice, of either kind. Required by [`SfxVoice`] and
-/// [`SoundVoice`], so the passes can keep their pose reads off the voices
-/// they move.
+/// Marks every engine voice. Required by [`SoundVoice`], so the passes can
+/// keep their pose reads off the voices they move.
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct VoiceMarker;
-
-/// One legacy interface sound the engine is playing: what it is, which track
-/// scales it and how loud its owner wants it. It is heard flat.
-///
-/// Spawn one to start a sound. For a loop, keep the entity and write
-/// [`volume`](Self::volume) each frame; the engine reads it and does the rest.
-/// For a one-shot, prefer [`PlaySfx`](super::PlaySfx), which spawns and retires
-/// the voice for you.
-#[derive(Component, Clone, Debug)]
-#[require(VoiceMarker)]
-pub struct SfxVoice {
-    /// The sound to play.
-    pub handle: Handle<AudioSource>,
-    /// Which track scales it.
-    pub route: AudioRoute,
-    /// The owner's linear level, before the bus gain.
-    pub volume: f32,
-    /// Playback speed, which also shifts pitch (1.0 is normal).
-    ///
-    /// LIVE, like the volume: `drive_sfx_voices` pushes it to the sink every
-    /// frame.
-    pub speed: f32,
-    /// Whether the clip repeats forever. A one-shot retires itself; a loop
-    /// plays until its owner despawns the entity.
-    pub looping: bool,
-}
-
-impl SfxVoice {
-    /// A one-shot on `route`, at full level and normal speed.
-    pub fn one_shot(handle: Handle<AudioSource>, route: AudioRoute) -> Self {
-        Self {
-            handle,
-            route,
-            volume: 1.0,
-            speed: 1.0,
-            looping: false,
-        }
-    }
-
-    /// A loop on `route`, starting silent. Raise [`volume`](Self::volume) to
-    /// bring it in.
-    pub fn looping(handle: Handle<AudioSource>, route: AudioRoute) -> Self {
-        Self {
-            handle,
-            route,
-            volume: 0.0,
-            speed: 1.0,
-            looping: true,
-        }
-    }
-
-    /// Set the owner's linear level.
-    pub fn with_volume(mut self, volume: f32) -> Self {
-        self.volume = volume;
-        self
-    }
-
-    /// Set the playback speed (and pitch).
-    pub fn with_speed(mut self, speed: f32) -> Self {
-        self.speed = speed;
-        self
-    }
-}
 
 /// What a voice's place resolves to this frame.
 enum VoicePoint {
@@ -266,7 +201,7 @@ fn voice_player(
     )
 }
 
-/// One voice, of either kind, as the passes see it.
+/// One voice as the passes see it.
 struct VoiceView<'a> {
     handle: &'a Handle<AudioSource>,
     looping: bool,
@@ -277,24 +212,15 @@ struct VoiceView<'a> {
 }
 
 impl<'a> VoiceView<'a> {
-    fn of(legacy: Option<&'a SfxVoice>, sound: Option<&'a SoundVoice>) -> Option<Self> {
-        if let Some(voice) = sound {
-            let effect = voice.category.bus() == SoundBus::Effect;
-            return Some(Self {
-                handle: &voice.sound,
-                looping: voice.looping,
-                speed: voice.rate,
-                spatial: effect,
-                world: effect,
-            });
-        }
-        legacy.map(|voice| Self {
-            handle: &voice.handle,
+    fn of(voice: &'a SoundVoice) -> Self {
+        let effect = voice.category.bus() == SoundBus::Effect;
+        Self {
+            handle: &voice.sound,
             looping: voice.looping,
-            speed: voice.speed,
-            spatial: false,
-            world: false,
-        })
+            speed: voice.rate,
+            spatial: effect,
+            world: effect,
+        }
     }
 }
 
@@ -311,30 +237,23 @@ fn hearing(q_ears: &EarsQuery, q_anchor: &AnchorQuery) -> Option<Hearing> {
     resolve_hearing(q_ears.iter().next(), q_anchor.iter().next())
 }
 
-/// Mix one voice of either kind. `None` for a category voice whose clip is
-/// not measured yet: it waits for its loudness gain.
+/// Mix one voice. `None` while its clip is not measured yet: it waits for
+/// its loudness gain.
 fn place(
-    legacy: Option<&SfxVoice>,
-    sound: Option<&SoundVoice>,
+    voice: &SoundVoice,
     mixer: &Mixer,
     loudness: Option<&SoundLoudness>,
     hearing: Option<&Hearing>,
     q_pose: &PoseQuery,
 ) -> Option<VoicePlacement> {
-    if let Some(voice) = sound {
-        let clip = loudness?.get(&voice.sound)?;
-        let point = match voice.place {
-            VoicePlace::Ui => VoicePoint::Unplaced,
-            VoicePlace::At(point) => VoicePoint::At(point),
-            VoicePlace::Follow(entity) => follow(entity, q_pose),
-        };
-        let bus_gain = mixer.bus_gain(voice.category.bus());
-        return Some(place_sound(voice, clip.gain(), bus_gain, hearing, &point));
-    }
-    let voice = legacy?;
-    Some(VoicePlacement::flat(
-        voice.volume.max(0.0) * mixer.bus_gain(voice.route.bus()),
-    ))
+    let clip = loudness?.get(&voice.sound)?;
+    let point = match voice.place {
+        VoicePlace::Ui => VoicePoint::Unplaced,
+        VoicePlace::At(point) => VoicePoint::At(point),
+        VoicePlace::Follow(entity) => follow(entity, q_pose),
+    };
+    let bus_gain = mixer.bus_gain(voice.category.bus());
+    Some(place_sound(voice, clip.gain(), bus_gain, hearing, &point))
 }
 
 fn follow(entity: Entity, q_pose: &PoseQuery) -> VoicePoint {
@@ -381,28 +300,21 @@ pub(super) fn start_sfx_voices(
     mut commands: Commands,
     mixer: Mixer,
     loudness: Option<Res<SoundLoudness>>,
-    time: Res<Time<Real>>,
-    q_new: Query<
-        (Entity, Option<&SfxVoice>, Option<&SoundVoice>),
-        (With<VoiceMarker>, Without<AudioPlayer>),
-    >,
+    q_new: Query<(Entity, &SoundVoice), Without<AudioPlayer>>,
     q_ears: EarsQuery,
     q_anchor: AnchorQuery,
     q_pose: PoseQuery,
 ) {
     let hearing = hearing(&q_ears, &q_anchor);
-    for (entity, legacy, sound) in &q_new {
-        let Some(view) = VoiceView::of(legacy, sound) else {
-            continue;
-        };
-        if sound.is_some() && view.world && !view.looping && hearing.is_none() {
+    for (entity, voice) in &q_new {
+        let view = VoiceView::of(voice);
+        if view.world && !view.looping && hearing.is_none() {
             debug!("nova audio: dropped a world one-shot: no listener");
             commands.entity(entity).try_despawn();
             continue;
         }
         let Some(placement) = place(
-            legacy,
-            sound,
+            voice,
             &mixer,
             loudness.as_deref(),
             hearing.as_ref(),
@@ -414,8 +326,7 @@ pub(super) fn start_sfx_voices(
             commands.entity(entity).try_despawn();
             continue;
         }
-        let mut voice_entity = commands.entity(entity);
-        voice_entity.try_insert((
+        commands.entity(entity).try_insert((
             voice_player(
                 view.handle,
                 view.looping,
@@ -425,9 +336,6 @@ pub(super) fn start_sfx_voices(
             ),
             GlobalTransform::from_translation(placement.emitter.unwrap_or_default()),
         ));
-        if !view.looping && legacy.is_some() {
-            voice_entity.try_insert(AwaitingSink(time.elapsed()));
-        }
     }
 }
 
@@ -484,8 +392,7 @@ pub(super) fn drive_sfx_voices(
     mut q_voices: Query<
         (
             Entity,
-            Option<&SfxVoice>,
-            Option<&SoundVoice>,
+            &SoundVoice,
             &mut GlobalTransform,
             Option<&mut AudioSink>,
             Option<&mut SpatialAudioSink>,
@@ -502,10 +409,9 @@ pub(super) fn drive_sfx_voices(
     // A loop its owner has turned down to nothing holds its sink instead of
     // mixing silence, and takes no slot under the cap.
     let mut silenced = HashSet::new();
-    for (entity, legacy, sound, ..) in &q_voices {
+    for (entity, voice, ..) in &q_voices {
         let Some(placement) = place(
-            legacy,
-            sound,
+            voice,
             &mixer,
             loudness.as_deref(),
             hearing.as_ref(),
@@ -513,26 +419,20 @@ pub(super) fn drive_sfx_voices(
         ) else {
             continue;
         };
-        let Some(view) = VoiceView::of(legacy, sound) else {
-            continue;
-        };
+        let view = VoiceView::of(voice);
         if view.looping && placement.level < SFX_AUDIBLE_THRESHOLD {
             silenced.insert(entity);
         } else if view.looping && view.spatial {
-            let priority = sound.map_or(0, |voice| voice.category.spec().priority);
-            let rank = LoopRank {
-                priority,
-                level: placement.level,
-                entity,
-            };
-            match sound {
-                Some(voice) => grouped
-                    .entry((voice.sound.id(), voice.group))
-                    .or_insert_with(|| (voice.category.spec().max_voices, Vec::new()))
-                    .1
-                    .push(rank),
-                None => loose.push(rank),
-            }
+            let spec = voice.category.spec();
+            grouped
+                .entry((voice.sound.id(), voice.group))
+                .or_insert_with(|| (spec.max_voices, Vec::new()))
+                .1
+                .push(LoopRank {
+                    priority: spec.priority,
+                    level: placement.level,
+                    entity,
+                });
         }
         placements.insert(entity, placement);
     }
@@ -563,13 +463,11 @@ pub(super) fn drive_sfx_voices(
     let frozen = freeze.is_some_and(|freeze| freeze.0);
     let master = mixer.master_gain();
 
-    for (entity, legacy, sound, mut pose, sink, spatial_sink, voice_mix) in &mut q_voices {
+    for (entity, voice, mut pose, sink, spatial_sink, voice_mix) in &mut q_voices {
         let Some(placement) = placements.get(&entity) else {
             continue;
         };
-        let Some(view) = VoiceView::of(legacy, sound) else {
-            continue;
-        };
+        let view = VoiceView::of(voice);
         let capped = silenced.contains(&entity);
         // Rodio does not accept a non-positive playback rate, and the owner of
         // a loop writes this field every frame.
@@ -677,12 +575,10 @@ type WorldSinkQuery<'w, 's> = Query<
     'w,
     's,
     (
-        Option<&'static SfxVoice>,
-        Option<&'static SoundVoice>,
+        &'static SoundVoice,
         Option<&'static AudioSink>,
         Option<&'static SpatialAudioSink>,
     ),
-    With<VoiceMarker>,
 >;
 
 /// Freeze the WORLD voices while the sim is frozen (the pause overlay or the
@@ -693,8 +589,8 @@ type WorldSinkQuery<'w, 's> = Query<
 /// the interface is what the player is looking at while the world is stopped.
 pub fn pause_world_voices(mut freeze: ResMut<SoundFreeze>, q_voices: WorldSinkQuery) {
     freeze.set_if_neq(SoundFreeze(true));
-    for (legacy, sound, sink, spatial_sink) in &q_voices {
-        if !VoiceView::of(legacy, sound).is_some_and(|view| view.world) {
+    for (voice, sink, spatial_sink) in &q_voices {
+        if !VoiceView::of(voice).world {
             continue;
         }
         if let Some(sink) = sink {
@@ -709,8 +605,8 @@ pub fn pause_world_voices(mut freeze: ResMut<SoundFreeze>, q_voices: WorldSinkQu
 /// Unfreeze what [`pause_world_voices`] stopped.
 pub fn resume_world_voices(mut freeze: ResMut<SoundFreeze>, q_voices: WorldSinkQuery) {
     freeze.set_if_neq(SoundFreeze(false));
-    for (legacy, sound, sink, spatial_sink) in &q_voices {
-        if !VoiceView::of(legacy, sound).is_some_and(|view| view.world) {
+    for (voice, sink, spatial_sink) in &q_voices {
+        if !VoiceView::of(voice).world {
             continue;
         }
         if let Some(sink) = sink {
@@ -733,11 +629,11 @@ pub fn resume_world_voices(mut freeze: ResMut<SoundFreeze>, q_voices: WorldSinkQ
 /// down with it.
 pub fn stop_world_voices(
     mut commands: Commands,
-    q_voices: Query<(Entity, Option<&SfxVoice>, Option<&SoundVoice>), With<VoiceMarker>>,
+    q_voices: Query<(Entity, &SoundVoice)>,
     mut q_loops: Query<&mut SoundLoop>,
 ) {
-    for (entity, legacy, sound) in &q_voices {
-        if VoiceView::of(legacy, sound).is_some_and(|view| view.world) {
+    for (entity, voice) in &q_voices {
+        if VoiceView::of(voice).world {
             // try_despawn: this runs on the way out of a scenario, which is
             // exactly when the scoped sweep is despawning the same voices.
             commands.entity(entity).try_despawn();
@@ -779,24 +675,6 @@ mod tests {
         let placement = place_sound(&voice, 1.0, 1.0, Some(&listener), &VoicePoint::Lost);
         assert_eq!(placement.level, 0.0);
         assert_eq!(placement.gain, 0.0);
-    }
-
-    #[test]
-    fn a_legacy_interface_voice_is_heard_flat_at_its_level_times_the_bus() {
-        let voice = SfxVoice::one_shot(Handle::default(), AudioRoute::Interface).with_volume(0.8);
-        let mut app = App::new();
-        app.insert_resource(crate::InterfaceVolume(1.0));
-        app.add_systems(Update, start_sfx_voices);
-        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
-        app.init_asset::<AudioSource>();
-        let entity = app.world_mut().spawn(voice).id();
-        app.update();
-        let player = app
-            .world()
-            .get::<PlaybackSettings>(entity)
-            .expect("an audible interface cue opens a player");
-        assert!(!player.spatial, "an interface cue is never placed");
-        assert_eq!(player.volume, Volume::Linear(0.8));
     }
 
     fn loops(levels: impl IntoIterator<Item = f32>) -> Vec<LoopRank> {
@@ -1022,7 +900,10 @@ mod tests {
         let world = app.world_mut().spawn(drive_loop(Vec3::X, IVec3::ZERO)).id();
         let interface = app
             .world_mut()
-            .spawn(SfxVoice::looping(Handle::default(), AudioRoute::Interface).with_volume(1.0))
+            .spawn(SoundVoice {
+                looping: true,
+                ..sound_voice(SoundCategoryType::TerminalBed, VoicePlace::Ui)
+            })
             .id();
 
         app.update();
@@ -1196,7 +1077,7 @@ mod tests {
         let voice = app
             .world_mut()
             .spawn((
-                SfxVoice::one_shot(Handle::default(), AudioRoute::Interface),
+                sound_voice(SoundCategoryType::UiClick, VoicePlace::Ui),
                 AwaitingSink(Duration::ZERO),
             ))
             .id();
@@ -1251,9 +1132,10 @@ mod tests {
             });
         });
         app.add_systems(Update, (tear_down_every_voice, start_sfx_voices).chain());
+        app.insert_resource(measured());
         let voice = app
             .world_mut()
-            .spawn(SfxVoice::one_shot(Handle::default(), AudioRoute::Interface))
+            .spawn(sound_voice(SoundCategoryType::UiClick, VoicePlace::Ui))
             .id();
 
         app.update();
@@ -1345,18 +1227,28 @@ mod tests {
             .resource_mut::<Time<Real>>()
             .advance_by(ONE_SHOT_SINK_GRACE);
 
-        // One voice per retiring path. The first is silent, so the start pass
-        // drops it instead of opening a player; the second has been waiting
+        // One voice per retiring path. The first is silent under a muted
+        // Interface slider, so the start pass drops it instead of opening a
+        // player; the second's clip is never measured, so it has been waiting
         // out its grace with no sink; the third is a world loop, which is what
         // the end of a scenario silences.
+        app.insert_resource(measured());
+        app.insert_resource(crate::InterfaceVolume(0.0));
+        let unmeasured = app
+            .world_mut()
+            .resource_mut::<Assets<AudioSource>>()
+            .reserve_handle();
         let inaudible = app
             .world_mut()
-            .spawn(SfxVoice::one_shot(Handle::default(), AudioRoute::Interface).with_volume(0.0))
+            .spawn(sound_voice(SoundCategoryType::UiClick, VoicePlace::Ui))
             .id();
         let stranded = app
             .world_mut()
             .spawn((
-                SfxVoice::one_shot(Handle::default(), AudioRoute::Interface),
+                SoundVoice {
+                    sound: unmeasured,
+                    ..sound_voice(SoundCategoryType::UiClick, VoicePlace::Ui)
+                },
                 AwaitingSink(Duration::ZERO),
             ))
             .id();
@@ -1383,7 +1275,10 @@ mod tests {
     /// The convention the whole module exists to enforce: no random sound
     /// spawns in game code. `AudioPlayer` is bevy's playback component, so
     /// building one anywhere else is a voice the engine does not know about -
-    /// unrouted, unattenuated, unpannable, and deaf to every setting.
+    /// unrouted, unattenuated, unpannable, and deaf to every setting. A
+    /// [`SoundVoice`] built outside this crate skips the repeat interval and
+    /// the voice count [`PlaySound`](super::PlaySound) and
+    /// [`SoundLoop`](super::SoundLoop) hold.
     ///
     /// A source scan is the honest way to pin this: the rule is about WHERE
     /// code is written, which no type system in this repo can express.
@@ -1396,6 +1291,7 @@ mod tests {
                 if path.ends_with(THE_ONE_PLACE) {
                     return;
                 }
+                let in_engine = path.to_string_lossy().contains(THE_ENGINE);
                 let Ok(source) = std::fs::read_to_string(path) else {
                     return;
                 };
@@ -1404,8 +1300,10 @@ mod tests {
                     // the constructor on purpose.
                     let code = line.split("//").next().unwrap_or_default();
                     // Both ways bevy lets you build one - the tuple struct and
-                    // the convenience constructor.
-                    if code.contains("AudioPlayer(") || code.contains("AudioPlayer::new") {
+                    // the convenience constructor - and the engine's own voice.
+                    let player = code.contains("AudioPlayer(") || code.contains("AudioPlayer::new");
+                    let voice = !in_engine && code.contains("SoundVoice {");
+                    if player || voice {
                         offenders.push(format!("{}:{}", path.display(), line_number + 1));
                     }
                 }
@@ -1414,7 +1312,7 @@ mod tests {
         assert!(
             offenders.is_empty(),
             "audio must go through the engine, not straight to bevy. \
-             Trigger PlaySound or add a SoundLoop instead of building an AudioPlayer at:\n  {}",
+             Trigger PlaySound or add a SoundLoop instead of building a voice at:\n  {}",
             offenders.join("\n  ")
         );
     }
@@ -1422,6 +1320,9 @@ mod tests {
     /// The one file allowed to name bevy's playback component, as a path
     /// suffix so the check reads the same from any checkout.
     const THE_ONE_PLACE: &str = "nova_sound/src/voice.rs";
+
+    /// The crate that may build a [`SoundVoice`]: the engine's front door.
+    const THE_ENGINE: &str = "nova_sound/src/";
 
     /// Every hand-written Rust root in the workspace. `examples/` matters as
     /// much as `crates/`: a playable example that spawns its own player is the

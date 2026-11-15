@@ -22,9 +22,19 @@ use bevy::prelude::*;
 use super::{
     category::{SoundBus, SoundCategoryType},
     mixing::{area_cell, CueThrottle},
-    sfx::SfxAudioMarker,
     voice::{AwaitingSink, VoiceMarker},
 };
+
+/// Marks the voice entity behind one [`PlaySound`] one-shot.
+///
+/// Exists for owners OUTSIDE this crate: the entity's own despawn rides its
+/// audio sink (`PlaybackMode::Despawn`), which plays on the wall clock and is
+/// never created without an output device, so nothing else can recognize a clip
+/// that outlived whoever asked for it. nova_scenario scopes on this marker so a
+/// one-shot spawned by a live scenario dies with the teardown instead of
+/// playing into the next scenario.
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct SfxAudioMarker;
 
 /// Where a one-shot happens.
 #[derive(Clone, Copy, PartialEq, Debug, Reflect)]
