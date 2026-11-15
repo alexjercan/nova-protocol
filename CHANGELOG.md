@@ -15,6 +15,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-15
+
 ### Gameplay & Flight
 
 - Stations that offer Refine turn 2 iron ore, 1 carbon ore and a 30 cr fee into an alloy plate from the Inventory pane. The waystation refines; generated stations do from advancement 0.25.
@@ -35,12 +37,6 @@ does NOT get an entry. Another page that states a different rule is wrong.
 ### Scenarios & Objectives
 
 - Station Control now speaks in the open world: it sends you back to hand in your first finished job, pays a 50 cr bonus on your first delivery and tells you when a contract is lost.
-
-### Interface & HUD
-
-- Crossing into another sector of a generated world now posts `SECTOR (x, y, z)` on the HUD notice, with `- FIRST VISIT` for a sector your chart had not recorded. A New Game or a Load posts nothing.
-- A canister take prints a pickup tick above the key row, one `+<COUNT> <ITEM>` line per stack for 1.5 s (three at most), and the intake blinks warm. Another hull's take shows nothing.
-- The flight key row now shows only the chips that apply: INTERFACE, DRIVE, STOP, RCS and RADAR always; GOTO, ORBIT, CANCEL, DOCK, HELM, MINE, AIM, FIRE, TORPEDO and RAILGUN as they apply.
 
 ### Modding & Mod Portal
 
@@ -63,6 +59,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** A player `input_mapping` source the flight or camera rig holds is now a lint error, not a warning. A thruster on Space or RB and a torpedo bay on LB are shared defaults and pass.
 - The editor now binds a new torpedo bay to LB and a railgun to View on a gamepad, in place of LT (raise weapons) and R3 (interface), and a ship's first mining beam to RT as well as `V`.
 - **(breaking)** `PlaySound` drops `route` and `volume`. It takes a sound `category` and `at`: `Ui`, or `Body("<id>")` with `$id` or `$other_id`. Lint refuses a category that cannot play there.
+
+### Interface & HUD
+
+- Crossing into another sector of a generated world now posts `SECTOR (x, y, z)` on the HUD notice, with `- FIRST VISIT` for a sector your chart had not recorded. A New Game or a Load posts nothing.
+- A canister take prints a pickup tick above the key row, one `+<COUNT> <ITEM>` line per stack for 1.5 s (three at most), and the intake blinks warm. Another hull's take shows nothing.
+- The flight key row now shows only the chips that apply: INTERFACE, DRIVE, STOP, RCS and RADAR always; GOTO, ORBIT, CANCEL, DOCK, HELM, MINE, AIM, FIRE, TORPEDO and RAILGUN as they apply.
 
 ### Audio & Visuals
 
@@ -3536,7 +3538,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - Editor and simulation scenes.
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.17.0...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/alexjercan/nova-protocol/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/alexjercan/nova-protocol/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/alexjercan/nova-protocol/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/alexjercan/nova-protocol/compare/v0.14.0...v0.15.0

@@ -10,7 +10,7 @@ on the web.
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag">Screenshot</span>
         <span class="figure__placeholder-name">assets/wiki-settings.png</span>
-        <span class="figure__placeholder-note">The Settings modal open over the main menu on its Audio tab: the tab bar, the four volume sliders and the Back button.</span>
+        <span class="figure__placeholder-note">The Settings modal open over the main menu on its Audio tab: the tab bar, the three volume sliders and the Back button.</span>
     </div>
     <figcaption class="figure__caption">One Settings modal, reachable from the main menu and the pause menu.</figcaption>
 </figure>

@@ -113,7 +113,7 @@ const NEWS_POSTS = [
     {
         slug: "0.18.0",
         version: "v0.18.0",
-        date: "2026-11-13",
+        date: "2026-11-15",
         description:
             "Nova Protocol v0.18.0: stations that refine ore, second-tier sections, supply jobs, contraband and lawful stations, a contextual key row, gamepad docking, an audible docking clamp, and scenario job events and actions.",
     },
