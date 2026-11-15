@@ -170,10 +170,12 @@ impl SoundCategoryType {
     /// had before equalization, then moved the machinery down past the guns.
     /// The RCS hiss shares the guns' reference distance and sits 4 dB under
     /// them at every range, with a narrow loop range, so a light push still
-    /// reads at escort range (300 m).
+    /// reads at escort range (300 m). A torpedo's launch and ignition sit
+    /// under the drive hum that follows them and over the guns, so the start
+    /// does not jump out ahead of the flight.
     ///
     /// The interface sits under the loud half of the world: a click is heard
-    /// at about the level of a nearby gun, never over a launch or the drive.
+    /// at the level of a nearby gun, never over a launch or the drive.
     /// Objective cues are the loudest interface rows because they must read
     /// in a fight; the tick is the quietest because it fires in streams.
     pub const fn spec(self) -> SoundCategory {
@@ -183,8 +185,8 @@ impl SoundCategoryType {
             Self::Collapse => row(Effect, -1.0, 600.0, 10_000.0, 2, 0.10, 0, None),
             Self::Explosion => row(Effect, -3.0, 400.0, 8_000.0, 4, 0.06, 0, None),
             Self::HeavyWeapon => row(Effect, -1.0, 400.0, 8_000.0, 2, 0.0, 0, None),
-            Self::Launch => row(Effect, -5.0, 250.0, 5_000.0, 2, 0.10, 0, None),
-            Self::Ignition => row(Effect, -8.0, 250.0, 5_000.0, 2, 0.10, 0, None),
+            Self::Launch => row(Effect, -9.0, 250.0, 5_000.0, 2, 0.10, 0, None),
+            Self::Ignition => row(Effect, -12.0, 250.0, 5_000.0, 2, 0.10, 0, None),
             Self::Weapon => row(Effect, -14.0, 200.0, 3_000.0, 6, 0.05, 0, None),
             Self::Impact => row(Effect, -13.0, 150.0, 2_500.0, 4, 0.04, 0, None),
             Self::HeavyImpact => row(Effect, -8.0, 250.0, 5_000.0, 2, 0.0, 0, None),
@@ -200,7 +202,7 @@ impl SoundCategoryType {
             Self::Alarm => row(Ui, -5.0, 0.0, 0.0, 1, 0.0, 0, None),
             Self::Cockpit => row(Ui, -6.0, 0.0, 0.0, 1, 0.0, 0, None),
             Self::CockpitTick => row(Ui, -12.0, 0.0, 0.0, 1, 0.0, 0, None),
-            Self::UiClick => row(Ui, -8.0, 0.0, 0.0, 1, 0.0, 0, None),
+            Self::UiClick => row(Ui, -14.0, 0.0, 0.0, 1, 0.0, 0, None),
             Self::UiTick => row(Ui, -15.0, 0.0, 0.0, 1, 0.03, 0, None),
             Self::UiConfirm => row(Ui, -9.0, 0.0, 0.0, 1, 0.0, 0, None),
             Self::UiError => row(Ui, -9.0, 0.0, 0.0, 1, 0.0, 0, None),
