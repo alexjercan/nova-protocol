@@ -93,9 +93,6 @@ import {
     seededDraws,
     segmentClearance,
     SFX_AUDIBLE_THRESHOLD,
-    SFX_FAR_DISTANCE,
-    SFX_NEAR_DISTANCE,
-    SFX_ROLLOFF_FLOOR,
     SHARD_EMITTERS,
     soundAtEars,
     soundCueUrl,
@@ -583,8 +580,8 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     const RAILGUN =
         "crates/nova_authoring/src/base_content/sections/railgun.rs";
     const FLIGHT = "crates/nova_ship/src/flight/state.rs";
-    const MIXING = "crates/nova_gameplay/src/audio/mixing.rs";
-    const SPATIAL = "crates/nova_gameplay/src/audio/spatial.rs";
+    const MIXING = "crates/nova_sound/src/mixing.rs";
+    const SPATIAL = "crates/nova_sound/src/spatial.rs";
     const SPEW = "crates/nova_gameplay/src/integrity/spew.rs";
     const CHUNK = "crates/nova_gameplay/src/integrity/chunk.rs";
     const WFC_PLAN = "crates/nova_wfc/src/plan.rs";
@@ -627,19 +624,10 @@ console.log("widgets: the corridor scope reproduces the stand bank");
         "FlightSettings::rcs_accel is still authored as 5 G"
     );
 
-    // The mixing and pan laws, both in world units.
-    assert.equal(
-        SFX_NEAR_DISTANCE,
-        rustNumber(MIXING, /const SFX_NEAR_DISTANCE: f32 = ([0-9.]+);/)
-    );
-    assert.equal(
-        SFX_FAR_DISTANCE,
-        rustNumber(MIXING, /const SFX_FAR_DISTANCE: f32 = ([0-9.]+);/)
-    );
-    assert.equal(
-        SFX_ROLLOFF_FLOOR,
-        rustNumber(MIXING, /const SFX_ROLLOFF_FLOOR: f32 = ([0-9.]+);/)
-    );
+    // The mixing and pan laws, both in world units. The sound map keeps the
+    // v0.13.0 rolloff band (near, far, floor) its post documents; the game
+    // replaced it with the category table, so those three have no live
+    // source (`git show v0.13.0:crates/nova_gameplay/src/audio/mixing.rs`).
     assert.equal(
         SFX_AUDIBLE_THRESHOLD,
         rustNumber(MIXING, /const SFX_AUDIBLE_THRESHOLD: f32 = ([0-9.]+);/)
