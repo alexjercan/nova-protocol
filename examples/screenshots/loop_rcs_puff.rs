@@ -34,7 +34,9 @@ mod kit;
 
 use bevy::prelude::*;
 use clap::Parser;
-use nova_protocol::{nova_sound::SFX_AUDIBLE_THRESHOLD, prelude::*};
+#[cfg(feature = "debug")]
+use nova_protocol::nova_sound::SFX_AUDIBLE_THRESHOLD;
+use nova_protocol::prelude::*;
 
 #[derive(Parser)]
 #[command(name = "loop_rcs_puff")]
