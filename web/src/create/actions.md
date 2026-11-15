@@ -562,8 +562,8 @@ played where it happens. This is the other kind: the cue a scene needs and
 nothing in the world produces.
 
 ```ron
-PlaySound((sound: "self://sounds/warn_lock.wav", route: Interface)),
-PlaySound((sound: "self://sounds/warn_hull.wav", route: Hull)),
+PlaySound((sound: "self://sounds/warn_lock.wav", category: Alarm, at: Ui)),
+PlaySound((sound: "self://sounds/hatch.wav", category: Machinery, at: Body("$id"))),
 ```
 
 <details class="explain">
@@ -572,18 +572,20 @@ PlaySound((sound: "self://sounds/warn_hull.wav", route: Hull)),
 | field | type | default | meaning |
 |---|---|---|---|
 | `sound` | asset ref | required | the clip, resolved like any other content sound ref |
-| `route` | `Interface` \| `Hull` | required | where it is heard |
-| `volume` | `Option` number | `None` | gain of an `Interface` cue; omitted is full volume, `Some(0.4)` sits a cue UNDER a comms line |
+| `category` | sound category | required | what kind of sound it is; its row sets the level and the reach |
+| `at` | `Ui` \| `Body(id)` | required | where it plays; `Body` takes a scenario object id, `$id` or `$other_id` |
 
-`Interface` is UI chrome - a prompt, a stinger, a chapter tone - heard flat and
-scaled by the Interface slider. `Hull` plays in the world at the player's own
-ship as a machinery sound, scaled by the Effects slider; the engine sets its
-level, so `volume` does not apply to it, and with no player ship the cue is
-dropped with a warning. The route is authored because those are different cues
-and neither is the safe guess.
+The action has no volume. Every clip is evened out to one loudness when it
+loads, and the category's row sets its level. See
+[How sounds play](../sections/#how-sounds-play).
 
-A beat has no position to give a sound. Author a sound that happens somewhere
-else on the object that makes it.
+An interface category plays at `Ui`, heard flat: `UiClick`, `UiTick`,
+`UiConfirm`, `UiError`, `Notice`, `Objective`, `Comms`, `Alarm`, `Cockpit`,
+`CockpitTick`, `Editor`, `Preview`. A world category plays at a `Body`, in the
+world at that body: `Explosion`, `Impact`, `Machinery`, `Pickup` and the other
+one-shot rows. A world category at `Ui`, an interface category at a `Body`, or
+a loop category such as `Drive` is a lint error, and the scenario does not
+load. A `Body` that no live body wears is refused with `unknown_body`.
 
 </details>
 

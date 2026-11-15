@@ -298,13 +298,7 @@ Asset fields use namespaced strings:
 Never use a bare path. Most mesh, sound, and effect fields are optional. Omit
 them for the built-in visual or silent audio behavior described below.
 
-A sound field names the file only. The engine measures each file's loudness as
-it loads and sets the level, reach and repeat rate from the kind of sound the
-field is: a gun report, a door, a drive hum. Every section sound plays in the
-world at the section, on your own ship too, and fades with its distance from
-the player's ship. The cockpit cues of the controller (lock, safety and alarm
-tones) are the exception: they play flat on the Interface slider. So a quiet
-or loud file does not make a quiet or loud cue.
+A sound field names the file only. See [How sounds play](#how-sounds-play).
 
 Hull, thruster, controller, and torpedo sections can move their render mesh
 without moving the collider:
@@ -327,6 +321,23 @@ occupies - set the collider and its sockets to match if you want them to agree.
 Resizing a whole ASSEMBLY (a turret's joint tree) takes both halves: scale every
 joint's mesh AND every joint offset by the same factor, or the parts stay spaced
 for the size they used to be.
+
+### How sounds play
+
+No sound field or action takes a volume. Three things set what the player
+hears:
+
+- **Loudness.** The engine measures each file as it loads and evens it out to
+  one loudness. A quiet or loud file does not make a quiet or loud cue.
+- **Category.** Each sound is one kind of sound: a gun report, a door, a drive
+  hum, a click. The kind sets the level, the reach, the voice count and the
+  repeat rate. A section field has a fixed kind. A scenario `PlaySound` names
+  its kind in `category`.
+- **Track.** A world sound plays at the section or body that makes it, on your
+  own ship too, and fades with its distance from the player's ship. The
+  Effects slider scales it. An interface sound plays flat and the Interface
+  slider scales it: the controller's lock, safety and alarm tones, the menus,
+  the HUD notices and the terminal. Interface sounds sit under the world.
 
 ### Animation tracks
 

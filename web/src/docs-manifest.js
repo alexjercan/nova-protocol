@@ -631,6 +631,7 @@ const CREATE_PAGES = [
             "Common fields",
             "Structural link points",
             "Assets and visual transforms",
+            "How sounds play",
             "Hull",
             "Thruster",
             "Controller",
