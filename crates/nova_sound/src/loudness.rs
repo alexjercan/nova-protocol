@@ -186,7 +186,7 @@ struct KWeighting {
 impl KWeighting {
     fn new(rate: f64) -> Self {
         let shelf = {
-            let f0 = 1681.974_450_955_533;
+            let f0 = 1_681.974_450_955_533;
             let gain_db = 3.999_843_853_973_347;
             let q = 0.707_175_236_955_419_6;
             let k = (std::f64::consts::PI * f0 / rate).tan();
