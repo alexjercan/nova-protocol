@@ -445,7 +445,7 @@ mod tests {
     }
 
     /// Hit `target` at `at` and flush - the observer plays via `Commands`, so
-    /// the queued `PlaySfx` triggers only fire on the next flush.
+    /// the queued `PlaySound` triggers only fire on the next flush.
     fn strike(app: &mut App, target: Entity, kind: DamageType, at: Vec3) {
         strike_from(app, target, None, kind, at);
     }
