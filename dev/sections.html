@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-e28e0c87.js";
+            window.path_to_searchindex_js = "searchindex-3244a3e6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -371,8 +371,9 @@ anything) puts the part away, and the footer names <code>Q/Esc Put away</code>.
 the full recipe). The new section’s binding is <code>added_section_binds</code>: the
 first live bound section of its class by id lends its binding; with none, a
 weapon takes an empty binding for Rebind, a thruster none (it fires on the
-Main Drive), and a mining emitter the first of <code>ADDED_MINING_KEYS</code> no emitter
-holds, refused when all are held. Its id is <code>added_section_id</code>: the greatest
+Main Drive), and a mining emitter its <code>section_default_bindings</code>: the first of
+<code>MINING_KEYS</code> no emitter holds (the ship’s first emitter the pad trigger too),
+refused when all are held. Its id is <code>added_section_id</code>: the greatest
 id of its class plus <code>+</code>, so it sorts last and takes the next code without
 moving another. A confirmed add moves parts and credits (cause <code>Add</code>), pushes
 <code>ShipInventoryReport::Added</code> (<code>OnAdded</code>), and triggers <code>SectionAddRequest</code>;
@@ -578,9 +579,10 @@ moves no credit and reports no buy. <code>swap_parked_hull</code>
 (<code>nova_scenario/src/objects/station_hulls.rs</code>) keeps the player’s ship root,
 so the HUD, the camera and the scenario id keep their owner: it freezes both
 hulls, rebuilds the root as the parked hull (<code>rehull_ship</code>) at its pose with
-the start-role bindings for the new hull (<code>start_role_bindings</code>: turrets the
-trigger, railguns R, torpedoes F, the first emitter V and each later one the
-next <code>ADDED_MINING_KEYS</code> key; no old binding carries over), and parks the old
+the start-role bindings for the new hull (<code>start_role_bindings</code>, each
+section’s <code>section_default_bindings</code>: turrets LMB and RT, railguns R and View,
+torpedoes F and LB, the first emitter V and RT and each later one the next
+<code>MINING_KEYS</code> key; no old binding carries over), and parks the old
 ship where it stood as <code>Owned</code> with <code>OwnedShipMarker</code>.
 The old ship keeps its hold; the Inventory pane lists the hold of a docked
 <code>OwnedShipMarker</code> ship as storage. <code>OwnedShipMarker</code> (<code>nova_gameplay</code>) is
@@ -974,8 +976,8 @@ without the hulls touching.</p>
 read by the DOCK chip and by the request. A ship target refuses with
 <code>DockRefusalType::Combat</code> while Hostile, Enemy, answering fire or fighting
 (a neutralized target admits). A station target (<code>StationMarker</code>) answers by
-<code>station_admission(allegiance, derelict, occupied, owned, hostile)</code>, in that
-order: <code>StationOccupied</code> while every live port on its root is held (a held
+<code>station_admission(allegiance, derelict, occupied, owned, hostile)</code>, in
+that order: <code>StationOccupied</code> while every live port on its root is held (a held
 port is no candidate in the port search; this names the reason so the HUD
 can say it); admitted for a station the player owns (<code>OwnedStationMarker</code>)
 or a derelict, on any side; <code>EnemyStation</code> for a living station on the Enemy
@@ -983,7 +985,12 @@ side (a generated station’s side is its civilization’s effective stance to
 the player, written every frame by <code>nova_world_base</code>’s
 <code>sync_civilization_sides</code>); <code>HostileStation</code> for a living station the ship
 is hostile to by <code>ship_relation</code> (a Player station and an Enemy-flagged
-ship, or a station answering the ship’s fire); and admitted otherwise.
+ship, or a station answering the ship’s fire); and admitted otherwise. No
+station reads the hold of the ship that asks: a lawful station
+(<code>LawfulStationMarker</code>) admits a ship that carries contraband, and its
+market refuses the item (see <code>market_deals_in</code> in <code>nova_gameplay</code>).
+<code>DockAdmission::turns_away</code> is the two refusals that waiting for a port
+does not change: the chart ring and a failed AI Dock order read it.
 <code>FlightVerbHints::dock_refusal</code> carries a station’s line (<code>&lt;NAME&gt; REFUSES DOCKING</code>, <code>&lt;NAME&gt; DOCK OCCUPIED</code>) while the travel lock is on it; the HUD
 posts it once as a notice (<code>hud_notice</code>), not on the mode chip, and the DOCK
 chip draws dim. A ship’s refusal stays the dark chip.</p>
@@ -1499,7 +1506,7 @@ indistinguishable from one that came apart badly.</p>
 <p>What the frame SOUNDS and FEELS like is grouped the same way, by the STRUCTURE
 rather than by the place. An impact or a destruction cue - the explosion, the
 surface hit, the camera kick and the spark burst - is throttled on its
-<code>CueGroup</code> (<code>nova_gameplay::audio::mixing</code>), which is the nearest <code>RigidBody</code> at
+<code>CueGroup</code> (<code>nova_sound::mixing</code>), which is the nearest <code>RigidBody</code> at
 or above the entity the event named: a section, a plate, a health node and an
 asteroid’s collider node all hang under one. A severed fragment, a rock and a
 torpedo each resolve to their own body, so each is its own event, and only a cue
@@ -2041,8 +2048,8 @@ strip block and the timer: <code>crates/nova_interface/src/inventory/strip/</cod
 <code>crates/nova_gameplay/src/integrity/explode.rs</code>; the fireball over it,
 <code>SECTION_PYRE</code>, <code>HULK_PYRE</code>, <code>frame_cap</code>, <code>warm_the_pyres</code> -
 <code>crates/nova_gameplay/src/integrity/pyre.rs</code>; what it sounds and feels like,
-<code>CueGroup</code>, <code>cue_body</code>, <code>body_middle</code> -
-<code>crates/nova_gameplay/src/audio/mixing.rs</code>.</li>
+<code>CueGroup</code> - <code>crates/nova_sound/src/mixing.rs</code>, and <code>cue_body</code>,
+<code>body_middle</code> - <code>crates/nova_gameplay/src/bounds.rs</code>.</li>
 <li>Authored damage looks: <code>DamageEffect</code>, <code>fit_damage_effects</code> -
 <code>crates/nova_ship/src/sections/damage_effects.rs</code>, with one module per look in
 <code>damage_cracks.rs</code>, <code>damage_sparks.rs</code> and <code>damage_plume.rs</code>.</li>

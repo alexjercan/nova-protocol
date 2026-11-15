@@ -8,7 +8,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Ship sections for mods</p><h1>Ship sections for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#the-section-item">The Section item</a><ol><li><a href="#common-fields">Common fields</a></li><li><a href="#build-recipe">Build recipe</a></li><li><a href="#stats-that-content-lint-checks">Stats that content lint checks</a></li><li><a href="#damage-effects">Damage effects</a></li><li><a href="#structural-link-points">Structural link points</a></li><li><a href="#assets-and-visual-transforms">Assets and visual transforms</a></li><li><a href="#animation-tracks">Animation tracks</a></li></ol></li><li><a href="#hull">Hull</a><ol></ol></li><li><a href="#thruster">Thruster</a><ol></ol></li><li><a href="#controller">Controller</a><ol><li><a href="#what-a-hull-does-with-the-torque">What a hull does with the torque</a></li></ol></li><li><a href="#turret">Turret</a><ol></ol></li><li><a href="#torpedo">Torpedo</a><ol><li><a href="#the-fuze-is-not-a-bay-field">The fuze is not a bay field</a></li></ol></li><li><a href="#railgun">Railgun</a><ol></ol></li><li><a href="#docking">Docking</a><ol></ol></li><li><a href="#cargo-intake">Cargo intake</a><ol></ol></li><li><a href="#mining">Mining</a><ol></ol></li><li><a href="#a-section-in-a-mod">A section in a mod</a><ol></ol></li></ol></nav><p>A <code>Section</code> is a reusable ship part defined in a mod's <code>*.content.ron</code> file.
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Ship sections for mods</p><h1>Ship sections for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#the-section-item">The Section item</a><ol><li><a href="#common-fields">Common fields</a></li><li><a href="#build-recipe">Build recipe</a></li><li><a href="#stats-that-content-lint-checks">Stats that content lint checks</a></li><li><a href="#damage-effects">Damage effects</a></li><li><a href="#structural-link-points">Structural link points</a></li><li><a href="#assets-and-visual-transforms">Assets and visual transforms</a></li><li><a href="#how-sounds-play">How sounds play</a></li><li><a href="#animation-tracks">Animation tracks</a></li></ol></li><li><a href="#hull">Hull</a><ol></ol></li><li><a href="#thruster">Thruster</a><ol></ol></li><li><a href="#controller">Controller</a><ol><li><a href="#what-a-hull-does-with-the-torque">What a hull does with the torque</a></li></ol></li><li><a href="#turret">Turret</a><ol></ol></li><li><a href="#torpedo">Torpedo</a><ol><li><a href="#the-fuze-is-not-a-bay-field">The fuze is not a bay field</a></li></ol></li><li><a href="#railgun">Railgun</a><ol></ol></li><li><a href="#docking">Docking</a><ol></ol></li><li><a href="#cargo-intake">Cargo intake</a><ol></ol></li><li><a href="#mining">Mining</a><ol></ol></li><li><a href="#a-section-in-a-mod">A section in a mod</a><ol></ol></li></ol></nav><p>A <code>Section</code> is a reusable ship part defined in a mod's <code>*.content.ron</code> file.
 Create a new id to add a part to the editor palette, or reuse a base id to
 replace that part everywhere. The nine available kinds are <code>Hull</code>, <code>Thruster</code>,
 <code>Controller</code>, <code>Turret</code>, <code>Torpedo</code>, <code>Railgun</code>, <code>Docking</code>, <code>CargoIntake</code>, and
@@ -282,7 +282,7 @@ section in a ship design is checked the same way.</p>
 <td>0.5</td>
 </tr>
 <tr>
-<td>torpedo bay</td>
+<td>Serpent and Lance torpedo bay</td>
 <td>150</td>
 <td>1 TorpedoTube, 1 ActuatorPack, 4 SectionPanel, 1 FrameSpar</td>
 <td>0.5</td>
@@ -314,6 +314,10 @@ section in a ship design is checked the same way.</p>
 </tbody>
 </table>
 </div>
+<p>A second-tier section costs its base row plus one <code>AlloyPlate</code>, at 1.5 times
+the credits and the same <code>strip_yield</code>: the armoured controller (150), the
+heavy lance (450), the wide-gate docking port (120), the wide intake (90), the
+long mining beam (150) and the Dart torpedo bay (225).</p>
 <h3 id="stats-that-content-lint-checks" tabindex="-1">Stats that content lint checks</h3>
 <p><code>content lint</code> checks each mod's full section catalog: base, every mod it
 depends on, and the mod itself. It rejects a section whose <code>health</code>, collider
@@ -447,6 +451,7 @@ suitors, or when the part would sit inside a section it does not mate with.</p>
 </ul>
 <p>Never use a bare path. Most mesh, sound, and effect fields are optional. Omit
 them for the built-in visual or silent audio behavior described below.</p>
+<p>A sound field names the file only. See <a href="#how-sounds-play">How sounds play</a>.</p>
 <p>Hull, thruster, controller, and torpedo sections can move their render mesh
 without moving the collider:</p>
 <pre><code class="hljs language-ron"><span class="ron-key">render_mesh_transform</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span>
@@ -464,6 +469,22 @@ occupies - set the collider and its sockets to match if you want them to agree.
 Resizing a whole ASSEMBLY (a turret's joint tree) takes both halves: scale every
 joint's mesh AND every joint offset by the same factor, or the parts stay spaced
 for the size they used to be.</p>
+<h3 id="how-sounds-play" tabindex="-1">How sounds play</h3>
+<p>No sound field or action takes a volume. Three things set what the player
+hears:</p>
+<ul>
+<li><strong>Loudness.</strong> The engine measures each file as it loads and evens it out to
+one loudness. A quiet or loud file does not make a quiet or loud cue.</li>
+<li><strong>Category.</strong> Each sound is one kind of sound: a gun report, a door, a drive
+hum, a click. The kind sets the level, the reach, the voice count and the
+repeat rate. A section field has a fixed kind. A scenario <code>PlaySound</code> names
+its kind in <code>category</code>.</li>
+<li><strong>Track.</strong> A world sound plays at the section or body that makes it, on your
+own ship too, and fades with its distance from the player's ship. The
+Effects slider scales it. An interface sound plays flat and the Interface
+slider scales it: the controller's lock, safety and alarm tones, the menus,
+the HUD notices and the terminal. Interface sounds sit under the world.</li>
+</ul>
 <h3 id="animation-tracks" tabindex="-1">Animation tracks</h3>
 <p><code>base.animations</code> is what makes a section's art MOVE. It is a list of TRACKS,
 and one track binds a gameplay CUE to a set of named nodes and says what their
@@ -635,9 +656,10 @@ prototypes when balancing.</li>
 <li><code>render_mesh</code> (optional) - custom mesh; omit for the default thruster body.</li>
 <li><code>render_mesh_transform</code> (optional) - visual-only position, rotation and scale.</li>
 <li><code>loop_sound</code> (optional) - the engine hum this thruster contributes to
-(<code>dep://base/sounds/thruster_loop.wav</code> is the base drone); thrusters sharing
-a sound share one loop whose volume tracks the loudest ship burning it. An
-omitted sound hums nothing.</li>
+(<code>dep://base/sounds/thruster_loop.wav</code> is the base drone); one ship's
+thrusters that share a sound share one voice, held by the thruster at the
+highest throttle, and its level follows that throttle. An omitted sound hums
+nothing.</li>
 <li><code>exhaust</code> (optional) - custom flame placement and shape. <code>None</code> uses the
 standard cone. Write <code>Some((...))</code> when fitting exhaust to custom art.</li>
 </ul>
@@ -1179,23 +1201,25 @@ ordnance point defense has to chew through across the closing window.</p>
 <li>
 <p><code>torpedo_type</code> (optional, defaults to the Serpent) - <strong>what the bay loads</strong>, as
 opposed to the tube it loads into. A type is DATA, not an enum: base authors
-two (the straight-running Lance and the weaving Serpent), and a mod authors its
-own by writing the same five fields:</p>
+three (the straight-running Lance, the weaving Serpent and the Dart, a faster
+Lance), and a mod authors its own by writing the same five fields:</p>
 <ul>
-<li><code>name</code> - the ordnance's player-facing name (<code>&quot;Lance&quot;</code>, <code>&quot;Serpent&quot;</code>). It names
+<li><code>name</code> - the ordnance's player-facing name (<code>&quot;Lance&quot;</code>, <code>&quot;Serpent&quot;</code>, <code>&quot;Dart&quot;</code>). It names
 the launched projectile, so a log line or a probe snapshot says WHICH torpedo
 is in the air.</li>
 <li><code>tint</code> - the warhead's colour in flight, as
 <code>Srgba((red: .., green: .., blue: .., alpha: 1.0))</code>. Two types a player is
 meant to tell apart want different colours: it is the only difference visible
 before the flight paths have diverged.</li>
-<li><code>max_speed</code> (m/s; <code>350.0</code> on the Lance, <code>320.0</code> on the Serpent) - cruise speed
-cap. The thruster tapers off over the last <strong>15 percent</strong> of it, so every
-type gets the same run-up in its own terms and a slow one is not stranded
-inside its own taper. It decides time to target and, with
-<code>projectile_lifetime</code>, how far the ordnance can reach. <strong>This is where an
-evasive type pays for its weave</strong>, and it has to be authored: see the note
-below.</li>
+<li><code>max_speed</code> (m/s; <code>350.0</code> on the Lance, <code>320.0</code> on the Serpent, <code>450.0</code> on
+the Dart) - cruise speed cap. The thruster tapers off over the last
+<strong>15 percent</strong> of it, so every type gets the same run-up in its own terms
+and a slow one is not stranded inside its own taper. It decides time to
+target and, with <code>projectile_lifetime</code>, how far the ordnance can reach.
+<strong>This is where an evasive type pays for its weave</strong>, and it has to be
+authored: see the note below. The torpedo's drive holds about 365 m/s
+along the line against the shipped <code>linear_damping</code>, so a cap above 450
+buys almost nothing.</li>
 <li><code>weave_angle</code> (rad; <code>0.44</code>, ~25 degrees, on the Serpent) - the terminal
 weave: how far off the guidance solution an armed torpedo corkscrews. It
 PERTURBS the solution rather than replacing it and fades linearly to nothing
@@ -1204,9 +1228,11 @@ torpedo still arrives on the aim point. The band is measured off
 <code>blast_radius</code>, never off the fuze: the terminal sprint has to start out at
 point-defense range, not a unit from the hull. <code>0.0</code> flies the bare
 intercept, which is what the Lance authors.</li>
-<li><code>weave_rate</code> (rad/s; <code>1.4</code> on both shipped types) - how fast the weave spins
-about the guidance command. The lateral acceleration a defender's lead
-solution fails to predict scales with
+<li><code>weave_rate</code> (rad/s; <code>1.4</code> on the Serpent, <code>0.0</code> on the two straight types) -
+how fast the weave spins
+about the guidance command. A defender's lead solution follows the
+torpedo's acceleration, but the weave keeps turning it; the lateral
+acceleration that lead has to chase scales with
 <code>max_speed * sin(weave_angle) * weave_rate</code>, while the helix radius
 (<code>max_speed * sin(weave_angle) / weave_rate</code>) shrinks with it - keep that
 radius comfortably inside the terminal band, <code>blast_radius * 0.5</code>, or the
@@ -1219,7 +1245,7 @@ killed ~400 m out, where a Lance costs ~120 and dies ~1,150 m out. The RATE is
 the picture, not the price - the intercept cost barely moves with it, while the
 visible swing runs 240 m at 0.7 rad/s down to 60 m at 2.2.</p>
 <p>A weave does NOT pay for itself, which is why the shipped Serpent authors a
-lower <code>max_speed</code>. A corkscrew is a longer path, but only by ~1.7% as the real
+lower <code>max_speed</code>. A corkscrew is a longer path, but only by ~1.5% as the real
 body flies it, and thrust is capped on the ALONG-NOSE speed - so a torpedo
 holding its nose off its own velocity never reaches the taper band, keeps its
 engine lit, and settles FASTER than a straight one. Author a weave without
@@ -1275,6 +1301,7 @@ aims it, and tapping the trigger COMMITS the shot. One ships:
     <span class="ron-key">fire_sound</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/sounds/railgun_fire.wav&quot;</span><span class="ron-punct">),</span>
     <span class="ron-key">charge_sound</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/sounds/railgun_charge.wav&quot;</span><span class="ron-punct">),</span>
     <span class="ron-key">reload_sound</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/sounds/railgun_reload.wav&quot;</span><span class="ron-punct">),</span>
+    <span class="ron-key">impact_sound</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/sounds/railgun_impact.wav&quot;</span><span class="ron-punct">),</span>
     <span class="ron-key">ammunition</span><span class="ron-punct">:</span> <span class="ron-type">Limited</span><span class="ron-punct">(</span><span class="ron-literal">1</span><span class="ron-punct">),</span>
     <span class="ron-key">reload</span><span class="ron-punct">:</span> <span class="ron-type">Batch</span><span class="ron-punct">((</span><span class="ron-key">delay</span><span class="ron-punct">:</span> <span class="ron-literal">12.0</span><span class="ron-punct">,</span> <span class="ron-key">amount</span><span class="ron-punct">:</span> <span class="ron-literal">1</span><span class="ron-punct">)),</span>
 <span class="ron-punct">)),</span>
@@ -1348,6 +1375,10 @@ file would either end early or be cut off.</li>
 time a reload batch lands. For a one-shell railgun that IS the whole of its
 cadence: the reload is the silence, and this is the silence ending. A gun
 with a larger magazine plays it once per batch, not only when full.</li>
+<li><code>impact_sound</code> (optional) - the slug landing, played once where it met the
+first body in its line, in place of the impact table's Pierce row. Omit it
+and the hit keeps the table's voice; every hit has one. An empty path is a
+lint error.</li>
 <li><code>ammunition</code> - shells carried: <code>Limited(n)</code>, or <code>Unlimited</code> (the default
 every weapon section shares).</li>
 <li><code>reload</code> - the same <code>Disabled</code> / <code>Batch((delay, amount))</code> a turret and a bay
@@ -1382,6 +1413,8 @@ and on both flanks of the line warship; build a hull with one in the editor, or 
 modded craft.</p>
 <pre><code class="hljs language-ron"><span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Docking</span><span class="ron-punct">((</span>
     <span class="ron-key">render_mesh</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/gltf/dock_flush.glb#Scene0&quot;</span><span class="ron-punct">),</span>
+    <span class="ron-key">clamp_sound</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/sounds/dock_clamp.wav&quot;</span><span class="ron-punct">),</span>
+    <span class="ron-key">release_sound</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/sounds/dock_release.wav&quot;</span><span class="ron-punct">),</span>
     <span class="ron-key">capture_distance</span><span class="ron-punct">:</span> <span class="ron-literal">10.0</span><span class="ron-punct">,</span>
     <span class="ron-key">capture_angle</span><span class="ron-punct">:</span> <span class="ron-literal">15.0</span><span class="ron-punct">,</span>
     <span class="ron-key">maximum_relative_speed</span><span class="ron-punct">:</span> <span class="ron-literal">5.0</span><span class="ron-punct">,</span>
@@ -1392,6 +1425,16 @@ modded craft.</p>
 <li><code>render_mesh</code>, <code>render_mesh_transform</code> (both optional) - the port mesh and a
 visual-only transform for it. Omit the mesh and the port draws as a unit
 cuboid, and still docks.</li>
+<li><code>clamp_sound</code> (optional) - the clamp closing
+(<code>dep://base/sounds/dock_clamp.wav</code> is the base latch), played once per
+capture at the port of the hull that pressed <code>DOCK</code>, the instant the joint
+holds. A dock a Load or a sector thaw rebuilds plays nothing. Omit for a
+silent clamp.</li>
+<li><code>release_sound</code> (optional) - the clamp letting go
+(<code>dep://base/sounds/dock_release.wav</code> is the base one), played once at the
+port of the hull that asked: <code>DOCK</code> again, or an AI release. A dock a
+destroyed port or a lost hull takes apart plays nothing. Omit for a silent
+release. Either sound set to an empty path fails lint.</li>
 <li><code>capture_distance</code> (meters) - the widest FACE GAP a dock is offered at,
 measured between the two ports' retracted outer faces and not between their
 section origins. The shipped 10.0 is one build cell.</li>
@@ -1438,9 +1481,10 @@ dock with a line on the HUD, unless the player owns it.</p>
 section's local <code>-Z</code> face. The door opens for a nearby canister that fits the
 hold, the intake takes one, at any speed, into the ship's
 <a href="../objects/#inventory">inventory</a>, and the Inventory pane's Jettison drops
-canisters out through it. One ships: <code>cargo_intake_section</code>, a 3x2x1 box on
+canisters out through it. Two ship: <code>cargo_intake_section</code>, a 3x2x1 box on
 the top deck of the mining tug, the salvage hauler and the line warship, door
-up.</p>
+up, and <code>wide_intake_section</code>, the same box with a 60 m door zone and a
+28 x 18 m opening that swaps for it at a shipyard.</p>
 <pre><code class="hljs language-ron"><span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">CargoIntake</span><span class="ron-punct">((</span>
     <span class="ron-key">render_mesh</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/gltf/intake_accordion_3x2x1.glb#Scene0&quot;</span><span class="ron-punct">,</span>
     <span class="ron-key">canister_mesh</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/gltf/cargo_canister_cuboid.glb#Scene0&quot;</span><span class="ron-punct">,</span>
@@ -1499,9 +1543,10 @@ on the <code>-Z</code> face: that face is the door.</p>
 <!-- Grammar verified against crates/nova_ship/src/sections/cargo_intake_section.rs (config, trigger, run_cargo_intakes) and crates/nova_scenario/src/lint/ship.rs check_cargo_intake_config. Values from assets/base/sections/base.content.ron cargo_intake_section. -->
 <h2 id="mining" tabindex="-1">Mining</h2>
 <p><code>MiningSectionConfig</code> - a mining emitter: a beam out of the section's local
-<code>-Z</code> face that cuts ore from the nearest asteroid it meets within reach, without a travel lock. One ships:
+<code>-Z</code> face that cuts ore from the nearest asteroid it meets within reach, without a travel lock. Two ship:
 <code>mining_beam_section</code>, a 1x1x1 emitter at the tip of the mining tug's bow
-boom.</p>
+boom, and <code>long_mining_beam_section</code>, the same emitter reaching 160 m every
+0.8 s that swaps for it at a shipyard.</p>
 <pre><code class="hljs language-ron"><span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Mining</span><span class="ron-punct">((</span>
     <span class="ron-key">render_mesh</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/gltf/mining_beam_compact.glb#Scene0&quot;</span><span class="ron-punct">,</span>
     <span class="ron-key">pulse_sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/mining_pulse.wav&quot;</span><span class="ron-punct">,</span>

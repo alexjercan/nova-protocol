@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Actions - Nova Protocol Creator Docs</title><meta name="description" content="All 55 actions a scenario handler can run, grouped by spawning, mission, sound, pacing, flow, ship state, helm orders, forced fire, AI constraints, timers, and camera."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Actions - Nova Protocol Creator Docs</title><meta name="description" content="All 60 actions a scenario handler can run, grouped by spawning, mission, sound, pacing, flow, ship state, helm orders, forced fire, AI constraints, timers, and camera."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
@@ -8,10 +8,10 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Actions</p><h1>Actions</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#spawning-the-world">Spawning &amp; the world</a><ol><li><a href="#spawnscenarioobject">SpawnScenarioObject</a></li><li><a href="#spawnstartrole">SpawnStartRole</a></li><li><a href="#scatterobjects">ScatterObjects</a></li><li><a href="#despawnscenarioobject">DespawnScenarioObject</a></li><li><a href="#createscenarioarea">CreateScenarioArea</a></li></ol></li><li><a href="#mission-story">Mission &amp; story</a><ol><li><a href="#objective">Objective</a></li><li><a href="#objectivecomplete">ObjectiveComplete</a></li><li><a href="#objectivemarkerattach">ObjectiveMarkerAttach</a></li><li><a href="#objectivemarkerdetach">ObjectiveMarkerDetach</a></li><li><a href="#narrativecue">NarrativeCue</a></li><li><a href="#hudreadout">HudReadout</a></li><li><a href="#objectivechiphold">ObjectiveChipHold</a></li><li><a href="#hintemphasisset">HintEmphasisSet</a></li><li><a href="#hintemphasisclear">HintEmphasisClear</a></li></ol></li><li><a href="#sound">Sound</a><ol><li><a href="#playsound">PlaySound</a></li></ol></li><li><a href="#pacing">Pacing</a><ol><li><a href="#sequence">Sequence</a></li><li><a href="#cinematic">Cinematic</a></li><li><a href="#cancelcinematic">CancelCinematic</a></li><li><a href="#cinematictitle">CinematicTitle</a></li></ol></li><li><a href="#flow-outcomes-transitions">Flow: outcomes &amp; transitions</a><ol><li><a href="#outcome">Outcome</a></li><li><a href="#nextscenario">NextScenario</a></li><li><a href="#backdropdone">BackdropDone</a></li></ol></li><li><a href="#ship-state">Ship state</a><ol><li><a href="#ship-capabilities">Ship capabilities</a></li><li><a href="#setallegiance">SetAllegiance</a></li><li><a href="#helm-orders">Helm orders</a></li><li><a href="#moveshipto">MoveShipTo</a></li><li><a href="#forcealign">ForceAlign</a></li><li><a href="#stopship">StopShip</a></li><li><a href="#patrolship">PatrolShip</a></li><li><a href="#orbitship">OrbitShip</a></li><li><a href="#clearshiporder">ClearShipOrder</a></li><li><a href="#zeroshipmotion">ZeroShipMotion</a></li><li><a href="#forced-fire">Forced fire</a></li><li><a href="#forcerailgunfire">ForceRailgunFire</a></li><li><a href="#forcetorpedofire">ForceTorpedoFire</a></li><li><a href="#setinfiniteammo">SetInfiniteAmmo</a></li><li><a href="#refillammo">RefillAmmo</a></li><li><a href="#ai-constraints">AI constraints</a></li><li><a href="#setaileash">SetAILeash</a></li><li><a href="#setaiengagerange">SetAIEngageRange</a></li><li><a href="#setaipointdefenserange">SetAIPointDefenseRange</a></li><li><a href="#settradeprofile">SetTradeProfile</a></li></ol></li><li><a href="#variables-timers-debugging">Variables, timers &amp; debugging</a><ol><li><a href="#timerstart">TimerStart</a></li><li><a href="#timercancel">TimerCancel</a></li><li><a href="#variableset">VariableSet</a></li><li><a href="#debugmessage">DebugMessage</a></li></ol></li><li><a href="#camera-photo-mode">Camera &amp; photo mode</a><ol><li><a href="#setcamera">SetCamera</a></li><li><a href="#setcameraanchor">SetCameraAnchor</a></li><li><a href="#releasecamera">ReleaseCamera</a></li><li><a href="#suspendplayercontrol">SuspendPlayerControl</a></li><li><a href="#resumeplayercontrol">ResumePlayerControl</a></li><li><a href="#screenshot">Screenshot</a></li><li><a href="#setskybox">SetSkybox</a></li></ol></li></ol></nav><p>Everything a handler can DO. Actions run in authored order once every filter
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Actions</p><h1>Actions</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#spawning-the-world">Spawning &amp; the world</a><ol><li><a href="#spawnscenarioobject">SpawnScenarioObject</a></li><li><a href="#spawnstartrole">SpawnStartRole</a></li><li><a href="#scatterobjects">ScatterObjects</a></li><li><a href="#despawnscenarioobject">DespawnScenarioObject</a></li><li><a href="#createscenarioarea">CreateScenarioArea</a></li></ol></li><li><a href="#mission-story">Mission &amp; story</a><ol><li><a href="#objective">Objective</a></li><li><a href="#objectivecomplete">ObjectiveComplete</a></li><li><a href="#objectivemarkerattach">ObjectiveMarkerAttach</a></li><li><a href="#objectivemarkerdetach">ObjectiveMarkerDetach</a></li><li><a href="#narrativecue">NarrativeCue</a></li><li><a href="#hudreadout">HudReadout</a></li><li><a href="#objectivechiphold">ObjectiveChipHold</a></li><li><a href="#hintemphasisset">HintEmphasisSet</a></li><li><a href="#hintemphasisclear">HintEmphasisClear</a></li></ol></li><li><a href="#sound">Sound</a><ol><li><a href="#playsound">PlaySound</a></li></ol></li><li><a href="#pacing">Pacing</a><ol><li><a href="#sequence">Sequence</a></li><li><a href="#cinematic">Cinematic</a></li><li><a href="#cancelcinematic">CancelCinematic</a></li><li><a href="#cinematictitle">CinematicTitle</a></li></ol></li><li><a href="#flow-outcomes-transitions">Flow: outcomes &amp; transitions</a><ol><li><a href="#outcome">Outcome</a></li><li><a href="#nextscenario">NextScenario</a></li><li><a href="#backdropdone">BackdropDone</a></li></ol></li><li><a href="#ship-state">Ship state</a><ol><li><a href="#ship-capabilities">Ship capabilities</a></li><li><a href="#setallegiance">SetAllegiance</a></li><li><a href="#helm-orders">Helm orders</a></li><li><a href="#moveshipto">MoveShipTo</a></li><li><a href="#forcealign">ForceAlign</a></li><li><a href="#stopship">StopShip</a></li><li><a href="#patrolship">PatrolShip</a></li><li><a href="#orbitship">OrbitShip</a></li><li><a href="#clearshiporder">ClearShipOrder</a></li><li><a href="#zeroshipmotion">ZeroShipMotion</a></li><li><a href="#forced-fire">Forced fire</a></li><li><a href="#forcerailgunfire">ForceRailgunFire</a></li><li><a href="#forcetorpedofire">ForceTorpedoFire</a></li><li><a href="#setinfiniteammo">SetInfiniteAmmo</a></li><li><a href="#refillammo">RefillAmmo</a></li><li><a href="#ai-constraints">AI constraints</a></li><li><a href="#setaileash">SetAILeash</a></li><li><a href="#setaiengagerange">SetAIEngageRange</a></li><li><a href="#setaipointdefenserange">SetAIPointDefenseRange</a></li><li><a href="#settradeprofile">SetTradeProfile</a></li><li><a href="#grantcredits">GrantCredits</a></li><li><a href="#giveitems">GiveItems</a></li><li><a href="#takeitems">TakeItems</a></li><li><a href="#postjob">PostJob</a></li><li><a href="#setstance">SetStance</a></li></ol></li><li><a href="#variables-timers-debugging">Variables, timers &amp; debugging</a><ol><li><a href="#timerstart">TimerStart</a></li><li><a href="#timercancel">TimerCancel</a></li><li><a href="#variableset">VariableSet</a></li><li><a href="#debugmessage">DebugMessage</a></li></ol></li><li><a href="#camera-photo-mode">Camera &amp; photo mode</a><ol><li><a href="#setcamera">SetCamera</a></li><li><a href="#setcameraanchor">SetCameraAnchor</a></li><li><a href="#releasecamera">ReleaseCamera</a></li><li><a href="#suspendplayercontrol">SuspendPlayerControl</a></li><li><a href="#resumeplayercontrol">ResumePlayerControl</a></li><li><a href="#screenshot">Screenshot</a></li><li><a href="#setskybox">SetSkybox</a></li></ol></li></ol></nav><p>Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - <code>Name((field: value, ...))</code>, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 55 at a glance:</p>
+never panics a scenario). All 60 at a glance:</p>
 <div class="table-scroll">
 <table>
 <thead>
@@ -243,6 +243,31 @@ never panics a scenario). All 55 at a glance:</p>
 <td>give a generated AI trader a trade profile for its station visits, or clear it</td>
 </tr>
 <tr>
+<td><a href="#grantcredits"><code>GrantCredits</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>grant credits to a ship or a station, or charge it</td>
+</tr>
+<tr>
+<td><a href="#giveitems"><code>GiveItems</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>put items into the hold of a ship or a station</td>
+</tr>
+<tr>
+<td><a href="#takeitems"><code>TakeItems</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>take items out of the hold of a ship or a station</td>
+</tr>
+<tr>
+<td><a href="#postjob"><code>PostJob</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>post a procurement on the job board of a generated station</td>
+</tr>
+<tr>
+<td><a href="#setstance"><code>SetStance</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>set the stance a civilization holds toward the player</td>
+</tr>
+<tr>
 <td><a href="#variableset"><code>VariableSet</code></a></td>
 <td><a href="#variables-timers-debugging">variables</a></td>
 <td>evaluate an expression and store the result in a variable</td>
@@ -386,13 +411,31 @@ object and carries its config - the seven kinds are the
 <p>The same spawn id twice in ONE handler is a lint Error; the same id across
 two handlers (an either-or fork) is a Warn.</p>
 </details>
+<p><strong>Spawn a lootable wreck.</strong> A wreck is a ship nobody flies that states
+<code>lootable: true</code>. A ship docked to it can Take its stock and its credits.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">SpawnScenarioObject</span><span class="ron-punct">((</span>
+    <span class="ron-key">base</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;wreck_1&quot;</span><span class="ron-punct">,</span> <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Gutted Freighter&quot;</span><span class="ron-punct">,</span> <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">400.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-900.0</span><span class="ron-punct">),</span> <span class="ron-key">rotation</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">1.0</span><span class="ron-punct">)),</span>
+    <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Spaceship</span><span class="ron-punct">((</span>
+        <span class="ron-key">design</span><span class="ron-punct">:</span> <span class="ron-type">Prototype</span><span class="ron-punct">(</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;freighter_derelict&quot;</span><span class="ron-punct">),</span>
+        <span class="ron-key">controller</span><span class="ron-punct">:</span> <span class="ron-type">None</span><span class="ron-punct">,</span>
+        <span class="ron-key">initial_velocity</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">),</span>
+        <span class="ron-key">allegiance</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-type">Neutral</span><span class="ron-punct">),</span>
+        <span class="ron-key">inventory</span><span class="ron-punct">:</span> <span class="ron-punct">{</span><span class="ron-string">&quot;HullPlate&quot;</span><span class="ron-punct">:</span> <span class="ron-literal">4</span><span class="ron-punct">,</span> <span class="ron-string">&quot;SalvagedParts&quot;</span><span class="ron-punct">:</span> <span class="ron-literal">2</span><span class="ron-punct">},</span>
+        <span class="ron-key">lootable</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
+        <span class="ron-key">credits</span><span class="ron-punct">:</span> <span class="ron-literal">250</span><span class="ron-punct">,</span>
+    <span class="ron-punct">)),</span>
+<span class="ron-punct">)),</span>
+</code></pre>
+<p>The fields are those of a <a href="../objects/#spaceship"><code>Spaceship</code></a> object. The
+stock must fit the hold of the design.</p>
 <h3 id="spawnstartrole" tabindex="-1">SpawnStartRole</h3>
 <p>Spawn the player's ship as the <a href="../start-roles/">start role</a> the player
 picked on New Game: the role's hull, its kit of credits and stock, and a
-Player controller. Each section of the hull is bound by its kind:
-point-defense turrets to the left mouse button and the gamepad right
-trigger, railguns to <kbd>R</kbd>, torpedo bays to <kbd>F</kbd> and mining
-beams to <kbd>V</kbd>. The ship takes the hull's design name.</p>
+Player controller. Each section of the hull is bound by its kind, keyboard
+then gamepad: point-defense turrets to the left mouse button and the right
+trigger, railguns to <kbd>R</kbd> and View, torpedo bays to <kbd>F</kbd> and
+the left bumper, the first mining beam to <kbd>V</kbd> and the right trigger
+and a second to <kbd>B</kbd>. The ship takes the hull's design name.</p>
 <pre><code class="hljs language-ron"><span class="ron-type">SpawnStartRole</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player&quot;</span><span class="ron-punct">)),</span>
 </code></pre>
 <details class="explain">
@@ -1035,8 +1078,8 @@ grants the capability (the
 intake's take ding, a hull coming apart - is authored on that object and
 played where it happens. This is the other kind: the cue a scene needs and
 nothing in the world produces.</p>
-<pre><code class="hljs language-ron"><span class="ron-type">PlaySound</span><span class="ron-punct">((</span><span class="ron-key">sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/warn_lock.wav&quot;</span><span class="ron-punct">,</span> <span class="ron-key">route</span><span class="ron-punct">:</span> <span class="ron-type">Interface</span><span class="ron-punct">)),</span>
-<span class="ron-type">PlaySound</span><span class="ron-punct">((</span><span class="ron-key">sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/warn_hull.wav&quot;</span><span class="ron-punct">,</span> <span class="ron-key">route</span><span class="ron-punct">:</span> <span class="ron-type">Hull</span><span class="ron-punct">,</span> <span class="ron-key">volume</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">0.4</span><span class="ron-punct">))),</span>
+<pre><code class="hljs language-ron"><span class="ron-type">PlaySound</span><span class="ron-punct">((</span><span class="ron-key">sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/warn_lock.wav&quot;</span><span class="ron-punct">,</span> <span class="ron-key">category</span><span class="ron-punct">:</span> <span class="ron-type">Alarm</span><span class="ron-punct">,</span> <span class="ron-key">at</span><span class="ron-punct">:</span> <span class="ron-type">Ui</span><span class="ron-punct">)),</span>
+<span class="ron-type">PlaySound</span><span class="ron-punct">((</span><span class="ron-key">sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/hatch.wav&quot;</span><span class="ron-punct">,</span> <span class="ron-key">category</span><span class="ron-punct">:</span> <span class="ron-type">Machinery</span><span class="ron-punct">,</span> <span class="ron-key">at</span><span class="ron-punct">:</span> <span class="ron-type">Body</span><span class="ron-punct">(</span><span class="ron-string">&quot;$id&quot;</span><span class="ron-punct">))),</span>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
@@ -1058,28 +1101,30 @@ nothing in the world produces.</p>
 <td>the clip, resolved like any other content sound ref</td>
 </tr>
 <tr>
-<td><code>route</code></td>
-<td><code>Interface</code> | <code>Hull</code></td>
+<td><code>category</code></td>
+<td>sound category</td>
 <td>required</td>
-<td>where it is heard</td>
+<td>what kind of sound it is; its row sets the level and the reach</td>
 </tr>
 <tr>
-<td><code>volume</code></td>
-<td><code>Option</code> number</td>
-<td><code>None</code></td>
-<td>gain; omitted is full volume, <code>Some(0.4)</code> sits a cue UNDER a comms line</td>
+<td><code>at</code></td>
+<td><code>Ui</code> | <code>Body(id)</code></td>
+<td>required</td>
+<td>where it plays; <code>Body</code> takes a scenario object id, <code>$id</code> or <code>$other_id</code></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p><code>Interface</code> is UI chrome - a prompt, a stinger, a chapter tone - scaled by the
-interface track. <code>Hull</code> is structure-borne through the player's own ship,
-something they feel rather than hear, scaled by the world track. The route is
-authored because those are different cues and neither is the safe guess.</p>
-<p>Non-positional on purpose. An exterior cue is attenuated and panned by where it
-happened, and a beat has no position to give one; a cue authored here is heard
-in the cockpit, which is where the player is. Author the positional kind on the
-object that makes it.</p>
+<p>The action has no volume. Every clip is evened out to one loudness when it
+loads, and the category's row sets its level. See
+<a href="../sections/#how-sounds-play">How sounds play</a>.</p>
+<p>An interface category plays at <code>Ui</code>, heard flat: <code>UiClick</code>, <code>UiTick</code>,
+<code>UiConfirm</code>, <code>UiError</code>, <code>Notice</code>, <code>Objective</code>, <code>Comms</code>, <code>Alarm</code>, <code>Cockpit</code>,
+<code>CockpitTick</code>, <code>Editor</code>, <code>Preview</code>. A world category plays at a <code>Body</code>, in the
+world at that body: <code>Explosion</code>, <code>Impact</code>, <code>Machinery</code>, <code>Pickup</code> and the other
+one-shot rows. A world category at <code>Ui</code>, an interface category at a <code>Body</code>, or
+a loop category such as <code>Drive</code> is a lint error, and the scenario does not
+load. A <code>Body</code> that no live body wears is refused with <code>unknown_body</code>.</p>
 </details>
 <h2 id="pacing" tabindex="-1">Pacing</h2>
 <h3 id="sequence" tabindex="-1">Sequence</h3>
@@ -2359,6 +2404,392 @@ its station visits, or take it away.</p>
 profile id or a ship that is not AI-driven fails lint. At run time a station,
 a ship without a trade market or an unknown profile is refused with an error
 in the log, and nothing changes.</p>
+</details>
+<h3 id="grantcredits" tabindex="-1">GrantCredits</h3>
+<p>Grant credits to one ship or station, or charge it.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">GrantCredits</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player&quot;</span><span class="ron-punct">,</span> <span class="ron-key">amount</span><span class="ron-punct">:</span> <span class="ron-literal">500</span><span class="ron-punct">)),</span>    <span class="ron-comment">// grant 500 cr</span>
+<span class="ron-type">GrantCredits</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player&quot;</span><span class="ron-punct">,</span> <span class="ron-key">amount</span><span class="ron-punct">:</span> <span class="ron-literal">-200</span><span class="ron-punct">)),</span>   <span class="ron-comment">// charge 200 cr</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ship</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped ship or station; the id a <code>SpawnStartRole</code> gives the player's ship works</td>
+</tr>
+<tr>
+<td><code>amount</code></td>
+<td>integer</td>
+<td>required</td>
+<td>credits to add; a negative amount charges</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The write is all or nothing. A balance stays between 0 and 4,294,967,295 cr.
+An action that cannot run moves no credits, logs an error and raises
+<a href="../events/#onactionrefused"><code>OnActionRefused</code></a> with one of these reasons:</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th><code>reason</code></th>
+<th>when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>insufficient_credits</code></td>
+<td>the charge is larger than the balance</td>
+</tr>
+<tr>
+<td><code>credit_overflow</code></td>
+<td>the grant would pass the limit of a balance</td>
+</tr>
+<tr>
+<td><code>unknown_ship</code></td>
+<td>no live ship or station carries the id</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>A write that goes through raises
+<a href="../events/#hold-events"><code>OnCreditsChanged</code></a> with <code>cause: Scenario</code>. An
+<code>amount</code> of 0, and an id the scenario gives to a body that is neither a ship
+nor a station, fail lint.</p>
+</details>
+<h3 id="giveitems" tabindex="-1">GiveItems</h3>
+<p>Put items into the hold of one ship or station.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">GiveItems</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player&quot;</span><span class="ron-punct">,</span> <span class="ron-key">item</span><span class="ron-punct">:</span> <span class="ron-string">&quot;IronOre&quot;</span><span class="ron-punct">,</span> <span class="ron-key">count</span><span class="ron-punct">:</span> <span class="ron-literal">4</span><span class="ron-punct">)),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ship</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped ship or station; the id a <code>SpawnStartRole</code> gives the player's ship works</td>
+</tr>
+<tr>
+<td><code>item</code></td>
+<td>item id</td>
+<td>required</td>
+<td>the <a href="../objects/#inventory">item</a> to add</td>
+</tr>
+<tr>
+<td><code>count</code></td>
+<td>whole number</td>
+<td>required</td>
+<td>units to add, 1 or more</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The write is all or nothing. An action that cannot run adds nothing, logs an
+error and raises <a href="../events/#onactionrefused"><code>OnActionRefused</code></a>:</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th><code>reason</code></th>
+<th>when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hold_full</code></td>
+<td>the stack weighs more than the free room in the hold</td>
+</tr>
+<tr>
+<td><code>unknown_ship</code></td>
+<td>no live ship or station carries the id</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The new stack shows in the Inventory pane. The action raises no hold event:
+<code>OnPickedUp</code> reports a canister and <code>OnTraded</code> a trade, and this is
+neither. Read the result with
+<a href="../expressions/#queries-and-watched-variables"><code>entity(&quot;id&quot;).items(&quot;Item&quot;)</code></a>. A <code>count</code>
+of 0, an item no loaded mod defines, and an id the scenario gives to a body
+that is neither a ship nor a station fail lint, then load.</p>
+</details>
+<h3 id="takeitems" tabindex="-1">TakeItems</h3>
+<p>Take items out of the hold of one ship or station. The items are gone;
+nothing drops into the world.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">TakeItems</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player&quot;</span><span class="ron-punct">,</span> <span class="ron-key">item</span><span class="ron-punct">:</span> <span class="ron-string">&quot;IronOre&quot;</span><span class="ron-punct">,</span> <span class="ron-key">count</span><span class="ron-punct">:</span> <span class="ron-literal">4</span><span class="ron-punct">)),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ship</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped ship or station; the id a <code>SpawnStartRole</code> gives the player's ship works</td>
+</tr>
+<tr>
+<td><code>item</code></td>
+<td>item id</td>
+<td>required</td>
+<td>the <a href="../objects/#inventory">item</a> to remove</td>
+</tr>
+<tr>
+<td><code>count</code></td>
+<td>whole number</td>
+<td>required</td>
+<td>units to remove, 1 or more</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The write is all or nothing: the action never takes a part of the count. An
+action that cannot run takes nothing, logs an error and raises
+<a href="../events/#onactionrefused"><code>OnActionRefused</code></a>:</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th><code>reason</code></th>
+<th>when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>short_items</code></td>
+<td>the hold carries fewer of the item than <code>count</code></td>
+</tr>
+<tr>
+<td><code>unknown_ship</code></td>
+<td>no live ship or station carries the id</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Like <a href="#giveitems"><code>GiveItems</code></a>, it raises no hold event, and the same three
+authoring faults fail lint, then load.</p>
+</details>
+<h3 id="postjob" tabindex="-1">PostJob</h3>
+<p>Post one procurement on the job board of a station of a generated world.</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnDocked</span><span class="ron-punct">,</span>
+    <span class="ron-key">once</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">PostJob</span><span class="ron-punct">((</span><span class="ron-key">station</span><span class="ron-punct">:</span> <span class="ron-string">&quot;$id&quot;</span><span class="ron-punct">,</span> <span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;ore_run&quot;</span><span class="ron-punct">,</span> <span class="ron-key">item</span><span class="ron-punct">:</span> <span class="ron-string">&quot;IronOre&quot;</span><span class="ron-punct">,</span> <span class="ron-key">count</span><span class="ron-punct">:</span> <span class="ron-literal">4</span><span class="ron-punct">,</span> <span class="ron-key">reward_cr</span><span class="ron-punct">:</span> <span class="ron-literal">250</span><span class="ron-punct">))],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>station</code></td>
+<td>binding</td>
+<td>required</td>
+<td><code>$id</code> or <code>$other_id</code>: the station that posts the job, read from the event</td>
+</tr>
+<tr>
+<td><code>key</code></td>
+<td>string</td>
+<td>required</td>
+<td>the name of the job; the job events carry it as <code>post_key</code></td>
+</tr>
+<tr>
+<td><code>item</code></td>
+<td>item id</td>
+<td>required</td>
+<td>the <a href="../objects/#inventory">item</a> the job asks for</td>
+</tr>
+<tr>
+<td><code>count</code></td>
+<td>whole number</td>
+<td>required</td>
+<td>units asked, 1 or more</td>
+</tr>
+<tr>
+<td><code>reward_cr</code></td>
+<td>whole number</td>
+<td>required</td>
+<td>credits the station pays on the hand-in, 1 or more</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>No author can write the id of a generated station, so <code>station</code> is a
+binding. <code>$id</code> is the subject of the event and <code>$other_id</code> its other party.
+Under <a href="../events/#docking-lifecycle"><code>OnDocked</code></a> <code>$id</code> is the station the
+player docked with.</p>
+<p>The job shows on the station's board in the Jobs pane beside the jobs the
+board drew. The player brings the items and hands the job in at the same
+station. The station pays the reward out of its own credits, and a station
+that cannot pay refuses the hand-in. The job has no time limit: it stays on
+the board until the player hands it in or drops it. A world save keeps it.</p>
+<p>A <code>key</code> is a lowercase letter, then lowercase letters, digits and <code>_</code>. The
+job's id is <code>&lt;station id&gt;#&lt;key&gt;</code>. The four
+<a href="../events/#job-events">job events</a> report the job like any other, with
+<code>event.post_key</code> equal to the key, so one filter finds it:</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnJobHandedIn</span><span class="ron-punct">,</span>
+    <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">Equal</span><span class="ron-punct">(</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Event</span><span class="ron-punct">(</span><span class="ron-string">&quot;post_key&quot;</span><span class="ron-punct">))),</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">String</span><span class="ron-punct">(</span><span class="ron-string">&quot;ore_run&quot;</span><span class="ron-punct">)))),</span>
+        <span class="ron-punct">))),</span>
+    <span class="ron-punct">],</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span><span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Dockmaster&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;That ore keeps us running.&quot;</span><span class="ron-punct">))],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<p>A station uses a key once in a run. An action that cannot run posts nothing,
+logs an error and raises <a href="../events/#onactionrefused"><code>OnActionRefused</code></a>:</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th><code>reason</code></th>
+<th>when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>duplicate_job</code></td>
+<td>the station offers a job under the key, or the player holds, handed in or dropped one</td>
+</tr>
+<tr>
+<td><code>no_job_board</code></td>
+<td>the body is not a living generated station that offers jobs</td>
+</tr>
+<tr>
+<td><code>unknown_station</code></td>
+<td>no live body carries the bound id</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Lint, then load, refuses a <code>station</code> that is not a binding, a binding the
+event's payload does not carry, a <code>PostJob</code> inside a
+<a href="#sequence"><code>Sequence</code></a> or <a href="#cinematic"><code>Cinematic</code></a> step (a step has no
+payload), a bad <code>key</code>, a <code>count</code> or a <code>reward_cr</code> of 0, an item no loaded
+mod defines, and a <code>PostJob</code> in a scenario with no generated <code>world</code>.</p>
+</details>
+<h3 id="setstance" tabindex="-1">SetStance</h3>
+<p>Set the stance one civilization of a generated world holds toward the
+player: <code>Ally</code>, <code>Neutral</code> or <code>Enemy</code>.</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnDocked</span><span class="ron-punct">,</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">SetStance</span><span class="ron-punct">((</span><span class="ron-key">body</span><span class="ron-punct">:</span> <span class="ron-string">&quot;$id&quot;</span><span class="ron-punct">,</span> <span class="ron-key">stance</span><span class="ron-punct">:</span> <span class="ron-type">Enemy</span><span class="ron-punct">))],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>body</code></td>
+<td>binding</td>
+<td>required</td>
+<td><code>$id</code> or <code>$other_id</code>: a body of the civilization, read from the event</td>
+</tr>
+<tr>
+<td><code>stance</code></td>
+<td><code>Ally</code> / <code>Neutral</code> / <code>Enemy</code></td>
+<td>required</td>
+<td>the stance the civilization takes</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>A civilization has no id an author can write. The action names a body, and
+the civilization is the one that body belongs to: a living generated station
+or an intact generated ship. <code>$id</code> is the subject of the event and
+<code>$other_id</code> its other party. Under
+<a href="../events/#docking-lifecycle"><code>OnDocked</code></a> <code>$id</code> is the station the player
+docked with.</p>
+<p>The civilization takes the stance at once. Its pending offences, merits and
+provocation clear. Its ships and stations change side on the same frame, and
+<a href="../events/#onstancechanged"><code>OnStanceChanged</code></a> fires with <code>from</code> and <code>to</code>.
+No neighbour follows. A civilization already on the stance is left as it is
+and fires nothing.</p>
+<p>An <code>Enemy</code> the action makes is like one the player earned: it returns to
+<code>Neutral</code> after two hours of play with no new offence, and a paid fine
+settles it. To hold it, set it again from an <code>OnStanceChanged</code> handler. A
+civilization set back to the stance its world drew keeps that stance with no
+clock.</p>
+<p>An action that cannot run moves no stance, logs an error and raises
+<a href="../events/#onactionrefused"><code>OnActionRefused</code></a>:</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th><code>reason</code></th>
+<th>when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unknown_body</code></td>
+<td>no live body carries the bound id</td>
+</tr>
+<tr>
+<td><code>no_civilization</code></td>
+<td>the body belongs to none: an authored station, a rock, a dead hull</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Lint, then load, refuses a <code>body</code> that is not a binding, a binding the
+event's payload does not carry, a <code>SetStance</code> inside a
+<a href="#sequence"><code>Sequence</code></a> or <a href="#cinematic"><code>Cinematic</code></a> step (a step has no
+payload), and a <code>SetStance</code> in a scenario with no generated <code>world</code>.</p>
 </details>
 <h2 id="variables-timers-debugging" tabindex="-1">Variables, timers &amp; debugging</h2>
 <h3 id="timerstart" tabindex="-1">TimerStart</h3>

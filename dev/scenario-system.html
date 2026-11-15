@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-e28e0c87.js";
+            window.path_to_searchindex_js = "searchindex-3244a3e6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -269,6 +269,14 @@ edge, Error); a handler spawning its own <code>bounds</code> object doubles the 
 sensor with no outcome (Warn). A <code>Void</code> scenario cannot carry <code>bounds</code>
 structurally. The example mod’s <code>example_bounds</code> is the shipped instance, and
 <code>system_world_bounds</code> the asserted range.</p>
+<p>Some vocabulary only a generated world can serve: a <code>Void</code> has no station
+that posts a job board, no civilization and no sector. <code>GENERATED_WORLD_ONLY</code>
+(<code>lint/scenario.rs</code>) is the one list of it, each row with its reason, and a
+<code>Void</code> scenario that names a row - as a handler’s event, a step’s <code>until</code>
+gate, a query or an action - is a lint Error, because the handler could never
+run or the action is refused on every run. Today the rows are the four job
+events, <code>OnStanceChanged</code>, <code>OnSectorEntered</code>, the <code>scenario.sector</code> query and
+the <code>SetStance</code> and <code>PostJob</code> actions.</p>
 <p><code>nova_world_base::sync_open_world</code> arms <code>WorldConfig</code> from this block and the
 player ship, and disarms it under a <code>Void</code> scenario or none. The base bundle’s
 <code>new_game_scenario</code> must name a scenario whose world is
@@ -553,8 +561,8 @@ verbs the ship cannot use dim, so an emphasis on an unavailable verb pulses its
 chip in the dim band rather than doing nothing. That is how a tutorial points
 at a key before it lights up.</p>
 <p>Actions fan out to one submodule per family beside <code>actions/mod.rs</code> -
-<code>audio</code>, <code>cinematic</code>, <code>flow</code>, <code>mission</code>, <code>sequence</code>, <code>ship</code>, <code>spawn</code>, <code>timer</code>,
-<code>view</code> - plus <code>registry</code>, which is the macro and the table rather than a family.
+<code>audio</code>, <code>cinematic</code>, <code>flow</code>, <code>hold</code>, <code>jobs</code>, <code>mission</code>, <code>sequence</code>, <code>ship</code>,
+<code>spawn</code>, <code>stance</code>, <code>timer</code>, <code>view</code> - plus <code>registry</code>, which is the macro and the table rather than a family.
 Adding one is <a href="guide-extend-scenarios.html">Extend the scenario engine</a>.</p>
 <h3 id="a-beat-chain-keeps-its-cursor-in-the-engine"><a class="header" href="#a-beat-chain-keeps-its-cursor-in-the-engine">A beat chain keeps its cursor in the engine</a></h3>
 <p>A BEAT CHAIN is an authored LITERAL key plus an ordered list of
@@ -641,8 +649,18 @@ past. It is also what the load gate releases on, so the panel, the clock and
 the simulation hold all come down on one frame and one condition.</p>
 <p>Variables are typed literals (<code>String</code>, <code>Number</code>, <code>Boolean</code>) with a small
 expression tree: <code>VariableExpressionNode</code> (add/subtract), <code>VariableTermNode</code>
-(multiply/divide), <code>VariableFactorNode</code> (literal/name/parens);
+(multiply/divide), <code>VariableFactorNode</code> (literal/name/query/event/parens);
 <code>VariableConditionNode</code> (less/greater/equal) yields booleans for filters.</p>
+<p><code>evaluate</code> takes the event world and the <code>GameEventInfo</code> of the event being
+handled. The <code>Event(field)</code> factor reads one scalar payload field through
+<code>GameEventInfo::field</code> (text, number, boolean; a map such as <code>parts</code> is not
+a value). It sees a payload in a handler’s filters, a handler’s own actions
+and a step’s <code>until</code> filters (the gate’s event). A step’s actions get an
+empty payload from <code>advance_scenario_sequences</code>, so lint refuses the factor
+there (<code>lint/scenario.rs::check_payload_reads</code>). The legal field names come
+from <code>EventConfig::payload_fields</code>, read off each row’s default payload. A
+missing field is <code>VariableError::MissingEventField</code>: a filter fails closed
+and an action logs an error and does nothing.</p>
 <p>The tree has a TEXT form (<code>syntax.rs</code>): <code>Display</code> renders it as
 <code>scenario.elapsed &gt; 90</code> and <code>FromStr</code> parses that back. The authored form is
 still the RON nest - the text is what one editor row can hold, and what a tree
@@ -718,14 +736,23 @@ several matches, or a match missing the property leaves the query
 unavailable, and an expression over an unavailable value fails CLOSED. Missing
 is not zero, which is the difference between a gate that never opens and a
 gate that opens immediately.</li>
-<li><strong>The entity sampler runs only if something reads it.</strong> Sampling walks every
-<code>EntityId</code> in the world and allocates per match, so its cost scales with the
-WORLD - a duel carries about 1,800 ids, most of them ship sections - and not
-with the scenario. <code>ScenarioConfig::reads_an_entity_query</code> decides at load,
-over the watches AND the inline expression factors together, because an
-inline query has to be answerable the first time its action runs. Anything
-that adds a new place an expression can be authored has to be added to
-<code>ScenarioConfig::inline_queries</code> with it.</li>
+<li><strong>The entity sampler answers only what something reads.</strong> Sampling walks
+every <code>EntityId</code> in the world, so its cost scales with the WORLD - a duel
+carries about 1,800 ids, most of them ship sections - and not with the
+scenario. <code>ScenarioConfig::entity_queries</code> lists the distinct entity queries
+at load, over the watches AND the inline expression factors together,
+because an inline query has to be answerable the first time its action runs.
+The sampler skips every id no listed query names and does not run when the
+list is empty. Anything that adds a new place an expression can be authored
+has to be added to <code>ScenarioConfig::inline_queries</code> with it.</li>
+<li><strong>The sector query is published by the world’s owner.</strong> <code>nova_world</code> knows
+the cell the player stands in, so its <code>sample_current_sector</code>
+(<code>streaming.rs</code>) writes <code>Scenario(Sector)</code> through
+<code>NovaEventWorld::sample_sector</code>. It runs in <code>NovaWorldSystems::Observe</code>
+after <code>track_current_sector</code> and before <code>ScenarioPulseSystems</code>, the set
+that holds the sampler-to-<code>fire_on_update</code> chain, so an <code>OnUpdate</code> handler
+reads the cell of this frame. A <code>Void</code> world publishes nothing and lint
+refuses the query there.</li>
 </ul>
 <p>Watches freeze under pause and clear at teardown, like every other piece of
 scenario-scoped state.</p>
@@ -1108,6 +1135,53 @@ pane reports pushed under the interface pause arrive on the first fixed tick
 after it closes. <code>OnMined</code> has no queue: <code>pulse_mining_beams</code> (<code>mining.rs</code>)
 fires it per pulse that flips at least one corner, with the rock as <code>id</code> and
 the miner as <code>other_id</code>, because the pulse is already a scenario-crate system.</p>
+<p>The job events cross by OBSERVER, not by queue, because their owners already
+raise a gameplay event at each step: the Jobs pane (<code>nova_interface</code>) raises
+<code>JobAccepted</code>, <code>JobHandedIn</code> and <code>JobDropped</code> with cause <code>Abandoned</code>, and the
+open world (<code>nova_world_base</code>) raises <code>JobDone</code> and <code>JobDropped</code> with cause
+<code>Lost</code>. <code>loader/bridges.rs</code> observes the four and fires <code>OnJobAccepted</code>,
+<code>OnJobDone</code>, <code>OnJobHandedIn</code> and <code>OnJobDropped</code> from the <code>Job</code> each carries,
+through one payload builder, so neither owner names a scenario event and the
+four payloads cannot drift. The payload’s <code>kind</code> is <code>JobType::name</code>, one of
+<code>Procure</code>, <code>Recover</code>, <code>Escort</code>, <code>Distress</code>, <code>Neutralize</code> or <code>Supply</code>; a new
+job kind reaches scenarios through that name with no bridge change. Only a
+board slot posts a <code>Supply</code>: <code>PostJob</code> and a visit post procurements. Each fires in the command flush of the system
+that moved the job. A Load restores <code>Jobs</code> in place and raises none of the
+gameplay events, so it fires none of these.</p>
+<p><code>OnStanceChanged</code> crosses the same way. Every site that steps a civilization’s
+table stance raises the gameplay event <code>StanceChanged(StanceStep)</code> once per
+step: <code>record_offence</code> and <code>expire_stances</code> (<code>nova_world_base/src/stance.rs</code>),
+the hand-in’s merit (<code>nova_interface/src/jobs.rs</code>) and the paid fine
+(<code>nova_interface/src/station/settle.rs</code>). <code>loader/bridges.rs</code> observes it and
+fires <code>OnStanceChanged</code> with the civilization’s id text and both stance names.
+A provocation moves no table stance and a Load restores the table in place, so
+neither raises it.</p>
+<p><code>SetStance</code> crosses the other way, by a request. The seed’s draw of a stance
+(<code>seeded_stance</code>) lives in <code>nova_world_base</code>, above <code>nova_scenario</code>, so the
+action cannot write the table. It binds its <code>body</code> from the payload, finds
+the body and its <code>TraderMarket</code>, refuses <code>unknown_body</code> or <code>no_civilization</code>
+through <code>refuse_action</code>, and raises the gameplay event
+<code>SetStanceRequest { civilization, stance }</code>. <code>apply_stance_request</code>
+(<code>nova_world_base/src/stance.rs</code>) calls <code>CivilizationStances::set</code> and raises
+<code>StanceChanged</code> when the stance moved, so <code>OnStanceChanged</code> fires through the
+same bridge. An action that binds a payload reference joins
+<code>reads_payload_binding</code> in <code>lint/scenario.rs</code>.</p>
+<p><code>PostJob</code> needs no request: the board’s state is all in <code>nova_gameplay</code>.
+The action binds its <code>station</code>, refuses <code>unknown_station</code>, <code>no_job_board</code> or
+<code>duplicate_job</code>, and calls <code>JobPostings::post_scenario</code> with a procurement
+under <code>JobSourceType::Scenario { key }</code>. From there the job takes the paths
+every job takes. <code>post_station_boards</code> puts it on the station’s <code>JobBoard</code>
+and retires it after the hand-in or the drop, the Jobs pane accepts it and
+hands it in, and the world save carries <code>JobPostings</code>. The bridge reads the
+key off the <code>JobId</code> into <code>post_key</code>. A scenario posting has no offer window,
+so <code>JobPostings::offers</code> answers for it where a slot or a visit posting
+reads <code>remaining</code>.</p>
+<p><code>OnSectorEntered</code> is fired by <code>nova_world</code>, the owner of the crossing:
+<code>fire_sector_entered</code> (<code>streaming.rs</code>) reads the <code>SectorCrossed</code> messages in
+<code>NovaWorldSystems::Observe</code>, after <code>track_current_sector</code> posts them, and fires
+one event per message on the frame the cell changed. The tracker posts no
+message on the frame a <code>WorldConfig</code> is armed, so the cell a New Game, a Load
+or a Retry starts in fires nothing.</p>
 <h2 id="adding-new-pieces"><a class="header" href="#adding-new-pieces">Adding new pieces</a></h2>
 <ul>
 <li>Event: event + info structs in <code>nova_events/src/lib.rs</code>, an <code>EventConfig</code>
@@ -1117,14 +1191,20 @@ the orbit/lock/docking trackers in <code>trackers.rs</code>; area events in
 <code>objects/area.rs</code>;
 <code>OnNeutralized</code> fires from <code>nova_gameplay</code>’s integrity stack, a rock’s
 <code>OnDestroyed</code> from <code>objects/asteroid_carve.rs</code> when its field is exhausted,
-the hold events from <code>track_ship_inventory_reports</code> in <code>trackers.rs</code>, and
-<code>OnMined</code> from <code>mining.rs</code>). A new occurrence below <code>nova_scenario</code> pushes a
+the hold events from <code>track_ship_inventory_reports</code> in <code>trackers.rs</code>,
+<code>OnMined</code> from <code>mining.rs</code>, the job events and <code>OnStanceChanged</code> from the
+observers in <code>loader/bridges.rs</code>, and <code>OnSectorEntered</code> from <code>nova_world</code>’s
+<code>fire_sector_entered</code>). An event only a generated world can raise also gets a
+row in <code>GENERATED_WORLD_ONLY</code>. A new occurrence below <code>nova_scenario</code> pushes a
 <code>ShipInventoryReport</code> variant; it does not get a second queue.</li>
 <li>Action: config struct + <code>EventAction&lt;NovaEventWorld&gt;</code> impl in the right
-<code>actions/</code> submodule (<code>audio</code>/<code>cinematic</code>/<code>flow</code>/<code>mission</code>/<code>sequence</code>/<code>ship</code>/
-<code>spawn</code>/<code>timer</code>/<code>view</code>), plus a row in the <code>registry::scenario_actions!</code>
+<code>actions/</code> submodule (<code>audio</code>/<code>cinematic</code>/<code>flow</code>/<code>hold</code>/<code>jobs</code>/<code>mission</code>/
+<code>sequence</code>/<code>ship</code>/<code>spawn</code>/<code>stance</code>/<code>timer</code>/<code>view</code>), plus a row in the <code>registry::scenario_actions!</code>
 table in <code>actions/mod.rs</code>. The <code>EventActionConfig</code> variant is GENERATED from
-that row - writing one by hand collides with the macro.</li>
+that row - writing one by hand collides with the macro. An action that can
+be impossible at run time checks before it writes and calls <code>refuse_action</code>
+(<code>actions/hold.rs</code>) with an <code>ActionRefusalType</code>: it logs the error and
+fires <code>OnActionRefused</code>. A new reason is a new variant there.</li>
 <li>Filter: same pattern in <code>filters.rs</code> (<code>EventFilterConfig</code>).</li>
 <li>Object: a module under <code>objects/</code> (config + bundle function, plugin in
 <code>objects/mod.rs</code>) plus a <code>ScenarioObjectKind</code> variant/match in

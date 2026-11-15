@@ -345,17 +345,20 @@ twelve item kinds:</p>
 <span class="ron-punct">]</span>
 </code></pre>
 <p>An <code>Item</code> adds a new entry to the item catalog, or replaces one your mod
-depends on. Every field is required: <code>id</code>, <code>name</code> and <code>about</code> are not blank;
-<code>category</code> is one of <code>Raw</code>, <code>Repair</code>, <code>Ammo</code>, <code>Food</code>, <code>Parts</code>; <code>mass_g</code> is
+depends on. Every field but <code>refine</code> is required: <code>id</code>, <code>name</code> and <code>about</code> are not blank;
+<code>category</code> is one of <code>Raw</code>, <code>Repair</code>, <code>Ammo</code>, <code>Food</code>, <code>Parts</code>, <code>Contraband</code>;
+the market of a living lawful station does not buy or sell a <code>Contraband</code>
+item, see <a href="../stations/">Stations</a>. <code>mass_g</code> is
 above 0; <code>price_lot</code> is above 0; <code>bid_cr</code> is at most <code>ask_cr</code>. <code>ask_cr</code> and
 <code>bid_cr</code> price one lot of <code>price_lot</code> items, not one item: a trade pays its
 share, rounded up for a Buy and down for a Sell, see
 <a href="../prices/#how-a-trader-prices">Reference price</a>. Any ship's stock, a cargo
 canister, or a trade may carry the id, mod items included. The base game
-must define ten role ids that the game itself uses: <code>HullPlate</code> feeds a
+must define eleven role ids that the game itself uses: <code>HullPlate</code> feeds a
 repair, the ammunition feeds a weapon's reload, the ores are mining yield,
-and generated ship holds draw the two trade goods <code>Rations</code> and
-<code>SalvagedParts</code>. A role id keeps its category: <code>HullPlate</code> is <code>Repair</code>;
+generated ship holds draw the two trade goods <code>Rations</code> and
+<code>SalvagedParts</code>, and a supply job that asks for <code>Medkit</code> reads as a
+rescue. A role id keeps its category: <code>HullPlate</code> and <code>Medkit</code> are <code>Repair</code>;
 <code>PdcRound</code>, <code>RailSlug</code> and <code>Torpedo</code> are <code>Ammo</code>; <code>StoneOre</code>, <code>IronOre</code>,
 <code>WaterIce</code> and <code>CarbonOre</code> are <code>Raw</code>; <code>Rations</code> is <code>Food</code>; <code>SalvagedParts</code>
 is <code>Parts</code>. Every item fits one cargo canister, so its <code>mass_g</code> is at most
@@ -366,6 +369,27 @@ error. An id two unrelated packs both define is refused in both, whatever
 load order; a pack that depends on the id's owner may replace it whole. See
 <a href="../objects/#inventory">Scenario objects</a> for the item table and the stock
 format.</p>
+<p>An item that a station makes carries a refine recipe. Leave <code>refine</code> out for
+an item nothing refines.</p>
+<pre><code class="hljs language-ron"><span class="ron-key">refine</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span>
+    <span class="ron-key">inputs</span><span class="ron-punct">:</span> <span class="ron-punct">[(</span><span class="ron-string">&quot;IronOre&quot;</span><span class="ron-punct">,</span> <span class="ron-literal">2</span><span class="ron-punct">),</span> <span class="ron-punct">(</span><span class="ron-string">&quot;CarbonOre&quot;</span><span class="ron-punct">,</span> <span class="ron-literal">1</span><span class="ron-punct">)],</span>
+    <span class="ron-key">fee_cr</span><span class="ron-punct">:</span> <span class="ron-literal">30</span><span class="ron-punct">,</span>
+<span class="ron-punct">)),</span>
+</code></pre>
+<p>One batch takes every input and <code>fee_cr</code> credits and makes one of the item,
+at a station that offers <code>Refine</code>, see <a href="../stations/#refine">Refine</a>. Lint,
+then load, refuse a recipe that:</p>
+<ul>
+<li>lists no input, lists an input twice, or lists one with a count of <code>0</code>;</li>
+<li>lists the item itself, or an id no loaded mod defines;</li>
+<li>costs less than the item sells for: the inputs at their <code>ask_cr</code> plus
+<code>fee_cr</code> must be at least the item's <code>bid_cr</code>, each price as the share of
+its <code>price_lot</code>. Otherwise a player buys the inputs, refines and sells at a
+profit from reference prices alone.</li>
+</ul>
+<p>The price rule reads the merged catalog. When a mod replaces an input or the
+refined item and breaks the rule, that mod is refused, not the pack it
+depends on.</p>
 <p>Splitting these into <code>campaign.content.ron</code>, <code>scenarios.content.ron</code>, and
 <code>sections.content.ron</code> is a readability convention, not a loader requirement.
 Large mods can use one scenario per file and list all of them in <code>content</code>.</p>

@@ -19,8 +19,10 @@ sound plays none - there is no fallback bank, and the transitional `WorldSfx`
 bank was deleted when the migration completed. So a file in this directory that
 nothing authors is silent until something does.
 
-Combat and world cues are POSITIONAL (attenuated by distance from the listener
-camera). The avionics cues are the ship talking to its own pilot.
+Combat and world cues play in the world at their source, the player's own
+ship included: they fade with distance from the player's ship and pan by their
+bearing in the camera's view. The avionics cues are the ship talking to its own
+pilot, and play flat on the interface bus.
 
 ## The voices
 
@@ -42,8 +44,10 @@ is an instrument reporting rather than a thing happening in space.
 
 Every generated cue seeds its own generator from a hash of its NAME, so a
 rerun is byte-identical and adding a cue rewrites no other cue's bytes. Files are mono,
-44100 Hz, 16-bit PCM, peak normalized to -3 dBFS: balance is NOT set here, the
-per-cue constants in `nova_ship/src/ship_audio/` do that.
+44100 Hz, 16-bit PCM, peak normalized to -3 dBFS. Balance is NOT set here: the
+engine measures each clip to -23 LUFS at load, and the cue's sound category
+(`SoundCategoryType` in `crates/nova_sound/src/category.rs`) sets its level,
+its reach and how often it may repeat.
 
 Loops are synthesized in the frequency domain so the last sample joins the
 first exactly. A time-domain crossfade always leaves a soft spot the ear finds
@@ -80,6 +84,7 @@ this directory is reachable from shipped content.
 | `railgun_fire.wav` | railgun `fire_sound` |
 | `railgun_charge.wav` | railgun `charge_sound` - a LOOP, driven up in gain and rate as the charge fills |
 | `railgun_reload.wav` | railgun `reload_sound`, once per reload batch that lands |
+| `railgun_impact.wav` | railgun `impact_sound`, the slug landing, in place of the impact table's Pierce row |
 
 ### Ordnance and impacts
 
@@ -91,15 +96,15 @@ this directory is reachable from shipped content.
 | `torpedo_dud.wav` | torpedo bay `dud_sound`, a torpedo breaking up on contact with its warhead unfired (recorded) |
 | `torpedo_intercept.wav` | torpedo bay `intercept_sound`, a torpedo shot down or caught in a blast (recorded) |
 | `torpedo_rack.wav` | torpedo bay `reload_sound`, once per torpedo a reload returns to the rack (recorded) |
-| `impact.wav` | impact table `impact_kinetic` - the Kinetic default, so anything with no material row of its own |
-| `impact_rock.wav` | impact table `impact_kinetic_<kind>` - a slug on stone, one row per asteroid kind |
-| `impact_pierce.wav` | impact table `impact_pierce` - the Pierce default |
-| `impact_explosive.wav` | impact table `impact_explosive` - the Explosive default, a warhead's pressure on a surface |
+| `impact.wav` | engine impact bank - a Kinetic slug on ship plate |
+| `impact_rock.wav` | engine impact bank - a Kinetic slug on stone |
+| `impact_pierce.wav` | engine impact bank - a Pierce round, on anything |
+| `impact_explosive.wav` | engine impact bank - an Explosive round, a warhead's pressure on a surface |
 
-The impact rows live in `assets/base/impacts/base.content.ron`. A hit looks up
-`(damage type, material)` and falls back once to the damage type's default row.
-A section names its own material and an asteroid's material IS its kind, so the
-table carries one Kinetic row per shipped kind and every rock rings like stone.
+The impact bank is not content. `crates/nova_gameplay/src/impact_sound.rs`
+picks the file with a `match` over `(damage type, surface)`, where the surface
+is `Hull` for every section and `Rock` for asteroids and planets. A mod changes
+an impact by replacing the file.
 
 ### Destruction
 
@@ -133,7 +138,7 @@ ship's cockpit voice. Only the player's ship plays them.
 | `ammo_dry.wav` | presentation `ammo_dry_sound` - the cockpit gauge behind the guns' own clicks |
 | `warn_lock.wav` | presentation `warn_lock_sound`, on a hostile's `CombatLock` arriving |
 | `warn_hull.wav` | presentation `warn_hull_sound`, below `warn_hull_fraction` of the built hull |
-| `kill_confirm.wav` | presentation `kill_confirm_sound`, once per hull the player's torpedo blast defeated |
+| `kill_confirm.wav` | presentation `kill_confirm_sound`, once per hull the player's own weapon defeated - a round, a slug, a blast or a ram inside the 0.5 s credit window |
 | `torpedo_closing.wav` | presentation `torpedo_closing_sound`, one tick per beat while the player's soonest torpedo on the locked target is under 8 s out; the beat tightens from about 1 s to 80 ms |
 
 ### Handling
@@ -146,6 +151,8 @@ ship's cockpit voice. Only the player's ship plays them.
 | `radar_deny.wav` | the mining beam's `refusal_sound`, once per refused pulse (also the presentation `radar_deny_sound`) |
 | `mining_door_open.wav` | the mining beam's `door_open_sound`, when its lids start to part |
 | `mining_door_close.wav` | the mining beam's `door_close_sound`, when its lids start to shut |
+| `dock_clamp.wav` | the docking port's `clamp_sound`, once per capture at the port of the hull that pressed DOCK; never for a dock a Load rebuilds |
+| `dock_release.wav` | the docking port's `release_sound`, once per request (DOCK again, an AI release) at the port of the hull that asked; never for a dock damage takes apart |
 
 ## Recorded (licensed)
 

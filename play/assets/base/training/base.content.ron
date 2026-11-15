@@ -54,11 +54,11 @@
             frames_per_second: 10.0,
             alt: "the verb chips along the bottom of a cruising ship, then STOP engaged: its chip inverts and a CANCEL chip joins the row",
         ),
-        body: "The labels at the bottom of the screen show the actions your ship can take right now.",
+        body: "The chips along the bottom show the keys that apply right now. One joins the row when there is something to act on.",
         wiki_path: "wiki/hud#flight-readouts",
         practice: Some("drill_autopilot"),
         field_notes: [
-            "The labels at the bottom of the screen show the actions your ship can take right now.",
+            "The chips along the bottom show the keys that apply right now. One joins the row when there is something to act on.",
         ],
     )),
     Lesson((

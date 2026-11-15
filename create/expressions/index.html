@@ -8,7 +8,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Variables &amp; expressions</p><h1>Variables &amp; expressions</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#values-the-literal-types">Values: the literal types</a><ol></ol></li><li><a href="#factors-the-atoms">Factors: the atoms</a><ol></ol></li><li><a href="#terms-multiply-divide">Terms: multiply / divide</a><ol></ol></li><li><a href="#expressions-add-subtract-the-value-root">Expressions: add / subtract (the value root)</a><ol></ol></li><li><a href="#conditions-the-boolean-root">Conditions: the boolean root</a><ol></ol></li><li><a href="#queries-and-watched-variables">Queries and watched variables</a><ol></ol></li><li><a href="#the-typed-form-in-the-editor">The typed form (in the editor)</a><ol></ol></li><li><a href="#recipes">Recipes</a><ol></ol></li><li><a href="#traps-for-the-unwary">Traps for the unwary</a><ol></ol></li></ol></nav><p>Scenario state lives in ONE flat variable store: string keys, typed values.
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Variables &amp; expressions</p><h1>Variables &amp; expressions</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#values-the-literal-types">Values: the literal types</a><ol></ol></li><li><a href="#factors-the-atoms">Factors: the atoms</a><ol></ol></li><li><a href="#terms-multiply-divide">Terms: multiply / divide</a><ol></ol></li><li><a href="#expressions-add-subtract-the-value-root">Expressions: add / subtract (the value root)</a><ol></ol></li><li><a href="#conditions-the-boolean-root">Conditions: the boolean root</a><ol></ol></li><li><a href="#queries-and-watched-variables">Queries and watched variables</a><ol></ol></li><li><a href="#event-fields">Event fields</a><ol></ol></li><li><a href="#the-typed-form-in-the-editor">The typed form (in the editor)</a><ol></ol></li><li><a href="#recipes">Recipes</a><ol></ol></li><li><a href="#traps-for-the-unwary">Traps for the unwary</a><ol></ol></li></ol></nav><p>Scenario state lives in ONE flat variable store: string keys, typed values.
 <a href="../actions/#variableset"><code>VariableSet</code></a> writes it,
 <a href="../filters/#expression"><code>Expression</code> filters</a> read it,
 <a href="../actions/#hudreadout"><code>HudReadout</code></a> displays it, and the whole store
@@ -19,7 +19,7 @@ this page is its complete grammar.</p>
 <pre><code class="hljs language-text">condition   LessThan | GreaterThan | Equal          (filters only)
 expression  Add | Subtract | Term                   (the value root)
 term        Multiply | Divide | Factor
-factor      Literal | Name | Parens                 (the atoms)
+factor      Literal | Name | Query | Event | Parens (the atoms)
 </code></pre>
 <p>Every node is a tuple variant - operands are written positionally, nested
 inline. The simplest full chains, worth memorizing:</p>
@@ -77,6 +77,16 @@ inline. The simplest full chains, worth memorizing:</p>
 <td><code>Name(&quot;var&quot;)</code></td>
 <td>a variable key</td>
 <td>read that variable; an UNDEFINED name is an evaluation error (the enclosing filter fails closed, a <code>VariableSet</code> skips the write)</td>
+</tr>
+<tr>
+<td><code>Query(&lt;query&gt;)</code></td>
+<td>a typed query</td>
+<td>a live read of the world; see <a href="#queries-and-watched-variables">Queries</a></td>
+</tr>
+<tr>
+<td><code>Event(&quot;field&quot;)</code></td>
+<td>a payload field name</td>
+<td>read that field of the event being handled; see <a href="#event-fields">Event fields</a></td>
 </tr>
 <tr>
 <td><code>Parens(&lt;expression&gt;)</code></td>
@@ -245,15 +255,98 @@ snapshot when the action runs:</p>
 <td>live, unpaused scenario seconds; resets on teardown</td>
 </tr>
 <tr>
+<td><code>Scenario((property: Sector))</code></td>
+<td>String</td>
+<td>slug of the generated-world sector the player stands in: <code>sector_0_0_0</code>, with <code>n</code> for a minus sign (<code>sector_1_0_n2</code>). The same text <code>OnSectorEntered</code> carries as <code>sector</code></td>
+</tr>
+<tr>
 <td><code>Entity((filter: (id: &quot;...&quot;), property: Speed))</code></td>
 <td>Number</td>
 <td>speed of exactly one matching entity, in METERS PER SECOND - so a literal compared against it is a real m/s figure (the shipped manual cap is 250)</td>
 </tr>
+<tr>
+<td><code>Entity((filter: (id: &quot;...&quot;), property: Credits))</code></td>
+<td>Number</td>
+<td>the credits that ship or station holds</td>
+</tr>
+<tr>
+<td><code>Entity((filter: (id: &quot;...&quot;), property: Items(&quot;IronOre&quot;)))</code></td>
+<td>Number</td>
+<td>how many units of that item the ship's or station's hold carries; 0 for an item the hold lacks</td>
+</tr>
 </tbody>
 </table>
 </div>
-<p><code>Entity</code> is strict-single. Zero matches, multiple matches, or a missing velocity
-make the query unavailable. Expressions fail closed. Missing is not zero.</p>
+<p><code>Entity</code> is strict-single. Zero matches, multiple matches, a missing velocity
+for <code>Speed</code>, or a target that is neither a ship nor a station for <code>Credits</code>
+and <code>Items</code> make the query unavailable. Expressions fail closed. Missing is
+not zero.</p>
+<p><code>content lint</code> refuses <code>Credits</code> and <code>Items</code> on an id the scenario spawns as
+neither a ship nor a station (<code>&quot;player&quot;</code> from <code>SpawnStartRole</code> is a ship), an
+<code>Items</code> id no loaded bundle defines, and <code>Sector</code> on a scenario with no
+generated <code>world</code>: a <code>Void</code> world has no sectors.</p>
+<h2 id="event-fields" tabindex="-1">Event fields</h2>
+<p><code>Event(&quot;field&quot;)</code> reads one field of the payload of the event the handler is
+running for. The field names are the ones the
+<a href="../events/">event reference</a> lists in its payload column.
+Typed, it is <code>event.field</code>.</p>
+<p>It is how a handler tells two firings of one event apart by what they carry:</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnTraded</span><span class="ron-punct">,</span>
+    <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">Equal</span><span class="ron-punct">(</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Event</span><span class="ron-punct">(</span><span class="ron-string">&quot;item&quot;</span><span class="ron-punct">))),</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">String</span><span class="ron-punct">(</span><span class="ron-string">&quot;StoneOre&quot;</span><span class="ron-punct">)))),</span>
+        <span class="ron-punct">))),</span>
+        <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">GreaterThan</span><span class="ron-punct">(</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Event</span><span class="ron-punct">(</span><span class="ron-string">&quot;price_cr&quot;</span><span class="ron-punct">))),</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">100.0</span><span class="ron-punct">)))),</span>
+        <span class="ron-punct">))),</span>
+    <span class="ron-punct">],</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-type">VariableSet</span><span class="ron-punct">((</span><span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;last_sale_cr&quot;</span><span class="ron-punct">,</span> <span class="ron-key">expression</span><span class="ron-punct">:</span> <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Event</span><span class="ron-punct">(</span><span class="ron-string">&quot;price_cr&quot;</span><span class="ron-punct">))))),</span>
+    <span class="ron-punct">],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<p>A text field reads as a <code>String</code>, a numeric field as a <code>Number</code> and a
+boolean field as a <code>Boolean</code>. A name the payload spells as a word (<code>trade</code>,
+<code>cause</code>, <code>kind</code>) is a <code>String</code>: compare it with <code>Literal(String(&quot;Sell&quot;))</code>. A
+field that holds a list of parts (<code>parts</code>) is not a value and cannot be read.</p>
+<p>Where a read is legal:</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>place</th>
+<th>payload it reads</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a handler's <code>filters</code></td>
+<td>the handler's event</td>
+</tr>
+<tr>
+<td>a handler's own <code>actions</code> (<code>VariableSet.expression</code>, <code>TimerStart.seconds</code>)</td>
+<td>the handler's event</td>
+</tr>
+<tr>
+<td>the <code>filters</code> of a step's <code>until</code> gate</td>
+<td>the gate's event</td>
+</tr>
+<tr>
+<td>the <code>actions</code> of a <code>Sequence</code> or <code>Cinematic</code> step</td>
+<td>none: lint error</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>A step's actions run on a later frame with no payload. To use a field
+there, copy it into a variable with a <code>VariableSet</code> in the handler and read
+the variable in the step.</p>
+<p><code>content lint</code> refuses a field the event does not carry and names the fields
+it has. At run time a missing field is an evaluation error, the same as an
+undefined name: the filter fails closed and a <code>VariableSet</code> skips the write.</p>
 <h2 id="the-typed-form-in-the-editor" tabindex="-1">The typed form (in the editor)</h2>
 <p>The RON above is the authored form, and it is the one the file holds. In the
 in-game editor an expression filter is ONE BLOCK on the canvas; its <code>...</code> chip
@@ -262,6 +355,10 @@ opens the condition as a PAGE in a pop-up, a row per node: <code>Compare</code> 
 leaf holds one value, typed in the short form below rather than as a nest of
 <code>Add(Term(Factor(...</code>. A leaf that names a variable can PICK one instead of
 spelling it: the chip beside the box lists what the scenario declares.</p>
+<p>A query is a block of its own, <code>Query</code> in the palette. It is PICKED, not
+typed: one chip lists every read (<code>Elapsed</code>, <code>Sector</code>, <code>Speed</code>, <code>Credits</code>,
+<code>Items</code>), a read of a ship adds a chip that lists the scenario's objects, and
+<code>Items</code> adds a chip that lists the items the mod sees.</p>
 <p>A <code>VariableSet</code> action opens the SAME page under its <code>Key</code>, headed <code>Value</code>
 instead of <code>Condition</code>: what it writes is an expression, so <code>Writes</code> sits where
 <code>Compare</code> does and takes the operators a value may have - <code>+ - * /</code> and a leaf,
@@ -304,8 +401,24 @@ never a comparison.</p>
 <td><code>Term(Factor(Query(Scenario((property: Elapsed)))))</code></td>
 </tr>
 <tr>
+<td><code>scenario.sector</code></td>
+<td><code>Term(Factor(Query(Scenario((property: Sector)))))</code></td>
+</tr>
+<tr>
 <td><code>entity(&quot;courier&quot;).speed</code></td>
 <td><code>Term(Factor(Query(Entity((filter: (id: &quot;courier&quot;), property: Speed)))))</code></td>
+</tr>
+<tr>
+<td><code>entity(&quot;player&quot;).credits</code></td>
+<td><code>Term(Factor(Query(Entity((filter: (id: &quot;player&quot;), property: Credits)))))</code></td>
+</tr>
+<tr>
+<td><code>entity(&quot;player&quot;).items(&quot;IronOre&quot;)</code></td>
+<td><code>Term(Factor(Query(Entity((filter: (id: &quot;player&quot;), property: Items(&quot;IronOre&quot;))))))</code></td>
+</tr>
+<tr>
+<td><code>event.price_cr</code></td>
+<td><code>Term(Factor(Event(&quot;price_cr&quot;)))</code></td>
 </tr>
 <tr>
 <td><code>beat == 3</code></td>
@@ -394,8 +507,9 @@ built this way (see the scenario-engine chapter of the
 <a href="../../dev/">developer book</a>).</p>
 <h2 id="traps-for-the-unwary" tabindex="-1">Traps for the unwary</h2>
 <ul>
-<li>Everything fails CLOSED: undefined names, type mismatches and division by
-zero all log an error and make the filter false / skip the write. No
+<li>Everything fails CLOSED: undefined names, missing event fields, type
+mismatches and division by zero all log an error and make the filter
+false / skip the write. No
 crash, no default value - the handler just never fires. Seed in
 <code>OnStart</code>.</li>
 <li>No boolean node exists at the VALUE level beyond the <code>Add</code>/<code>Multiply</code>

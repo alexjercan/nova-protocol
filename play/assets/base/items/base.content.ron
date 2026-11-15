@@ -100,6 +100,16 @@
         bid_cr: 90,
     )),
     Item((
+        id: "Medkit",
+        name: "Medkit",
+        about: "Emergency medical supplies. A stranded crew that asks for them is a rescue: dock with its caller with the medkits aboard.",
+        category: Repair,
+        mass_g: 2000,
+        price_lot: 1,
+        ask_cr: 60,
+        bid_cr: 45,
+    )),
+    Item((
         id: "SectionPanel",
         name: "Section panel",
         about: "Light structural panel. Every section build spends some.",
@@ -198,5 +208,38 @@
         price_lot: 1,
         ask_cr: 200,
         bid_cr: 150,
+    )),
+    Item((
+        id: "AlloyPlate",
+        name: "Alloy plate",
+        about: "Alloy plate refined from iron and carbon ore at a station. Every second-tier section recipe spends one.",
+        category: Parts,
+        mass_g: 30000,
+        price_lot: 1,
+        ask_cr: 90,
+        bid_cr: 68,
+        refine: Some((
+            inputs: [
+                (
+                    "IronOre",
+                    2,
+                ),
+                (
+                    "CarbonOre",
+                    1,
+                ),
+            ],
+            fee_cr: 30,
+        )),
+    )),
+    Item((
+        id: "UnmarkedCores",
+        name: "Unmarked cores",
+        about: "Flight cores with the registry marks ground off. Lawful stations do not buy or sell them.",
+        category: Contraband,
+        mass_g: 10000,
+        price_lot: 1,
+        ask_cr: 300,
+        bid_cr: 240,
     )),
 ]

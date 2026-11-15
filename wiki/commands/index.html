@@ -309,7 +309,7 @@ Hint: type `help` and press Enter.
 <td>the graphics-quality preset</td>
 </tr>
 <tr>
-<td><code>volume [master|music|world|interface [0..1]]</code></td>
+<td><code>volume [master|effects|interface [0..1]]</code></td>
 <td>one mixer channel</td>
 </tr>
 <tr>
@@ -446,7 +446,7 @@ Hint: type `help` and press Enter.
 <!-- CRT composite + pointer forwarding: crates/nova_interface/src/terminal/crt.rs.
      Shader physics: assets/shaders/nova_os_crt.wesl (hum bar, mains flicker,
      retrace beam, power collapse, degauss). Casing detail: terminal/casing.rs.
-     Sounds: terminal/sound.rs, crates/nova_gameplay/src/audio/mod.rs. -->
+     Sounds: terminal/sound.rs, crates/nova_sound/src/lib.rs. -->
 <p>The picture is a real tube, not a flat overlay: the terminal renders offscreen and is shown through one screen shader, so the green glyphs bloom into a phosphor halo, the image bows with barrel curvature under scanlines, grain and an edge vignette, a hum bar drifts, the mains flicker breathes, and a retrace beam sweeps by every few seconds. Your mouse works through all of it: clicks on the glass are mapped through the same curvature, so the control you see under the cursor is the one you hit.</p>
 <p>The monitor sounds like it looks, when SND is up: a key tick per character, a heavier clack on Enter, an ok blip when a command runs and an error buzz when it does not, a completion tick per Tab step, the power sweep up and down, and a low ambient bed humming the whole time it is on. Around the glass, the casing carries its bezel, corner screws, a vent grille and the spec line <code>P22 GREEN PHOSPHOR . 15 IN . TYPE CQ-4</code>.</p>
 </details>

@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Events - Nova Protocol Creator Docs</title><meta name="description" content="Everything that can fire a scenario handler: forty-five event kinds, payloads, lifecycle edges, hold events, and dispatch order."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Events - Nova Protocol Creator Docs</title><meta name="description" content="Everything that can fire a scenario handler: fifty-one event kinds, payloads, lifecycle edges, hold events, job, stance and sector events, and dispatch order."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
@@ -8,8 +8,8 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Events</p><h1>Events</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#onstart">OnStart</a><ol></ol></li><li><a href="#onresume">OnResume</a><ol></ol></li><li><a href="#onupdate">OnUpdate</a><ol></ol></li><li><a href="#ontimerend">OnTimerEnd</a><ol></ol></li><li><a href="#cinematic-endings">Cinematic endings</a><ol></ol></li><li><a href="#ship-order-lifecycle">Ship order lifecycle</a><ol></ol></li><li><a href="#onshipordercomplete">OnShipOrderComplete</a><ol></ol></li><li><a href="#onshiporderinterrupted">OnShipOrderInterrupted</a><ol></ol></li><li><a href="#onshiporderresumed">OnShipOrderResumed</a><ol></ol></li><li><a href="#onshipordercanceled">OnShipOrderCanceled</a><ol></ol></li><li><a href="#onshiporderfailed">OnShipOrderFailed</a><ol></ol></li><li><a href="#ondefeated">OnDefeated</a><ol></ol></li><li><a href="#ondestroyed">OnDestroyed</a><ol></ol></li><li><a href="#onneutralized">OnNeutralized</a><ol></ol></li><li><a href="#onenter">OnEnter</a><ol></ol></li><li><a href="#onexit">OnExit</a><ol></ol></li><li><a href="#player-maneuver-completion">Player maneuver completion</a><ol></ol></li><li><a href="#orbit-lifecycle">Orbit lifecycle</a><ol></ol></li><li><a href="#lock-lifecycle">Lock lifecycle</a><ol></ol></li><li><a href="#docking-lifecycle">Docking lifecycle</a><ol></ol></li><li><a href="#hold-events">Hold events</a><ol></ol></li><li><a href="#onjobaccepted">OnJobAccepted</a><ol></ol></li><li><a href="#dispatch-order-what-you-can-rely-on">Dispatch order (what you can rely on)</a><ol></ol></li></ol></nav><p>Everything that can fire a handler. A handler's <code>name:</code> field names one of
-the FORTY-FIVE event kinds below, written bare (they are unit variants):
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Events</p><h1>Events</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#onstart">OnStart</a><ol></ol></li><li><a href="#onresume">OnResume</a><ol></ol></li><li><a href="#onupdate">OnUpdate</a><ol></ol></li><li><a href="#ontimerend">OnTimerEnd</a><ol></ol></li><li><a href="#onactionrefused">OnActionRefused</a><ol></ol></li><li><a href="#cinematic-endings">Cinematic endings</a><ol></ol></li><li><a href="#ship-order-lifecycle">Ship order lifecycle</a><ol></ol></li><li><a href="#onshipordercomplete">OnShipOrderComplete</a><ol></ol></li><li><a href="#onshiporderinterrupted">OnShipOrderInterrupted</a><ol></ol></li><li><a href="#onshiporderresumed">OnShipOrderResumed</a><ol></ol></li><li><a href="#onshipordercanceled">OnShipOrderCanceled</a><ol></ol></li><li><a href="#onshiporderfailed">OnShipOrderFailed</a><ol></ol></li><li><a href="#ondefeated">OnDefeated</a><ol></ol></li><li><a href="#ondestroyed">OnDestroyed</a><ol></ol></li><li><a href="#onneutralized">OnNeutralized</a><ol></ol></li><li><a href="#onenter">OnEnter</a><ol></ol></li><li><a href="#onexit">OnExit</a><ol></ol></li><li><a href="#player-maneuver-completion">Player maneuver completion</a><ol></ol></li><li><a href="#orbit-lifecycle">Orbit lifecycle</a><ol></ol></li><li><a href="#lock-lifecycle">Lock lifecycle</a><ol></ol></li><li><a href="#docking-lifecycle">Docking lifecycle</a><ol></ol></li><li><a href="#hold-events">Hold events</a><ol></ol></li><li><a href="#job-events">Job events</a><ol></ol></li><li><a href="#onjobaccepted">OnJobAccepted</a><ol></ol></li><li><a href="#onjobdone">OnJobDone</a><ol></ol></li><li><a href="#onjobhandedin">OnJobHandedIn</a><ol></ol></li><li><a href="#onjobdropped">OnJobDropped</a><ol></ol></li><li><a href="#onstancechanged">OnStanceChanged</a><ol></ol></li><li><a href="#onsectorentered">OnSectorEntered</a><ol></ol></li><li><a href="#dispatch-order-what-you-can-rely-on">Dispatch order (what you can rely on)</a><ol></ol></li></ol></nav><p>Everything that can fire a handler. A handler's <code>name:</code> field names one of
+the FIFTY-ONE event kinds below, written bare (they are unit variants):
 <code>name: OnStart</code>, <code>name: OnEnter</code>, and so on. When the event fires, the
 handler's <a href="../filters/">filters</a> gate it and its <a href="../actions/">actions</a> run.</p>
 <p>A handler that describes a beat happening ONCE says
@@ -49,6 +49,11 @@ event a paced beat waits for. The filters that qualify it are the same ones.</p>
 <td><a href="#ontimerend"><code>OnTimerEnd</code></a></td>
 <td><code>key</code></td>
 <td>a keyed scenario timer ends</td>
+</tr>
+<tr>
+<td><a href="#onactionrefused"><code>OnActionRefused</code></a></td>
+<td><code>action</code>, <code>id</code>, <code>reason</code></td>
+<td>an action could not run at run time and changed nothing</td>
 </tr>
 <tr>
 <td><a href="#cinematic-endings"><code>OnCinematicFinished</code></a></td>
@@ -252,8 +257,33 @@ event a paced beat waits for. The filters that qualify it are the same ones.</p>
 </tr>
 <tr>
 <td><a href="#onjobaccepted"><code>OnJobAccepted</code></a></td>
-<td><code>id</code></td>
+<td><code>id</code>, <code>kind</code>, <code>station</code>, <code>reward_cr</code>, <code>post_key</code></td>
 <td>the Jobs pane accepts a board offer; <code>id</code> is the job's id; a refused accept and a Load fire none</td>
+</tr>
+<tr>
+<td><a href="#onjobdone"><code>OnJobDone</code></a></td>
+<td><code>id</code>, <code>kind</code>, <code>station</code>, <code>reward_cr</code>, <code>post_key</code></td>
+<td>a held job's work in the world is finished and the job waits for its hand-in; a <code>Procure</code> and a Load fire none</td>
+</tr>
+<tr>
+<td><a href="#onjobhandedin"><code>OnJobHandedIn</code></a></td>
+<td><code>id</code>, <code>kind</code>, <code>station</code>, <code>reward_cr</code>, <code>post_key</code></td>
+<td>the Jobs pane hands a held job in at its posting station and the reward is paid; a refused hand-in fires none</td>
+</tr>
+<tr>
+<td><a href="#onjobdropped"><code>OnJobDropped</code></a></td>
+<td><code>id</code>, <code>kind</code>, <code>station</code>, <code>reward_cr</code>, <code>post_key</code>, <code>cause</code></td>
+<td>a held job ends with no hand-in: <code>cause</code> is <code>Lost</code> (the world took it) or <code>Abandoned</code> (the Drop button)</td>
+</tr>
+<tr>
+<td><a href="#onstancechanged"><code>OnStanceChanged</code></a></td>
+<td><code>civilization</code>, <code>from</code>, <code>to</code></td>
+<td>a civilization's stance toward the player moves; a provocation and a Load fire none</td>
+</tr>
+<tr>
+<td><a href="#onsectorentered"><code>OnSectorEntered</code></a></td>
+<td><code>sector</code>, <code>x</code>, <code>y</code>, <code>z</code>, <code>from</code></td>
+<td>the player crosses into another sector of a generated world; a New Game and a Load fire none</td>
 </tr>
 </tbody>
 </table>
@@ -369,6 +399,59 @@ actions - see the <a href="../expressions/#recipes">recipes</a>.</p>
 <p>Start or restart the delay with <a href="../actions/#timerstart"><code>TimerStart</code></a>. Cancel
 it with <a href="../actions/#timercancel"><code>TimerCancel</code></a>. Timers use live, unpaused
 scenario time and clear on retry or teardown.</p>
+</details>
+<h2 id="onactionrefused" tabindex="-1">OnActionRefused</h2>
+<p>Fires once each time an action refuses to run at run time. A refused action
+changes nothing and writes an error to the log.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>action</code></td>
+<td>text</td>
+<td>the action's RON name: <code>GrantCredits</code>, <code>GiveItems</code>, <code>TakeItems</code>, <code>PostJob</code>, <code>SetStance</code></td>
+</tr>
+<tr>
+<td><code>id</code></td>
+<td>text</td>
+<td>the id the action targeted; for a binding, the id it read from the event</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>text</td>
+<td>why, as a stable word: <code>insufficient_credits</code>, <code>credit_overflow</code>, <code>hold_full</code>, <code>short_items</code>, <code>unknown_ship</code>, <code>unknown_station</code>, <code>no_job_board</code>, <code>duplicate_job</code>, <code>unknown_body</code>, <code>no_civilization</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnActionRefused</span><span class="ron-punct">,</span>
+    <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">Equal</span><span class="ron-punct">(</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Event</span><span class="ron-punct">(</span><span class="ron-string">&quot;reason&quot;</span><span class="ron-punct">))),</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">String</span><span class="ron-punct">(</span><span class="ron-string">&quot;insufficient_credits&quot;</span><span class="ron-punct">)))),</span>
+        <span class="ron-punct">))),</span>
+    <span class="ron-punct">],</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span><span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Dockmaster&quot;</span><span class="ron-punct">,</span> <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Come back with the fee.&quot;</span><span class="ron-punct">))],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<p>Only the actions that list refusal reasons raise it; today those are
+<a href="../actions/#grantcredits"><code>GrantCredits</code></a>,
+<a href="../actions/#giveitems"><code>GiveItems</code></a>,
+<a href="../actions/#takeitems"><code>TakeItems</code></a>,
+<a href="../actions/#postjob"><code>PostJob</code></a> and
+<a href="../actions/#setstance"><code>SetStance</code></a>. <code>id</code> is the id as authored, so
+an <a href="../filters/#entity"><code>Entity</code></a> filter on <code>id</code> matches it. Lint catches
+what it can before the run: an id nothing spawns never reaches this event.</p>
 </details>
 <h2 id="cinematic-endings" tabindex="-1">Cinematic endings</h2>
 <p>A <a href="../actions/#cinematic"><code>Cinematic</code></a> does not carry an on-finish action list.
@@ -897,7 +980,7 @@ inventory, so a handler counts occurrences, not frames.</p>
 <td><code>OnCreditsChanged</code></td>
 <td>the ship whose purse moved</td>
 <td>none</td>
-<td><code>previous_cr</code>, <code>current_cr</code>, <code>delta_cr</code> (signed), <code>cause</code> (<code>Trade</code>, <code>Take</code>, <code>Rebuild</code>, <code>Swap</code>, <code>Add</code>, <code>ShipBuy</code>, <code>EscortHire</code>, <code>StationBuy</code>, <code>JobReward</code>, <code>Settle</code> or <code>Cheat</code>)</td>
+<td><code>previous_cr</code>, <code>current_cr</code>, <code>delta_cr</code> (signed), <code>cause</code> (<code>Trade</code>, <code>Take</code>, <code>Rebuild</code>, <code>Swap</code>, <code>Add</code>, <code>ShipBuy</code>, <code>EscortHire</code>, <code>StationBuy</code>, <code>JobReward</code>, <code>Settle</code>, <code>Refine</code>, <code>Scenario</code> or <code>Cheat</code>)</td>
 </tr>
 <tr>
 <td><code>OnRepaired</code></td>
@@ -984,11 +1067,16 @@ paid, a swap one per party with <code>cause: Swap</code>, an add one per party
 with <code>cause: Add</code>, a hull buy one per party with <code>cause: ShipBuy</code>, and an
 escort hire one per party with <code>cause: EscortHire</code>. A station buy raises
 one, for the player only, with <code>cause: StationBuy</code>: the price goes to the
-civilization, so the station's purse does not move. An armed <code>credits give</code>
+civilization, so the station's purse does not move. A refine raises one per
+party with <code>cause: Refine</code>, the ship paying the fee and the station paid. A
+<a href="../actions/#grantcredits"><code>GrantCredits</code></a> action raises one with
+<code>cause: Scenario</code>. An armed <code>credits give</code>
 or <code>credits set</code> command raises one with <code>cause: Cheat</code>. A move that
 leaves the purse unchanged raises nothing. <code>OnStored</code> and <code>OnWithdrawn</code> fire
 once per confirmed move and move no credits, so they raise no
-<code>OnCreditsChanged</code>.</p>
+<code>OnCreditsChanged</code>. A <a href="../actions/#giveitems"><code>GiveItems</code></a> or
+<a href="../actions/#takeitems"><code>TakeItems</code></a> action changes a hold and raises none
+of these events.</p>
 <p>Trades, stores, withdraws, repairs, rebuilds, swaps, adds, hull buys, escort hires and station buys come from the interface panes, which run while the world
 is paused: their events arrive on the first simulation tick after the pane
 closes. Intake and mining events arrive the frame the hold changes.</p>
@@ -1016,23 +1104,321 @@ closes. Intake and mining events arrive the frame the hold changes.</p>
 <code>OnSwapped</code>, <code>OnAdded</code>, <code>OnShipBought</code>, <code>OnEscortHired</code>, <code>OnStationBought</code>,
 <code>OnStripped</code>, <code>OnStored</code> and <code>OnWithdrawn</code>.</p>
 </details>
+<h2 id="job-events" tabindex="-1">Job events</h2>
+<p>Four events follow one job of a generated world's station board from the
+accept to its end, a job a <a href="../actions/#postjob"><code>PostJob</code></a> action posted
+included. All four carry the same job fields; <code>OnJobDropped</code> adds
+<code>cause</code>.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>text</td>
+<td>the job's id: <code>&lt;station id&gt;#&lt;slot&gt;.&lt;posting&gt;</code> for a slot job, <code>&lt;station id&gt;#&lt;visit id&gt;.&lt;index&gt;</code> for a visit posting, <code>&lt;station id&gt;#&lt;key&gt;</code> for a <code>PostJob</code> job</td>
+</tr>
+<tr>
+<td><code>kind</code></td>
+<td>text</td>
+<td><code>Procure</code>, <code>Recover</code>, <code>Escort</code>, <code>Distress</code>, <code>Neutralize</code> or <code>Supply</code></td>
+</tr>
+<tr>
+<td><code>station</code></td>
+<td>text</td>
+<td>the scenario id of the station that posted the job, the part of <code>id</code> before <code>#</code></td>
+</tr>
+<tr>
+<td><code>reward_cr</code></td>
+<td>number</td>
+<td>the reward the hand-in pays, in credits</td>
+</tr>
+<tr>
+<td><code>post_key</code></td>
+<td>text</td>
+<td>the <code>key</code> of the <a href="../actions/#postjob"><code>PostJob</code></a> that posted the job; empty for a job a board or a visitor posted</td>
+</tr>
+<tr>
+<td><code>cause</code></td>
+<td>text</td>
+<td><code>OnJobDropped</code> only: <code>Lost</code> or <code>Abandoned</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>a job's life</th>
+<th>events, in order</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>accepted, worked, handed in</td>
+<td><code>OnJobAccepted</code>, <code>OnJobDone</code> (not for a <code>Procure</code>), <code>OnJobHandedIn</code></td>
+</tr>
+<tr>
+<td>accepted, then its hauler, wreck, caller or poster is lost</td>
+<td><code>OnJobAccepted</code>, <code>OnJobDropped</code> with <code>cause</code> <code>Lost</code></td>
+</tr>
+<tr>
+<td>accepted, then dropped from the Jobs pane</td>
+<td><code>OnJobAccepted</code>, <code>OnJobDropped</code> with <code>cause</code> <code>Abandoned</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Read a field with <a href="../expressions/#event-fields"><code>event.&lt;field&gt;</code></a>:</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnJobHandedIn</span><span class="ron-punct">,</span>
+    <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">Equal</span><span class="ron-punct">(</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Event</span><span class="ron-punct">(</span><span class="ron-string">&quot;kind&quot;</span><span class="ron-punct">))),</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">String</span><span class="ron-punct">(</span><span class="ron-string">&quot;Escort&quot;</span><span class="ron-punct">)))),</span>
+        <span class="ron-punct">))),</span>
+    <span class="ron-punct">],</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-type">VariableSet</span><span class="ron-punct">((</span><span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;last_escort_pay&quot;</span><span class="ron-punct">,</span> <span class="ron-key">expression</span><span class="ron-punct">:</span> <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Event</span><span class="ron-punct">(</span><span class="ron-string">&quot;reward_cr&quot;</span><span class="ron-punct">))))),</span>
+    <span class="ron-punct">],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<p><code>id</code> is the JOB's id, not an entity id: there is no <code>type_name</code> and no
+<code>other_id</code>, and an <code>Entity</code> filter on <code>id</code> matches a job id here, not a
+scenario object.</p>
+<p>Only a generated world posts job boards. A scenario with no <code>world:</code> line
+(a <code>Void</code> world) that names one of the four is a lint error: the event can
+never fire there.</p>
+<p>A Load restores held, done and completed jobs and fires none of the four,
+so a <code>once</code> handler on any of them never runs twice for one job.</p>
+</details>
 <h2 id="onjobaccepted" tabindex="-1">OnJobAccepted</h2>
-<p>Fires once per successful accept from the Jobs pane. Payload: <code>id</code> only, and
-it is the JOB's id, not an entity id. There is no <code>type_name</code> and no
-<code>other_id</code>.</p>
+<p>Fires once per successful accept from the Jobs pane, after the job is held.
+A refused accept fires nothing.</p>
 <pre><code class="hljs language-ron"><span class="ron-punct">(</span>
     <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnJobAccepted</span><span class="ron-punct">,</span>
     <span class="ron-key">once</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
     <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">ObjectiveComplete</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;take_a_job&quot;</span><span class="ron-punct">))],</span>
 <span class="ron-punct">),</span>
 </code></pre>
+<h2 id="onjobdone" tabindex="-1">OnJobDone</h2>
+<p>Fires once when a held job's work in the world is finished: the job stays
+held and waits for its hand-in at the posting station.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>kind</th>
+<th>done when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Recover</code></td>
+<td>the player undocks from the wreck with the asked units aboard and none left on the wreck</td>
+</tr>
+<tr>
+<td><code>Escort</code></td>
+<td>the hauler reaches its mark</td>
+</tr>
+<tr>
+<td><code>Distress</code></td>
+<td>the player docks with the caller</td>
+</tr>
+<tr>
+<td><code>Neutralize</code></td>
+<td>the hull is neutralized or destroyed</td>
+</tr>
+<tr>
+<td><code>Supply</code></td>
+<td>the player docks with the caller with the whole stack aboard, and the dock takes it</td>
+</tr>
+<tr>
+<td><code>Procure</code></td>
+<td>never: a procurement is done by the goods in the hold at the hand-in</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 id="onjobhandedin" tabindex="-1">OnJobHandedIn</h2>
+<p>Fires once per successful hand-in from the Jobs pane, after the reward is
+paid and the job is listed completed. A refused hand-in fires nothing. The
+payout itself is two <a href="#hold-events"><code>OnCreditsChanged</code></a> events with cause
+<code>JobReward</code>, one for each party, raised before this one.</p>
+<h2 id="onjobdropped" tabindex="-1">OnJobDropped</h2>
+<p>Fires once when a held job ends with no hand-in. The posting is retired:
+the job is never offered or accepted again.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th><code>cause</code></th>
+<th>what happened</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Lost</code></td>
+<td>the posting station was neutralized or destroyed; or, before the job was done, its hauler, wreck or caller was; or the escort hauler's leg order failed</td>
+</tr>
+<tr>
+<td><code>Abandoned</code></td>
+<td>the player confirmed Drop in the Jobs pane</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 id="onstancechanged" tabindex="-1">OnStanceChanged</h2>
+<p>Fires once each time a civilization's stance toward the player moves on a
+generated world.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>civilization</code></td>
+<td>text</td>
+<td>the civilization's id, <code>civ_&lt;x&gt;_&lt;y&gt;_&lt;z&gt;@&lt;seed&gt;</code>, a negative index written <code>n&lt;abs&gt;</code></td>
+</tr>
+<tr>
+<td><code>from</code></td>
+<td>text</td>
+<td>the stance before: <code>Ally</code>, <code>Neutral</code> or <code>Enemy</code></td>
+</tr>
+<tr>
+<td><code>to</code></td>
+<td>text</td>
+<td>the stance after: one step from <code>from</code>, or any other stance after a <code>SetStance</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>what steps a stance</th>
+<th>step</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the third intact hull of a civilization the player neutralizes inside one hour</td>
+<td>that civilization one down</td>
+</tr>
+<tr>
+<td>the same step, reaching a living neighbour</td>
+<td>an Ally of that civilization one down, an Enemy of it one up: one event each</td>
+</tr>
+<tr>
+<td>the third job handed in at a civilization's stations</td>
+<td>one up</td>
+</tr>
+<tr>
+<td>two hours with no new offence against a civilization the player's kills made Enemy</td>
+<td><code>Enemy</code> to <code>Neutral</code></td>
+</tr>
+<tr>
+<td>a fine paid at a station to settle</td>
+<td><code>Enemy</code> to <code>Neutral</code></td>
+</tr>
+<tr>
+<td>a <a href="../actions/#setstance"><code>SetStance</code></a> action that names another stance</td>
+<td>to that stance, one event</td>
+</tr>
+</tbody>
+</table>
+</div>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnStanceChanged</span><span class="ron-punct">,</span>
+    <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">Equal</span><span class="ron-punct">(</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Event</span><span class="ron-punct">(</span><span class="ron-string">&quot;to&quot;</span><span class="ron-punct">))),</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">String</span><span class="ron-punct">(</span><span class="ron-string">&quot;Enemy&quot;</span><span class="ron-punct">)))),</span>
+        <span class="ron-punct">))),</span>
+    <span class="ron-punct">],</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">VariableSet</span><span class="ron-punct">((</span><span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;made_an_enemy&quot;</span><span class="ron-punct">,</span> <span class="ron-key">expression</span><span class="ron-punct">:</span> <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Boolean</span><span class="ron-punct">(</span><span class="ron-literal">true</span><span class="ron-punct">))))))],</span>
+<span class="ron-punct">),</span>
+</code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
-<p>An <code>Entity</code> filter on <code>id</code> matches a job id here, not a scenario object. A
-job id reads <code>&lt;station id&gt;#&lt;slot&gt;.&lt;posting&gt;</code> for a slot job and
-<code>&lt;station id&gt;#&lt;visit id&gt;.&lt;index&gt;</code> for a visit posting.</p>
-<p>A refused accept fires nothing, and neither does a Load that restores held
-jobs, so a handler on this event never runs twice for one job.</p>
+<p>A step that the stance cannot take fires nothing: an Ally's third merit and
+an Enemy's third offence leave it where it is.</p>
+<p>A provocation fires nothing. Fire on a Neutral or Ally body makes its
+civilization's ships act Enemy for fifteen minutes, but the stance the
+table holds does not move, and it is the table this event reports.</p>
+<p>A civilization has no authored id, so a handler cannot name one ahead of
+time. Compare <code>event.civilization</code> with a value an earlier event stored, or
+gate on <code>event.from</code> and <code>event.to</code> alone.</p>
+<p>A Load restores every stance and fires none. Only a generated world has
+civilizations: on a <code>Void</code> world the event is a lint error.</p>
+</details>
+<h2 id="onsectorentered" tabindex="-1">OnSectorEntered</h2>
+<p>Fires once each time the player's ship leaves one sector of a generated
+world for another, the frame the HUD posts <code>SECTOR (x, y, z)</code>.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sector</code></td>
+<td>text</td>
+<td>the sector entered, as its id text <code>sector_&lt;x&gt;_&lt;y&gt;_&lt;z&gt;</code>, a negative index written <code>n&lt;abs&gt;</code></td>
+</tr>
+<tr>
+<td><code>x</code>, <code>y</code>, <code>z</code></td>
+<td>number</td>
+<td>the entered sector's indices</td>
+</tr>
+<tr>
+<td><code>from</code></td>
+<td>text</td>
+<td>the sector left, as its id text</td>
+</tr>
+</tbody>
+</table>
+</div>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnSectorEntered</span><span class="ron-punct">,</span>
+    <span class="ron-key">once</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
+    <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">GreaterThan</span><span class="ron-punct">(</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Event</span><span class="ron-punct">(</span><span class="ron-string">&quot;x&quot;</span><span class="ron-punct">))),</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">2.0</span><span class="ron-punct">)))),</span>
+        <span class="ron-punct">))),</span>
+    <span class="ron-punct">],</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">ObjectiveComplete</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;go_east&quot;</span><span class="ron-punct">))],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<p>The sector the player starts in is not a crossing: a New Game, a Load and a
+Retry fire nothing for the first cell, wherever the last world ended.</p>
+<p>The event carries no <code>id</code>, so an <code>Entity</code> filter never matches it. Read the
+fields with <a href="../expressions/#event-fields"><code>event.&lt;field&gt;</code></a>.</p>
+<p>Only a generated world has sectors: on a <code>Void</code> world the event is a lint
+error.</p>
 </details>
 <h2 id="dispatch-order-what-you-can-rely-on" tabindex="-1">Dispatch order (what you can rely on)</h2>
 <ul>

@@ -46,7 +46,7 @@ variables, and <code>Conditional</code> combines other filters with boolean logi
 </tr>
 <tr>
 <td><a href="#expression"><code>Expression</code></a></td>
-<td>a variable condition</td>
+<td>a condition over variables and payload fields</td>
 <td>&quot;the counter is past 4 and the flag is unset&quot;</td>
 </tr>
 <tr>
@@ -288,9 +288,10 @@ is a condition node from the
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
-<p>An <code>Expression</code> filter reads ONLY the variable store - it ignores the event
-payload entirely, which is why it composes with any event, including
-<code>OnUpdate</code>.</p>
+<p>An <code>Expression</code> filter reads the variable store, so it composes with any
+event, including <code>OnUpdate</code>. It reads the event payload only through an
+<a href="../expressions/#event-fields"><code>Event(&quot;field&quot;)</code></a> factor: that is how a
+handler tells <code>OnTraded</code> for one item from <code>OnTraded</code> for another.</p>
 </details>
 <h2 id="conditional" tabindex="-1">Conditional</h2>
 <p>Boolean combinators over other filters (any kinds, nestable), written

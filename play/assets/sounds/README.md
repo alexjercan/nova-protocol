@@ -38,7 +38,7 @@ volumes do that.
 To replace one by hand, drop a real sound at the same path and filename. They
 load through `SoundBank::load`'s `sounds/<name>.wav` convention into the
 `UiSfx` bank (`register_sounds` in `crates/nova_assets/src/lib.rs`); the keys
-are `UiSfx` in `crates/nova_gameplay/src/audio/mod.rs`, guarded by the
+are `UiSfx` in `crates/nova_sound/src/lib.rs`, guarded by the
 `every_ui_sfx_key_has_a_file` test.
 
 ## Files

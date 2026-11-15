@@ -1,0 +1,631 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>v0.18.0 - The world answers back - Nova Protocol</title><meta name="description" content="Nova Protocol v0.18.0: stations that refine ore, second-tier sections, supply jobs, contraband and lawful stations, a contextual key row, gamepad docking, an audible docking clamp, and scenario job events and actions."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/news.js"></script></head><body><header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+<main><div class="news"><nav class="news__toc" aria-label="On this page"><p class="news__toc-title">On this page</p><a href="#cargo-that-matters" class="news__toc-link">Cargo that matters</a> <a href="#refine-ore-into-alloy-plate" class="news__toc-link news__toc-link--sub">Refine ore into alloy plate</a> <a href="#a-second-tier-of-sections" class="news__toc-link news__toc-link--sub">A second tier of sections</a> <a href="#the-dart" class="news__toc-link news__toc-link--sub">The Dart</a> <a href="#supply-jobs" class="news__toc-link news__toc-link--sub">Supply jobs</a> <a href="#contraband-and-lawful-stations" class="news__toc-link news__toc-link--sub">Contraband and lawful stations</a> <a href="#fights-that-fit-the-region" class="news__toc-link">Fights that fit the region</a> <a href="#escort-raiders-grow-with-the-region" class="news__toc-link news__toc-link--sub">Escort raiders grow with the region</a> <a href="#turrets-lead-a-ship-that-burns" class="news__toc-link news__toc-link--sub">Turrets lead a ship that burns</a> <a href="#the-ship-tells-you" class="news__toc-link">The ship tells you</a> <a href="#a-clamp-you-can-hear" class="news__toc-link news__toc-link--sub">A clamp you can hear</a> <a href="#a-railgun-hit-you-can-see" class="news__toc-link news__toc-link--sub">A railgun hit you can see</a> <a href="#a-tick-for-every-pickup" class="news__toc-link news__toc-link--sub">A tick for every pickup</a> <a href="#sector-crossings" class="news__toc-link news__toc-link--sub">Sector crossings</a> <a href="#every-sound-in-its-place" class="news__toc-link">Every sound in its place</a> <a href="#your-ship-sounds-from-where-it-is" class="news__toc-link news__toc-link--sub">Your ship sounds from where it is</a> <a href="#one-loudness-one-table" class="news__toc-link news__toc-link--sub">One loudness, one table</a> <a href="#sliders-that-fade-evenly" class="news__toc-link news__toc-link--sub">Sliders that fade evenly</a> <a href="#keys-that-apply" class="news__toc-link">Keys that apply</a> <a href="#the-key-row-shows-what-you-can-do" class="news__toc-link news__toc-link--sub">The key row shows what you can do</a> <a href="#dock-and-take-the-helm-from-a-gamepad" class="news__toc-link news__toc-link--sub">Dock and take the helm from a gamepad</a> <a href="#scenarios-hear-more-and-do-more" class="news__toc-link">Scenarios hear more and do more</a> <a href="#station-control-speaks" class="news__toc-link news__toc-link--sub">Station Control speaks</a> <a href="#jobs-stances-and-sectors-as-events" class="news__toc-link news__toc-link--sub">Jobs, stances and sectors as events</a> <a href="#read-what-an-event-carries" class="news__toc-link news__toc-link--sub">Read what an event carries</a> <a href="#five-actions-that-change-the-world" class="news__toc-link news__toc-link--sub">Five actions that change the world</a> <a href="#the-new-blocks-in-the-editor" class="news__toc-link news__toc-link--sub">The new blocks in the editor</a> <a href="#more-in-v0180" class="news__toc-link">More in v0.18.0</a> <a href="#for-modders" class="news__toc-link">For modders</a> <a href="#point-releases" class="news__toc-link">Point releases</a></nav><article class="prose news__body"><p class="prose__meta"><a href="/nova-protocol/news/">&larr; News</a> &nbsp;//&nbsp; 2026-11-15 &nbsp;//&nbsp; v0.18.0</p><h1>v0.18.0 - The world answers back</h1><p>v0.17.0 was the release where <a href="/news/0.17.0/">the world comes to you</a>.
+Traders flew to stations, traded and posted jobs. But the world said little
+about what you did in it. A docking clamp closed with no sound. A railgun slug
+landed with the same click as any other penetrating hit. No station cared
+what you carried, and a scenario could hear a job accepted but not a job
+finished.</p>
+<p>v0.18.0 makes the world answer. A clamp latches with a sound, a light and
+<code>DOCKED &lt;NAME&gt;</code>. Every sound, your own ship's included, now plays from its
+place in the world, at one even loudness. Stations refine ore into alloy
+plate, and the plate builds a second tier of sections. A stranded ship asks
+for goods. Lawful stations do not trade contraband. An escort's raiders grow
+with the region, and turrets lead a ship that burns. Station Control speaks
+about your first job. The key row shows only the keys that apply, and a
+gamepad can dock. And scenarios can read what an event carries, follow a job
+to its end, and pay, give, take, post jobs and set stances.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0180-dock-clamp.webm -->
+    <div class="figure__placeholder" data-eager="true">
+        <span class="figure__placeholder-tag">Video</span>
+        <span class="figure__placeholder-name">assets/loops/news-0180-dock-clamp.webm</span>
+        <span class="figure__placeholder-note">A small hull closes on a station port at 4 m/s under the cold beacon and docks: the two sleeves reach across the gap, the light on the plating by the port turns amber, the DOCK chip lights, and the HUD shows STATION HELM and the notice DOCKED WAYSTATION.</span>
+    </div>
+    <figcaption class="figure__caption">Beacon, clamp, notice. The loop is silent: the latch is a sound, and you hear it only in the game. This is a test rig: the script puts the hull 14 m behind the berth with 4 m/s of closing speed and asks for a dock on each frame, and the game's capture rule takes the dock. Nobody flies the hull. The clamp blink lasts 0.2 s and is hard to see at this size.</figcaption>
+</figure>
+<h2 id="cargo-that-matters" tabindex="-1">Cargo that matters</h2>
+<h3 id="refine-ore-into-alloy-plate" tabindex="-1">Refine ore into alloy plate</h3>
+<p>Some stations now offer <strong>Refine</strong>. Docked at one, click an ore a recipe uses
+in the Inventory pane, then <strong>Refine</strong> beside <strong>Sell</strong>. The form counts
+batches and states each one whole:
+<code>2 Iron ore + 1 Carbon ore + 30 cr -&gt; 1 Alloy plate</code>. Confirm takes the ore
+from your hold, adds the plate and pays the fee to the station. A refine that
+cannot run changes nothing and says why.</p>
+<!-- Game source: crates/nova_authoring/src/base_content/items.rs iron ore
+     :114-121 (16 cr ask, 12 cr bid), carbon ore :134-141 (8 cr, 6 cr), alloy
+     plate :273-281 (90 cr, 68 cr), ALLOY_PLATE_REFINE_FEE_CR :314 (30 cr),
+     refine_recipe :319-327; batches crates/nova_gameplay/src/inventory.rs
+     batches_from :220, plan_item_refine :1160; the form line
+     crates/nova_interface/src/inventory/app.rs refine_batch_text :2889.
+     Trader price factors: crates/nova_authoring/src/base_content/market.rs. -->
+<div class="widget" data-widget="refine-batch">
+<p>One batch takes 2 iron ore, 1 carbon ore and a 30 cr fee, and gives 1 alloy plate. At base prices iron ore sells for 12 cr, carbon ore for 6 cr and an alloy plate for 68 cr. A batch sold as ore earns 30 cr; the same batch refined and sold as plate earns 38 cr after the fee. A plate costs 90 cr to buy. A hold of 100 iron ore and 40 carbon ore covers 40 batches: a 1,200 cr fee, 40 plates and 20 iron ore left over. Sold as ore that hold earns 1,440 cr. Refined and sold, it earns 1,760 cr. A generated trader moves each price by its stock, its cluster and its civilization, so the numbers at a real station differ.</p>
+</div>
+<p>Refineries are out in the more advanced civilizations. A generated station
+refines only when its civilization is at advancement 0.25 or more, and a New
+Game starts among civilizations well below that. Your start station does not
+refine: the form there reads <code>Refused: &lt;station&gt; does not refine</code>. Plan a
+trip, and carry the ore with you.</p>
+<!-- Game source: crates/nova_world_base/src/civilizations.rs
+     CIVILIZATION_LATTICE :42 (240 km), CIVILIZATION_JITTER :45 (40 km),
+     INFLUENCE_REACH :51 (320 km), ADVANCEMENT_SATURATION :61 (4,000 km),
+     ADVANCEMENT_VARIATION :67 (0.1), the draw :257-259, advancement_curve
+     :460 and its ring table :685-703; the smoothstep `ramp`
+     crates/nova_world_base/src/clusters.rs:1207; the start block
+     crates/nova_world_base/src/start.rs:48; REFINE_ADVANCEMENT
+     crates/nova_world_base/src/station_layout.rs:143 (0.25), builds :565;
+     KNOWN_CHANCE crates/nova_world_base/src/ship_parts.rs:51 (0.5). Section
+     gates in crates/nova_authoring/src/base_content/sections/:
+     torpedo_bay.rs:398 (0.25), cargo_intake.rs:186, mining_beam.rs:166,
+     controller.rs:107, docking_port.rs:157 (0.3), railgun.rs:237 (0.6). -->
+<div class="widget" data-widget="advancement-gates">
+<p>A civilization's advancement rises with the distance of its centre from the world origin, slowly at first, and reaches 1.00 at 4,000 km. Each civilization reads up to a tenth of that value over or under it. A station reads its civilization's advancement.</p>
+<table>
+<thead><tr><th>Centre from the origin</th><th>Advancement</th><th>What v0.18.0 opens there</th></tr></thead>
+<tbody>
+<tr><td>240 km, the first ring</td><td>0.01</td><td>Nothing new</td></tr>
+<tr><td>485 km, the edge of the New Game start block</td><td>0.04</td><td>Nothing new</td></tr>
+<tr><td>960 km, the fourth ring</td><td>0.15</td><td>Nothing new</td></tr>
+<tr><td>1,240 to 1,390 km</td><td>0.23 to 0.28</td><td>Refine and the Dart torpedo bay: some civilizations from 1,240 km, all of them from 1,390 km</td></tr>
+<tr><td>1,370 to 1,550 km</td><td>0.27 to 0.33</td><td>Wide Intake, Long Mining Beam, Armoured Controller and Wide-Gate Docking Port: some from 1,370 km, all from 1,550 km</td></tr>
+<tr><td>2,000 km</td><td>0.50</td><td>Nothing more</td></tr>
+<tr><td>2,120 to 2,450 km</td><td>0.55 to 0.67</td><td>Heavy Lance: some from 2,120 km, all from 2,450 km</td></tr>
+<tr><td>3,000 km</td><td>0.84</td><td>Nothing more</td></tr>
+<tr><td>4,000 km</td><td>1.00</td><td>The curve stops rising</td></tr>
+</tbody>
+</table>
+<p>Every living station of a civilization at 0.25 or more refines. A section is different: each civilization knows a section its advancement opens on one even draw, so about half of them build it.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/news-0180-refine.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0180-refine.png</span>
+        <span class="figure__placeholder-note">The Inventory pane docked at the waystation, with iron ore selected and the form set to Refine: quantity 1 of 1, the batch line 2 Iron ore + 1 Carbon ore + 30 cr -> 1 Alloy plate, Balance 70 cr and Confirm.</span>
+    </div>
+    <figcaption class="figure__caption">One batch, stated whole, before Confirm. This is a test rig: the authored waystation, which refines, and a hold given three iron ore, one carbon ore and 100 cr. A New Game start station does not refine.</figcaption>
+</figure>
+<h3 id="a-second-tier-of-sections" tabindex="-1">A second tier of sections</h3>
+<p>An alloy plate is a part, and five new sections spend one. Each is the second
+tier of a section that had one variant. Its recipe is the first tier's parts
+plus one alloy plate, at one and a half times the credits.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>First tier</th>
+<th>Second tier</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cargo intake</td>
+<td>door opens at 40 m, takes at 1 m, 90 health</td>
+<td><strong>Wide Intake</strong>: door opens at 60 m, takes at 1.5 m, 120 health</td>
+</tr>
+<tr>
+<td>Mining beam</td>
+<td>100 m reach, a pulse each 1 s, 90 health</td>
+<td><strong>Long Mining Beam</strong>: 160 m reach, a pulse each 0.8 s, 110 health</td>
+</tr>
+<tr>
+<td>Controller</td>
+<td>100 health, 9,760 torque</td>
+<td><strong>Armoured Controller</strong>: 160 health, 11,000 torque</td>
+</tr>
+<tr>
+<td>Docking port</td>
+<td>captures at 10 m and 15 degrees, 90 health</td>
+<td><strong>Wide-Gate Docking Port</strong>: captures at 15 m and 25 degrees, 110 health</td>
+</tr>
+<tr>
+<td>Railgun</td>
+<td>300 Pierce damage, 1,800 power</td>
+<td><strong>Heavy Lance</strong>: 450 Pierce damage, 2,700 power</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>A station builds only the sections its civilization knows. Four of them open
+at advancement 0.3 and the Heavy Lance at 0.6, so the second tier is also out
+in the advanced civilizations. The chart scope above shows how far out. A
+station that builds one swaps it in for the first tier from the Ship pane's
+<strong>Catalogue</strong>.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0180-second-tier.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0180-second-tier.png</span>
+        <span class="figure__placeholder-note">The Catalogue of the Ship pane, docked at a station that builds the wide intake, narrowed to Structure, with the wide intake's card open: a recipe of 2 Actuator pack, 1 Alloy plate, 1 Frame spar and 4 Section panel, Detect 60 m, and the button Swap CGO-1, 480 cr.</span>
+    </div>
+    <figcaption class="figure__caption">One of the five, on its card before the swap. The second tier keeps the model of the part it replaces, so the card is where you see the difference. This is a test rig: a generated yard at advancement 0.35 in a void, and a hull with a base cargo intake and 5,000 cr. The other four sections are not in this frame.</figcaption>
+</figure>
+<h3 id="the-dart" tabindex="-1">The Dart</h3>
+<p><code>dart_torpedo_section</code> loads the <strong>Dart</strong>, a third torpedo type. It flies the
+Lance's straight run at a cruise of 450 m/s against the Lance's 350. Over a
+3 km run-in it arrives in 7.9 s where a Lance takes 9.3 s. Point defense
+solves it as it solves a Lance. The bay opens at advancement 0.25, and its
+recipe is the torpedo bay's plus one alloy plate.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0180-dart-torpedo.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Video</span>
+        <span class="figure__placeholder-name">assets/loops/news-0180-dart-torpedo.webm</span>
+        <span class="figure__placeholder-note">The bay door of a parked hull opens and a Dart comes out on its cold charge. It turns onto the run, lights its drive and runs straight, with no weave, with its trail behind it.</span>
+    </div>
+    <figcaption class="figure__caption">A launch and a straight run. The loop shows one Dart; it does not race it against a Lance. This is a test set: a fixture hull has its one bay swapped for the Dart bay, a script fires it and commits the round to a raider 3.4 km down the run, and the camera rides beside the round. The loop ends 5.5 s after the commit, with the round at 384 m/s and short of its target.</figcaption>
+</figure>
+<h3 id="supply-jobs" tabindex="-1">Supply jobs</h3>
+<p>A station board can now post a <strong>Supply</strong> job. A neutral ship drifts 10 km
+out and asks for goods: dock with its caller with the whole stack in your
+hold, and the dock takes it. The goods name the job. Medkits make it a
+rescue (<code>Rescue a stranded crew with 3 Medkit</code>), rations a resupply,
+ammunition a rearm, hull plates a repair, and cheap ore or parts a supply
+run. A board never asks for contraband. The count fits the smallest start
+hold, and the reward covers the goods at ask plus half. Generated stations
+sell medkits, rations, plates and ammunition. A Distress call is unchanged:
+dock with the caller and it is done.</p>
+<p>With the hold short the dock takes nothing. The HUD says what is missing,
+such as <code>JOB-1: SHORT 1 MEDKIT</code>, and the job stays open: dock again with
+the rest.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0180-supply.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0180-supply.png</span>
+        <span class="figure__placeholder-note">The player's ship docked with the caller of a medkit rescue, JOB-1 Rescue on its chip, with the hold one medkit short: the HUD notice above the key row reads JOB-1: SHORT 1 MEDKIT, and the DOCK and HELM chips are lit.</span>
+    </div>
+    <figcaption class="figure__caption">The dock held, and the hold was one short, so the caller took nothing. The job stays open after it. This is a scripted New Game: the script took the job at a station, set the hold one medkit short, put the ship on the caller's berth at the caller's speed and asked for the dock. Nobody flew the approach.</figcaption>
+</figure>
+<h3 id="contraband-and-lawful-stations" tabindex="-1">Contraband and lawful stations</h3>
+<p>Half the civilizations of a generated world are now <strong>lawful</strong>. The market of
+a living lawful station does not deal in Contraband: it buys none and sells
+none. Open a Sell of the item there and the form reads
+<code>Refused: &lt;station&gt; does not deal in contraband</code>, with Confirm disabled. The
+station still lets you dock with the item in your hold, and its storage keeps
+it. Sell the item at a station that is not lawful.</p>
+<p>The base game has one such item, <strong>Unmarked cores</strong>: 10 kg, with a 300 cr ask
+and a 240 cr bid. Scavengers deal them. Half the intact scavenger ships carry
+one unit.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0180-contraband.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0180-contraband.png</span>
+        <span class="figure__placeholder-note">The Inventory pane of a small test hull docked at a waystation, with the unmarked cores selected: the row shows no price, the Sell form reads Refused: WAYSTATION does not deal in contraband in red, and the Confirm and Sell all buttons are dim.</span>
+    </div>
+    <figcaption class="figure__caption">Docked, and no sale. This is a test rig: the walk marks the waystation lawful by hand and puts one unmarked core in the hold. In a generated world the mark comes from the station's civilization.</figcaption>
+</figure>
+<h2 id="fights-that-fit-the-region" tabindex="-1">Fights that fit the region</h2>
+<h3 id="escort-raiders-grow-with-the-region" tabindex="-1">Escort raiders grow with the region</h3>
+<p>The raiders that wait for an escort now come from the advancement of the
+civilization that posted it. Near the start, one small raider waits: about
+the size of your start ship, with one turret. Further out they come in twos
+and threes, and in the advanced core three of the civilization's own
+scavengers wait. Each raider adds 150 cr to the reward. In v0.17.0 the
+hauler's cargo set the count: one raider, plus one per 700 cr of cargo, up
+to three.</p>
+<!-- Game source: crates/nova_gameplay/src/jobs.rs ESCORT_RAIDERS_MAX :141,
+     ESCORT_PAY_PER_RAIDER_CR :144, ESCORT_RAIDER_BANDS :155-184, the budget
+     rule ShipSizeType::Budget :200 and its doc :193-199 (no torpedo bay or
+     lance); the spare
+     drive pair crates/nova_world_base/src/ship_layout.rs
+     ShipSpareDriveType :203. -->
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>Poster's advancement</th>
+<th>Raiders</th>
+<th>Each raider</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>below 0.25</td>
+<td>1</td>
+<td>up to 40 sections and 1 turret</td>
+</tr>
+<tr>
+<td>0.25 to 0.5</td>
+<td>1 or 2</td>
+<td>up to 68 sections and 2 turrets</td>
+</tr>
+<tr>
+<td>0.5 to 0.75</td>
+<td>2 or 3</td>
+<td>up to 108 sections and 3 turrets</td>
+</tr>
+<tr>
+<td>0.75 and over</td>
+<td>3</td>
+<td>the civilization's own scavenger</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>A raider below 0.75 mounts turrets only: no torpedo bay and no railgun. The
+chart scope above shows how far out each advancement lies. The hauler now
+carries a spare pair of drives beside its flight computer, so one cut
+through its hull does not leave it adrift.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0180-escort-bands-start.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0180-escort-bands-start.png</span>
+        <span class="figure__placeholder-note">The player's armed start ship from behind, undocked, with one small raider 700 m ahead. Its label reads RAIDER 0, 28 sections, 1 turret(s), hp 1900/1900, 700 m.</span>
+    </div>
+    <figcaption class="figure__caption">An escort posted at advancement 0.10: one raider about your own size. This is a test rig: the escort sandbox on world seed 37 names a civilization of the band in every station's market, accepts the escort and puts the ship 700 m off the raider. The red label is the debug overlay, not the HUD.</figcaption>
+</figure>
+<figure class="figure">
+    <!-- Capture: assets/news-0180-escort-bands-core.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0180-escort-bands-core.png</span>
+        <span class="figure__placeholder-note">The same ship from behind, with three long scavenger hulls stacked ahead of it. Their labels read 497 sections and 3 turrets at 1062 m, 454 sections and 4 turrets at 1600 m, and 416 sections and 4 turrets at 2171 m.</span>
+    </div>
+    <figcaption class="figure__caption">The same job posted at advancement 0.85: three scavengers, each with fifteen times the start raider's sections or more. The same test rig and the same cut size, but here the ship stands 1,600 m off the raiders' centre against 700 m above, so these hulls are larger than they look.</figcaption>
+</figure>
+<h3 id="turrets-lead-a-ship-that-burns" tabindex="-1">Turrets lead a ship that burns</h3>
+<p>Turrets now lead a target's acceleration as well as its course. A ship that
+burns or turns under fire no longer pulls out from under the rounds: the
+solve aims where the hull will be if it keeps accelerating as it does.</p>
+<p>A turret also no longer holds fire on a small mark far out. One turret of a
+raider 2 km away looks smaller than the last tremor of a settled barrel, so
+in v0.17.0 your guns waited, with the trigger down, for an aim they could
+not reach. A barrel settled on its aim now fires. Half a degree off still
+holds. See <a href="/wiki/sections/turret/">Turret</a>.</p>
+<h2 id="the-ship-tells-you" tabindex="-1">The ship tells you</h2>
+<h3 id="a-clamp-you-can-hear" tabindex="-1">A clamp you can hear</h3>
+<p>Every docking port of a station now wears a beacon: a cold light that
+breathes on a 3 s pulse. It burns amber while a ship holds the port and is
+dark on a dead station. The beacons follow the Flash lights setting: Off,
+which the Low preset uses, lights none.</p>
+<p>When the clamp closes, your port plays the latch, a cold light blinks on the
+collar, and the HUD posts <code>DOCKED &lt;NAME&gt;</code>. Letting go plays the release and
+posts <code>UNDOCKED</code>. A dock that a Load rebuilds is not a new clamp, and a dock
+that damage ends has no release, so both stay quiet. The loop at the top of
+this post shows the sequence.</p>
+<h3 id="a-railgun-hit-you-can-see" tabindex="-1">A railgun hit you can see</h3>
+<p>A railgun slug landing is now its own event. The entry face flashes the
+slug's steel blue, throws a dense burst of spall and plays the lance's own
+impact sound. It happens once per shot, at the first body the slug meets,
+however many cells the corridor crosses.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0180-railgun-impact.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Video</span>
+        <span class="figure__placeholder-name">assets/loops/news-0180-railgun-impact.webm</span>
+        <span class="figure__placeholder-note">A railgun slug lands on the bow of a raider, at a tenth of game speed. Orange spall leaves the entry face and the bow plating takes a blue cast for a moment. The hull then comes apart into its sections and its cargo canisters, and the haze of the slug lies along the line of flight through the wreck.</span>
+    </div>
+    <figcaption class="figure__caption">One flash for one shot. The loop is silent, so the impact sound is not in it. This is a test range: a script holds a gunboat on its post 220 m from a raider with no pilot and commits one shot, and the clock runs at a tenth of game speed from a moment before the shot. The flash is a light on the plating that lasts 0.15 s. The slug kills the raider; the pale boxes are its cargo. At this speed the spall shows two frames before the drawn slug reaches the hull.</figcaption>
+</figure>
+<p>The kill stinger and the camera jolt now confirm any hull your own fire
+defeats: PDC rounds, a railgun slug, a torpedo blast or a ram. In v0.17.0
+only a torpedo kill confirmed.</p>
+<h3 id="a-tick-for-every-pickup" tabindex="-1">A tick for every pickup</h3>
+<p>When your intake takes a canister, a <strong>pickup tick</strong> prints above the key
+row: one <code>+&lt;COUNT&gt; &lt;ITEM&gt;</code> line per stack, such as <code>+4 HULL PLATE</code>, for
+1.5 s. At most three lines show. The intake blinks warm at the same moment.
+A take by another hull shows nothing.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0180-pickup-tick.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Video</span>
+        <span class="figure__placeholder-name">assets/loops/news-0180-pickup-tick.webm</span>
+        <span class="figure__placeholder-note">A canister of 8 hull plates rides the beam down into the intake of the player's ship. The doors close over it and the line +8 HULL PLATE prints above the key row, then leaves.</span>
+    </div>
+    <figcaption class="figure__caption">What came aboard, as it comes aboard. The tick has no sound of its own; the take sound is the intake's. The loop is the pickup of the cargo lesson: a script steers the hull under a canister that the same hull let go earlier, and the intake takes it. The door blink lasts 0.2 s and does not stand out in this capture.</figcaption>
+</figure>
+<h3 id="sector-crossings" tabindex="-1">Sector crossings</h3>
+<p>Crossing into another sector of a generated world now posts
+<code>SECTOR (x, y, z)</code> on the HUD notice, with <code>- FIRST VISIT</code> for a sector your
+chart had not recorded. A New Game or a Load posts nothing for the sector
+you start in.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0180-sector-notice.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0180-sector-notice.png</span>
+        <span class="figure__placeholder-note">The player's ship at 80 m/s just past a sector border of a generated world, seen from behind: the HUD notice above the key row reads SECTOR (3, 8, 0) - FIRST VISIT.</span>
+    </div>
+    <figcaption class="figure__caption">A new sector, named as the chart names it. The frame shows a first visit; a later crossing into the same sector posts the line without the suffix. This is a scripted New Game: the script let the start dock go, put the ship 200 m short of the border and gave it 80 m/s toward it. Nobody flew the ship; the crossing and the notice are the game's own.</figcaption>
+</figure>
+<h2 id="every-sound-in-its-place" tabindex="-1">Every sound in its place</h2>
+<h3 id="your-ship-sounds-from-where-it-is" tabindex="-1">Your ship sounds from where it is</h3>
+<p>Your own ship's sounds now play in the world like every other ship's. A
+world sound plays at the section or body that made it, fades with its
+distance from your ship and pans with the camera. A hit on your plate is
+heard where it landed, and a gun on your far side sounds from that side.</p>
+<h3 id="one-loudness-one-table" tabindex="-1">One loudness, one table</h3>
+<p>Every sound file is measured when it loads and evened out to one loudness.
+Then each kind of sound, from a gun to a door, an alarm or a menu click, has
+one level, one reach and one repeat rate, set in one table. The interface
+sits under the world: a click is as loud as a nearby gun, never louder than
+a launch or the drive.</p>
+<!-- Game source: crates/nova_sound/src/category.rs SoundCategoryType::spec
+     :185-214 (bus, level dB, reference m, max m, loop dB), FADE_OUT_SHARE
+     :128 (0.25), SoundCategory::distance_fade :282;
+     LOUDNESS_TARGET_LUFS crates/nova_sound/src/loudness.rs:29 (-23). -->
+<div class="widget" data-widget="sound-levels">
+<p>Each sound plays at its row's level, relative to the loudness every file is measured to. A world sound plays at full level out to its first distance, then falls as that distance over yours, eases to silence over the last quarter before its second distance, and is silent there. An interface sound plays flat.</p>
+<table>
+<thead><tr><th>World sound</th><th>Level</th><th>Full to</th><th>Silent at</th></tr></thead>
+<tbody>
+<tr><td>Collapse, a ship coming apart</td><td>-1 dB</td><td>600 m</td><td>10 km</td></tr>
+<tr><td>HeavyWeapon, the railgun report</td><td>-1 dB</td><td>400 m</td><td>8 km</td></tr>
+<tr><td>Drive, a main drive hum</td><td>-2 dB</td><td>250 m</td><td>6 km</td></tr>
+<tr><td>Explosion</td><td>-3 dB</td><td>400 m</td><td>8 km</td></tr>
+<tr><td>Charge, a railgun charging</td><td>-6 dB</td><td>100 m</td><td>3 km</td></tr>
+<tr><td>HeavyImpact, a railgun slug landing</td><td>-8 dB</td><td>250 m</td><td>5 km</td></tr>
+<tr><td>Launch, a torpedo leaving its tube</td><td>-9 dB</td><td>250 m</td><td>5 km</td></tr>
+<tr><td>TorpedoDeath, a dud or an intercept</td><td>-10 dB</td><td>200 m</td><td>3 km</td></tr>
+<tr><td>Ignition, a torpedo drive lighting</td><td>-12 dB</td><td>250 m</td><td>5 km</td></tr>
+<tr><td>Impact, a round on plate or stone</td><td>-13 dB</td><td>150 m</td><td>2.5 km</td></tr>
+<tr><td>Weapon, a point-defense gun</td><td>-14 dB</td><td>200 m</td><td>3 km</td></tr>
+<tr><td>Mining, a mining beam pulse</td><td>-14 dB</td><td>60 m</td><td>1.5 km</td></tr>
+<tr><td>Reload</td><td>-16 dB</td><td>40 m</td><td>800 m</td></tr>
+<tr><td>Pickup, the intake taking a canister</td><td>-16 dB</td><td>30 m</td><td>600 m</td></tr>
+<tr><td>Rcs, the RCS hiss</td><td>-18 dB</td><td>200 m</td><td>1.5 km</td></tr>
+<tr><td>DryFire, a gun on an empty magazine</td><td>-20 dB</td><td>20 m</td><td>300 m</td></tr>
+<tr><td>Machinery, doors, stows and clamps</td><td>-22 dB</td><td>30 m</td><td>600 m</td></tr>
+</tbody>
+</table>
+<p>Interface sounds play flat: Alarm and Objective at -5 dB, Cockpit and Preview at -6, Notice at -8, UiConfirm, UiError and Editor at -9, Comms at -11, CockpitTick at -12, UiClick at -14, UiTick at -15 and the terminal bed at -24.</p>
+</div>
+<p>The torpedo bay door no longer blasts over the guns. It is quiet ship
+machinery now, and one ship's doors share one voice however many bays open
+at once.</p>
+<h3 id="sliders-that-fade-evenly" tabindex="-1">Sliders that fade evenly</h3>
+<p>The volume sliders now fade evenly in decibels over their whole travel. A
+slider no longer does most of its work in the last few notches. The World
+slider is now <strong>Effects</strong>, and the unused Music slider is gone. Your saved
+levels carry over, and the console takes <code>volume effects</code>.</p>
+<h2 id="keys-that-apply" tabindex="-1">Keys that apply</h2>
+<h3 id="the-key-row-shows-what-you-can-do" tabindex="-1">The key row shows what you can do</h3>
+<p>In v0.17.0 the flight key row kept one fixed slot per verb and drew a verb
+dark when it did not apply. Now the row shows only the chips that apply. Five
+core chips always sit left of the centre line: INTERFACE, DRIVE, STOP, RCS
+and RADAR. The rest join right of it while there is something for them to do:</p>
+<ul>
+<li><strong>GOTO</strong> while you hold a travel lock, <strong>ORBIT</strong> near a gravity well and
+<strong>CANCEL</strong> while the autopilot is engaged.</li>
+<li><strong>DOCK</strong> while your lock carries a docking port or you are docked, and
+<strong>HELM</strong> while you are docked.</li>
+<li><strong>MINE</strong> on a ship with a bound mining beam, and <strong>AIM</strong> on a ship with a
+turret, a torpedo bay or a railgun.</li>
+<li><strong>FIRE</strong>, <strong>TORPEDO</strong> and <strong>RAILGUN</strong> while the weapons are hot.</li>
+</ul>
+<p>A shown chip you cannot press right now still draws dark. That includes RCS
+on an empty magazine, which v0.17.0 drew lit.</p>
+<!-- Game source: crates/nova_hud/src/keybind_dock.rs DOCK_VERBS :109,
+     DOCK_CORE_LEN :129, chip_state :676; the show and lit rules
+     crates/nova_ship/src/input/player/hints.rs update_flight_verb_hints :271
+     (held hull :358 and :414, GOTO :494, ORBIT :508, CANCEL :521, DOCK :539,
+     HELM :560, MINE :573, AIM :583, weapons :455); default keys
+     crates/nova_ship/src/input/bindings.rs flight_bindings :30,
+     camera_bindings :133, MINING_KEYS :177, section_default_bindings :193 and
+     crates/nova_interface/src/bindings.rs :50; the helm of a new dock
+     crates/nova_ship/src/sections/docking_section/connection.rs :100. -->
+<div class="widget" data-widget="key-row">
+<p>The row on an armed hull that can fly, with the default keyboard keys. A chip in brackets is dark; a chip with a star is inverted, for a state the ship is in.</p>
+<table>
+<thead>
+<tr><th>Context</th><th>Core chips</th><th>Chips right of the centre line</th></tr>
+</thead>
+<tbody>
+<tr><td>No lock, weapons cold</td><td>INTERFACE, DRIVE, STOP, RCS, RADAR</td><td>AIM</td></tr>
+<tr><td>Lock on a hull with a port, out of reach</td><td>the same five</td><td>GOTO, [DOCK], AIM</td></tr>
+<tr><td>The same lock, port in reach</td><td>the same five</td><td>GOTO, DOCK, AIM</td></tr>
+<tr><td>That lock, a gravity well, a mining beam, weapons hot</td><td>the same five</td><td>GOTO, ORBIT, DOCK, MINE, AIM*, FIRE, TORPEDO, RAILGUN</td></tr>
+<tr><td>Docked to a living ship, which flies the pair</td><td>INTERFACE, [DRIVE], [STOP], [RCS], RADAR</td><td>DOCK*, HELM, AIM</td></tr>
+<tr><td>The same dock after HELM</td><td>INTERFACE, DRIVE, STOP, RCS, RADAR</td><td>DOCK*, HELM*, AIM</td></tr>
+<tr><td>Docked to a living station</td><td>INTERFACE, [DRIVE], [STOP], [RCS], RADAR</td><td>DOCK*, [HELM], AIM</td></tr>
+</tbody>
+</table>
+<p>On a gamepad the same chips draw pad buttons, and DOCK and HELM draw two caps: L3 then Y, and L3 then A.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/news-0180-key-row.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0180-key-row.png</span>
+        <span class="figure__placeholder-note">A warship with a hauler as its travel lock and the weapons hot: the five core chips, then GOTO, ORBIT, a dark DOCK, MINE, an inverted AIM, FIRE, TORPEDO and RAILGUN, each with its key.</span>
+    </div>
+    <figcaption class="figure__caption">The row at its fullest: a lock, a gravity well and hot weapons. The scene gives the warship a mining beam, so MINE shows too. A cold ship with no lock shows far fewer chips.</figcaption>
+</figure>
+<h3 id="dock-and-take-the-helm-from-a-gamepad" tabindex="-1">Dock and take the helm from a gamepad</h3>
+<p>DOCK and HELM had no default gamepad button. They are now chords on the RCS
+button,
+like MATCH: hold <strong>L3</strong> and press <strong>Y</strong> to dock or let go, hold <strong>L3</strong> and
+press <strong>A</strong> to take or hand back the helm. The key row draws both caps on the
+DOCK and HELM chips.</p>
+<p>New hulls put the weapons on free buttons. A torpedo bay takes <strong>LB</strong>, a
+railgun takes <strong>View</strong>, and a ship's first mining beam takes <strong>RT</strong> as well
+as <code>V</code>. LB is also free look and View is also the HUD toggle, so while the
+weapons are hot those two do nothing on a pad; <code>Alt</code> and the grave key still
+work. RT is also FIRE: with the weapons cold it only mines. See
+<a href="/wiki/keybinds/">Keybinds</a>.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0180-pad-row.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0180-pad-row.png</span>
+        <span class="figure__placeholder-note">The same scene after a gamepad press, weapons hot: every chip draws its pad button. DOCK draws two caps, L3 then Y, and is dark. MINE and FIRE are on RT, AIM on LT, TORPEDO on LB and RAILGUN on View.</span>
+    </div>
+    <figcaption class="figure__caption">The same row, drawn for a pad. The scene presses the buttons on a synthesized pad. HELM is not in the frame: it shows only while you are docked.</figcaption>
+</figure>
+<h2 id="scenarios-hear-more-and-do-more" tabindex="-1">Scenarios hear more and do more</h2>
+<h3 id="station-control-speaks" tabindex="-1">Station Control speaks</h3>
+<p>Station Control now speaks in the open world, three times, each once per
+world. When the work of your first job is done, it sends you back to the
+station that posted it. On your first hand-in it pays a 50 cr bonus over the
+reward. And when the world takes a job you hold, it calls the contract void.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0180-station-control.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0180-station-control.png</span>
+        <span class="figure__placeholder-note">A salvage hauler docked at its station after the first hand-in of a New Game world: the comms card reads STATION CONTROL, First delivery logged. A 50 cr bonus is on your account. The board has more work.</span>
+    </div>
+    <figcaption class="figure__caption">The bonus is paid once per world, on the first hand-in. A scripted walk of a New Game world accepts a Recover job, does the work and hands it in through the Jobs pane. The frame shows the line, not the balance.</figcaption>
+</figure>
+<p>The base game writes those lines with the same events and actions a mod
+gets. This is the hand-in handler of the Open World scenario:</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnJobHandedIn</span><span class="ron-punct">,</span>
+    <span class="ron-key">once</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-type">GrantCredits</span><span class="ron-punct">((</span>
+            <span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player&quot;</span><span class="ron-punct">,</span>
+            <span class="ron-key">amount</span><span class="ron-punct">:</span> <span class="ron-literal">50</span><span class="ron-punct">,</span>
+        <span class="ron-punct">)),</span>
+        <span class="ron-type">NarrativeCue</span><span class="ron-punct">((</span>
+            <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Station Control&quot;</span><span class="ron-punct">,</span>
+            <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;First delivery logged. A 50 cr bonus is on your account. The board has more work.&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-punct">)),</span>
+    <span class="ron-punct">],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<h3 id="jobs-stances-and-sectors-as-events" tabindex="-1">Jobs, stances and sectors as events</h3>
+<p><code>OnJobAccepted</code> came with v0.17.0. Three more events now follow a held job to
+its end: <code>OnJobDone</code> when its work in the world is finished, <code>OnJobHandedIn</code>
+when the reward is paid, and <code>OnJobDropped</code> with a <code>cause</code> of <code>Lost</code> or
+<code>Abandoned</code>. All four carry <code>id</code>, <code>kind</code>, <code>station</code>, <code>reward_cr</code> and
+<code>post_key</code>. A procurement has no work in the world, so it raises no
+<code>OnJobDone</code>.</p>
+<p><code>OnStanceChanged</code> fires once per step of a civilization's stance toward the
+player, with <code>civilization</code>, <code>from</code> and <code>to</code>. <code>OnSectorEntered</code> fires when
+the player crosses into another sector, with <code>sector</code>, <code>x</code>, <code>y</code>, <code>z</code> and
+<code>from</code>. See <a href="/create/events/#job-events">Job events</a>.</p>
+<h3 id="read-what-an-event-carries" tabindex="-1">Read what an event carries</h3>
+<p>An expression can now read a field of the event its handler runs for. In RON
+it is <code>Event(&quot;field&quot;)</code>; typed in the editor it is <code>event.field</code>, as in
+<code>event.price_cr &gt; 100</code>. It works in a handler's filters and in its own
+<code>VariableSet</code> and <code>TimerStart</code>. Lint refuses a field the event does not
+carry and names the fields it has.</p>
+<p>Three new queries read the world: <code>entity(&quot;id&quot;).credits</code>,
+<code>entity(&quot;id&quot;).items(&quot;Item&quot;)</code> and <code>scenario.sector</code>. See
+<a href="/create/expressions/#event-fields">Event fields</a>.</p>
+<h3 id="five-actions-that-change-the-world" tabindex="-1">Five actions that change the world</h3>
+<ul>
+<li><strong><code>GrantCredits</code></strong> grants credits to a ship or a station, or charges it
+with a negative amount.</li>
+<li><strong><code>GiveItems</code></strong> and <strong><code>TakeItems</code></strong> put items into a hold or take them out,
+all or nothing.</li>
+<li><strong><code>PostJob</code></strong> posts a procurement on a generated station's board under a
+<code>key</code>. The job has no time limit, a world save keeps it, and the job events
+carry the key as <code>post_key</code>.</li>
+<li><strong><code>SetStance</code></strong> puts a civilization on <code>Ally</code>, <code>Neutral</code> or <code>Enemy</code>.</li>
+</ul>
+<p>No author can write the id of a generated station or civilization, so
+<code>PostJob</code> and <code>SetStance</code> take a binding, <code>$id</code> or <code>$other_id</code>, that the
+event fills in. Under <code>OnDocked</code>, <code>$id</code> is the station the player docked
+with:</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnDocked</span><span class="ron-punct">,</span>
+    <span class="ron-key">once</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">PostJob</span><span class="ron-punct">((</span><span class="ron-key">station</span><span class="ron-punct">:</span> <span class="ron-string">&quot;$id&quot;</span><span class="ron-punct">,</span> <span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;ore_run&quot;</span><span class="ron-punct">,</span> <span class="ron-key">item</span><span class="ron-punct">:</span> <span class="ron-string">&quot;IronOre&quot;</span><span class="ron-punct">,</span> <span class="ron-key">count</span><span class="ron-punct">:</span> <span class="ron-literal">4</span><span class="ron-punct">,</span> <span class="ron-key">reward_cr</span><span class="ron-punct">:</span> <span class="ron-literal">250</span><span class="ron-punct">))],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<p>An action that cannot run changes nothing and raises the new
+<code>OnActionRefused</code> event with a <code>reason</code>, such as <code>insufficient_credits</code>,
+<code>hold_full</code>, <code>short_items</code> or <code>duplicate_job</code>. See
+<a href="/create/actions/#ship-state">Ship state</a>.</p>
+<h3 id="the-new-blocks-in-the-editor" tabindex="-1">The new blocks in the editor</h3>
+<p>The Events canvas of the mod editor has blocks for the new events and
+actions. The Query block is now picked, not typed: one chip lists every read,
+a read of a ship adds a chip that lists the scenario's objects, and <code>Items</code>
+adds a chip that lists the items the mod sees.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0180-events-blocks.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0180-events-blocks.png</span>
+        <span class="figure__placeholder-note">The Events canvas of the mod editor with four stacks: an OnStart hat and an OnResume hat, each over a Spawn Start Role block, an OnJobHandedIn hat over a Grant Credits block of 50 credits, and an OnDocked hat over a Post Job block with the station $id, the key ore_run and the item IronOre. The palette on the left lists the event hats.</span>
+    </div>
+    <figcaption class="figure__caption">The handler above, as blocks, last of four stacks. The first two spawn the player's ship, at a new game and at a load. The frame shows the canvas; it does not run the scenario. The mod file was written by hand and opened in the editor: nobody dragged these blocks. The Post Job block folds its count and its reward behind the last chip. The frame is the upper left of the editor window.</figcaption>
+</figure>
+<h2 id="more-in-v0180" tabindex="-1">More in v0.18.0</h2>
+<ul>
+<li><strong>The editor binds new weapons to free pad buttons.</strong> A new torpedo bay
+takes LB and a railgun takes View, in place of LT (raise weapons) and R3
+(interface). A ship's first mining beam takes RT as well as <code>V</code>.</li>
+<li><strong>Ports and lances carry their own sounds.</strong> <code>DockingSectionConfig</code> gains
+optional <code>clamp_sound</code> and <code>release_sound</code>, and <code>RailgunSectionConfig</code>
+gains optional <code>impact_sound</code>. The base port and the base lance author all
+three.</li>
+<li><strong>Refining and scenario grants name their cause.</strong> <code>OnCreditsChanged</code>
+gains the causes <code>Refine</code> and <code>Scenario</code>.</li>
+<li><strong>Chips stay above the key row.</strong> A job, objective or beacon chip pinned
+to the bottom edge now stands above the key row and the notice box, not
+over the RCS, RADAR and AIM keys.</li>
+<li><strong>Weapon effects follow the weapon.</strong> The railgun wake, the PDC muzzle
+flash, the torpedo launch puff and the mining sparks follow the weapon on
+every heading, and a railgun slug is drawn from the muzzle, not a step
+ahead of it.</li>
+<li><strong>The Problems tab checks the right world.</strong> The mod editor checks a
+scenario on the world its file states, so a generated-world scenario no
+longer lists <code>SpawnStartRole</code> as an error or <code>OnResume</code> as a warning.</li>
+</ul>
+<h2 id="for-modders" tabindex="-1">For modders</h2>
+<p>Run <code>content lint</code> on every bundle before you publish for v0.18.0. Four
+changes break content that v0.17.0 accepted.</p>
+<ul>
+<li><strong>(breaking) <code>Medkit</code> is a base role item.</strong> It is <code>Repair</code>, 2 kg, with a
+60 cr ask and a 45 cr bid, and a Supply job that asks for it is a
+rescue. A mod item with the id <code>Medkit</code> replaces it and must keep the
+category <code>Repair</code>.</li>
+<li><strong>(breaking) A job event needs a generated world.</strong> A scenario with no
+generated <code>world</code> that names <code>OnJobAccepted</code>, <code>OnJobDone</code>, <code>OnJobHandedIn</code>
+or <code>OnJobDropped</code> is a lint error and does not load: no station there posts
+a job board.</li>
+<li><strong>(breaking) A reserved pad or key source fails lint.</strong> A player
+<code>input_mapping</code> source that the flight or camera rig holds is now an error,
+not a warning. A thruster on Space or RB and a torpedo bay on LB are shared
+defaults and pass. A torpedo bay on LT does not: move it to LB.</li>
+<li><strong>(breaking) <code>PlaySound</code> names a kind of sound and a place.</strong> It drops
+<code>route</code> and <code>volume</code> and takes a sound <code>category</code> and <code>at</code>: <code>Ui</code>, or
+<code>Body(&quot;&lt;id&gt;&quot;)</code> with a scenario object id, <code>$id</code> or <code>$other_id</code>. The
+category's row sets the level and the reach. Lint refuses a world category
+at <code>Ui</code>, an interface category at a <code>Body</code> and a loop category. See
+<a href="/create/actions/#playsound">PlaySound</a>.</li>
+<li><strong>Sound files must play.</strong> Lint decodes and measures every sound file a
+bundle declares in <code>resources</code>. A file the game cannot decode, or a silent
+one, is an error. See <a href="/create/sections/#how-sounds-play">How sounds play</a>.</li>
+<li><strong>Generated worlds only.</strong> <code>SetStance</code>, <code>PostJob</code>, <code>OnStanceChanged</code>,
+<code>OnSectorEntered</code> and <code>scenario.sector</code> are lint errors on a scenario with
+no generated <code>world</code>.</li>
+<li><strong><code>GiveItems</code> and <code>TakeItems</code> raise no hold event.</strong> <code>OnPickedUp</code> reports a
+canister and <code>OnTraded</code> a trade, and these are neither. Read the result
+with <code>entity(&quot;id&quot;).items(&quot;Item&quot;)</code>.</li>
+<li><strong>Refine is content.</strong> <code>Item</code> gains optional
+<code>refine: Some((inputs, fee_cr))</code>, and station <code>services</code> take <code>Refine</code>.
+Lint refuses a recipe whose inputs and fee cost less than its output's bid.
+The authored waystation refines, for a scenario that spawns it; a New Game
+world does not. See <a href="/create/stations/#refine">Refine</a>.</li>
+<li><strong>Contraband is a category.</strong> Item <code>category</code> takes <code>Contraband</code>: the
+market of a lawful generated station does not buy or sell it. Base adds
+<code>UnmarkedCores</code> and a <code>Scavenger</code> <code>Contraband</code> price rule; a pack needs no
+new rule of its own. An authored station is never lawful.</li>
+</ul>
+<div class="callout callout--breaking">
+<p class="callout__title">Check Medkit, job events, bindings and PlaySound, and start a new world</p>
+<p>A mod item with the id <code>Medkit</code> outside the category <code>Repair</code>, a job event in a scenario with no generated <code>world</code>, a player <code>input_mapping</code> source the flight or camera rig holds, or a <code>PlaySound</code> with <code>route</code> or <code>volume</code> fails lint in v0.18.0. A world save belongs to the release that wrote it, so a v0.17.0 world save is refused: start a new world.</p>
+</div>
+<h2 id="point-releases" tabindex="-1">Point releases</h2>
+<p>No point releases yet.</p>
+<footer class="post-footer"><p class="post-footer__discuss">Got a reaction, a question, or a ship you want to show off? <a href="https://github.com/alexjercan/nova-protocol/discussions" target="_blank" rel="noopener">Talk about this release on GitHub Discussions</a>.</p><p class="post-footer__discuss">Want the terse, complete list for every version (patch releases included)? <a href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md" target="_blank" rel="noopener">Read CHANGELOG.md on GitHub</a>.</p><p class="post-footer__nav"><a href="/nova-protocol/news/">&larr; All news</a></p></footer></article></div></main><footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+</footer>
+</body></html>

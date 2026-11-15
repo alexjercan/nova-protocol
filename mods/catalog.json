@@ -63,8 +63,8 @@
       "files": [
         {
           "path": "CHANGELOG.md",
-          "size": 15155,
-          "sha256": "ec45ab191457f26634e1a3f901d4e85d4acd55cac4c8bdc14aada12bce3295e1"
+          "size": 15542,
+          "sha256": "17b8b34771255b6fe50b769185b78fc1c267d70ebe5559d4edb1a65f82b5fd9e"
         },
         {
           "path": "README.md",
@@ -183,8 +183,8 @@
         },
         {
           "path": "ledger_01_drift_run.content.ron",
-          "size": 24560,
-          "sha256": "339127d0c023f250efdeb3438756e2ebae3f1e3eaffa0052a481b6d652a5d2d6"
+          "size": 24530,
+          "sha256": "13bebbeb89181b148ca996f86b629fe81b4f9f33280abef96f4dc3140165c039"
         },
         {
           "path": "ledger_02_rock_garden.content.ron",
@@ -208,8 +208,8 @@
         },
         {
           "path": "ledger_06_siege_line.content.ron",
-          "size": 19785,
-          "sha256": "a3df114747f2d30a4db86e3a82e4dfd100ea92fc03b5f47f47031366a045f72e"
+          "size": 19783,
+          "sha256": "ce63aaa516c7e3f6e66fd4d0a4c3cfb74bc4e74a9f2138af4d955a6405da14c6"
         },
         {
           "path": "ledger_campaign.content.ron",
@@ -262,7 +262,7 @@
           "sha256": "e593f74b08b40a593de18e8fde93356a1be7bf07933dc4b6df35784172014b1f"
         }
       ],
-      "total_size": 575135
+      "total_size": 575490
     }
   ]
 }

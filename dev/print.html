@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-e28e0c87.js";
+            window.path_to_searchindex_js = "searchindex-3244a3e6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -875,9 +875,12 @@ graded for spawned-dead (ERROR) and close-spawn (WARN) hostiles; a bundle
 acknowledges its OWN deliberate imbalances in a <code>balance_acks.ron</code> beside
 its manifest, so the justification travels with the mod (a stale ack that
 matches no live finding is an ERROR, so every list stays pruned);</li>
-<li>the flight-rig input-overlap check - a content <code>input_mapping</code> section
-bound to a key the always-on flight rig also binds (W/Space/RightTrigger
-burn, autopilot, …) silently double-drives flight and is flagged (WARN).</li>
+<li>the reserved-source input-overlap check - a content <code>input_mapping</code>
+section bound to a source the always-on flight or camera rig also binds
+(W/Space/RightTrigger burn, autopilot, free look, …) drives both on one
+press (ERROR). A section kind’s own shared default is exempt
+(<code>shared_section_sources</code>: a thruster on Space, a torpedo bay on the left
+bumper).</li>
 <li><code>--target</code> lints a single mod by directory or in-repo id
 (<code>webmods/&lt;id&gt;</code>, <code>assets/mods/&lt;id&gt;</code>, or <code>base</code>); <code>--report &lt;path&gt;</code> writes a
 per-mod document (Markdown, or HTML for a <code>.html</code> path / <code>--format html</code>)
@@ -1922,7 +1925,8 @@ real code lives under <code>crates/</code>.</p>
 <tr><td><code>nova_core</code></td><td>Thin wiring only: <code>AppBuilder</code> assembles every plugin (window/log/asset setup, status UI). No gameplay logic.</td></tr>
 <tr><td><code>nova_menu</code></td><td>Main menu (owns the <code>MainMenu</code> state UI: New Game / Load / Lessons / Scenarios / Sandbox / Mods / Settings / Exit) and the ESC pause overlay. Buttons write <code>GameMode</code> and hand off to <code>Playing</code>. New Game first opens the two-step world setup modal (<code>world_setup</code>): a name and a seed drawn from the game’s entropy, then a start role picked from <code>GameStartRoles</code>; on the desktop build Create first makes the world’s folder under <code>WorldsRoot</code>, then inserts <code>WorldSaveSession</code> and <code>OpenWorldSession</code> and hands off. The Load screen (<code>load_screen</code>) lists every folder under <code>WorldsRoot</code> and resumes the one picked through the same handoff, showing a refusal reason on its row. Its Delete asks first, then calls <code>delete_world</code>, which removes only the files the game writes and refuses a locked, linked or foreign-file folder, and re-reads the list. <code>save_status</code> keeps a top-right readout of the open session’s last save, and <code>leave</code> holds Back to Main Menu, Exit and the window’s close button on a leave save, with an overlay offering Try again or Leave without saving on a failed write; the pause Retry in a saved world, and the Defeat the open world shows on the player’s death, instead load the last save from disk, writing nothing. After a death the session is spent: a way out writes nothing and waits only for a write in flight, and a spent session is dropped when <code>Playing</code> exits; a write still in flight then runs to its end and holds the world’s lock until it does. None of this runs on the web build or without a <code>WorldSaveSession</code>. The Settings modal (audio volume, graphics preset, UI theme, and the Controls tab that REBINDS every action in <code>nova_input</code>, one binding group at a time) is shared by both entry points. Persistence is NOT the menu’s: <code>settings_store</code> owns <code>SettingsStorePlugin</code>, which <code>nova_core</code> adds to every app, and it reads the same cross-platform store (RON file / localStorage), keybind overrides included. The two directions are split: every app READS, and only an app that builds the settings panel calls <code>allow_settings_saves</code> and earns the write direction. What the player has LEARNED is a second file beside it, <code>training_store</code>: opening a lesson reads it, and only a scenario Victory that a lesson’s <code>proven_by</code> names completes it. Same root, same access split, separate file - deleting <code>settings.ron</code> to fix your audio must not erase your progress.</td></tr>
 <tr><td><code>nova_editor</code></td><td>The Mod Editor: the Mod Hub, the scene, the block script and the asset benches (<code>NovaEditorPlugin</code>). Comes up on entering <code>Playing</code>, only in <code>GameMode::Sandbox</code>.</td></tr>
-<tr><td><code>nova_gameplay</code></td><td>The shared gameplay layer under the ship: <code>integrity/</code> (health, the two damage readings <code>erosion</code> and <code>carve</code>, and the debris a carve leaves in <code>spew</code>/<code>chunk</code>), <code>damage</code>, <code>gravity</code> (gravity wells), <code>markers</code> (the entity markers the ship tags with and this layer reads), <code>math</code>, <code>audio</code> (the bus-and-route sound engine every voice in the game goes through: <code>bus</code> for the four routes and the three volume tracks, <code>mixing</code> for the distance rolloff and the cue throttle, <code>spatial</code> for the stereo placement, <code>voice</code> for the one playback path), <code>juice</code>, <code>shake</code>, <code>settings</code> (<code>MasterVolume</code>/<code>GraphicsBudget</code> with its <code>GraphicsQuality</code> presets + apply systems; the per-bus <code>InterfaceVolume</code>/<code>WorldVolume</code>/<code>MusicVolume</code> live in <code>audio/bus</code>), <code>clock</code> (the open world’s play-time <code>WorldClock</code>), <code>mesh</code> (the procedural <code>TriangleMeshBuilder</code>, plus the <code>SignedField</code> an asteroid is meshed from and carved in - nothing here takes a finished mesh apart), <code>transform</code>, <code>relations</code>, <code>beacon</code>, <code>objectives</code> (the <code>GameObjectives</code> list, its panel and the conveyance tags), <code>lifetime</code> (<code>TempEntity</code>/<code>DespawnEntity</code>), <code>cooldown</code>, <code>plugin</code>. Also owns <code>GameStates</code>, <code>PauseStates</code>, and the <code>GameMode</code> resource. Knows nothing about a ship.</td></tr>
+<tr><td><code>nova_gameplay</code></td><td>The shared gameplay layer under the ship: <code>integrity/</code> (health, the two damage readings <code>erosion</code> and <code>carve</code>, and the debris a carve leaves in <code>spew</code>/<code>chunk</code>), <code>damage</code>, <code>gravity</code> (gravity wells), <code>markers</code> (the entity markers the ship tags with and this layer reads), <code>math</code>, <code>button_cue</code> (the press cue and hover tick every button plays), <code>juice</code>, <code>shake</code>, <code>settings</code> (<code>GraphicsBudget</code> with its <code>GraphicsQuality</code> presets + apply systems, and the harness mute it resolves for <code>nova_sound</code>), <code>bounds</code> (the collider subtree walks, and <code>cue_body</code>/<code>body_middle</code>, the body a cue is grouped with and plays from), <code>clock</code> (the open world’s play-time <code>WorldClock</code>), <code>mesh</code> (the procedural <code>TriangleMeshBuilder</code>, plus the <code>SignedField</code> an asteroid is meshed from and carved in - nothing here takes a finished mesh apart), <code>transform</code>, <code>relations</code>, <code>beacon</code>, <code>objectives</code> (the <code>GameObjectives</code> list, its panel and the conveyance tags), <code>lifetime</code> (<code>TempEntity</code>/<code>DespawnEntity</code>), <code>cooldown</code>, <code>plugin</code>. Also owns <code>GameStates</code>, <code>PauseStates</code>, and the <code>GameMode</code> resource, wires <code>nova_sound</code>’s world freeze to the frozen <code>PauseStates</code>, and keeps <code>SoundListenerAnchor</code> on the player’s ship. Knows nothing about a ship.</td></tr>
+<tr><td><code>nova_sound</code></td><td>The audio engine every voice in the game goes through, a leaf over bevy and the rodio decoder bevy plays through: <code>category</code> for the one <code>SoundCategoryType</code> table (bus, level, reach, voice count, repeat interval, loop priority and loop dB range of every kind of sound) and the distance fade, <code>play</code> for the <code>PlaySound</code> one-shot and the <code>SoundLoop</code> component (the repeat interval and voice count hold per sound and <code>ChildOf</code> root, and a <code>SoundGroupBoundary</code> such as a sector root stops that walk), <code>listener</code> for where the game is heard from (the player’s ship marked <code>SoundListenerAnchor</code>, else the camera, facing with the camera), <code>bus</code> for the Effects and Interface sliders and their dB taper, <code>master</code> for <code>MasterVolume</code> and the <code>HarnessMute</code> output mask, <code>loudness</code> for the clip loudness every <code>AudioSource</code> is measured to as it loads (BS.1770 on the clip looped to 4 s, stored as a gain to -23 LUFS in <code>SoundLoudness</code>; a voice waits until its clip is measured; <code>content lint</code> runs the same measure and refuses an undecodable or silent sound file), <code>spatial</code> for the stereo placement, <code>voice</code> for the one playback path, the loop cap and the <code>SoundFreeze</code> hook, <code>registry</code> for the <code>SoundBank</code>. Interface cues are the <code>Ui</code> rows of the same table: no caller passes a gain. It knows no game state: <code>nova_gameplay</code> runs <code>pause_world_voices</code>/<code>resume_world_voices</code> on the frozen <code>PauseStates</code> and <code>stop_world_voices</code> (Effect voices and loops only) when <code>Playing</code> ends, and inserts the resolved <code>HarnessMute</code>. <code>AppBuilder</code> adds <code>NovaSoundPlugin</code> after the assets and before gameplay.</td></tr>
 <tr><td><code>nova_ship</code></td><td>The ship and how it is flown: <code>sections/</code> (the modular hull, its ammo, and the authored damage looks in <code>damage_effects</code>/<code>damage_cracks</code>/<code>damage_sparks</code>/<code>damage_plume</code>), <code>input/</code> (player rigs, the AI pilot and gunner, radar targeting with deliberate lock-on, and the flight and camera action DEFAULTS it registers into <code>nova_input</code>), <code>flight/</code> (the diegetic controller, its autopilot verbs, the AI helm orders, and the RCS puffs a push throws in <code>rcs_puff</code>; the <code>Dock</code> helm order flies a free port of an AI hull onto a free station port as <code>AutopilotAction::DockApproach</code>, only along a corridor one hull shape cast found clear, and the order’s <code>DockingConnectionRequest</code> captures it; at an orbiting station the approach reads the station’s tidal pull, not the whole pull, routes leg A around each field body’s forecast path relative to the station (a close planet becomes the ring of its orbit) through searched corners, one or two, held in the station’s frame, and refuses a corridor such a path comes within clearance of; a hull that starts inside such a path flies out of it under the GOTO arrival law before it routes; leg A flies on the drive and the final close on the RCS, so the magazine lasts against the tidal pull, while a waiting hull and the last 2 u to the entry trim on the RCS; the corridor is cast again on each 1 s forecast refresh, and an approach with no clear corridor holds and casts again, refusing <code>NoSafeDockPath</code> after 300 s held in all; inside the corridor the hull holds the velocity of the station’s point under it, so a spinning station’s port is led by its mean spin over the last forecast refresh; one DOCK approach per station flies at a time, an armed one else the longest engaged, and the others hold the station’s velocity clear of every forecast path; <code>nova_world_base</code> station visits install the order), <code>camera/</code> (the chase-camera controller and the chase/skybox/post/WASD rigs under it), <code>physics/</code> (the PD attitude controller) and <code>ship_audio/</code> (the soundtrack those five produce). Depends on <code>nova_gameplay</code> and never the reverse; <code>NovaShipPlugin</code> owns the <code>SpaceshipSystems</code> brackets and <code>nova_core</code> adds it after <code>NovaGameplayPlugin</code>.</td></tr>
 <tr><td><code>nova_wfc</code></td><td>Generated hulls: a function from a section catalog and a code-owned <code>WfcPlan</code> to a <code>ShipDesign</code>, with no <code>App</code> and no systems in it. Owns the plan types too (<code>WfcGrid</code>, <code>WfcVacuum</code>, <code>WfcKeel</code>, <code>WfcPart</code>), because which sections one generator may reach for is generator policy and not mod content. <code>TileSet::build</code> reads the plan against the catalog and builds tiles only for parts <code>nova_ship::cell_grid_fit</code> accepts, each read at the 24 cube rotations through <code>nova_ship::oriented_part</code>, <code>hull()</code> collapses one seed, and every hull is put through the game’s own content lint before it is handed back. Each caller builds its own plan from <code>WfcPlan::standard_hull</code> and its own UI rows: <code>nova_editor</code>’s Generate verb, and the <code>wfc_*</code> examples.</td></tr>
 <tr><td><code>nova_hud</code></td><td>The flight HUD: one module per widget (crosshairs, target inset, ammo readout, flight status, objective markers, the comms panel, the keybind dock, the screen-indicator projection they all share). Reads gameplay state and never drives it, so the dependency runs <code>nova_hud -&gt; nova_gameplay</code>. <code>nova_core</code> adds <code>NovaHudPlugin</code> unconditionally, headless runs included - the widgets register their keybindings in <code>build</code>, so a gate took those bindings out of the registry. The crate places <code>NovaHudSystems</code> between the section and camera sets itself.</td></tr>
@@ -1987,6 +1991,8 @@ real code lives under <code>crates/</code>.</p>
     wfc --&gt; scenario
     gameplay --&gt; events
     gameplay --&gt; ui
+    gameplay --&gt; sound["nova_sound"]
+    core --&gt; sound
     ship --&gt; input["nova_input"]
     hud --&gt; input
     iface --&gt; input
@@ -2027,7 +2033,7 @@ for any crate is its <code>Cargo.toml</code>. Two edges people guess wrong:</p>
 chip language and screen-indicator styling), <code>nova_interface</code>, <code>nova_menu</code>,
 <code>nova_editor</code> and <code>nova_assets</code>. A <code>bevy::ui_widgets::Button</code> is heard and
 lit with no opt-in: <code>nova_ui</code> requires <code>Hovered</code> on it and draws a hover and
-press ring on a plain one, and <code>nova_gameplay::audio::ButtonCuePlugin</code> plays
+press ring on a plain one, and <code>nova_gameplay::button_cue::ButtonCuePlugin</code> plays
 the press cue and hover tick. <code>ButtonCueType</code> lives in <code>nova_ui</code> because that
 crate cannot reach the sound bank: absent means Select, <code>Back</code> is the back
 voice, and <code>Owned</code> marks a button whose handler or outcome plays the cue on
@@ -2752,8 +2758,9 @@ anything) puts the part away, and the footer names <code>Q/Esc Put away</code>.
 the full recipe). The new section’s binding is <code>added_section_binds</code>: the
 first live bound section of its class by id lends its binding; with none, a
 weapon takes an empty binding for Rebind, a thruster none (it fires on the
-Main Drive), and a mining emitter the first of <code>ADDED_MINING_KEYS</code> no emitter
-holds, refused when all are held. Its id is <code>added_section_id</code>: the greatest
+Main Drive), and a mining emitter its <code>section_default_bindings</code>: the first of
+<code>MINING_KEYS</code> no emitter holds (the ship’s first emitter the pad trigger too),
+refused when all are held. Its id is <code>added_section_id</code>: the greatest
 id of its class plus <code>+</code>, so it sorts last and takes the next code without
 moving another. A confirmed add moves parts and credits (cause <code>Add</code>), pushes
 <code>ShipInventoryReport::Added</code> (<code>OnAdded</code>), and triggers <code>SectionAddRequest</code>;
@@ -2959,9 +2966,10 @@ moves no credit and reports no buy. <code>swap_parked_hull</code>
 (<code>nova_scenario/src/objects/station_hulls.rs</code>) keeps the player’s ship root,
 so the HUD, the camera and the scenario id keep their owner: it freezes both
 hulls, rebuilds the root as the parked hull (<code>rehull_ship</code>) at its pose with
-the start-role bindings for the new hull (<code>start_role_bindings</code>: turrets the
-trigger, railguns R, torpedoes F, the first emitter V and each later one the
-next <code>ADDED_MINING_KEYS</code> key; no old binding carries over), and parks the old
+the start-role bindings for the new hull (<code>start_role_bindings</code>, each
+section’s <code>section_default_bindings</code>: turrets LMB and RT, railguns R and View,
+torpedoes F and LB, the first emitter V and RT and each later one the next
+<code>MINING_KEYS</code> key; no old binding carries over), and parks the old
 ship where it stood as <code>Owned</code> with <code>OwnedShipMarker</code>.
 The old ship keeps its hold; the Inventory pane lists the hold of a docked
 <code>OwnedShipMarker</code> ship as storage. <code>OwnedShipMarker</code> (<code>nova_gameplay</code>) is
@@ -3355,8 +3363,8 @@ without the hulls touching.</p>
 read by the DOCK chip and by the request. A ship target refuses with
 <code>DockRefusalType::Combat</code> while Hostile, Enemy, answering fire or fighting
 (a neutralized target admits). A station target (<code>StationMarker</code>) answers by
-<code>station_admission(allegiance, derelict, occupied, owned, hostile)</code>, in that
-order: <code>StationOccupied</code> while every live port on its root is held (a held
+<code>station_admission(allegiance, derelict, occupied, owned, hostile)</code>, in
+that order: <code>StationOccupied</code> while every live port on its root is held (a held
 port is no candidate in the port search; this names the reason so the HUD
 can say it); admitted for a station the player owns (<code>OwnedStationMarker</code>)
 or a derelict, on any side; <code>EnemyStation</code> for a living station on the Enemy
@@ -3364,7 +3372,12 @@ side (a generated station’s side is its civilization’s effective stance to
 the player, written every frame by <code>nova_world_base</code>’s
 <code>sync_civilization_sides</code>); <code>HostileStation</code> for a living station the ship
 is hostile to by <code>ship_relation</code> (a Player station and an Enemy-flagged
-ship, or a station answering the ship’s fire); and admitted otherwise.
+ship, or a station answering the ship’s fire); and admitted otherwise. No
+station reads the hold of the ship that asks: a lawful station
+(<code>LawfulStationMarker</code>) admits a ship that carries contraband, and its
+market refuses the item (see <code>market_deals_in</code> in <code>nova_gameplay</code>).
+<code>DockAdmission::turns_away</code> is the two refusals that waiting for a port
+does not change: the chart ring and a failed AI Dock order read it.
 <code>FlightVerbHints::dock_refusal</code> carries a station’s line (<code>&lt;NAME&gt; REFUSES DOCKING</code>, <code>&lt;NAME&gt; DOCK OCCUPIED</code>) while the travel lock is on it; the HUD
 posts it once as a notice (<code>hud_notice</code>), not on the mode chip, and the DOCK
 chip draws dim. A ship’s refusal stays the dark chip.</p>
@@ -3880,7 +3893,7 @@ indistinguishable from one that came apart badly.</p>
 <p>What the frame SOUNDS and FEELS like is grouped the same way, by the STRUCTURE
 rather than by the place. An impact or a destruction cue - the explosion, the
 surface hit, the camera kick and the spark burst - is throttled on its
-<code>CueGroup</code> (<code>nova_gameplay::audio::mixing</code>), which is the nearest <code>RigidBody</code> at
+<code>CueGroup</code> (<code>nova_sound::mixing</code>), which is the nearest <code>RigidBody</code> at
 or above the entity the event named: a section, a plate, a health node and an
 asteroid’s collider node all hang under one. A severed fragment, a rock and a
 torpedo each resolve to their own body, so each is its own event, and only a cue
@@ -4422,8 +4435,8 @@ strip block and the timer: <code>crates/nova_interface/src/inventory/strip/</cod
 <code>crates/nova_gameplay/src/integrity/explode.rs</code>; the fireball over it,
 <code>SECTION_PYRE</code>, <code>HULK_PYRE</code>, <code>frame_cap</code>, <code>warm_the_pyres</code> -
 <code>crates/nova_gameplay/src/integrity/pyre.rs</code>; what it sounds and feels like,
-<code>CueGroup</code>, <code>cue_body</code>, <code>body_middle</code> -
-<code>crates/nova_gameplay/src/audio/mixing.rs</code>.</li>
+<code>CueGroup</code> - <code>crates/nova_sound/src/mixing.rs</code>, and <code>cue_body</code>,
+<code>body_middle</code> - <code>crates/nova_gameplay/src/bounds.rs</code>.</li>
 <li>Authored damage looks: <code>DamageEffect</code>, <code>fit_damage_effects</code> -
 <code>crates/nova_ship/src/sections/damage_effects.rs</code>, with one module per look in
 <code>damage_cracks.rs</code>, <code>damage_sparks.rs</code> and <code>damage_plume.rs</code>.</li>
@@ -4536,6 +4549,14 @@ edge, Error); a handler spawning its own <code>bounds</code> object doubles the 
 sensor with no outcome (Warn). A <code>Void</code> scenario cannot carry <code>bounds</code>
 structurally. The example mod’s <code>example_bounds</code> is the shipped instance, and
 <code>system_world_bounds</code> the asserted range.</p>
+<p>Some vocabulary only a generated world can serve: a <code>Void</code> has no station
+that posts a job board, no civilization and no sector. <code>GENERATED_WORLD_ONLY</code>
+(<code>lint/scenario.rs</code>) is the one list of it, each row with its reason, and a
+<code>Void</code> scenario that names a row - as a handler’s event, a step’s <code>until</code>
+gate, a query or an action - is a lint Error, because the handler could never
+run or the action is refused on every run. Today the rows are the four job
+events, <code>OnStanceChanged</code>, <code>OnSectorEntered</code>, the <code>scenario.sector</code> query and
+the <code>SetStance</code> and <code>PostJob</code> actions.</p>
 <p><code>nova_world_base::sync_open_world</code> arms <code>WorldConfig</code> from this block and the
 player ship, and disarms it under a <code>Void</code> scenario or none. The base bundle’s
 <code>new_game_scenario</code> must name a scenario whose world is
@@ -4820,8 +4841,8 @@ verbs the ship cannot use dim, so an emphasis on an unavailable verb pulses its
 chip in the dim band rather than doing nothing. That is how a tutorial points
 at a key before it lights up.</p>
 <p>Actions fan out to one submodule per family beside <code>actions/mod.rs</code> -
-<code>audio</code>, <code>cinematic</code>, <code>flow</code>, <code>mission</code>, <code>sequence</code>, <code>ship</code>, <code>spawn</code>, <code>timer</code>,
-<code>view</code> - plus <code>registry</code>, which is the macro and the table rather than a family.
+<code>audio</code>, <code>cinematic</code>, <code>flow</code>, <code>hold</code>, <code>jobs</code>, <code>mission</code>, <code>sequence</code>, <code>ship</code>,
+<code>spawn</code>, <code>stance</code>, <code>timer</code>, <code>view</code> - plus <code>registry</code>, which is the macro and the table rather than a family.
 Adding one is <a href="#extend-the-scenario-engine">Extend the scenario engine</a>.</p>
 <h3 id="a-beat-chain-keeps-its-cursor-in-the-engine"><a class="header" href="#a-beat-chain-keeps-its-cursor-in-the-engine">A beat chain keeps its cursor in the engine</a></h3>
 <p>A BEAT CHAIN is an authored LITERAL key plus an ordered list of
@@ -4908,8 +4929,18 @@ past. It is also what the load gate releases on, so the panel, the clock and
 the simulation hold all come down on one frame and one condition.</p>
 <p>Variables are typed literals (<code>String</code>, <code>Number</code>, <code>Boolean</code>) with a small
 expression tree: <code>VariableExpressionNode</code> (add/subtract), <code>VariableTermNode</code>
-(multiply/divide), <code>VariableFactorNode</code> (literal/name/parens);
+(multiply/divide), <code>VariableFactorNode</code> (literal/name/query/event/parens);
 <code>VariableConditionNode</code> (less/greater/equal) yields booleans for filters.</p>
+<p><code>evaluate</code> takes the event world and the <code>GameEventInfo</code> of the event being
+handled. The <code>Event(field)</code> factor reads one scalar payload field through
+<code>GameEventInfo::field</code> (text, number, boolean; a map such as <code>parts</code> is not
+a value). It sees a payload in a handler’s filters, a handler’s own actions
+and a step’s <code>until</code> filters (the gate’s event). A step’s actions get an
+empty payload from <code>advance_scenario_sequences</code>, so lint refuses the factor
+there (<code>lint/scenario.rs::check_payload_reads</code>). The legal field names come
+from <code>EventConfig::payload_fields</code>, read off each row’s default payload. A
+missing field is <code>VariableError::MissingEventField</code>: a filter fails closed
+and an action logs an error and does nothing.</p>
 <p>The tree has a TEXT form (<code>syntax.rs</code>): <code>Display</code> renders it as
 <code>scenario.elapsed &gt; 90</code> and <code>FromStr</code> parses that back. The authored form is
 still the RON nest - the text is what one editor row can hold, and what a tree
@@ -4985,14 +5016,23 @@ several matches, or a match missing the property leaves the query
 unavailable, and an expression over an unavailable value fails CLOSED. Missing
 is not zero, which is the difference between a gate that never opens and a
 gate that opens immediately.</li>
-<li><strong>The entity sampler runs only if something reads it.</strong> Sampling walks every
-<code>EntityId</code> in the world and allocates per match, so its cost scales with the
-WORLD - a duel carries about 1,800 ids, most of them ship sections - and not
-with the scenario. <code>ScenarioConfig::reads_an_entity_query</code> decides at load,
-over the watches AND the inline expression factors together, because an
-inline query has to be answerable the first time its action runs. Anything
-that adds a new place an expression can be authored has to be added to
-<code>ScenarioConfig::inline_queries</code> with it.</li>
+<li><strong>The entity sampler answers only what something reads.</strong> Sampling walks
+every <code>EntityId</code> in the world, so its cost scales with the WORLD - a duel
+carries about 1,800 ids, most of them ship sections - and not with the
+scenario. <code>ScenarioConfig::entity_queries</code> lists the distinct entity queries
+at load, over the watches AND the inline expression factors together,
+because an inline query has to be answerable the first time its action runs.
+The sampler skips every id no listed query names and does not run when the
+list is empty. Anything that adds a new place an expression can be authored
+has to be added to <code>ScenarioConfig::inline_queries</code> with it.</li>
+<li><strong>The sector query is published by the world’s owner.</strong> <code>nova_world</code> knows
+the cell the player stands in, so its <code>sample_current_sector</code>
+(<code>streaming.rs</code>) writes <code>Scenario(Sector)</code> through
+<code>NovaEventWorld::sample_sector</code>. It runs in <code>NovaWorldSystems::Observe</code>
+after <code>track_current_sector</code> and before <code>ScenarioPulseSystems</code>, the set
+that holds the sampler-to-<code>fire_on_update</code> chain, so an <code>OnUpdate</code> handler
+reads the cell of this frame. A <code>Void</code> world publishes nothing and lint
+refuses the query there.</li>
 </ul>
 <p>Watches freeze under pause and clear at teardown, like every other piece of
 scenario-scoped state.</p>
@@ -5375,6 +5415,53 @@ pane reports pushed under the interface pause arrive on the first fixed tick
 after it closes. <code>OnMined</code> has no queue: <code>pulse_mining_beams</code> (<code>mining.rs</code>)
 fires it per pulse that flips at least one corner, with the rock as <code>id</code> and
 the miner as <code>other_id</code>, because the pulse is already a scenario-crate system.</p>
+<p>The job events cross by OBSERVER, not by queue, because their owners already
+raise a gameplay event at each step: the Jobs pane (<code>nova_interface</code>) raises
+<code>JobAccepted</code>, <code>JobHandedIn</code> and <code>JobDropped</code> with cause <code>Abandoned</code>, and the
+open world (<code>nova_world_base</code>) raises <code>JobDone</code> and <code>JobDropped</code> with cause
+<code>Lost</code>. <code>loader/bridges.rs</code> observes the four and fires <code>OnJobAccepted</code>,
+<code>OnJobDone</code>, <code>OnJobHandedIn</code> and <code>OnJobDropped</code> from the <code>Job</code> each carries,
+through one payload builder, so neither owner names a scenario event and the
+four payloads cannot drift. The payload’s <code>kind</code> is <code>JobType::name</code>, one of
+<code>Procure</code>, <code>Recover</code>, <code>Escort</code>, <code>Distress</code>, <code>Neutralize</code> or <code>Supply</code>; a new
+job kind reaches scenarios through that name with no bridge change. Only a
+board slot posts a <code>Supply</code>: <code>PostJob</code> and a visit post procurements. Each fires in the command flush of the system
+that moved the job. A Load restores <code>Jobs</code> in place and raises none of the
+gameplay events, so it fires none of these.</p>
+<p><code>OnStanceChanged</code> crosses the same way. Every site that steps a civilization’s
+table stance raises the gameplay event <code>StanceChanged(StanceStep)</code> once per
+step: <code>record_offence</code> and <code>expire_stances</code> (<code>nova_world_base/src/stance.rs</code>),
+the hand-in’s merit (<code>nova_interface/src/jobs.rs</code>) and the paid fine
+(<code>nova_interface/src/station/settle.rs</code>). <code>loader/bridges.rs</code> observes it and
+fires <code>OnStanceChanged</code> with the civilization’s id text and both stance names.
+A provocation moves no table stance and a Load restores the table in place, so
+neither raises it.</p>
+<p><code>SetStance</code> crosses the other way, by a request. The seed’s draw of a stance
+(<code>seeded_stance</code>) lives in <code>nova_world_base</code>, above <code>nova_scenario</code>, so the
+action cannot write the table. It binds its <code>body</code> from the payload, finds
+the body and its <code>TraderMarket</code>, refuses <code>unknown_body</code> or <code>no_civilization</code>
+through <code>refuse_action</code>, and raises the gameplay event
+<code>SetStanceRequest { civilization, stance }</code>. <code>apply_stance_request</code>
+(<code>nova_world_base/src/stance.rs</code>) calls <code>CivilizationStances::set</code> and raises
+<code>StanceChanged</code> when the stance moved, so <code>OnStanceChanged</code> fires through the
+same bridge. An action that binds a payload reference joins
+<code>reads_payload_binding</code> in <code>lint/scenario.rs</code>.</p>
+<p><code>PostJob</code> needs no request: the board’s state is all in <code>nova_gameplay</code>.
+The action binds its <code>station</code>, refuses <code>unknown_station</code>, <code>no_job_board</code> or
+<code>duplicate_job</code>, and calls <code>JobPostings::post_scenario</code> with a procurement
+under <code>JobSourceType::Scenario { key }</code>. From there the job takes the paths
+every job takes. <code>post_station_boards</code> puts it on the station’s <code>JobBoard</code>
+and retires it after the hand-in or the drop, the Jobs pane accepts it and
+hands it in, and the world save carries <code>JobPostings</code>. The bridge reads the
+key off the <code>JobId</code> into <code>post_key</code>. A scenario posting has no offer window,
+so <code>JobPostings::offers</code> answers for it where a slot or a visit posting
+reads <code>remaining</code>.</p>
+<p><code>OnSectorEntered</code> is fired by <code>nova_world</code>, the owner of the crossing:
+<code>fire_sector_entered</code> (<code>streaming.rs</code>) reads the <code>SectorCrossed</code> messages in
+<code>NovaWorldSystems::Observe</code>, after <code>track_current_sector</code> posts them, and fires
+one event per message on the frame the cell changed. The tracker posts no
+message on the frame a <code>WorldConfig</code> is armed, so the cell a New Game, a Load
+or a Retry starts in fires nothing.</p>
 <h2 id="adding-new-pieces"><a class="header" href="#adding-new-pieces">Adding new pieces</a></h2>
 <ul>
 <li>Event: event + info structs in <code>nova_events/src/lib.rs</code>, an <code>EventConfig</code>
@@ -5384,14 +5471,20 @@ the orbit/lock/docking trackers in <code>trackers.rs</code>; area events in
 <code>objects/area.rs</code>;
 <code>OnNeutralized</code> fires from <code>nova_gameplay</code>’s integrity stack, a rock’s
 <code>OnDestroyed</code> from <code>objects/asteroid_carve.rs</code> when its field is exhausted,
-the hold events from <code>track_ship_inventory_reports</code> in <code>trackers.rs</code>, and
-<code>OnMined</code> from <code>mining.rs</code>). A new occurrence below <code>nova_scenario</code> pushes a
+the hold events from <code>track_ship_inventory_reports</code> in <code>trackers.rs</code>,
+<code>OnMined</code> from <code>mining.rs</code>, the job events and <code>OnStanceChanged</code> from the
+observers in <code>loader/bridges.rs</code>, and <code>OnSectorEntered</code> from <code>nova_world</code>’s
+<code>fire_sector_entered</code>). An event only a generated world can raise also gets a
+row in <code>GENERATED_WORLD_ONLY</code>. A new occurrence below <code>nova_scenario</code> pushes a
 <code>ShipInventoryReport</code> variant; it does not get a second queue.</li>
 <li>Action: config struct + <code>EventAction&lt;NovaEventWorld&gt;</code> impl in the right
-<code>actions/</code> submodule (<code>audio</code>/<code>cinematic</code>/<code>flow</code>/<code>mission</code>/<code>sequence</code>/<code>ship</code>/
-<code>spawn</code>/<code>timer</code>/<code>view</code>), plus a row in the <code>registry::scenario_actions!</code>
+<code>actions/</code> submodule (<code>audio</code>/<code>cinematic</code>/<code>flow</code>/<code>hold</code>/<code>jobs</code>/<code>mission</code>/
+<code>sequence</code>/<code>ship</code>/<code>spawn</code>/<code>stance</code>/<code>timer</code>/<code>view</code>), plus a row in the <code>registry::scenario_actions!</code>
 table in <code>actions/mod.rs</code>. The <code>EventActionConfig</code> variant is GENERATED from
-that row - writing one by hand collides with the macro.</li>
+that row - writing one by hand collides with the macro. An action that can
+be impossible at run time checks before it writes and calls <code>refuse_action</code>
+(<code>actions/hold.rs</code>) with an <code>ActionRefusalType</code>: it logs the error and
+fires <code>OnActionRefused</code>. A new reason is a new variant there.</li>
 <li>Filter: same pattern in <code>filters.rs</code> (<code>EventFilterConfig</code>).</li>
 <li>Object: a module under <code>objects/</code> (config + bundle function, plugin in
 <code>objects/mod.rs</code>) plus a <code>ScenarioObjectKind</code> variant/match in
@@ -6748,7 +6841,7 @@ nothing the producer records.</p>
 <li>
 <p><strong><code>NOVA_OS_*</code>.</strong> Around 180 of these exist and NONE is an environment
 variable: they are <code>const Color</code>, layout and volume values in <code>nova_interface</code>,
-<code>nova_command</code> and <code>nova_gameplay::audio</code>. A grep for <code>NOVA_[A-Z_]*</code> is dominated
+<code>nova_command</code> and <code>nova_sound</code>. A grep for <code>NOVA_[A-Z_]*</code> is dominated
 by them, so count <code>env::var</code> call sites instead of identifiers.</p>
 </li>
 <li>

@@ -106,7 +106,12 @@ spelling rules, see
 <p>A visit job is <code>Procure(item, count, reward_cr)</code>: bring <code>count</code> units of
 <code>item</code> to the station, for <code>reward_cr</code> paid on the hand-in. <code>count</code> and
 <code>reward_cr</code> are above 0.</p>
-<p>A ship whose role no profile names never visits.</p>
+<p>A ship whose role no profile names never visits. A ship visits only a
+station that admits it. A lawful station admits a ship that carries a
+<code>Contraband</code> item, but its market does not deal in the item: the visit
+trades none of it there and posts no <code>Procure</code> job for it. A profile that
+sells the item, like <code>base/salvage_broker</code>, clears its hold at a station
+that is not lawful.</p>
 <h2 id="overlay-and-lint" tabindex="-1">Overlay and lint</h2>
 <p>A later bundle that declares an id replaces the earlier profile whole, like
 an item. Two profiles with one id in one bundle are a conflict: the merge
@@ -146,20 +151,20 @@ least 1 cr.</p>
 <tr>
 <td><code>base/provisioner</code></td>
 <td><code>Civilian</code>, weight 3</td>
-<td>sells rations 10; buys salvaged parts 4, water ice 6</td>
+<td>sells rations 10, medkits 4; buys salvaged parts 4, water ice 6</td>
 <td>procure 3 hull plate for 220 cr</td>
 </tr>
 <tr>
 <td><code>base/salvage_broker</code></td>
 <td><code>Scavenger</code>, weight 2</td>
-<td>sells salvaged parts 6; buys hull plate 2, PDC round 20</td>
+<td>sells salvaged parts 6, unmarked cores 2; buys hull plate 2, PDC round 20</td>
 <td>none</td>
 </tr>
 <tr>
 <td><code>base/garrison_supply</code></td>
 <td><code>Armored</code>, weight 1</td>
 <td>none</td>
-<td>procure 40 PDC rounds for 200 cr; 6 rations for 160 cr</td>
+<td>procure 40 PDC rounds for 200 cr; 6 rations for 160 cr; 2 medkits for 220 cr</td>
 </tr>
 <tr>
 <td><code>base/idle_traffic</code></td>

@@ -8,7 +8,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Stations for mods</p><h1>Stations for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#why-a-station-is-its-own-kind">Why a station is its own kind</a><ol></ol></li><li><a href="#the-station-item">The Station item</a><ol></ol></li><li><a href="#how-a-station-behaves">How a station behaves</a><ol></ol></li><li><a href="#docking-at-a-station">Docking at a station</a><ol></ol></li><li><a href="#trade-and-storage">Trade and storage</a><ol></ol></li><li><a href="#rebuild">Rebuild</a><ol></ol></li><li><a href="#swap">Swap</a><ol></ol></li><li><a href="#add">Add</a><ol></ol></li><li><a href="#buy-a-hull">Buy a hull</a><ol></ol></li><li><a href="#hire-an-escort">Hire an escort</a><ol></ol></li><li><a href="#buy-the-station">Buy the station</a><ol></ol></li><li><a href="#spawning-one">Spawning one</a><ol></ol></li><li><a href="#overlay-and-lint">Overlay and lint</a><ol></ol></li><li><a href="#generated-world-stations">Generated-world stations</a><ol></ol></li><li><a href="#civilization-stances">Civilization stances</a><ol></ol></li><li><a href="#dead-stations">Dead stations</a><ol></ol></li><li><a href="#jobs">Jobs</a><ol></ol></li><li><a href="#base-stations">Base stations</a><ol></ol></li></ol></nav><p>A <code>Station</code> is a hull that never flies, authored once and parked by id. It
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Stations for mods</p><h1>Stations for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#why-a-station-is-its-own-kind">Why a station is its own kind</a><ol></ol></li><li><a href="#the-station-item">The Station item</a><ol></ol></li><li><a href="#how-a-station-behaves">How a station behaves</a><ol></ol></li><li><a href="#docking-at-a-station">Docking at a station</a><ol></ol></li><li><a href="#trade-and-storage">Trade and storage</a><ol></ol></li><li><a href="#refine">Refine</a><ol></ol></li><li><a href="#rebuild">Rebuild</a><ol></ol></li><li><a href="#swap">Swap</a><ol></ol></li><li><a href="#add">Add</a><ol></ol></li><li><a href="#buy-a-hull">Buy a hull</a><ol></ol></li><li><a href="#hire-an-escort">Hire an escort</a><ol></ol></li><li><a href="#buy-the-station">Buy the station</a><ol></ol></li><li><a href="#spawning-one">Spawning one</a><ol></ol></li><li><a href="#overlay-and-lint">Overlay and lint</a><ol></ol></li><li><a href="#generated-world-stations">Generated-world stations</a><ol></ol></li><li><a href="#civilization-stances">Civilization stances</a><ol></ol></li><li><a href="#dead-stations">Dead stations</a><ol></ol></li><li><a href="#jobs">Jobs</a><ol></ol></li><li><a href="#base-stations">Base stations</a><ol></ol></li></ol></nav><p>A <code>Station</code> is a hull that never flies, authored once and parked by id. It
 owns a <a href="../ships/">ship design</a> for its hull, the services a docked ship may
 use, a storage cap, the stock its hold opens with and the credits it trades
 with. A <a href="../objects/#station">Station</a> spawn names it and adds what differs
@@ -99,7 +99,7 @@ capability set) off it.</p>
 <tr>
 <td><code>services</code></td>
 <td>list</td>
-<td>what a docked ship may do here, from the closed set <code>Rebuild</code>, <code>Refit</code>, <code>Trade</code>, <code>Storage</code>, <code>Jobs</code>, <code>Roster</code>. At least one</td>
+<td>what a docked ship may do here, from the closed set <code>Rebuild</code>, <code>Refit</code>, <code>Trade</code>, <code>Storage</code>, <code>Refine</code>, <code>Jobs</code>, <code>Roster</code>. At least one</td>
 </tr>
 <tr>
 <td><code>builds</code></td>
@@ -128,7 +128,8 @@ capability set) off it.</p>
 what levels the station, see below.</p>
 <p>A docked ship trades with a living station that offers <code>Trade</code> as it trades
 with a ship, and keeps items in the storage of one that offers <code>Storage</code> (see
-<a href="#trade-and-storage">Trade and storage</a>). <code>Rebuild</code> and <code>Refit</code> are in play
+<a href="#trade-and-storage">Trade and storage</a>). <code>Refine</code> turns ore into a part for
+a fee (see <a href="#refine">Refine</a>). <code>Rebuild</code> and <code>Refit</code> are in play
 too (see <a href="#rebuild">Rebuild</a>, <a href="#swap">Swap</a>, <a href="#add">Add</a>, <a href="#buy-a-hull">Buy a hull</a> and <a href="#hire-an-escort">Hire an escort</a>). <code>Jobs</code> posts the
 station's job board (see <a href="#jobs">Jobs</a>); <code>Roster</code> is checked and carried, and
 the screen that reads it is its own task.</p>
@@ -207,11 +208,11 @@ differs is who the station lets in and who flies the pair.</p>
 <tbody>
 <tr>
 <td>admission</td>
-<td>a living station reads its <code>allegiance</code>: <code>Enemy</code> refuses every dock, and any side refuses a ship it is hostile to (a <code>Player</code> station and an Enemy-flagged ship, or a station answering that ship's fire). A generated station's side is its civilization's <a href="#civilization-stances">stance</a> to you, so an Enemy civilization's stations refuse you. A derelict admits whatever its side; it is a hull to loot. A station you <a href="#buy-the-station">own</a> admits you whatever your side</td>
+<td>a living station reads its <code>allegiance</code>: <code>Enemy</code> refuses every dock, and any side refuses a ship it is hostile to (a <code>Player</code> station and an Enemy-flagged ship, or a station answering that ship's fire). A generated station's side is its civilization's <a href="#civilization-stances">stance</a> to you, so an Enemy civilization's stations refuse you. No station reads the hold of the ship that asks. A derelict admits whatever its side; it is a hull to loot. A station you <a href="#buy-the-station">own</a> admits you whatever your side</td>
 </tr>
 <tr>
 <td>the refusal</td>
-<td>while the travel lock is on a station that refuses, the HUD posts a notice (<code>&lt;NAME&gt; REFUSES DOCKING</code> with the station object's <code>name</code>) once; the mode chip does not show it, the DOCK chip draws dim in its slot, and <code>DOCK</code> builds nothing</td>
+<td>while the travel lock is on a station that refuses, the HUD posts a notice (<code>&lt;NAME&gt; REFUSES DOCKING</code>, with the station object's <code>name</code>) once; the mode chip does not show it, the DOCK chip draws dim in its slot, and <code>DOCK</code> builds nothing</td>
 </tr>
 <tr>
 <td>one ship per port</td>
@@ -258,6 +259,10 @@ not a derelict, and its <code>services</code> list the service.</p>
 <td>with <code>Trade</code>, the station's column lists its hold: the station's row opens Buy, the player's row Sell, against both purses. A station a scenario places deals at the item's reference <code>ask_cr</code> and <code>bid_cr</code>; a generated one at its computed price, see <a href="../prices/">Price tables</a>. Without <code>Trade</code>, Buy and Sell refuse with <code>&lt;NAME&gt; does not trade</code></td>
 </tr>
 <tr>
+<td>a lawful market</td>
+<td>the seed draws half the civilizations of a generated world lawful. The market of a living generated station of a lawful civilization does not deal in an item of category <code>Contraband</code>: Buy and Sell refuse with <code>&lt;NAME&gt; does not deal in contraband</code>, the station stocks none, and a visiting trader trades none there and posts no job for it. Store and Withdraw take the item. A station a scenario places, a derelict and a station you own are never lawful</td>
+</tr>
+<tr>
 <td>storage</td>
 <td>with <code>Storage</code>, a third column lists the station's storage and its used mass against <code>storage_cap_g</code>. The player's row opens Store, the storage row Withdraw. No credits move</td>
 </tr>
@@ -288,6 +293,54 @@ not a derelict, and its <code>services</code> list the service.</p>
 at a living waystation, buys, sells and stores through the pane, leaves until
 the station's cell retires, comes back, withdraws the same stacks, meets the
 over-cap refusal, and finds the storage in the leave save and after a Load.</p>
+<h2 id="refine" tabindex="-1">Refine</h2>
+<p>A ship docked to a living station that offers <code>Refine</code> turns items into a
+refined item, from the Inventory pane. The recipe is the refined item's
+<code>refine</code> field, see <a href="../mod-files/#content-files">Content files</a>. The base
+game authors one: 2 <code>IronOre</code>, 1 <code>CarbonOre</code> and 30 cr make 1 <code>AlloyPlate</code>.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>rule</th>
+<th>what happens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the gate</td>
+<td>docked to a living station whose <code>services</code> list <code>Refine</code>. A dead station and a ship refine nothing</td>
+</tr>
+<tr>
+<td>the action</td>
+<td>the player's row of an item a recipe consumes gains a <strong>Refine</strong> button beside Sell and Store. An item two recipes consume offers the recipe whose output id sorts first</td>
+</tr>
+<tr>
+<td>the form</td>
+<td>the quantity counts batches. The summary states them whole, <code>2 Iron ore + 1 Carbon ore + 30 cr -&gt; 1 Alloy plate</code>, over the balance after the fee or the refusal</td>
+</tr>
+<tr>
+<td>a batch</td>
+<td>every input leaves the ship's hold, one output enters it, and the fee moves from the ship to the station</td>
+</tr>
+<tr>
+<td>refusals</td>
+<td>in this order, on the form with Confirm disabled, and on the note line: not docked, no <code>Refine</code> service, no quantity, quantity zero, an input the hold is short of (the first by id), too few credits for the fee, no room for the output once the inputs have left, a station purse that cannot take the fee</td>
+</tr>
+<tr>
+<td>events</td>
+<td>one <code>OnCreditsChanged</code> per party with <code>cause: Refine</code>, see <a href="../events/#hold-events">Hold events</a></td>
+</tr>
+<tr>
+<td>a saved world</td>
+<td>a station keeps the services it was built with. A station frozen in a save from before <code>Refine</code> does not gain it; a cell generated later does</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The proof is <code>system_station_refine</code>: a ship docks at the base waystation,
+refines one alloy plate through the pane, and the next batch is refused by
+the carbon ore the hold no longer has.</p>
 <h2 id="rebuild" tabindex="-1">Rebuild</h2>
 <p>A ship docked to a living station that offers <code>Rebuild</code> can rebuild a section
 it lost. The Ship pane lists each lost section under its old code (<code>PDC-1</code>)
@@ -789,13 +842,15 @@ every cell.</p>
 </tbody>
 </table>
 </div>
-<p>Every generated station offers Rebuild, Refit, Trade, Storage and Jobs. Its stock
+<p>Every generated station offers Rebuild, Refit, Trade, Storage and Jobs, and
+Refine when its civilization's advancement is 0.25 or more. Its stock
 is half goods and half the recipe parts of every section its civilization
 builds: every part at advancement 0, and of the parts above 0 that its
 advancement opens, each with chance 0.5 keyed to the civilization and the
 part id. The parts hold at least one recipe of every part it builds: for each
 item, the largest count any one of those recipes asks, so the Catalogue can
-sell every part it lists from the station's own stock. Its goods hold
+sell every part it lists from the station's own stock. Its goods are hull
+plates, medkits, rations, salvaged parts and ammunition, by fixed weights. They hold
 ammunition only for the reloading weapons its civilization knows
 (<code>PdcRound</code>, <code>RailSlug</code>, <code>Torpedo</code>): at least 2,000 <code>PdcRound</code> when one of
 those weapons reloads from it, and at least one unit of each other such
@@ -924,8 +979,8 @@ board slot carries a posting number, the play-time stamp it was posted at and
 the offer it posted (<code>SlotPosting</code>, kept per station in the <code>JobPostings</code>
 session resource, saved with the world). A slot's offer is drawn once, when
 the slot posts, from the world seed, the station's generated id, the slot, the
-posting number, the cluster types of its sector, the start role's job mix, the
-board's standing offers, the field around the station and, on the starting
+posting number, the cluster types of its sector, the advancement of the
+station's civilization, the start role's job mix, the board's standing offers, the field around the station and, on the starting
 station's board, the player's hull, off its own <code>WyRand</code> seeded from FNV-64 of
 <code>(seed, &quot;station_jobs&quot;, station id, slot, posting)</code>. The offer then stands as drawn until its slot renews: a
 looted wreck, a job held elsewhere, a thaw or a Load never changes it. A job's
@@ -945,7 +1000,7 @@ once. Its slot waits until the original offer window expires before it
 renews; the old offer's Accept is refused as expired.</p>
 <p>Each slot draws its kind by the start role's <code>jobs</code> mix (see
 <a href="../start-roles/">start roles</a>), as weights over <code>Procure</code>, <code>Recover</code>,
-<code>Escort</code>, <code>Distress</code> and <code>Neutralize</code>:</p>
+<code>Escort</code>, <code>Distress</code>, <code>Neutralize</code> and <code>Supply</code>:</p>
 <div class="table-scroll">
 <table>
 <thead>
@@ -957,6 +1012,7 @@ renews; the old offer's Accept is refused as expired.</p>
 <th>Escort</th>
 <th>Distress</th>
 <th>Neutralize</th>
+<th>Supply</th>
 </tr>
 </thead>
 <tbody>
@@ -968,6 +1024,7 @@ renews; the old offer's Accept is refused as expired.</p>
 <td>4</td>
 <td>1</td>
 <td>1</td>
+<td>1</td>
 </tr>
 <tr>
 <td><code>Salvage</code></td>
@@ -977,6 +1034,7 @@ renews; the old offer's Accept is refused as expired.</p>
 <td>1</td>
 <td>2</td>
 <td>1</td>
+<td>2</td>
 </tr>
 <tr>
 <td><code>Combat</code></td>
@@ -986,6 +1044,7 @@ renews; the old offer's Accept is refused as expired.</p>
 <td>1</td>
 <td>3</td>
 <td>4</td>
+<td>3</td>
 </tr>
 </tbody>
 </table>
@@ -1016,8 +1075,8 @@ renews; the old offer's Accept is refused as expired.</p>
 <tr>
 <td><code>Escort</code></td>
 <td><code>Escort a hauler carrying 1200 cr</code></td>
-<td>a working-hull hauler spawns 1 km off the poster on a 10 km leg and leaves at 100 m/s once you are undocked and within 1 km of it; see it reach its mark. <code>1 + cargo / 700</code> raiders, at most 3, lie in wait 2.5 km off the leg, 75 % along it, and engage within 3 km; they hunt the hauler and turn on a ship that shoots them for as long as it keeps shooting</td>
-<td>half the cargo value, plus a fee</td>
+<td>a working-hull hauler spawns 1 km off the poster on a 10 km leg and leaves at 100 m/s once you are undocked and within 1 km of it; see it reach its mark. Raiders lie in wait 2.5 km off the leg, 75 % along it, and engage within 3 km; they hunt the hauler and turn on a ship that shoots them for as long as it keeps shooting. The posting draws their count once from its civilization's advancement: 1 below 0.25, 1 or 2 below 0.5, 2 or 3 below 0.75, then 3. Each raider is a scavenger held to a size budget by the same bands: about 40 sections and one turret below 0.25, 68 and two turrets below 0.5, 108 and three below 0.75, with no torpedo bay or lance; then the full hull. The hauler mounts a mirrored pair of its bank's drive, firing aft, as near its primary flight computer as the hull allows, so a split keeps a drive on the piece that keeps the computer</td>
+<td>half the cargo value, plus 150 cr per raider, plus a fee</td>
 </tr>
 <tr>
 <td><code>Distress</code></td>
@@ -1030,6 +1089,63 @@ renews; the old offer's Accept is refused as expired.</p>
 <td><code>Neutralize &lt;hull&gt;</code></td>
 <td>neutralize the named Enemy hull standing in the cube</td>
 <td>400 cr plus twice a fee</td>
+</tr>
+<tr>
+<td><code>Supply</code></td>
+<td><code>Rescue a stranded crew with 3 Medkit</code></td>
+<td>a neutral drifting caller spawns 10 km out, with none of the asked item aboard: dock with the caller with the whole stack in the hold. The dock takes the stack. With the hold short the dock takes nothing, the job stays open and the HUD posts <code>JOB-1: SHORT 2 MEDKIT</code></td>
+<td>200 cr, the goods at the ask plus half, plus twice a fee</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>A <code>Supply</code> draws its item from its own pool: every <code>Food</code>, <code>Ammo</code> and
+<code>Repair</code> item, and a <code>Raw</code> or <code>Parts</code> item that asks at most 20 cr a unit,
+never <code>Contraband</code>. It draws the framing first and then an item of that
+framing, so a cheap raw item never crowds out a rescue. The count is 2 to 8
+lots of the item's <code>price_lot</code>, capped at the units that fit in 200 kg, the
+smallest start hold, and at least one. The item frames the title and the
+task:</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>item</th>
+<th>frame</th>
+<th>title</th>
+<th>task</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the <code>Medkit</code> role</td>
+<td>rescue</td>
+<td><code>Rescue a stranded crew with &lt;n&gt; &lt;item&gt;</code></td>
+<td>dock with the stranded caller with the stack aboard for its injured crew</td>
+</tr>
+<tr>
+<td><code>Food</code></td>
+<td>resupply</td>
+<td><code>Resupply a stranded ship with &lt;n&gt; &lt;item&gt;</code></td>
+<td>... to feed its crew</td>
+</tr>
+<tr>
+<td><code>Ammo</code></td>
+<td>rearm</td>
+<td><code>Rearm a stranded ship with &lt;n&gt; &lt;item&gt;</code></td>
+<td>... to refill its magazines</td>
+</tr>
+<tr>
+<td>other <code>Repair</code></td>
+<td>repair</td>
+<td><code>Repair a stranded ship with &lt;n&gt; &lt;item&gt;</code></td>
+<td>... to patch its breached hull</td>
+</tr>
+<tr>
+<td><code>Raw</code>, <code>Parts</code></td>
+<td>supply run</td>
+<td><code>Supply a stranded ship with &lt;n&gt; &lt;item&gt;</code></td>
+<td>... to get it under way</td>
 </tr>
 </tbody>
 </table>
@@ -1080,17 +1196,21 @@ while the job is held or completed, while its offer's window has passed
 spawns its hauler and its raiders, and the hauler waits with no helm order
 until the player stands undocked from the poster and within 1 km of the
 hauler, then flies a <code>Move</code> to its mark under a 100 m/s cruise cap; a
-<code>Distress</code> spawns its caller. A job is DONE when the open world sees its
+<code>Distress</code> or a <code>Supply</code> spawns its caller. A job is DONE when the open world sees its
 completion over the shipped event kinds: <code>onundocked</code> naming the wreck with
 the stack aboard and the wreck's stack gone (<code>Recover</code>), <code>onshipordercomplete</code>
 for the hauler's <code>Move</code> (<code>Escort</code>; the hauler neutralized or destroyed, or its
 <code>Move</code> failed because it lost its drives or its flight computer, drops the job
-and its bodies), <code>ondocked</code> with the caller (<code>Distress</code>), <code>onneutralized</code> or
+and its bodies), <code>ondocked</code> with the caller (<code>Distress</code>; a <code>Supply</code> with the whole stack in
+the hold, which the dock removes), <code>onneutralized</code> or
 <code>ondestroyed</code> naming the hull (<code>Neutralize</code>). A hand-in needs the posting
 station, the job done (a <code>Procure</code> is done with the goods in the hold), and a
 station balance that covers the reward; it removes a <code>Procure</code>'s goods, pays
 <code>OnCreditsChanged</code> with cause <code>JobReward</code> on both sides and lists the job
-completed. Held, done and completed jobs are the <code>Jobs</code> session resource, and
+completed. A scenario hears each step as a <a href="../events/#job-events">job event</a>:
+<code>OnJobAccepted</code>, <code>OnJobDone</code> (never for a <code>Procure</code>), <code>OnJobHandedIn</code>, and
+<code>OnJobDropped</code> with cause <code>Lost</code> for a job the world took or <code>Abandoned</code> for
+the pane's Drop. Held, done and completed jobs are the <code>Jobs</code> session resource, and
 every board's slot postings and offers are the <code>JobPostings</code> session resource;
 both save in the world state's <code>jobs</code> and <code>postings</code> fields and are checked on
 load: a job held twice, held and completed, held or completed and dropped,
@@ -1117,7 +1237,7 @@ board is seeded from.</p>
 <tbody>
 <tr>
 <td><code>block_waystation</code></td>
-<td>Waystation - a plated two-deck block about 40 m across, unarmed, with a bridge set into the top deck, a second flight computer (<code>lower_bridge</code>) in the far corner of the lower deck and a docking collar off the port flank (<code>port_collar</code>). Offers Rebuild, Refit, Trade and Storage; its hold opens with hull plates, rations, salvaged parts and a few of each hull, drive, controller and PDC part</td>
+<td>Waystation - a plated two-deck block about 40 m across, unarmed, with a bridge set into the top deck, a second flight computer (<code>lower_bridge</code>) in the far corner of the lower deck and a docking collar off the port flank (<code>port_collar</code>). Offers Rebuild, Refit, Trade, Storage and Refine; its hold opens with hull plates, medkits, rations, salvaged parts and a few of each hull, drive, controller and PDC part</td>
 </tr>
 </tbody>
 </table>

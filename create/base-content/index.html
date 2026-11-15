@@ -88,6 +88,13 @@ part serves every hull. Section kinds are <code>Hull</code>, <code>Thruster</cod
 <td>steering lag 0.5 s, max torque 9760.0; the hull derives its own turn ceiling from that torque, its inertia and its length</td>
 </tr>
 <tr>
+<td><code>armoured_controller_section</code></td>
+<td>Controller</td>
+<td>Armoured Controller Section</td>
+<td>160</td>
+<td>the same core in an armoured cell at advancement 0.3: steering lag 0.7 s, max torque 11000.0; one AlloyPlate on the recipe. Swaps for the basic controller at a shipyard</td>
+</tr>
+<tr>
 <td><code>light_hull_section</code></td>
 <td>Hull</td>
 <td>Light Hull Section</td>
@@ -165,11 +172,25 @@ part serves every hull. Section kinds are <code>Hull</code>, <code>Thruster</cod
 <td>the same six-round, +1 after 10 s idle bay and warhead loading the straight-running Lance: no weave, cruise 350 m/s, ~116 PDC rounds an intercept, killed ~1.14 km out</td>
 </tr>
 <tr>
+<td><code>dart_torpedo_section</code></td>
+<td>Torpedo</td>
+<td>Torpedo Bay (Dart)</td>
+<td>100</td>
+<td>the same bay and warhead at advancement 0.25 loading the straight-running Dart: no weave, cruise 450 m/s, ~110 PDC rounds an intercept, killed ~1.08 km out; one AlloyPlate on the recipe. Swaps for the Serpent or the Lance bay at a shipyard</td>
+</tr>
+<tr>
 <td><code>railgun_lance_section</code></td>
 <td>Railgun</td>
 <td>Railgun Lance</td>
 <td>180</td>
 <td>the spinal lance: no traverse, so the HULL aims it. A 1.5 s charge you can see walk the bore, then Pierce 300 to every layer it rakes until 1800 slug power runs out; a slug at 15,000 m/s for 1.2 s, rake radius 10 m, recoil 45 at the muzzle, one round reloading over 12 s</td>
+</tr>
+<tr>
+<td><code>heavy_railgun_section</code></td>
+<td>Railgun</td>
+<td>Heavy Lance</td>
+<td>180</td>
+<td>the same lance at advancement 0.6 with a 2 s charge: Pierce 450 to every layer until 2700 slug power runs out; same slug, rake, recoil and one-round 12 s reload. Swaps for the lance at a shipyard</td>
 </tr>
 <tr>
 <td><code>docking_port_section</code></td>
@@ -179,6 +200,13 @@ part serves every hull. Section kinds are <code>Hull</code>, <code>Thruster</cod
 <td>the sealed-hatch port: DOCK holds the hull to the ship it has locked, port face to port face, within 10 m of gap, 15 deg of opposed and 5 m/s of closing speed. Its sleeve reaches 5 m out once the dock holds and is art alone. Every crewed base hull carries one on the port flank, and the line warship a second on the starboard flank</td>
 </tr>
 <tr>
+<td><code>wide_docking_port_section</code></td>
+<td>Docking</td>
+<td>Wide-Gate Docking Port Section</td>
+<td>110</td>
+<td>the same hatch at advancement 0.3 with a wider gate: 15 m of gap, 25 deg of opposed, 8 m/s of closing speed and 8 deg/s of spin. Swaps for the port at a shipyard</td>
+</tr>
+<tr>
 <td><code>cargo_intake_section</code></td>
 <td>Cargo intake</td>
 <td>Cargo Intake Section</td>
@@ -186,11 +214,25 @@ part serves every hull. Section kinds are <code>Hull</code>, <code>Thruster</cod
 <td>a 3x2x1 hold mouth behind an accordion door on its -Z face: the door opens for a canister within 40 m with at least one item that fits the hold, and the intake takes every whole item that fits, at any speed, once the canister touches the 1 m deep trigger in front of the 22.2 x 15.3 m opening; the rest stays in the canister. One jettison may queue several canisters; each drops out at 3 m/s. The mining tug, the salvage hauler and the line warship carry one on the top deck</td>
 </tr>
 <tr>
+<td><code>wide_intake_section</code></td>
+<td>Cargo intake</td>
+<td>Wide Intake Section</td>
+<td>120</td>
+<td>the same 3x2x1 box and door at advancement 0.3 with a wider trigger: the door opens for a canister within 60 m, and the take reaches 1.5 m out over a 28 x 18 m opening. Swaps for the intake at a shipyard</td>
+</tr>
+<tr>
 <td><code>mining_beam_section</code></td>
 <td>Mining</td>
 <td>Mining Beam Section</td>
 <td>90</td>
 <td>a 1x1x1 emitter behind sliding doors on its -Z face: while its own <code>input_mapping</code> key is held the doors part, the tip runs out, and once a second the beam cuts a 1.5-cell sphere from the nearest asteroid in its path within 100 m, without a travel lock. The mining tug carries one at the tip of its bow boom</td>
+</tr>
+<tr>
+<td><code>long_mining_beam_section</code></td>
+<td>Mining</td>
+<td>Long Mining Beam Section</td>
+<td>110</td>
+<td>the same 1x1x1 emitter at advancement 0.3 with a longer, faster beam: it cuts the same 1.5-cell sphere within 160 m, every 0.8 s. Swaps for the beam at a shipyard</td>
 </tr>
 </tbody>
 </table>
@@ -426,6 +468,9 @@ unpaintable.</p>
 <code>resources</code> list - an undeclared path is a lint/merge Error, not a silent
 404. A <code>#Scene0</code>-style gltf label is stripped before the membership check,
 so <code>dep://base/gltf/hull-01.glb#Scene0</code> is fine.</p>
+<p>Every declared sound file (<code>wav</code>, <code>ogg</code>, <code>oga</code>, <code>spx</code>, <code>flac</code>, <code>mp3</code>) is also
+decoded and measured: one the game cannot decode, or one that is silent, is a
+lint Error.</p>
 <p>The editor reads this same list. A row holding an image, a sound or a model
 opens a picker of the files the installed bundles declare, writes the <code>dep://</code>
 ref for the one you pick (with the <code>#Scene0</code> label where a mesh needs it), and

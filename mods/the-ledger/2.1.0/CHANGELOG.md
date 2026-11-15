@@ -7,6 +7,9 @@ in `the-ledger.bundle.ron`; the portal keeps every published version.
 
 ### Scenarios
 
+- **(breaking)** Drift Run's gate cues name `category: CockpitTick, at: Ui` in
+  place of `route` and `volume`. Needs a base game whose `PlaySound` takes a
+  sound category.
 - **(breaking)** Quote the item ids in ship stock: `inventory: {"PdcRound":
   2000}`. Needs a base game whose items are content; the bare key no longer
   loads.
@@ -26,6 +29,9 @@ in `the-ledger.bundle.ron`; the portal keeps every published version.
 
 ### Balance
 
+- **(breaking)** Siege Line's torpedo pods move from the left trigger to the
+  left bumper on a gamepad. Needs a base game where the left trigger only
+  raises the weapons: base now refuses a section bound to it.
 - Retune the same fleet with twice-1.x sections, protected player gun
   connections and mod-owned PDCs. Reduce platform durability, stage
   reinforcements, and remove gravity from cover rocks.

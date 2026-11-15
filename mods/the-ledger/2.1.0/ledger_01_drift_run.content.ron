@@ -330,7 +330,7 @@
                 ],
                 actions: [
                     DespawnScenarioObject((id: "start")),
-                    PlaySound((sound: "dep://base/sounds/radar_retarget.wav", route: Interface, volume: Some(0.7))),
+                    PlaySound((sound: "dep://base/sounds/radar_retarget.wav", category: CockpitTick, at: Ui)),
                     VariableSet((key: "started_at", expression: Term(Factor(Name("elapsed"))))),
                     VariableSet((key: "racing", expression: Term(Factor(Literal(Number(1.0)))))),
                     VariableSet((key: "gate", expression: Term(Factor(Literal(Number(1.0)))))),
@@ -359,7 +359,7 @@
                 ],
                 actions: [
                     DespawnScenarioObject((id: "gate_1")),
-                    PlaySound((sound: "dep://base/sounds/radar_retarget.wav", route: Interface, volume: Some(0.7))),
+                    PlaySound((sound: "dep://base/sounds/radar_retarget.wav", category: CockpitTick, at: Ui)),
                     VariableSet((key: "gate", expression: Term(Factor(Literal(Number(2.0)))))),
                     SpawnScenarioObject((
                         base: (
@@ -386,7 +386,7 @@
                 ],
                 actions: [
                     DespawnScenarioObject((id: "gate_2")),
-                    PlaySound((sound: "dep://base/sounds/radar_retarget.wav", route: Interface, volume: Some(0.7))),
+                    PlaySound((sound: "dep://base/sounds/radar_retarget.wav", category: CockpitTick, at: Ui)),
                     VariableSet((key: "gate", expression: Term(Factor(Literal(Number(3.0)))))),
                     SpawnScenarioObject((
                         base: (
@@ -413,7 +413,7 @@
                 ],
                 actions: [
                     DespawnScenarioObject((id: "gate_3")),
-                    PlaySound((sound: "dep://base/sounds/radar_retarget.wav", route: Interface, volume: Some(0.7))),
+                    PlaySound((sound: "dep://base/sounds/radar_retarget.wav", category: CockpitTick, at: Ui)),
                     VariableSet((key: "gate", expression: Term(Factor(Literal(Number(4.0)))))),
                     SpawnScenarioObject((
                         base: (
@@ -440,7 +440,7 @@
                 ],
                 actions: [
                     DespawnScenarioObject((id: "gate_4")),
-                    PlaySound((sound: "dep://base/sounds/radar_retarget.wav", route: Interface, volume: Some(0.7))),
+                    PlaySound((sound: "dep://base/sounds/radar_retarget.wav", category: CockpitTick, at: Ui)),
                     VariableSet((key: "gate", expression: Term(Factor(Literal(Number(5.0)))))),
                     SpawnScenarioObject((
                         base: (

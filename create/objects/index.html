@@ -554,16 +554,19 @@ Give items to any ship and Take them from a neutralized or <code>lootable: true<
 one, never past the receiving ship's hold. The player can also Buy items from
 any other docked ship at the item's ask and Sell to it at the item's bid,
 moving <code>credits</code> between the two ships at once. A trade takes only stock the
-seller carries and credits the buyer holds; nothing restocks. An undocked player with a
+seller carries and credits the buyer holds; nothing restocks. A scenario
+moves stock with <a href="../actions/#giveitems"><code>GiveItems</code></a> and
+<a href="../actions/#takeitems"><code>TakeItems</code></a>. An undocked player with a
 <a href="../sections/#cargo-intake">cargo intake</a> can Jettison items in canisters and
 take canisters back in. Outside a saved Open World (desktop build only), nothing is
 saved: stock and credits return to their authored values when the scenario loads again.</li>
 </ul>
 <p>The table below is the base catalog; a mod adds its own items under its own
 ids, and any ship's stock, a canister or a trade may carry them the same way.
-The base game must define all ten ids below, each in its category: <code>HullPlate</code>
-feeds a repair, the ammunition a weapon's reload, the ores mining yield, and
-generated ship holds draw <code>Rations</code> and <code>SalvagedParts</code>. A dependent mod may
+The base game must define all eleven ids below, each in its category:
+<code>HullPlate</code> feeds a repair, the ammunition a weapon's reload, the ores mining
+yield, generated ship holds draw <code>Rations</code> and <code>SalvagedParts</code>, and a
+supply job that asks for <code>Medkit</code> reads as a rescue. A dependent mod may
 replace one with its own mass and prices, never another category; a mod item
 of its own is generic authored stock. See <a href="../mod-files/#content-files">Content files</a>.</p>
 <div class="table-scroll">
@@ -659,6 +662,14 @@ of its own is generic authored stock. See <a href="../mod-files/#content-files">
 <td>120</td>
 <td>90</td>
 </tr>
+<tr>
+<td><code>Medkit</code></td>
+<td>2 kg</td>
+<td>Repair</td>
+<td>1</td>
+<td>60</td>
+<td>45</td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -666,7 +677,7 @@ of its own is generic authored stock. See <a href="../mod-files/#content-files">
 trade of a count that is not a whole lot pays its share, rounded up for a
 Buy and down for a Sell; a Sell whose share rounds to 0 cr is refused. A
 lot of 1 prices each item, like every item but the PDC round.</p>
-<p>Base also ships ten <code>Parts</code> items that section build recipes spend (see
+<p>Base also ships eleven <code>Parts</code> items that section build recipes spend (see
 <a href="../sections/#build-recipe">Build recipe</a>). They are not role ids: a mod may
 replace or skip them, and its own recipes may name its own <code>Parts</code> items.
 Every one has a lot of 1.</p>
@@ -752,12 +763,54 @@ Every one has a lot of 1.</p>
 <td>200</td>
 <td>150</td>
 </tr>
+<tr>
+<td><code>AlloyPlate</code></td>
+<td>30 kg</td>
+<td>Parts</td>
+<td>90</td>
+<td>68</td>
+</tr>
 </tbody>
 </table>
 </div>
+<p><code>AlloyPlate</code> is the one base item with a refine recipe: a station that
+offers <code>Refine</code> makes one from 2 <code>IronOre</code>, 1 <code>CarbonOre</code> and a 30 cr fee.
+See <a href="../stations/#refine">Refine</a> for the rule and
+<a href="../mod-files/#content-files">Content files</a> for the <code>refine</code> field.</p>
+<p>Base ships one <code>Contraband</code> item. It is not a role id either: a mod may add
+its own <code>Contraband</code> items, and a lawful market refuses every one the same
+way.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Mass</th>
+<th>Category</th>
+<th>Ask</th>
+<th>Bid</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>UnmarkedCores</code></td>
+<td>10 kg</td>
+<td>Contraband</td>
+<td>300</td>
+<td>240</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The market of a living generated station of a lawful civilization does not
+buy or sell a <code>Contraband</code> item; the station still docks the ship that
+carries one and stores the item. A station that is not lawful trades it like
+any other item. No station stocks one and no job board asks for one. The
+<code>base/salvage_broker</code> profile sells them, and an intact generated scavenger
+carries one unit in half its holds.</p>
 <p><code>PdcRound</code> feeds both Kinetic and Pierce turret mounts - the mount decides the
 round's damage type, not the item. <code>Torpedo</code> feeds every torpedo bay type,
-Serpent and Lance alike - the bay decides the flight.</p>
+Serpent, Lance and Dart alike - the bay decides the flight.</p>
 <pre><code class="hljs language-ron"><span class="ron-comment">// The open world's derelict: nobody aboard, free to loot.</span>
 <span class="ron-key">controller</span><span class="ron-punct">:</span> <span class="ron-type">None</span><span class="ron-punct">,</span>
 <span class="ron-key">allegiance</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-type">Neutral</span><span class="ron-punct">),</span>
@@ -777,7 +830,8 @@ Serpent and Lance alike - the bay decides the flight.</p>
      (`ResolvedShipDesign::cargo_capacity_g` :402, `HULL_SECTION_CARGO_G` :393);
      overstock lint in crates/nova_scenario/src/lint/ship.rs
      `check_object_prototypes`. Item catalog: crates/nova_gameplay/src/inventory.rs
-     `ItemDesign` (`mass_g`, `category`, `price_lot`, `ask_cr`, `bid_cr`); the base
+     `ItemDesign` (`mass_g`, `category`, `price_lot`, `ask_cr`, `bid_cr`,
+     `refine`) and `plan_item_refine`; the base
      catalog's values: crates/nova_authoring/src/base_content/items.rs
      `item_catalog`. Lot pricing: crates/nova_gameplay/src/market.rs
      `ItemPrice::buy_cr`, `ItemPrice::sell_cr`. -->

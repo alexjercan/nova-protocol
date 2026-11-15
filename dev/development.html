@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-e28e0c87.js";
+            window.path_to_searchindex_js = "searchindex-3244a3e6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -732,9 +732,12 @@ graded for spawned-dead (ERROR) and close-spawn (WARN) hostiles; a bundle
 acknowledges its OWN deliberate imbalances in a <code>balance_acks.ron</code> beside
 its manifest, so the justification travels with the mod (a stale ack that
 matches no live finding is an ERROR, so every list stays pruned);</li>
-<li>the flight-rig input-overlap check - a content <code>input_mapping</code> section
-bound to a key the always-on flight rig also binds (W/Space/RightTrigger
-burn, autopilot, …) silently double-drives flight and is flagged (WARN).</li>
+<li>the reserved-source input-overlap check - a content <code>input_mapping</code>
+section bound to a source the always-on flight or camera rig also binds
+(W/Space/RightTrigger burn, autopilot, free look, …) drives both on one
+press (ERROR). A section kind’s own shared default is exempt
+(<code>shared_section_sources</code>: a thruster on Space, a torpedo bay on the left
+bumper).</li>
 <li><code>--target</code> lints a single mod by directory or in-repo id
 (<code>webmods/&lt;id&gt;</code>, <code>assets/mods/&lt;id&gt;</code>, or <code>base</code>); <code>--report &lt;path&gt;</code> writes a
 per-mod document (Markdown, or HTML for a <code>.html</code> path / <code>--format html</code>)

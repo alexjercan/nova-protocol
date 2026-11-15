@@ -17,13 +17,14 @@ on the web.</p>
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag">Screenshot</span>
         <span class="figure__placeholder-name">assets/wiki-settings.png</span>
-        <span class="figure__placeholder-note">The Settings modal open over the main menu on its Audio tab: the tab bar, the four volume sliders and the Back button.</span>
+        <span class="figure__placeholder-note">The Settings modal open over the main menu on its Audio tab: the tab bar, the three volume sliders and the Back button.</span>
     </div>
     <figcaption class="figure__caption">One Settings modal, reachable from the main menu and the pause menu.</figcaption>
 </figure>
 <h2 id="audio" tabindex="-1">Audio</h2>
-<p>Four draggable sliders, top to bottom. Each shows its level as a whole percent
-and takes effect live as you drag.</p>
+<p>Three draggable sliders, top to bottom. Each shows its level as a whole percent
+and takes effect live as you drag. Each step of a slider changes the level by
+the same number of decibels, so the sound fades evenly across the whole travel.</p>
 <div class="table-scroll">
 <table>
 <thead>
@@ -42,17 +43,13 @@ and takes effect live as you drag.</p>
 <td>Menu clicks, HUD ticks, the editor and the flight computer - the sounds that come from the cockpit, not from the world.</td>
 </tr>
 <tr>
-<td>World</td>
-<td>The engine hum, weapons, hits, the rocks breaking up - everything out there, heard at the distance it happens.</td>
-</tr>
-<tr>
-<td>Music</td>
-<td>Reserved. The slider moves and the setting is saved, but the game ships no music yet.</td>
+<td>Effects</td>
+<td>The engine hum, weapons, hits, the rocks breaking up - everything out there, your own ship included, heard from your ship at the distance it happens.</td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>Master multiplies the other three, so a track you have turned down stays down
+<p>Master multiplies the other two, so a track you have turned down stays down
 when you raise Master.</p>
 <p>Most buttons tick when the pointer reaches them and play a press sound, at the
 Interface level. Most refused presses buzz instead. A disabled button stays
@@ -92,7 +89,7 @@ follows <strong>Particles</strong>: 0.75 s on, none off.</p>
 <tr>
 <td>Flash lights</td>
 <td>Off, 3, 6</td>
-<td>How many detonations and slugs may light the hull at once.</td>
+<td>How many detonations and slugs may light the hull at once. Off also puts out the beacons on every station's docking ports.</td>
 </tr>
 <tr>
 <td>Camera shake</td>
