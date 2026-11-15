@@ -1848,7 +1848,7 @@ mod tests {
 
         // Two clips: one Ui voice per sound, so a second play of the same
         // clip would retire the first itself.
-        let mut clips = app.world_mut().resource_mut::<Assets<AudioSource>>();
+        let clips = app.world().resource::<Assets<AudioSource>>();
         let (menu_clip, scenario_clip) = (clips.reserve_handle(), clips.reserve_handle());
         let ui = |sound| PlaySound::ui(sound, SoundCategoryType::UiClick);
 
