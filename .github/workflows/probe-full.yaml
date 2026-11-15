@@ -112,6 +112,12 @@ jobs:
         env:
           RUST_BACKTRACE: full
           SHARD_EXAMPLES: ${{ matrix.examples }}
+          # The menu draws its backdrop from OS entropy. Under lavapipe
+          # menu_weave and menu_gauntlet cost 16-19 s per picker row, so an
+          # unpinned run stalls system_scenario_picker's 100 s step about half
+          # the time. menu_waystation is the backdrop the v0.17.0 gate passed
+          # on. Keep in step with the smoke job in ci.yaml.
+          NOVA_MENU_BACKDROP: menu_waystation
         # probe is the game binary's `probe` subcommand, which only exists
         # under --features debug. That flag is also what keeps this step on ONE
         # Bevy variant: probe builds each example itself with --features debug,

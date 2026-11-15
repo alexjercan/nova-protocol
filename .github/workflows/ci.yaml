@@ -298,6 +298,8 @@ jobs:
       - name: Probe correctness smoke
         env:
           RUST_BACKTRACE: full
+          # Same backdrop pin as probe-full.yaml, which says why.
+          NOVA_MENU_BACKDROP: menu_waystation
         # probe is the game binary's `probe` subcommand, which only exists
         # under --features debug. That flag is also what keeps this step on ONE
         # Bevy variant: probe builds each example itself with --features debug,
