@@ -182,6 +182,15 @@ name = "sos_rescue_sandbox"
 path = "examples/playable/sos_rescue_sandbox.rs"
 required-features = ["debug"]
 
+# Low-ammo warning by hand: a gunboat in a void with one PDC and 600 rounds
+# aboard. Hold fire down past LOW (400) and DRY (0). Nothing ends it; under
+# NOVA_AUTOPILOT a smoke walk fires the hold down, checks one LOW then one DRY
+# with the notice and gauge tag, restocks and checks LOW again.
+[[example]]
+name = "ammo_warning_sandbox"
+path = "examples/playable/ammo_warning_sandbox.rs"
+required-features = ["debug"]
+
 # Second-tier sections by hand: start docked at a generated yard that builds
 # all six, on a shipped hull (--hull picket|tug|warship) with the recipe parts
 # and credits aboard. Swap in the Ship pane, undock and use the part. Nothing

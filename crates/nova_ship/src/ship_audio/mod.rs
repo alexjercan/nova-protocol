@@ -64,8 +64,8 @@ use self::{
         on_torpedo_launch_play_sfx, on_turret_fire_play_sfx,
     },
     cues::{
-        play_dry_fire_cue, play_hull_warning_cue, play_lock_cues, play_safety_engaged_cue,
-        play_threat_lock_cue, play_torpedo_closing_tone,
+        on_ammo_reserve_crossed_play_cue, play_dry_fire_cue, play_hull_warning_cue, play_lock_cues,
+        play_safety_engaged_cue, play_threat_lock_cue, play_torpedo_closing_tone,
     },
     loops::{drive_railgun_charge_loops, drive_rcs_loops, drive_thruster_loops},
     machinery::{
@@ -132,6 +132,7 @@ impl Plugin for ShipAudioPlugin {
         app.add_observer(on_dock_released_play_sfx);
         app.add_observer(on_reload_landed_play_sfx);
         app.add_observer(on_collapse_play_hull_loss);
+        app.add_observer(on_ammo_reserve_crossed_play_cue);
 
         // Lock/safety UI cues: message-driven one-shots, so no gating needed
         // - the writers (radar search, tap observer) are themselves

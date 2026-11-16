@@ -34,6 +34,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - The Ship pane lists running repairs with a bar, the time left and Cancel. In flight a chip under the RCS pips shows the first job, and a notice says how each one ends.
 - The Ship pane's Distress block says why the ship is stranded and what a rescue costs, then shows the call with Cancel. The HUD chip reads `SOS 42 S`; a notice says how it ends.
+- Low-ammo warning: when the hold has under one magazine of an ammo item, a notice (`PDC ROUND LOW: 400`, then `PDC ROUND DRY`) and one cue play, and the weapon gauge shows `LOW` or `DRY`.
 
 ### Fixes
 

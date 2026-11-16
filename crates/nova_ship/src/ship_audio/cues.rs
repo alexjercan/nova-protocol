@@ -1,6 +1,6 @@
 //! Cockpit cues: the lock/safety chirps the ship answers with, the dry-fire
-//! click on an empty trigger pull, the threat and hull alarms, and the
-//! torpedo closing tone. All resolve the PLAYER ship's own
+//! click on an empty trigger pull, the hold reserve warning, the threat and
+//! hull alarms, and the torpedo closing tone. All resolve the PLAYER ship's own
 //! authored sounds, so a ship without them is silent rather than borrowing
 //! another hull's voice.
 //!
@@ -264,6 +264,28 @@ pub(super) fn play_dry_fire_cue(
         return;
     };
     play_cockpit(&mut commands, handle, SoundCategoryType::CockpitTick);
+}
+
+/// The reserve warning: the player's hold of an ammunition item crossed into
+/// LOW or DRY ([`AmmoReserveCrossed`]). Plays the ship's own magazine gauge
+/// voice, [`ShipFeedbackSounds::ammo_dry`]: the same instrument that reports
+/// an empty magazine reports an emptying hold, once per crossing.
+/// AUTHORED-OR-SILENT, and heard flat with the rest of the computer's voice.
+pub(super) fn on_ammo_reserve_crossed_play_cue(
+    crossed: On<AmmoReserveCrossed>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    q_sounds: Query<&ShipFeedbackSounds, With<PlayerSpaceshipMarker>>,
+) {
+    let Some(handle) = q_sounds
+        .get(crossed.ship)
+        .ok()
+        .and_then(|sounds| sounds.ammo_dry.as_ref())
+        .map(|r| r.resolve(&asset_server))
+    else {
+        return;
+    };
+    play_cockpit(&mut commands, handle, SoundCategoryType::Cockpit);
 }
 
 /// The threat alarm: a HOSTILE has this ship in its combat lock.
@@ -548,6 +570,47 @@ mod tests {
             Some(expected),
             "the hot -> cold edge plays the ship's authored click"
         );
+    }
+
+    /// A reserve crossing plays the player ship's authored magazine gauge
+    /// once; another ship's crossing plays nothing.
+    #[test]
+    fn a_reserve_crossing_plays_the_player_ships_ammo_gauge_once() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.init_resource::<LastPlayed>();
+        app.init_resource::<PlayedSfx>();
+        app.add_observer(on_ammo_reserve_crossed_play_cue);
+        app.add_observer(
+            |ev: On<PlaySound>, mut last: ResMut<LastPlayed>, mut played: ResMut<PlayedSfx>| {
+                last.0 = Some(ev.sound.clone());
+                played.0 += 1;
+            },
+        );
+        let sounds = ShipFeedbackSounds {
+            ammo_dry: Some(AssetRef::from("base/sounds/ammo_dry.wav")),
+            ..default()
+        };
+        let player = spawn_player_ship(&mut app, sounds.clone());
+        let other = app.world_mut().spawn(sounds).id();
+        let crossed = |ship| AmmoReserveCrossed {
+            ship,
+            item: ItemRoleType::PdcRound.into(),
+            warning: AmmoReserveWarningType::Low,
+            reserve: 400,
+        };
+        app.world_mut().trigger(crossed(other));
+        app.update();
+        assert_eq!(app.world().resource::<PlayedSfx>().0, 0);
+        app.world_mut().trigger(crossed(player));
+        app.update();
+        let expected: Handle<AudioSource> = app
+            .world()
+            .resource::<AssetServer>()
+            .load("base/sounds/ammo_dry.wav");
+        assert_eq!(app.world().resource::<PlayedSfx>().0, 1);
+        assert_eq!(app.world().resource::<LastPlayed>().0, Some(expected));
     }
 
     /// An App rig for the dry-fire cue: the real `play_dry_fire_cue` system

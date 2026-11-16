@@ -5,6 +5,7 @@ use bevy::prelude::*;
 use nova_gameplay::gravity::prelude::NovaGravitySystems;
 
 pub mod ammo;
+pub mod ammo_warning;
 pub mod base_section;
 pub mod cargo_intake_section;
 pub mod catalog_ids;
@@ -56,23 +57,23 @@ pub mod turret_section;
 /// `SpaceshipSectionPlugin` with `SpaceshipSectionSystems`.
 pub mod prelude {
     pub use super::{
-        ammo::prelude::*, base_section::prelude::*, cargo_intake_section::prelude::*,
-        catalog_ids::prelude::*, cell_grid::prelude::*, clearance::prelude::*,
-        controller_section::prelude::*, damage_cracks::prelude::*, damage_effects::prelude::*,
-        damage_plume::prelude::*, damage_sparks::prelude::*, design_sections::prelude::*,
-        docking_section::prelude::*, escort_hire::prelude::*, fixture::prelude::*,
-        frozen::prelude::*, frozen_piece::prelude::*, frozen_rounds::prelude::*,
-        greeble_solver::prelude::*, hull_buy::prelude::*, hull_radius::prelude::*,
-        hull_section::prelude::*, integrity::prelude::*, link_points::prelude::*,
-        live_structure_anchor, mining_section::prelude::*, patch::prelude::*,
-        placeholder_art::prelude::*, railgun_section::prelude::*, repair_jobs::prelude::*,
-        rescue_call::prelude::*, section_add::prelude::*, section_animation::prelude::*,
-        section_preview::prelude::*, section_strip::prelude::*, shell_shape::prelude::*,
-        shell_skin::prelude::*, ship_measure::prelude::*, signature::prelude::*,
-        skin_decor::prelude::*, skin_reading::prelude::*, skin_report::prelude::*,
-        skin_style::prelude::*, skin_surface::prelude::*, station_buy::prelude::*,
-        thruster_section::prelude::*, torpedo_section::prelude::*, turret_section::prelude::*,
-        SpaceshipSectionPlugin, SpaceshipSectionSystems,
+        ammo::prelude::*, ammo_warning::prelude::*, base_section::prelude::*,
+        cargo_intake_section::prelude::*, catalog_ids::prelude::*, cell_grid::prelude::*,
+        clearance::prelude::*, controller_section::prelude::*, damage_cracks::prelude::*,
+        damage_effects::prelude::*, damage_plume::prelude::*, damage_sparks::prelude::*,
+        design_sections::prelude::*, docking_section::prelude::*, escort_hire::prelude::*,
+        fixture::prelude::*, frozen::prelude::*, frozen_piece::prelude::*,
+        frozen_rounds::prelude::*, greeble_solver::prelude::*, hull_buy::prelude::*,
+        hull_radius::prelude::*, hull_section::prelude::*, integrity::prelude::*,
+        link_points::prelude::*, live_structure_anchor, mining_section::prelude::*,
+        patch::prelude::*, placeholder_art::prelude::*, railgun_section::prelude::*,
+        repair_jobs::prelude::*, rescue_call::prelude::*, section_add::prelude::*,
+        section_animation::prelude::*, section_preview::prelude::*, section_strip::prelude::*,
+        shell_shape::prelude::*, shell_skin::prelude::*, ship_measure::prelude::*,
+        signature::prelude::*, skin_decor::prelude::*, skin_reading::prelude::*,
+        skin_report::prelude::*, skin_style::prelude::*, skin_surface::prelude::*,
+        station_buy::prelude::*, thruster_section::prelude::*, torpedo_section::prelude::*,
+        turret_section::prelude::*, SpaceshipSectionPlugin, SpaceshipSectionSystems,
     };
 }
 
@@ -333,6 +334,12 @@ impl Plugin for SpaceshipSectionPlugin {
             )
                 .chain()
                 .after(SpaceshipSectionSystems),
+        );
+        // The low-ammo warning reads the hold the reload pass drains and the
+        // market fills; the HUD notice and the cockpit cue observe its edge.
+        app.add_systems(
+            Update,
+            ammo_warning::track_player_ammo_reserve.in_set(SpaceshipSectionSystems),
         );
         app.add_plugins((
             hull_section::HullSectionPlugin {

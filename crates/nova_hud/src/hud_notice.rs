@@ -29,7 +29,9 @@
 //! is taken, `SOS ENDED: DOCKED` when the ship docks before the answer, and
 //! `NO FREE BERTH: SHIP FIXED, DOCK YOURSELF` when the paid berth gives up.
 //! A cancel posts nothing: the player pressed it in the Ship pane, which
-//! notes it.
+//! notes it. The player's hold reserve of an ammunition item crossing into
+//! LOW or DRY ([`AmmoReserveCrossed`]) posts `PDC ROUND LOW: 400` or
+//! `TORPEDO DRY`, once per crossing.
 //!
 //! One slot, no queue: a new text replaces the shown one and plays the cue; the
 //! same text again while it shows restarts the dwell and stays quiet. The dwell
@@ -47,8 +49,9 @@ use nova_ship::{
     flight::prelude::{MatchRefusal, MatchRefusalType},
     input::prelude::FlightVerbHints,
     sections::prelude::{
-        DockClamped, DockPressRefusal, DockPressRefusalType, DockReleased, RepairJobEndType,
-        RepairJobEnded, RescueCallEnded, RescueEndType,
+        AmmoReserveCrossed, AmmoReserveWarningType, DockClamped, DockPressRefusal,
+        DockPressRefusalType, DockReleased, RepairJobEndType, RepairJobEnded, RescueCallEnded,
+        RescueEndType,
     },
 };
 use nova_sound::prelude::*;
@@ -213,6 +216,7 @@ impl Plugin for HudNoticePlugin {
         app.add_observer(post_supply_refused_notice);
         app.add_observer(post_dock_clamped_notice);
         app.add_observer(post_dock_released_notice);
+        app.add_observer(post_ammo_reserve_notice);
         app.add_systems(
             Update,
             (
@@ -492,6 +496,35 @@ fn supply_refusal_line(code: &str, refusal: &SupplyRefusalType, items: &GameItem
                 .map_or_else(|| item.to_string(), |design| design.name.clone());
             format!("{code}: SHORT {} {}", need - have, name.to_uppercase())
         }
+    }
+}
+
+/// Post `<ITEM> LOW: <reserve>` or `<ITEM> DRY` when the player's hold
+/// reserve of an ammunition item crosses into that level. An item the
+/// catalog lacks reads by its id.
+fn post_ammo_reserve_notice(
+    crossed: On<AmmoReserveCrossed>,
+    items: Res<GameItems>,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut notices: MessageWriter<HudNotice>,
+) {
+    if !q_player.contains(crossed.ship) {
+        return;
+    }
+    let line = ammo_reserve_line(&crossed, &items);
+    debug!("hud_notice: {line}");
+    notices.write(HudNotice(line));
+}
+
+/// The notice line for a reserve crossing.
+fn ammo_reserve_line(crossed: &AmmoReserveCrossed, items: &GameItems) -> String {
+    let name = items
+        .get(&crossed.item)
+        .map_or_else(|| crossed.item.to_string(), |design| design.name.clone())
+        .to_uppercase();
+    match crossed.warning {
+        AmmoReserveWarningType::Low => format!("{name} LOW: {}", crossed.reserve),
+        AmmoReserveWarningType::Dry => format!("{name} DRY"),
     }
 }
 
@@ -855,6 +888,51 @@ mod tests {
         });
         app.update();
         assert_eq!(rendered(&mut app).0, "", "another pair's dock is not news");
+        assert_eq!(app.world().resource::<NoticeCues>().interface, 2);
+    }
+
+    /// A player reserve crossing posts its line with one cue; another ship's
+    /// crossing posts nothing.
+    #[test]
+    fn a_reserve_crossing_posts_the_item_and_what_is_left() {
+        let mut app = notice_app();
+        app.insert_resource(nova_gameplay::test_support::test_items());
+        let (player, _) = hull(&mut app, "Kestrel", true);
+        let (raider, _) = hull(&mut app, "Raider", false);
+        let crossed = |ship, item: ItemRoleType, warning, reserve| AmmoReserveCrossed {
+            ship,
+            item: item.into(),
+            warning,
+            reserve,
+        };
+
+        app.world_mut().trigger(crossed(
+            raider,
+            ItemRoleType::PdcRound,
+            AmmoReserveWarningType::Low,
+            400,
+        ));
+        app.update();
+        assert_eq!(rendered(&mut app).0, "", "another ship's hold is not news");
+
+        app.world_mut().trigger(crossed(
+            player,
+            ItemRoleType::PdcRound,
+            AmmoReserveWarningType::Low,
+            400,
+        ));
+        app.update();
+        assert_eq!(rendered(&mut app).0, "PDC ROUND LOW: 400");
+        assert_eq!(app.world().resource::<NoticeCues>().interface, 1);
+
+        app.world_mut().trigger(crossed(
+            player,
+            ItemRoleType::Torpedo,
+            AmmoReserveWarningType::Dry,
+            0,
+        ));
+        app.update();
+        assert_eq!(rendered(&mut app).0, "TORPEDO DRY");
         assert_eq!(app.world().resource::<NoticeCues>().interface, 2);
     }
 

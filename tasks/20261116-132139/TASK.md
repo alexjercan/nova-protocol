@@ -13,6 +13,13 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
 ## Decisions
 - Owner 2026-11-16: a low-ammo warning (HUD and audio) before the reserve
   is empty is approved. Other resupply ideas below stay candidates.
+- Warning rule (agent call, stated 2026-11-16): per ammo item the ship's
+  weapons use, LOW when the hold reserve is below one full magazine of that
+  weapon, at least 2 rounds (PDC < 500, torpedo < 6, railgun < 2); DRY when
+  the reserve is 0. Edge-triggered: one HUD notice and one audio cue on each
+  crossing into LOW and into DRY; it re-arms when a restock lifts the
+  reserve above the line. A steady HUD mark shows LOW/DRY while it holds.
+  Existing sound assets only. The threshold is a const, not content.
 
 ## Agent findings
 - Magazines and reloads (`assets/base/sections/base.content.ron:1597-1601,2417-2421,3079-3083,3321-3325`):
@@ -60,3 +67,12 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
   is empty.
 - A combat role can finish a typical fight and get back to full fire without
   a long trip, and the player gets a warning before the reserve runs out.
+
+## Progress (2026-11-16)
+- Landed: the low-ammo warning (`crates/nova_ship/src/sections/ammo_warning.rs`,
+  HUD tag and notice, `ammo_dry` cue, `examples/playable/ammo_warning_sandbox.rs`).
+  Verified: nova_ship rule and ECS tests (one LOW, one DRY, restock re-arms),
+  nova_hud notice and readout tests, live walk PASS with LOW and DRY frames
+  read. Not verified live: audio output, torpedo lines, re-arm by a market buy.
+- Measured: `MEASURE.md`. Supply, not price, is the limit. Resupply approach
+  waits on the owner (Delivery step 2).

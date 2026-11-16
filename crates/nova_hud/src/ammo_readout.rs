@@ -45,6 +45,11 @@
 //! Like the other combat overlays the layer is `HudTier::Instrument` and is
 //! spawned/despawned with the player ship by the hud/mod.rs observers.
 //!
+//! A gauge whose weapon reloads from a hold reserve under one magazine
+//! carries a small `LOW` tag above it, `DRY` once that reserve is empty
+//! ([`AmmoReserveWarnings`] on the player root). The breath says the magazine
+//! is nearly spent; the tag says no full refill is left behind it.
+//!
 //! CONTEXTUAL: the gauges are a combat instrument, not on whenever a weapon
 //! has ammo - the layer carries a [`HudContextGate`] driven by
 //! `sync_ammo_gate`, open in combat mode (weapons hot) or under a combat lock
@@ -122,7 +127,8 @@ pub mod prelude {
     pub use super::{
         ammo_readout_hud, AmmoReadoutCluster, AmmoReadoutClusterBadge, AmmoReadoutClustered,
         AmmoReadoutHudMarker, AmmoReadoutKind, AmmoReadoutMarker, AmmoReadoutPip,
-        AmmoReadoutPipFill, AmmoReadoutPlugin, AmmoReadoutSection, RING_SEGMENTS,
+        AmmoReadoutPipFill, AmmoReadoutPlugin, AmmoReadoutReserveMark, AmmoReadoutSection,
+        RING_SEGMENTS,
     };
     #[cfg(feature = "debug")]
     pub use super::{AmmoReadoutDebug, AmmoReadoutNumber};
@@ -192,6 +198,12 @@ pub struct AmmoReadoutClustered;
 /// speaks for more than its own mount.
 #[derive(Component, Debug, Clone, Copy, Reflect)]
 pub struct AmmoReadoutClusterBadge;
+
+/// The reserve tag child of a gauge: `LOW` or `DRY` while the hold reserve
+/// its weapon reloads from is warned, blank and hidden otherwise. Public so
+/// probes and walks can read the tag the player sees.
+#[derive(Component, Debug, Clone, Copy, Reflect)]
+pub struct AmmoReadoutReserveMark;
 
 /// The debug `rounds/capacity` text child of a readout. Debug-only: only
 /// compiled under the `debug` feature.
@@ -301,6 +313,29 @@ fn cluster_badge() -> impl Bundle {
     )
 }
 
+/// The reserve tag child of a readout, above the gauge, hidden until
+/// `drive_ammo_reserve_marks` reads a warning on its weapon's reload item.
+fn reserve_mark() -> impl Bundle {
+    (
+        Name::new("AmmoReadoutReserveMark"),
+        AmmoReadoutReserveMark,
+        Text::new(""),
+        TextFont::from_font_size(BADGE_FONT_PX),
+        TextColor(Color::NONE),
+        TextLayout {
+            linebreak: LineBreak::NoWrap,
+            ..default()
+        },
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(0.0),
+            bottom: Val::Percent(100.0),
+            ..default()
+        },
+        Visibility::Hidden,
+    )
+}
+
 /// The debug number child (hidden until [`AmmoReadoutDebug`] is on). Debug-only.
 #[cfg(feature = "debug")]
 fn readout_number() -> impl Bundle {
@@ -351,6 +386,7 @@ fn spawn_turret_readout(commands: &mut Commands, layer: Entity, turret: Entity) 
                     ));
                 }
                 readout.spawn(cluster_badge());
+                readout.spawn(reserve_mark());
                 #[cfg(feature = "debug")]
                 readout.spawn(readout_number());
             });
@@ -420,6 +456,7 @@ fn spawn_bar_readout(
                     ));
                 }
                 readout.spawn(cluster_badge());
+                readout.spawn(reserve_mark());
                 #[cfg(feature = "debug")]
                 readout.spawn(readout_number());
             });
@@ -894,6 +931,48 @@ fn drive_ammo_readouts(
     }
 }
 
+/// Show `LOW` or `DRY` above each gauge whose weapon reloads from a warned
+/// hold reserve: accent for LOW, danger for DRY. A weapon with no reload, or
+/// a reserve at or over the line, shows no tag.
+fn drive_ammo_reserve_marks(
+    theme: Res<ActiveUiTheme>,
+    q_readouts: Query<(&AmmoReadoutSection, &Children), With<AmmoReadoutMarker>>,
+    q_reload: Query<(&SectionReload, &ChildOf)>,
+    q_warnings: Query<&AmmoReserveWarnings>,
+    mut q_marks: Query<(&mut Text, &mut TextColor, &mut Visibility), With<AmmoReadoutReserveMark>>,
+) {
+    for (section, children) in &q_readouts {
+        let warning = q_reload
+            .get(**section)
+            .ok()
+            .and_then(|(reload, &ChildOf(ship))| {
+                q_warnings
+                    .get(ship)
+                    .ok()
+                    .and_then(|warnings| warnings.warning(&reload.item))
+            });
+        let (text, color) = match warning {
+            Some(AmmoReserveWarningType::Low) => ("LOW", theme.color(UiColorType::Accent)),
+            Some(AmmoReserveWarningType::Dry) => ("DRY", theme.color(UiColorType::Danger)),
+            None => ("", Color::NONE),
+        };
+        for &child in children {
+            let Ok((mut mark, mut mark_color, mut visibility)) = q_marks.get_mut(child) else {
+                continue;
+            };
+            if mark.0 != text {
+                mark.0 = text.to_string();
+            }
+            mark_color.set_if_neq(TextColor(color));
+            visibility.set_if_neq(if warning.is_some() {
+                Visibility::Inherited
+            } else {
+                Visibility::Hidden
+            });
+        }
+    }
+}
+
 /// Write `rounds/capacity` onto each readout's debug number child and show it
 /// while [`AmmoReadoutDebug`] is on. Debug-only: compiled out of release builds
 /// so the exact count is never a gameplay affordance.
@@ -930,7 +1009,8 @@ fn drive_ammo_readout_numbers(
 /// each player weapon section that carries a finite [`SectionAmmo`], with a
 /// incoming-batch pulse and a debug-only numeric readout.
 /// Registers the readout marker/kind/pip/cluster types, runs
-/// `sync_ammo_readouts` then `drive_ammo_readouts` (chained) in PostUpdate
+/// `sync_ammo_readouts` then `drive_ammo_readouts` and
+/// `drive_ammo_reserve_marks` (chained) in PostUpdate
 /// before `ScreenIndicatorSystems` and `cluster_ammo_readouts` after it;
 /// under the `debug` feature also inits `AmmoReadoutDebug` and adds the
 /// numeric driver.
@@ -950,12 +1030,16 @@ impl Plugin for AmmoReadoutPlugin {
         app.register_type::<AmmoReadoutCluster>();
         app.register_type::<AmmoReadoutClustered>();
         app.register_type::<AmmoReadoutClusterBadge>();
+        app.register_type::<AmmoReadoutReserveMark>();
 
         // Reconcile then light the chunks before the indicator projection
         // places the nodes.
         app.add_systems(
             PostUpdate,
-            (sync_ammo_readouts, drive_ammo_readouts)
+            (
+                sync_ammo_readouts,
+                (drive_ammo_readouts, drive_ammo_reserve_marks),
+            )
                 .chain()
                 .before(ScreenIndicatorSystems),
         );

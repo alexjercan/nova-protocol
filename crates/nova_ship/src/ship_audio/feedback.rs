@@ -52,7 +52,9 @@ pub struct ShipFeedbackSounds {
     /// A magazine ran dry - the GAUGE, inside the cockpit, as distinct from
     /// the gun's own dead-trigger click out on the mount. The two fire on the
     /// same edge and are meant to be heard as one event from two places; the
-    /// gun's is per-turret, this one is per-SHIP.
+    /// gun's is per-turret, this one is per-SHIP. The same gauge plays once
+    /// when the hold reserve of an ammunition item crosses into LOW or DRY
+    /// (`AmmoReserveCrossed`).
     #[reflect(ignore)]
     pub ammo_dry: Option<AssetRef<AudioSource>>,
     /// The hull is critical - ONE alarm, on the falling edge through
