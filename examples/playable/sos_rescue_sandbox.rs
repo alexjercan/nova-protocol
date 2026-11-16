@@ -197,7 +197,15 @@ fn drive_the_sandbox(world: &mut World) {
             SandboxPhaseType::Drifting
         }
         SandboxPhaseType::Drifting => {
-            if !open_world_stage::window_settled(world) {
+            // A lost section drops its cargo at its GlobalTransform, which
+            // trails the jump's Position write by a frame or more. Damage
+            // before it catches up drops the canisters beside the starting
+            // station, the one the rescue later docks at.
+            let caught_up = world
+                .get::<Position>(player)
+                .zip(world.get::<GlobalTransform>(player))
+                .is_some_and(|(position, global)| position.0.distance(global.translation()) < 1.0);
+            if !(caught_up && open_world_stage::window_settled(world)) {
                 return;
             }
             let Some(lost) = strand_the_ship(world, player) else {
