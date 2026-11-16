@@ -21,6 +21,15 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
   reserve above the line. A steady HUD mark shows LOW/DRY while it holds.
   Existing sound assets only. The threshold is a const, not content.
 
+- Owner 2026-11-16, resupply approach from `MEASURE.md`:
+  - Implement option 2 (stations keep at least 4000 PDC rounds), option 3
+    (start kits carry 3000 PDC rounds) and option 6 (craft ammo from ore).
+  - Option 4 (kill loot) is already in the game: a destroyed ship can be
+    looted. Never drop more loot than the ship carried.
+  - Options 1 (on-ship trickle) and 5 (cheaper rounds) are not chosen.
+  - Order: the crafting rework (task 20261116-132140), at least the part
+    that makes crafting a feature, lands first; then this task's resupply.
+
 ## Agent findings
 - Magazines and reloads (`assets/base/sections/base.content.ron:1597-1601,2417-2421,3079-3083,3321-3325`):
 
