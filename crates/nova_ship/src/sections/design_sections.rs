@@ -29,10 +29,10 @@ use super::prelude::*;
 pub mod prelude {
     pub use super::{
         intake_in_dock_approach, lost_section_facts, plan_section_swap, rebuild_anchored,
-        remove_build_fault, section_swap_family, ship_build_fault, swap_build_fault, DesignSection,
-        LostSectionFacts, RefitBuildFaultType, RefitPlacedSection, SectionFamilyFaultType,
-        SectionRebuildRequest, SectionRemoveRequest, SectionSwapRefusalType, SectionSwapRequest,
-        ShipDesignSections,
+        remove_build_fault, rescue_rebuild_chain, section_swap_family, ship_build_fault,
+        swap_build_fault, DesignSection, LostSectionFacts, RefitBuildFaultType, RefitPlacedSection,
+        SectionFamilyFaultType, SectionRebuildRequest, SectionRemoveRequest,
+        SectionSwapRefusalType, SectionSwapRequest, ShipDesignSections,
     };
 }
 
@@ -146,6 +146,81 @@ pub fn lost_section_facts(
             },
         ),
     }
+}
+
+/// The lost design sections a rescue rebuilds, in rebuild order: for each
+/// class of `needs` in turn, the shortest chain of lost sections from the
+/// `live` ones (each its id and placement in ship-root space) to the nearest
+/// lost section of that class, sharing the sections an earlier chain already
+/// took. Each section in the result mates with a live one or one before it.
+///
+/// A class with no lost section the live hull reaches adds nothing: a live
+/// but inactive section is not lost and cannot be rebuilt. Ties go to design
+/// order.
+pub fn rescue_rebuild_chain(
+    design: &ShipDesignSections,
+    live: &[(&str, PlacedSectionLinkPoints<'_>)],
+    needs: &[SectionClass],
+) -> Vec<String> {
+    fn place(section: &DesignSection) -> PlacedSectionLinkPoints<'_> {
+        PlacedSectionLinkPoints {
+            position: section.position,
+            rotation: section.rotation,
+            link_points: &section.config.base.link_points,
+        }
+    }
+    let lost: Vec<&DesignSection> = design
+        .0
+        .iter()
+        .filter(|section| !live.iter().any(|(id, _)| *id == section.id))
+        .collect();
+    let mut base: Vec<PlacedSectionLinkPoints<'_>> =
+        live.iter().map(|(_, placed)| *placed).collect();
+    let mut chosen: Vec<usize> = Vec::new();
+    for need in needs {
+        // `parent[i]`: unvisited, reached from the base, or reached from
+        // another lost section.
+        let mut parent: Vec<Option<Option<usize>>> = vec![None; lost.len()];
+        let mut queue = std::collections::VecDeque::new();
+        for (index, section) in lost.iter().enumerate() {
+            if !chosen.contains(&index) && rebuild_anchored(&base, place(section)) {
+                parent[index] = Some(None);
+                queue.push_back(index);
+            }
+        }
+        let mut found = None;
+        while let Some(at) = queue.pop_front() {
+            if lost[at].config.kind.class() == *need {
+                found = Some(at);
+                break;
+            }
+            for (index, section) in lost.iter().enumerate() {
+                if parent[index].is_some() || chosen.contains(&index) {
+                    continue;
+                }
+                if rebuild_anchored(&[place(lost[at])], place(section)) {
+                    parent[index] = Some(Some(at));
+                    queue.push_back(index);
+                }
+            }
+        }
+        let Some(mut at) = found else {
+            continue;
+        };
+        let mut path = vec![at];
+        while let Some(Some(previous)) = parent[at] {
+            path.push(previous);
+            at = previous;
+        }
+        for index in path.into_iter().rev() {
+            chosen.push(index);
+            base.push(place(lost[index]));
+        }
+    }
+    chosen
+        .into_iter()
+        .map(|index| lost[index].id.clone())
+        .collect()
 }
 
 /// Asks to replace live design section `section` of ship `entity` with the
@@ -653,6 +728,50 @@ mod tests {
         let live = [place(0.0)];
         assert!(rebuild_anchored(&live, place(1.0)));
         assert!(!rebuild_anchored(&live, place(2.0)));
+    }
+
+    /// A rescue rebuilds a lost computer beside the live hull, and a lost
+    /// drive behind a lost plate together with the plate, in mount order; a
+    /// class with nothing lost to rebuild adds nothing.
+    #[test]
+    fn a_rescue_rebuilds_the_shortest_lost_chain_to_each_needed_section() {
+        let cube = Vec3::ONE;
+        let section = |id: &str, x: f32, kind: SectionKind| DesignSection {
+            id: id.to_string(),
+            position: Vec3::new(x, 0.0, 0.0),
+            rotation: Quat::IDENTITY,
+            config: part(id, kind, cube, cube_points()),
+        };
+        let hull = || SectionKind::Hull(HullSectionConfig::default());
+        let design = ShipDesignSections(vec![
+            section("bridge", -1.0, controller()),
+            section("core", 0.0, hull()),
+            section("plate", 1.0, hull()),
+            section("drive", 2.0, thruster(1.0)),
+            section("drive_far", 3.0, thruster(1.0)),
+        ]);
+        let core = design.get("core").unwrap();
+        let live = [(
+            "core",
+            PlacedSectionLinkPoints {
+                position: core.position,
+                rotation: core.rotation,
+                link_points: &core.config.base.link_points,
+            },
+        )];
+        assert_eq!(
+            rescue_rebuild_chain(
+                &design,
+                &live,
+                &[
+                    SectionClass::Docking,
+                    SectionClass::Thruster,
+                    SectionClass::Controller
+                ],
+            ),
+            vec!["plate", "drive", "bridge"]
+        );
+        assert!(rescue_rebuild_chain(&design, &live, &[SectionClass::Turret]).is_empty());
     }
 
     fn part(id: &str, kind: SectionKind, size: Vec3, link_points: Vec<LinkPoint>) -> SectionConfig {

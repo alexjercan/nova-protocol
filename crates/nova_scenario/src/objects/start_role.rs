@@ -30,8 +30,8 @@ use crate::objects::{
 /// Glob-import surface for the start role content kind.
 pub mod prelude {
     pub use super::{
-        start_role_bindings, GameStartRoles, OpenWorldSession, RoleGoal, RoleGoalType,
-        StartBerthMarker, StartKit, StartRole, StartRoleDesignId, StartingStation,
+        start_role_bindings, GameStartRoles, OpenWorldSession, RoleGoal, RoleGoalType, StartKit,
+        StartRole, StartRoleDesignId, StartingStation, StationBerth, StationBerthType,
     };
 }
 
@@ -79,14 +79,37 @@ pub struct StartingStation {
     pub spawn: Meters3,
 }
 
-/// The fresh player ship that still has to berth at the starting station.
+/// A player ship that still has to berth at a station and dock there.
 ///
 /// `SpawnStartRole` inserts it on a ship it spawns fresh, never on one a
-/// Load thaws. `nova_world_base` berths and docks the ship once the station
-/// stands and removes the marker when the ship is docked.
-#[derive(Component, Debug, Default, Reflect)]
-#[reflect(Component)]
-pub struct StartBerthMarker;
+/// Load thaws; an answered rescue call inserts it on the rescued ship.
+/// `nova_world_base` berths and docks the ship once the station stands and
+/// removes it when the ship is docked. It is not saved: a ship saved before
+/// its berth loads where it stood, undocked. A rescued ship paid at the
+/// answer, so it then loads fixed beside the station and docks by itself.
+#[derive(Component, Clone, Debug, PartialEq)]
+pub struct StationBerth {
+    /// The station to dock at.
+    pub station: GeneratedBodyId,
+    /// Why the ship berths there.
+    pub purpose: StationBerthType,
+}
+
+/// Why a [`StationBerth`] ship berths at its station.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StationBerthType {
+    /// The fresh start-role ship at the starting station. It waits for the
+    /// station as long as the station takes to stream in, and takes the
+    /// berth the station's parked hulls left for it.
+    Start,
+    /// A rescued ship at the station that answered its call; the answer
+    /// took the bill. It gives up, undocked, when it is not docked after
+    /// `frames_left` more frames in which the game clock runs.
+    Rescue {
+        /// Running game frames left before the ship gives up.
+        frames_left: u32,
+    },
+}
 
 /// The input bindings a start role's hull, or a hull bought at a station,
 /// spawns with.

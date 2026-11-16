@@ -1,4 +1,4 @@
-//! The start: the allied station the player begins docked at.
+//! The start, and the station berth a fresh or rescued player ship takes.
 //!
 //! New Game picks the station once per seed ([`starting_station`]): the
 //! living station nearest the origin whose civilization's seeded stance is
@@ -6,9 +6,13 @@
 //! A seed with no such station is refused at generation, before anything
 //! streams; nothing falls back to a Neutral station or to open space. The
 //! session and the world save carry the pick; `SpawnStartRole` spawns the
-//! fresh player ship in the station's open space with a
-//! [`StartBerthMarker`], and [`berth_at_start`] puts it on the station's
-//! outward port and docks it once the station stands.
+//! fresh player ship in the station's open space with a [`StationBerth`],
+//! and [`berth_at_station`] puts it on the station's outward port and docks
+//! it once the station stands. An answered rescue call berths the rescued
+//! ship the same way (`crate::rescue`).
+
+#[cfg(not(target_arch = "wasm32"))]
+use std::collections::BTreeSet;
 
 #[cfg(not(target_arch = "wasm32"))]
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
@@ -17,24 +21,31 @@ use nova_assets::prelude::LoadedSectionPacks;
 #[cfg(not(target_arch = "wasm32"))]
 use nova_events::prelude::{EntityId, GeneratedBodyId};
 use nova_events::prelude::{Meters3, SectorCoord};
-use nova_gameplay::prelude::{ClusterType, GameItems, GameTradeProfiles, StanceType};
+use nova_gameplay::prelude::{
+    CivilizationId, ClusterType, GameItems, GameTradeProfiles, StanceType,
+};
 #[cfg(not(target_arch = "wasm32"))]
-use nova_gameplay::prelude::{PointRotation, PointRotationOutput, SectionInactiveMarker};
+use nova_gameplay::prelude::{
+    PointRotation, PointRotationOutput, SectionInactiveMarker, SectionMarker,
+};
 #[cfg(not(target_arch = "wasm32"))]
-use nova_scenario::prelude::{parked_envelopes, PendingParkedHulls, StartBerthMarker};
+use nova_scenario::prelude::{
+    parked_envelopes, PendingParkedHulls, StationBerth, StationBerthType,
+};
 use nova_scenario::prelude::{OpenWorldSession, StartRoleDesignId, StartingStation};
 use nova_ship::prelude::GameStyles;
 #[cfg(not(target_arch = "wasm32"))]
 use nova_ship::prelude::{
-    outward_berth, DockedPort, DockedShip, DockingConnectionRequest, DockingSectionMarker,
-    ParkedHullType, ParkedHulls, ShipDesignSections, ShipSkin,
+    outward_berth, shift_chase_cameras, DesignSection, DockedPort, DockedShip,
+    DockingConnectionRequest, DockingSectionMarker, ParkedHullType, ParkedHulls, RescueCallEnded,
+    RescueEndType, ShipDesignSections, ShipSkin,
 };
 use nova_world::prelude::{
     sector_id, SectorFault, SectorGenerationInput, SectorGenerator, WorldGeometry,
 };
 
 use crate::{
-    civilizations::{CivilizationField, CivilizationStatusType},
+    civilizations::{Civilization, CivilizationField, CivilizationStatusType},
     clusters::{cluster_at, station_pose, Cluster},
     environment::EnvironmentFields,
     layered::{NovaLayeredWorld, CLEARANCE_MARGIN},
@@ -47,22 +58,23 @@ use crate::{
 /// about six are living allies.
 const START_CIVILIZATION_SEARCH: i32 = 1;
 
-/// The station the player starts docked at for `seed`: the station nearest
-/// the origin among those the living Ally civilizations of the 3x3x3 lattice
-/// block round the origin keep, ties by station id. The station is the one
-/// `plan_sector` places: its node is one the civilization claims, with the
-/// pose the plan gives it. The spawn point stands past the station on its
-/// open side, two clearance margins clear of it.
+/// Every station the civilizations of the 3x3x3 lattice block round lattice
+/// node `centre` keep, of those `keep` accepts, each with its keeper. The
+/// stations are the ones `plan_sector` places: each node is one its
+/// civilization claims, with the pose the plan gives it. Each spawn point
+/// stands past the station on its open side, two clearance margins clear of
+/// it.
 ///
 /// # Errors
 ///
-/// [`SectorFault::Generation`] with the seed when no living Ally civilization
-/// of the block keeps a station, and whatever the station claims or the
-/// clusters refuse for one of its civilizations.
-pub fn starting_station(
+/// Whatever the station claims or the clusters refuse for one of the kept
+/// civilizations.
+pub(crate) fn block_stations(
     seed: u32,
     generator: &NovaLayeredWorld,
-) -> Result<StartingStation, SectorFault> {
+    centre: [i32; 3],
+    mut keep: impl FnMut(&Civilization) -> bool,
+) -> Result<Vec<(StartingStation, CivilizationId)>, SectorFault> {
     let edge = OPEN_WORLD_SECTOR_EDGE;
     let fields = EnvironmentFields::new(seed);
     let civilizations = CivilizationField::new(seed);
@@ -71,15 +83,14 @@ pub fn starting_station(
         Ok(cluster_at(&fields, seed, edge, node)?
             .is_some_and(|cluster| station_pose(&cluster, edge, clearance, seed).is_some()))
     };
-    let mut nearest: Option<(StartingStation, f32)> = None;
+    let mut stations = Vec::new();
     let span = -START_CIVILIZATION_SEARCH..=START_CIVILIZATION_SEARCH;
     for x in span.clone() {
         for y in span.clone() {
             for z in span.clone() {
-                let civilization = civilizations.civilization([x, y, z]);
-                if civilization.status != CivilizationStatusType::Living
-                    || civilization.stance != StanceType::Ally
-                {
+                let civilization =
+                    civilizations.civilization([centre[0] + x, centre[1] + y, centre[2] + z]);
+                if !keep(&civilization) {
                     continue;
                 }
                 let clearance = claims.station(&civilization)?.clearance;
@@ -96,25 +107,55 @@ pub fn starting_station(
                     };
                     let coord = SectorCoord::containing(pose.position, edge);
                     let id = sector_id(coord, &format!("{}_station", Cluster::slug(node)), 0);
-                    let distance = pose.position.length().get();
-                    let closer = nearest.as_ref().is_none_or(|(best, best_distance)| {
-                        distance < *best_distance || (distance == *best_distance && id < best.id)
-                    });
-                    if closer {
-                        let standoff = (clearance + CLEARANCE_MARGIN + CLEARANCE_MARGIN).get();
-                        let spawn = Meters3(pose.position.get() + pose.open * standoff);
-                        let start = StartingStation {
+                    let standoff = (clearance + CLEARANCE_MARGIN + CLEARANCE_MARGIN).get();
+                    let spawn = Meters3(pose.position.get() + pose.open * standoff);
+                    stations.push((
+                        StartingStation {
                             id,
                             position: pose.position,
                             spawn,
-                        };
-                        nearest = Some((start, distance));
-                    }
+                        },
+                        civilization.id,
+                    ));
                 }
             }
         }
     }
-    nearest
+    Ok(stations)
+}
+
+/// The station of `stations` nearest `from`, ties by station id.
+pub(crate) fn nearest_station(
+    stations: impl IntoIterator<Item = (StartingStation, CivilizationId)>,
+    from: Meters3,
+) -> Option<(StartingStation, CivilizationId)> {
+    stations.into_iter().min_by(|(a, _), (b, _)| {
+        a.position
+            .distance(from)
+            .get()
+            .total_cmp(&b.position.distance(from).get())
+            .then_with(|| a.id.cmp(&b.id))
+    })
+}
+
+/// The station the player starts docked at for `seed`: the station nearest
+/// the origin among those the living Ally civilizations of the 3x3x3 lattice
+/// block round the origin keep, ties by station id ([`block_stations`]).
+///
+/// # Errors
+///
+/// [`SectorFault::Generation`] with the seed when no living Ally civilization
+/// of the block keeps a station, and whatever the station claims or the
+/// clusters refuse for one of its civilizations.
+pub fn starting_station(
+    seed: u32,
+    generator: &NovaLayeredWorld,
+) -> Result<StartingStation, SectorFault> {
+    let stations = block_stations(seed, generator, [0, 0, 0], |civilization| {
+        civilization.status == CivilizationStatusType::Living
+            && civilization.stance == StanceType::Ally
+    })?;
+    nearest_station(stations, Meters3::ZERO)
         .map(|(start, _)| start)
         .ok_or_else(|| SectorFault::Generation {
             id: format!("seed {seed}"),
@@ -225,68 +266,94 @@ pub fn start_session(
     Ok(OpenWorldSession { seed, role, start })
 }
 
-/// Berth the fresh player ship at the session's starting station and dock
-/// it.
+/// Berth each [`StationBerth`] ship at its station and dock it.
 ///
-/// Each frame the ship carries a [`StartBerthMarker`] and the station with
-/// the session's start id stands, with every hull it parks for sale or owned
-/// docked round the berth the parking reserved for the ship, the ship is put
-/// on the berth [`outward_berth`] picks at the station's free ports, clear
-/// of the station and the parked hulls, plating included ([`clear_berth`]),
-/// moving with the station, the mouse rigs are pointed where the berth
-/// points the hull, and the dock is asked for. The marker comes off once
-/// the ship is docked. A ship that stands clear at no free port is logged
-/// as an error and stays where it spawned, undocked: never berthed into a
-/// hull.
+/// Each frame the ship's station stands, with every hull it parks for sale
+/// or owned docked round the berth the parking reserved for a start, the
+/// ship is put on the berth [`outward_berth`] picks for its live sections at
+/// the station's free ports, clear of the station and the parked hulls,
+/// plating included ([`clear_berth`]), moving with the station, the mouse
+/// rigs are pointed where the berth points the hull, and the dock is asked
+/// for. The berth comes off once the ship is docked.
+///
+/// A start ship that stands clear at no free port is logged as an error and
+/// stays where it spawned, undocked: never berthed into a hull. A rescued
+/// ship gives up, undocked beside the station, when it stands clear at no
+/// free port or is not docked within its frame budget, counted only in
+/// frames the game clock runs: a full or refusing station is a runtime
+/// condition, so it is a notice ([`RescueEndType::NoBerth`]), not an error.
+/// The answer already took the bill and rebuilt the chain, so that ship is
+/// fixed and docks by itself. A rescued ship jumps to its berth with the
+/// chase camera ([`shift_chase_cameras`]).
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn berth_at_start(world: &mut World) {
-    let Some(start_id) = world
-        .get_resource::<OpenWorldSession>()
-        .map(|session| session.start.id.clone())
-    else {
-        return;
-    };
-    let ships: Vec<Entity> = world
-        .query_filtered::<Entity, With<StartBerthMarker>>()
+pub(crate) fn berth_at_station(world: &mut World) {
+    let ships: Vec<(Entity, StationBerth)> = world
+        .query::<(Entity, &StationBerth)>()
         .iter(world)
+        .map(|(entity, berth)| (entity, berth.clone()))
         .collect();
-    if ships.is_empty() {
-        return;
-    }
-    let Some(station) = world
-        .query::<(Entity, &GeneratedBodyId)>()
-        .iter(world)
-        .find(|(_, id)| **id == start_id)
-        .map(|(entity, _)| entity)
-    else {
-        return;
-    };
-    let stands = world.get::<Position>(station).is_some()
-        && world.get::<PendingParkedHulls>(station).is_none()
-        && world.get::<ParkedHulls>(station).is_none_or(|parked| {
-            parked.iter().all(|hull| {
-                matches!(
-                    world.get::<ParkedHullType>(hull),
-                    Some(ParkedHullType::Hire { .. })
-                ) || world.get::<DockedShip>(hull).is_some()
-            })
-        });
-    if !stands {
-        return;
-    }
-    for ship in ships {
+    for (ship, berth) in ships {
+        let rescue = matches!(berth.purpose, StationBerthType::Rescue { .. });
         if world.get::<DockedShip>(ship).is_some() {
-            world.entity_mut(ship).remove::<StartBerthMarker>();
+            world.entity_mut(ship).remove::<StationBerth>();
+            if rescue {
+                info!(
+                    "berth_at_station: the rescued ship docked at {}",
+                    berth.station
+                );
+            }
+            continue;
+        }
+        if let StationBerthType::Rescue { frames_left } = berth.purpose {
+            if frames_left == 0 {
+                give_up_rescue_berth(world, ship, &berth.station, "is not docked in time");
+                continue;
+            }
+            // TAB and the pause menu stop the game clock; a frozen frame
+            // spends none of the budget.
+            if world.resource::<Time<Virtual>>().delta_secs() > 0.0 {
+                world.entity_mut(ship).insert(StationBerth {
+                    station: berth.station.clone(),
+                    purpose: StationBerthType::Rescue {
+                        frames_left: frames_left - 1,
+                    },
+                });
+            }
+        }
+        let Some(station) = world
+            .query::<(Entity, &GeneratedBodyId)>()
+            .iter(world)
+            .find(|(_, id)| **id == berth.station)
+            .map(|(entity, _)| entity)
+        else {
+            continue;
+        };
+        let stands = world.get::<Position>(station).is_some()
+            && world.get::<PendingParkedHulls>(station).is_none()
+            && world.get::<ParkedHulls>(station).is_none_or(|parked| {
+                parked.iter().all(|hull| {
+                    matches!(
+                        world.get::<ParkedHullType>(hull),
+                        Some(ParkedHullType::Hire { .. })
+                    ) || world.get::<DockedShip>(hull).is_some()
+                })
+            });
+        if !stands {
             continue;
         }
         let free = free_ports(world, station);
-        let Some((at, turn)) = clear_berth(world, station, &free, ship, &start_id) else {
-            error!(
-                "berth_at_start: the player ship stands clear of starting station {start_id} \
-                 and its parked hulls at no free port and roll; the ship stays undocked where \
-                 it spawned"
-            );
-            world.entity_mut(ship).remove::<StartBerthMarker>();
+        let Some((at, turn)) = clear_berth(world, station, &free, ship, &berth) else {
+            if rescue {
+                give_up_rescue_berth(world, ship, &berth.station, "stands clear at no free port");
+            } else {
+                error!(
+                    "berth_at_station: the player ship stands clear of starting station {} \
+                     and its parked hulls at no free port and roll; the ship stays undocked \
+                     where it spawned",
+                    berth.station
+                );
+                world.entity_mut(ship).remove::<StationBerth>();
+            }
             continue;
         };
         let position = world.get::<Position>(station).map_or(Vec3::ZERO, |p| p.0);
@@ -300,6 +367,10 @@ pub(crate) fn berth_at_start(world: &mut World) {
             .get::<AngularVelocity>(station)
             .map_or(Vec3::ZERO, |w| w.0);
         let (at, turn) = (position + rotation * at, (rotation * turn).normalize());
+        if rescue {
+            let from = world.get::<Position>(ship).map_or(at, |p| p.0);
+            shift_chase_cameras(world, at - from);
+        }
         world.entity_mut(ship).insert((
             Position(at),
             Rotation(turn),
@@ -308,23 +379,46 @@ pub(crate) fn berth_at_start(world: &mut World) {
         ));
         // Left on the spawn heading, the rig turns the hull back through the
         // station the moment it undocks.
-        let rigs: Vec<Entity> = world
-            .query_filtered::<Entity, With<PointRotationOutput>>()
-            .iter(world)
-            .collect();
-        for rig in rigs {
-            world.entity_mut(rig).insert((
-                PointRotation {
-                    initial_rotation: turn,
-                },
-                PointRotationOutput(turn),
-            ));
-        }
+        point_rigs(world, turn);
         world.trigger(DockingConnectionRequest {
             entity: ship,
             target: station,
         });
     }
+}
+
+/// Point every mouse flight rig at `turn`, so a hull put on that heading is
+/// not turned back the moment it flies.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn point_rigs(world: &mut World, turn: Quat) {
+    let rigs: Vec<Entity> = world
+        .query_filtered::<Entity, With<PointRotationOutput>>()
+        .iter(world)
+        .collect();
+    for rig in rigs {
+        world.entity_mut(rig).insert((
+            PointRotation {
+                initial_rotation: turn,
+            },
+            PointRotationOutput(turn),
+        ));
+    }
+}
+
+/// End the berth of rescued `ship` at `station` undocked, as
+/// [`RescueEndType::NoBerth`]: the ship stays where it is, beside the
+/// station, and flies on.
+#[cfg(not(target_arch = "wasm32"))]
+fn give_up_rescue_berth(world: &mut World, ship: Entity, station: &GeneratedBodyId, why: &str) {
+    warn!(
+        "berth_at_station: the rescued ship {why} at station {station}; it stays undocked \
+         beside the station, fixed, to dock by itself"
+    );
+    world.entity_mut(ship).remove::<StationBerth>();
+    world.write_message(RescueCallEnded {
+        ship,
+        end: RescueEndType::NoBerth,
+    });
 }
 
 /// The free, live docking ports mounted under `root`, lowest first.
@@ -377,19 +471,49 @@ fn clear_berth(
     station: Entity,
     free: &[Entity],
     ship: Entity,
-    start_id: &GeneratedBodyId,
+    berth: &StationBerth,
 ) -> Option<(Vec3, Quat)> {
     let design = |root: Entity| {
         let (Some(design), Some(&ShipSkin(skin))) = (
             world.get::<ShipDesignSections>(root),
             world.get::<ShipSkin>(root),
         ) else {
-            panic!("berth_at_start: {root:?} has no design sections or skin");
+            panic!("berth_at_station: {root:?} has no design sections or skin");
         };
         (&design.0, skin)
     };
-    let ((station_sections, station_skin), (ship_sections, ship_skin)) =
+    let ((station_sections, station_skin), (ship_design, ship_skin)) =
         (design(station), design(ship));
+    // Only the ship's live sections: a lost port cannot dock, and a lost
+    // hull plate takes no room.
+    let live: BTreeSet<&str> = world
+        .get::<Children>(ship)
+        .into_iter()
+        .flatten()
+        .filter(|child| world.get::<SectionMarker>(**child).is_some())
+        .filter_map(|child| world.get::<EntityId>(*child))
+        .map(|id| id.0.as_str())
+        .collect();
+    let ship_sections: Vec<DesignSection> = ship_design
+        .iter()
+        .filter(|section| live.contains(section.id.as_str()))
+        .cloned()
+        .collect();
+    let ship_sections = ship_sections.as_slice();
+    // A port that holds a dock or does not work cannot take this one; it
+    // still takes room.
+    let ship_taken: Vec<usize> = world
+        .get::<Children>(ship)
+        .into_iter()
+        .flatten()
+        .filter(|child| {
+            world.get::<DockingSectionMarker>(**child).is_some()
+                && (world.get::<DockedPort>(**child).is_some()
+                    || world.get::<SectionInactiveMarker>(**child).is_some())
+        })
+        .filter_map(|child| world.get::<EntityId>(*child))
+        .filter_map(|id| ship_sections.iter().position(|section| section.id == id.0))
+        .collect();
     let free: Vec<usize> = free
         .iter()
         .map(|&port| {
@@ -400,30 +524,37 @@ fn clear_berth(
                         .iter()
                         .position(|section| section.id == id.0)
                 })
-                .unwrap_or_else(|| panic!("berth_at_start: port {port:?} has no design section"))
+                .unwrap_or_else(|| panic!("berth_at_station: port {port:?} has no design section"))
         })
         .collect();
     let taken: Vec<usize> = (0..station_sections.len())
         .filter(|index| !free.contains(index))
         .collect();
-    let reserved = outward_berth(
-        station_sections,
-        station_skin,
-        ship_sections,
-        ship_skin,
-        &[],
-        &[],
-    );
-    let berth = outward_berth(
+    let placed = outward_berth(
         station_sections,
         station_skin,
         ship_sections,
         ship_skin,
         &taken,
+        &ship_taken,
         &parked_envelopes(world, station),
     );
+    // Only a start has a berth reserved: the station parked its sale hulls
+    // round it before the ship came. A rescue takes what is free.
+    let reserved = match berth.purpose {
+        StationBerthType::Start => outward_berth(
+            station_sections,
+            station_skin,
+            ship_sections,
+            ship_skin,
+            &[],
+            &ship_taken,
+            &[],
+        ),
+        StationBerthType::Rescue { .. } => None,
+    };
     if let Some((reserved_port, reserved_own, reserved_at, reserved_turn)) = reserved {
-        let same = berth.is_some_and(|(port, own, at, turn)| {
+        let same = placed.is_some_and(|(port, own, at, turn)| {
             port == reserved_port
                 && own == reserved_own
                 && at.abs_diff_eq(reserved_at, 1e-4)
@@ -431,17 +562,18 @@ fn clear_berth(
         });
         if !same {
             error!(
-                "berth_at_start: the player ship does not take the berth reserved for it at \
-                 port '{}' of starting station {start_id}; it takes {}",
+                "berth_at_station: the player ship does not take the berth reserved for it at \
+                 port '{}' of starting station {}; it takes {}",
                 station_sections[reserved_port].id,
-                berth.map_or("none".to_string(), |(port, ..)| format!(
+                berth.station,
+                placed.map_or("none".to_string(), |(port, ..)| format!(
                     "port '{}'",
                     station_sections[port].id
                 ))
             );
         }
     }
-    berth.map(|(_, _, at, turn)| (at, turn))
+    placed.map(|(_, _, at, turn)| (at, turn))
 }
 
 #[cfg(test)]

@@ -411,6 +411,7 @@ mod walk {
             ship_skin,
             &[],
             &[],
+            &[],
         )
         .expect("station swap intake probe: the player stands clear at a port of the yard");
         let position = world

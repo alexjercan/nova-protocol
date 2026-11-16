@@ -110,10 +110,54 @@ plate leaves the hold, `HULL_PLATE_HEALTH` is added. It stops when the section
 is destroyed or disabled, full, or the hold has no plate. Every end writes one
 `RepairJobEnded` (the HUD notice reads it) and, for a plate job that fitted a
 plate, one `ShipInventoryReport::Repaired` naming every plate (`OnRepaired`).
-`RepairJobCancelRequest` ends a job early; fitted plates stay fitted. Jobs are
-not saved: a reload drops them, and nothing unspent was taken. The HUD repair
-chip (`nova_hud/src/flight_status.rs`, `drive_repair_chip`) shows the first
-job in flight.
+`RepairJobCancelRequest` ends a job early; fitted plates stay fitted. A world
+save keeps each job as a `SavedRepairJob` on the ship's frozen state: its
+code, the section by design id (never an `Entity`) and its elapsed time. A
+Load restores it on the thawed sections. A save is refused when a job names
+a section the design lacks, a plate job's section that is lost, or a field
+rebuild's section that is live. A v0.18.0 save carries no jobs and loads
+with none. The HUD repair chip (`nova_hud/src/flight_status.rs`,
+`drive_repair_chip`) shows the first job in flight.
+
+### SOS rescue
+
+The Ship pane offers an SOS call (`nova_interface/src/ship/rescue.rs`) to an
+undocked open-world player with no `StationBerth` that `rescue_quote` finds
+stranded: no working thruster, flight computer or free docking port
+(`stranded_reasons`, `nova_gameplay/src/rescue.rs`). A ship that lost only
+its guns flies and docks, so neutralized is no reason. The quote plans the
+rebuild chain `rescue_rebuild_chain` finds: the shortest chain of lost
+sections to each of a docking port, a thruster and a flight computer the ship
+lacks. A reason the chain does not reach is `unfixed`: the only such section
+is live but `SectionInactiveMarker`. A player ship gets that marker only from
+a derelict design or a frozen inactive flag; integrity destroys a depleted
+section and severs a cut-off one into a wreck, so both are lost and the
+chain reaches them. The click refuses an unfixed quote with a pane note,
+because the rescue rebuilds only lost sections and must not dock a ship that
+still cannot fly. Otherwise the click asks `find_rescue_station`
+(`nova_world_base/src/rescue.rs`) for the nearest living station whose
+civilization is not Enemy to the player, and inserts a `ShipRescueCall`
+(`nova_ship/src/sections/rescue_call.rs`) naming it and the chain.
+`advance_ship_rescue_call` (`RescueSystems`) runs it for `RESCUE_SECS` on
+`Time<Virtual>`; `RescueCallCancelRequest` ends it for free, and
+`end_rescue_call_on_dock` ends it as `Docked` when the ship docks anywhere.
+When it is due, `answer_rescue_calls` (after `RescueSystems` and
+`RepairJobSystems`, so a field rebuild that ended this frame is live) first
+asks whether the station would still admit the ship: alive, its
+civilization's effective stance not Enemy (a provocation counts), and, while
+it is in play, `DockAdmission::turns_away` false. A refusal (`Refused`) takes
+nothing. Then it takes the bill `plan_rescue_bill` prices for the chain
+sections still lost (the `RESCUE_FEE_CR` fee plus each recipe, hold parts
+first, the rest at reference ask, credits floored at zero): the hold parts,
+then one `CreditChangeCauseType::Rescue` change. It rebuilds those sections
+through `SectionRebuildRequest`, each with a `Rebuilt` report of its hold
+parts and its share of the charge after the fee, moves the player to the
+station's spawn point at rest with the chase camera (`shift_chase_cameras`),
+puts each undocked fleet escort at a clear slot on its `AIFollow::side`, and
+inserts `StationBerth` (`Rescue { frames_left }`). Every end writes one
+`RescueCallEnded`. The save keeps a running call on the ship's frozen state;
+a v0.18.0 save carries none. The berth is not saved: a save between the
+answer and the dock loads the paid, fixed ship undocked beside the station.
 
 ### Swapping a section
 
@@ -411,11 +455,18 @@ with a warning, so a station sells at most its ports less one. At the session's
 starting station the fresh player ship berths first: `outward_berth`
 (`hull_buy.rs`) picks its berth, the most outward port first, with nothing
 parked; the parking keeps that port as the free one and parks the sales round
-the ship's envelope. `berth_at_start` (`nova_world_base/src/start.rs`) then
-berths the ship by the same rule, clear of the parked hulls
-(`parked_envelopes`). A berth that differs from the reserved one is logged as
-an error; a ship that fits at no free port is logged as an error and stays
-undocked where it spawned.
+the ship's envelope. `berth_at_station` (`nova_world_base/src/start.rs`)
+then berths the ship that carries `StationBerth` by the same rule, clear of
+the parked hulls (`parked_envelopes`). At the start (`StationBerthType::Start`)
+a berth that differs from the reserved one is logged as an error, and a ship
+that fits at no free port is logged as an error and stays undocked where it
+spawned. Both use only the ship's free, working ports: `outward_berth`
+skips the ship ports in `ship_taken` (`DockedPort` or
+`SectionInactiveMarker`). An answered SOS call (`StationBerthType::Rescue`)
+uses the same berth on its live sections; a ship that fits at no free port,
+or a station that does not stand within `RESCUE_BERTH_FRAMES` frames in which
+`Time<Virtual>` advances, ends with `RescueEndType::NoBerth` and leaves the
+paid, fixed ship beside the station to dock by itself.
 A parked hull is inert: no driver, Neutral, every capability off, not
 lootable, no credits. It carries `ParkedHull(station)` and `ParkedHullType`
 (`Sale`, `Owned` or `Hire { slot }`,
@@ -1973,6 +2024,11 @@ per contact. A symmetric rule - ram damage - wants both.
   `a_field_rebuild_restores_a_lost_docking_port_and_takes_the_recipe_parts`
   in `crates/nova_scenario/src/objects/spaceship.rs`; by hand:
   `examples/playable/field_repair_sandbox.rs`.
+- SOS rescue: `ShipRescueCall`, `rescue_quote` -
+  `crates/nova_ship/src/sections/rescue_call.rs`; `plan_rescue_bill` -
+  `crates/nova_gameplay/src/rescue.rs`; `find_rescue_station`,
+  `answer_rescue_calls` - `crates/nova_world_base/src/rescue.rs`; by hand:
+  `examples/playable/sos_rescue_sandbox.rs`.
 - Design sections, lost-section codes and rebuild: `ShipDesignSections`,
   `SectionRebuildRequest`, `rebuild_anchored`, `lost_section_facts` -
   `crates/nova_ship/src/sections/design_sections.rs`; `plan_section_rebuild` -

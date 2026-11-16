@@ -29,6 +29,8 @@ use nova_ui::{
     },
 };
 
+#[cfg(not(target_arch = "wasm32"))]
+use super::rescue::spawn_ship_rescue;
 use super::{
     delete::on_ship_delete_button,
     held::{spawn_ship_held_block, ShipSelectionBlock},
@@ -321,6 +323,8 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                             });
                     });
                 spawn_ship_repair_jobs(panel);
+                #[cfg(not(target_arch = "wasm32"))]
+                spawn_ship_rescue(panel);
                 spawn_ship_rebuild_list(panel);
             });
         });

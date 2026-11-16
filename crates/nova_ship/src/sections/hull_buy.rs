@@ -305,7 +305,8 @@ pub fn parked_hull_clear_pose(
 /// that faces most squarely away from the station root first and the lowest
 /// design index first among equals: a port low in the design can face into
 /// the station, where a berth crushes both hulls. At each, every docking
-/// port of `ship` in design order, through [`parked_hull_clear_pose`].
+/// port of `ship` not in `ship_taken` (held or not working) in design order,
+/// through [`parked_hull_clear_pose`].
 /// `station_skin` and `ship_skin` say whether each design wears the derived
 /// skin ([`design_envelope`]).
 ///
@@ -318,6 +319,7 @@ pub fn outward_berth(
     ship: &[DesignSection],
     ship_skin: bool,
     taken: &[usize],
+    ship_taken: &[usize],
     obstacles: &[PlacedSectionCollider],
 ) -> Option<(usize, usize, Vec3, Quat)> {
     let ports = |sections: &[DesignSection]| -> Vec<usize> {
@@ -334,7 +336,10 @@ pub fn outward_berth(
         .filter(|index| !taken.contains(index))
         .collect();
     berths.sort_by(|&a, &b| facing(b).total_cmp(&facing(a)).then(a.cmp(&b)));
-    let own = ports(ship);
+    let own: Vec<usize> = ports(ship)
+        .into_iter()
+        .filter(|index| !ship_taken.contains(index))
+        .collect();
     let station_envelope = design_envelope(station, station_skin, (Vec3::ZERO, Quat::IDENTITY));
     let ship_envelope = design_envelope(ship, ship_skin, (Vec3::ZERO, Quat::IDENTITY));
     berths.into_iter().find_map(|berth| {
@@ -842,12 +847,12 @@ pub(crate) mod tests {
             ),
         ];
         let berth = |taken: &[usize], obstacles: &[PlacedSectionCollider]| {
-            outward_berth(&station, false, &ship, false, taken, obstacles)
+            outward_berth(&station, false, &ship, false, taken, &[], obstacles)
                 .map(|(berth, port, _, _)| (berth, port))
         };
         assert_eq!(berth(&[], &[]), Some((2, 0)));
         assert_eq!(berth(&[2], &[]), Some((1, 0)));
-        let (_, _, at, _) = outward_berth(&station, false, &ship, false, &[], &[])
+        let (_, _, at, _) = outward_berth(&station, false, &ship, false, &[], &[], &[])
             .expect("the outward port is clear");
         assert!(at.abs_diff_eq(Vec3::new(-3.0, 0.0, 0.0), 1e-4), "{at}");
         // On the port's axis, where the wing stands at every roll.

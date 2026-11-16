@@ -998,6 +998,9 @@ pub enum CreditChangeCauseType {
     Cheat,
     /// A scenario's `GrantCredits` action granted or charged the credits.
     Scenario,
+    /// An answered SOS rescue call took its bill: the fee and the recipes of
+    /// the sections it rebuilt, down to zero at most.
+    Rescue,
 }
 
 impl CreditChangeCauseType {
@@ -1018,6 +1021,7 @@ impl CreditChangeCauseType {
             CreditChangeCauseType::Refine => "Refine",
             CreditChangeCauseType::Cheat => "Cheat",
             CreditChangeCauseType::Scenario => "Scenario",
+            CreditChangeCauseType::Rescue => "Rescue",
         }
     }
 }
@@ -1801,6 +1805,7 @@ mod inventory_event_tests {
             CreditChangeCauseType::Refine,
             CreditChangeCauseType::Cheat,
             CreditChangeCauseType::Scenario,
+            CreditChangeCauseType::Rescue,
         ] {
             let serialized = serde_json::to_value(cause).expect("a unit variant serializes");
             assert_eq!(serialized.as_str(), Some(cause.as_str()));

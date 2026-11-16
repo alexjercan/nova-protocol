@@ -74,8 +74,10 @@ for v0.19.0.
   completion. Takes longer than plate repair. Docked station Rebuild stays
   instant and unchanged.
 - No new section is required for field work; any hull can do it.
-- Jobs are not saved. A reload drops the queue; nothing is lost because
-  nothing is spent early.
+- Jobs are saved (owner correction, 2026-11-16, superseding "not saved"). A
+  world save keeps each job by section design id; a Load resumes it. A save
+  whose job names a section the design lacks is refused. A v0.18.0 save
+  loads with no jobs.
 - Durations are named constants next to `HULL_PLATE_HEALTH`, not content
   fields, in this pass.
 

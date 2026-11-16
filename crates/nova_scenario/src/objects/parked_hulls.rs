@@ -314,7 +314,7 @@ fn resolve_hull(
 /// warning. At the session's starting station new offers park round the
 /// fresh player ship: the berth it will take ([`outward_berth`], with
 /// nothing parked) is that port, out of the free ones, and its envelope
-/// stands in every sale's way, so `berth_at_start` finds the same berth
+/// stands in every sale's way, so `berth_at_station` finds the same berth
 /// once the sales are docked. A thawed docked hull parks where it froze relative to the
 /// station, moving as the station moves. A thawed escort for hire coasts
 /// where it froze relative to the station, moving as it froze relative to
@@ -419,7 +419,7 @@ fn park_pending_hulls(
                 &game_designs,
                 &game_sections,
             );
-            match outward_berth(&design.0, station_skin, &ship, ship_skin, &[], &[]) {
+            match outward_berth(&design.0, station_skin, &ship, ship_skin, &[], &[], &[]) {
                 Some((berth, _, at, turn)) => {
                     free.retain(|&port| port != berth);
                     reserved = 1;

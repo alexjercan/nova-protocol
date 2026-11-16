@@ -22,8 +22,14 @@
 //! the dock the player's hull is; a dock a Load rebuilds and a dock damage
 //! takes apart raise neither. A player repair job that ends on its own
 //! ([`RepairJobEnded`]) posts how: `HULL-3 REPAIRED: 2 PLATES`,
-//! `DOCK-1 REBUILT` or `HULL-3 REPAIR STOPPED: NO PLATES`. A cancel posts
-//! nothing: the player pressed it in the Ship pane, which notes it.
+//! `DOCK-1 REBUILT` or `HULL-3 REPAIR STOPPED: NO PLATES`. A player rescue
+//! call that ends on its own ([`RescueCallEnded`]) posts how:
+//! `SOS ANSWERED: PAID 1,400 CR` when the answer takes the bill,
+//! `SOS FAILED: NO ANSWER, CALL AGAIN` when the station refuses and nothing
+//! is taken, `SOS ENDED: DOCKED` when the ship docks before the answer, and
+//! `NO FREE BERTH: SHIP FIXED, DOCK YOURSELF` when the paid berth gives up.
+//! A cancel posts nothing: the player pressed it in the Ship pane, which
+//! notes it.
 //!
 //! One slot, no queue: a new text replaces the shown one and plays the cue; the
 //! same text again while it shows restarts the dwell and stays quiet. The dwell
@@ -42,7 +48,7 @@ use nova_ship::{
     input::prelude::FlightVerbHints,
     sections::prelude::{
         DockClamped, DockPressRefusal, DockPressRefusalType, DockReleased, RepairJobEndType,
-        RepairJobEnded,
+        RepairJobEnded, RescueCallEnded, RescueEndType,
     },
 };
 use nova_sound::prelude::*;
@@ -199,6 +205,7 @@ impl Plugin for HudNoticePlugin {
         app.add_message::<MatchRefusal>();
         app.add_message::<DockPressRefusal>();
         app.add_message::<RepairJobEnded>();
+        app.add_message::<RescueCallEnded>();
         app.init_resource::<ShownNotice>();
         app.register_type::<HudNoticeMarker>();
         app.register_type::<HudNoticeText>();
@@ -213,6 +220,7 @@ impl Plugin for HudNoticePlugin {
                 post_match_refusal_notice,
                 post_dock_press_notice,
                 post_repair_job_notice,
+                post_rescue_notice,
                 show_hud_notice,
                 paint_hud_notice,
             )
@@ -295,6 +303,42 @@ fn post_repair_job_notice(
             notices.write(HudNotice(line));
         }
     }
+}
+
+/// Post how a player ship's rescue call ended, unless the player cancelled
+/// it.
+fn post_rescue_notice(
+    mut ended: MessageReader<RescueCallEnded>,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut notices: MessageWriter<HudNotice>,
+) {
+    for ended in ended.read() {
+        if !q_player.contains(ended.ship) {
+            continue;
+        }
+        if let Some(line) = rescue_end_line(&ended.end) {
+            debug!("hud_notice: {line}");
+            notices.write(HudNotice(line));
+        }
+    }
+}
+
+/// The notice line for a rescue call that ended on its own; `None` for a
+/// cancel, which the pane notes.
+///
+/// A refused call took nothing and leaves the ship stranded, so the pane
+/// offers SOS again. A berth that gives up after a paid answer leaves the
+/// ship fixed beside the station, to dock by itself.
+fn rescue_end_line(end: &RescueEndType) -> Option<String> {
+    Some(match end {
+        RescueEndType::Answered { paid_cr } => {
+            format!("SOS ANSWERED: PAID {}", cr_text(*paid_cr).to_uppercase())
+        }
+        RescueEndType::Docked => "SOS ENDED: DOCKED".to_string(),
+        RescueEndType::Refused => "SOS FAILED: NO ANSWER, CALL AGAIN".to_string(),
+        RescueEndType::NoBerth => "NO FREE BERTH: SHIP FIXED, DOCK YOURSELF".to_string(),
+        RescueEndType::Cancelled => return None,
+    })
 }
 
 /// The notice line for a repair job that ended on its own; `None` for a

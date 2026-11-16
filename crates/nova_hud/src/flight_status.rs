@@ -22,7 +22,7 @@ use nova_ship::{
     flight::prelude::*,
     prelude::{
         CameraAuthoritySystems, DockedHelmType, DockedShip, DockingConnection, HullStripJob,
-        RepairWorkType, ShipRepairJobs,
+        RepairWorkType, ShipRepairJobs, ShipRescueCall,
     },
 };
 use nova_ui::hud::{chip_node, chip_paint, ChipText, ChipTone};
@@ -742,20 +742,32 @@ fn drive_mode_chip(
     }
 }
 
-/// The ship's first running repair job and its share done, below the RCS
+/// The ship's running rescue call and its time left, such as `SOS 42 S`, or
+/// else its first running repair job and its share done, below the RCS
 /// chip, such as `REPAIR HULL-3 40%` or `REBUILD DOCK-1 75% +1` with one more
-/// job running. A ship with no job shows nothing. The jobs run on the game
+/// job running. A ship with neither shows nothing. Both run on the game
 /// clock, so the chip shows them moving only in flight.
 fn drive_repair_chip(
     q_hud: Query<&FlightStatusHudTargetEntity, With<FlightStatusHudMarker>>,
     mut q_ui: Query<(&mut ScreenIndicatorAnchor, &mut Text, &ChildOf), With<RepairChipUIMarker>>,
-    q_jobs: Query<&ShipRepairJobs>,
+    q_jobs: Query<(Option<&ShipRepairJobs>, Option<&ShipRescueCall>)>,
 ) {
     for (mut anchor, mut text, &ChildOf(parent)) in &mut q_ui {
         let Ok(ship) = q_hud.get(parent) else {
             continue;
         };
-        let jobs = q_jobs.get(**ship).map_or(&[][..], |jobs| jobs.0.as_slice());
+        let (jobs, call) = q_jobs.get(**ship).unwrap_or((None, None));
+        if let Some(call) = call {
+            let line = format!("SOS {:.0} S", call.remaining_secs().ceil());
+            anchor.set_if_neq(ScreenIndicatorAnchor(Some(
+                ScreenIndicatorAnchorKind::Entity(**ship),
+            )));
+            if **text != line {
+                **text = line;
+            }
+            continue;
+        }
+        let jobs = jobs.map_or(&[][..], |jobs| jobs.0.as_slice());
         let Some(first) = jobs.first() else {
             anchor.set_if_neq(ScreenIndicatorAnchor(None));
             if !text.is_empty() {

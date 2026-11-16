@@ -20,8 +20,11 @@
 //! [`WORLD_SAVE_VERSION`], another catalog or a start role the loaded content
 //! does not hold refuses the world. Nothing is migrated. A missing or
 //! unknown field or variant names a save of another build under the same
-//! format, and refuses as one. Native only: the web build has
-//! no saved worlds.
+//! format, and refuses as one. One exception: a saved ship's running repair
+//! jobs and rescue call. v0.18.0 shipped with neither, so a v0.18.0 save
+//! without them loads with none running. A loaded job is checked like every
+//! other record: one naming a section the ship's design lacks refuses the
+//! world. Native only: the web build has no saved worlds.
 //!
 //! The state carries the scenario ([`SavedScenario`]) beside the sectors: a
 //! Load resumes the same scenario with its objectives, variables, timers and
@@ -58,13 +61,15 @@ use nova_gameplay::prelude::{
     kg_text, CargoCanisterRuntimeId, Chart, CivilizationStances, ClusterType, GameItems,
     GameTradeProfiles, GoalRecord, ItemDesignId, JobPostings, JobSourceType, Jobs, SavedBodyRef,
     SavedOwner, SavedSectionRef, SavedTargetRef, StationServiceType, StationVisits,
-    CARGO_CANISTER_MAX_MASS_G,
+    CARGO_CANISTER_MAX_MASS_G, PLATE_REPAIR_SECS, RESCUE_SECS,
 };
 use nova_scenario::prelude::{
     FleetEscort, FrozenShip, GameScenarios, GameShipDesigns, GameStartRoles, SavedScenario,
     ScenarioId, ShipDesignSource, StartRoleDesignId, StartingStation,
 };
-use nova_ship::prelude::{CameraView, RcsBudget, SavedTorpedoTarget, FLEET_SIDES};
+use nova_ship::prelude::{
+    CameraView, RcsBudget, SavedRepairWorkType, SavedTorpedoTarget, FLEET_SIDES,
+};
 use nova_world::prelude::{FrozenBody, FrozenBodyType, FrozenSectors, SectorCoord, WorldClock};
 use serde::{Deserialize, Serialize};
 
@@ -657,6 +662,8 @@ fn read_state(
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_rcs(&state, designs)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    check_saved_jobs(&state, designs)
+        .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     if !scenarios.0.contains(&state.scenario.scenario_id) {
         return Err(WorldRefusal::Scenario {
             saved: state.scenario.scenario_id.clone(),
@@ -1137,6 +1144,137 @@ fn design_section_count(
             .map(|prototype| prototype.design.sections.len())
             .ok_or_else(|| format!("ship design '{id}' is not loaded")),
     }
+}
+
+/// The section ids `source` resolves to, by `designs`, as
+/// [`design_section_count`] counts them.
+fn design_section_ids(
+    source: &ShipDesignSource,
+    designs: &GameShipDesigns,
+) -> Result<Vec<String>, String> {
+    let sections = match source {
+        ShipDesignSource::Inline(design) => &design.sections,
+        ShipDesignSource::Prototype { id, .. } => {
+            &designs
+                .get_design(id)
+                .ok_or_else(|| format!("ship design '{id}' is not loaded"))?
+                .design
+                .sections
+        }
+    };
+    Ok(sections.iter().map(|section| section.id.clone()).collect())
+}
+
+/// Every saved repair job and rescue call is one a session ran: a plate job
+/// on a section the ship kept, a field rebuild and a rescue chain on
+/// sections its design names and it lost, at most one job a section, and
+/// finite clocks within their spans. Only the read path checks: Load runs
+/// it on open, so a job naming a section the design lacks refuses the world
+/// rather than drop the job or panic in its thaw. The write path does not:
+/// it takes every id from a live job on a section of the same design.
+fn check_saved_jobs(state: &WorldSaveState, designs: &GameShipDesigns) -> Result<(), String> {
+    let check = |ship: &FrozenShip, owner: &str| -> Result<(), String> {
+        if ship.repair_jobs().is_empty() && ship.rescue_call().is_none() {
+            return Ok(());
+        }
+        let ids = design_section_ids(ship.design(), designs)
+            .map_err(|fault| format!("{owner} names a {fault}"))?;
+        let mut seen = BTreeSet::new();
+        for job in ship.repair_jobs() {
+            let section = job.section();
+            let code = &job.code;
+            if !ids.iter().any(|id| id == section) {
+                return Err(format!(
+                    "{owner} runs repair job {code} on section '{section}', which its design \
+                     lacks"
+                ));
+            }
+            if !seen.insert(section) {
+                return Err(format!(
+                    "{owner} runs two repair jobs on section '{section}'"
+                ));
+            }
+            if job.needs_live_section() != ship.has_section(section) {
+                return Err(format!(
+                    "{owner} runs repair job {code} on section '{section}', which it {}",
+                    if ship.has_section(section) {
+                        "kept"
+                    } else {
+                        "lost"
+                    }
+                ));
+            }
+            let span = match &job.work {
+                SavedRepairWorkType::Plates { queued, spent, .. } => {
+                    if *queued == 0 || spent >= queued {
+                        return Err(format!(
+                            "{owner} runs plate job {code} at {spent} of {queued} plates"
+                        ));
+                    }
+                    PLATE_REPAIR_SECS
+                }
+                SavedRepairWorkType::FieldRebuild {
+                    parts,
+                    duration_secs,
+                    ..
+                } => {
+                    if parts.is_empty() || parts.values().any(|&count| count == 0) {
+                        return Err(format!("{owner} runs field rebuild {code} with no parts"));
+                    }
+                    if !duration_secs.is_finite() || *duration_secs <= 0.0 {
+                        return Err(format!(
+                            "{owner} runs field rebuild {code} over {duration_secs} s"
+                        ));
+                    }
+                    *duration_secs
+                }
+            };
+            if !job.elapsed_secs.is_finite() || job.elapsed_secs < 0.0 || job.elapsed_secs > span {
+                return Err(format!(
+                    "{owner} runs repair job {code} at {} s of {span} s",
+                    job.elapsed_secs
+                ));
+            }
+        }
+        if let Some(call) = ship.rescue_call() {
+            if !call.elapsed_secs.is_finite()
+                || call.elapsed_secs < 0.0
+                || call.elapsed_secs > RESCUE_SECS
+                || !call.spawn.get().is_finite()
+            {
+                return Err(format!(
+                    "{owner} carries a rescue call at {} s to {:?}, which no session wrote",
+                    call.elapsed_secs,
+                    call.spawn.get()
+                ));
+            }
+            for rebuild in &call.chain {
+                if !ids.iter().any(|id| *id == rebuild.section) {
+                    return Err(format!(
+                        "{owner} carries a rescue call rebuilding section '{}', which its \
+                         design lacks",
+                        rebuild.section
+                    ));
+                }
+            }
+        }
+        Ok(())
+    };
+    check(
+        &state.player.ship,
+        &format!("the player ship '{}'", state.player.id.0),
+    )?;
+    for escort in &state.player.fleet {
+        check(&escort.ship, &format!("the escort '{}'", escort.id.0))?;
+    }
+    for (_, record) in state.sectors.iter() {
+        for body in record.each_body() {
+            if let FrozenBodyType::Ship(ship) = body.body() {
+                check(ship, &format!("'{}'", body.id().unwrap_or("a ship")))?;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Every saved ship's RCS magazine is a reading a session wrote: finite,

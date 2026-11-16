@@ -56,7 +56,9 @@ use super::{
 
 /// Glob-import surface for the chase camera rig.
 pub mod prelude {
-    pub use super::{ChaseCamera, ChaseCameraInput, ChaseCameraPlugin, ChaseCameraSystems};
+    pub use super::{
+        shift_chase_cameras, ChaseCamera, ChaseCameraInput, ChaseCameraPlugin, ChaseCameraSystems,
+    };
 }
 
 /// A component describing how a chase camera should behave.
@@ -211,6 +213,17 @@ fn destroy_chase_camera(remove: On<Remove<ChaseCamera>>, mut commands: Commands)
     commands
         .entity(entity)
         .try_remove::<(ChaseCameraInput, ChaseCameraState)>();
+}
+
+/// Move every chase camera, and the smoothed position it eases from, by
+/// `offset`. Call it when the target jumps by `offset`: the camera keeps its
+/// pose to the target instead of easing across the gap.
+pub fn shift_chase_cameras(world: &mut World, offset: Vec3) {
+    let mut q_camera = world.query::<(&mut ChaseCameraState, &mut Transform)>();
+    for (mut state, mut transform) in q_camera.iter_mut(world) {
+        state.anchor_pos += offset;
+        transform.translation += offset;
+    }
 }
 
 /// Updates the smoothed camera state based on target movement.

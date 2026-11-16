@@ -189,4 +189,4 @@ the mounts swing away and back.
 Scenarios can take the capability away: a hull whose flight computer does not
 grant point defense answers a salvo only by hand.
 
-A **neutralized** hull does not defend itself at all - take an armed ship's last gun or its flight computer, or an unarmed ship's last thruster, and it is out of the fight for good. [Ships & damage](../ships/#taking-a-ship-apart) has the rule.
+A **neutralized** hull does not defend itself at all - take an armed ship's last gun or its flight computer, or an unarmed ship's last thruster, and it is out of the fight for good. Only your own ship comes back: repair what you lost and it fights again, and enemies target it again. [Ships & damage](../ships/#taking-a-ship-apart) has the rule.

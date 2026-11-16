@@ -66,6 +66,7 @@
 //! | `app` | The side panel layout and the repair action handler. |
 //! | `rebuild` | The lost-section list and the rebuild action handler. |
 //! | `repair_jobs` | The Repairs block: running repair jobs, their bars and Cancel. |
+//! | `rescue` | The Distress block: the SOS call a stranded ship places, its bar and Cancel. |
 //! | `refit` | The Swap and Add action handlers and their refusal lines. |
 //! | `delete` | The Delete action: its rule, handler and refusal lines. |
 //! | `catalogue` | The station catalogue: the gallery host, its listing and Swap. |
@@ -82,6 +83,10 @@ mod rebind;
 mod rebuild;
 mod refit;
 mod repair_jobs;
+// The answer moves the ship through avian's pose, which the web build has
+// none of, so the web build offers no call.
+#[cfg(not(target_arch = "wasm32"))]
+mod rescue;
 mod scene;
 mod sections;
 
@@ -92,6 +97,8 @@ use bevy::prelude::*;
 use nova_ship::prelude::{PartsGalleryPlugin, PartsGallerySystems};
 use nova_ui::input_mode::prelude::{in_input_mode, InputMode};
 
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) use self::rescue::*;
 pub(crate) use self::{
     app::*, catalogue::*, delete::*, ghost::*, held::*, rebind::*, rebuild::*, refit::*,
     repair_jobs::*, scene::*, sections::*,
@@ -204,6 +211,8 @@ impl Plugin for ShipPanePlugin {
                     update_ship_held_block,
                     update_ship_rebuild_list.run_if(ship_view_editable),
                     update_ship_repair_jobs.run_if(ship_view_editable),
+                    #[cfg(not(target_arch = "wasm32"))]
+                    update_ship_rescue.run_if(ship_view_editable),
                 )
                     .chain(),
             )

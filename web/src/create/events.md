@@ -54,7 +54,7 @@ The whole vocabulary at a glance:
 | [`OnTraded`](#hold-events) | `id`, `other_id`, `other_type_name`, `trade`, `item`, `count`, `price_cr` | the player buys or sells a stack across a dock |
 | [`OnCreditsChanged`](#hold-events) | `id`, `type_name`, `previous_cr`, `current_cr`, `delta_cr`, `cause` | a ship's credits move |
 | [`OnRepaired`](#hold-events) | `id`, `type_name`, `section`, `item`, `count` | a Ship pane repair job ends, having fitted plates on a section |
-| [`OnRebuilt`](#hold-events) | `id`, `type_name`, `section`, `parts`, `price_cr` | the Ship pane rebuilds a lost section at a docked station, or a field rebuild job ends |
+| [`OnRebuilt`](#hold-events) | `id`, `type_name`, `section`, `parts`, `price_cr` | the Ship pane rebuilds a lost section at a docked station, a field rebuild job ends, or an SOS rescue rebuilds one |
 | [`OnSwapped`](#hold-events) | `id`, `type_name`, `section`, `from`, `to`, `parts`, `price_cr` | the Ship pane swaps a section for another part at a docked station |
 | [`OnAdded`](#hold-events) | `id`, `type_name`, `section`, `part`, `at`, `point`, `parts`, `price_cr` | the Ship pane adds a part at a free socket at a docked station |
 | [`OnShipBought`](#hold-events) | `id`, `type_name`, `hull`, `price_cr` | the Station pane buys a whole hull from a docked station |
@@ -521,6 +521,11 @@ no part in the rule. The ship is NOT despawned, so no `OnDestroyed` fires
 with it. A ship that never had a computer (a bare emplacement) only
 neutralizes by losing its guns.
 
+A neutralized AI ship stays neutralized. The player's ship does not: once a
+repair, a rebuild or an SOS rescue brings back what the rule needs, it is
+back in the fight, and enemies target it again. Losing it again fires
+`OnNeutralized` again.
+
 Use `OnNeutralized` only when the persistent-wreck distinction matters. Use
 `OnDefeated` for the shared combat outcome.
 
@@ -875,9 +880,9 @@ inventory, so a handler counts occurrences, not frames.
 | `OnPickedUp` | the ship whose intake took the stack | none | `canister`, `item`, `count` |
 | `OnJettisoned` | the ship whose intake dropped the stack | none | `canister`, `item`, `count` |
 | `OnTraded` | the ship traded WITH | the player's ship | `trade` (`Buy` or `Sell`, from the player's side), `item`, `count`, `price_cr` |
-| `OnCreditsChanged` | the ship whose purse moved | none | `previous_cr`, `current_cr`, `delta_cr` (signed), `cause` (`Trade`, `Take`, `Rebuild`, `Swap`, `Add`, `ShipBuy`, `EscortHire`, `StationBuy`, `JobReward`, `Settle`, `Refine`, `Scenario` or `Cheat`) |
+| `OnCreditsChanged` | the ship whose purse moved | none | `previous_cr`, `current_cr`, `delta_cr` (signed), `cause` (`Trade`, `Take`, `Rebuild`, `Swap`, `Add`, `ShipBuy`, `EscortHire`, `StationBuy`, `JobReward`, `Settle`, `Refine`, `Rescue`, `Scenario` or `Cheat`) |
 | `OnRepaired` | the repaired ship | none | `section` (the Ship pane code, `CTL-1`), `item`, `count` (plates the job fitted; one event when the job ends, stops or is cancelled with at least one plate fitted) |
-| `OnRebuilt` | the rebuilt ship | none | `section` (the code the lost section had, `PDC-1`), `parts` (every recipe part, item id to count), `price_cr` (work plus bought parts; 0 for a field rebuild) |
+| `OnRebuilt` | the rebuilt ship | none | `section` (the code the lost section had, `PDC-1`), `parts` (every recipe part, item id to count; for an SOS rescue, only those taken from the hold), `price_cr` (work plus bought parts; 0 for a field rebuild; for an SOS rescue, the section's share of the charge after the fee) |
 | `OnSwapped` | the refitted ship | none | `section` (the Ship pane code, `PDC-1`), `from` and `to` (the old and new section prototype ids), `parts` (every part of the new part's recipe), `price_cr` (work plus bought parts) |
 | `OnAdded` | the refitted ship | none | `section` (the new section's Ship pane code, `PDC-3`), `part` (its section prototype id), `at` and `point` (the code and socket id it mounts on), `parts` (every part of its recipe), `price_cr` (work plus bought parts) |
 | `OnShipBought` | the ship that bought | none | `hull` (the parked hull's name, `Vel civilian Mk 1`), `price_cr` (every section's recipe at ask, paid in full). A free Board of a ship the player owns fires none |
@@ -913,7 +918,11 @@ with `cause: Add`, a hull buy one per party with `cause: ShipBuy`, and an
 escort hire one per party with `cause: EscortHire`. A station buy raises
 one, for the player only, with `cause: StationBuy`: the price goes to the
 civilization, so the station's purse does not move. A refine raises one per
-party with `cause: Refine`, the ship paying the fee and the station paid. A
+party with `cause: Refine`, the ship paying the fee and the station paid. An
+SOS rescue raises one, for the player only, with `cause: Rescue`, when the
+station answers: the whole charge, fee and rebuilds together. Its
+`OnRebuilt` events, raised at the same answer, each carry that section's
+share of the charge after the fee. A refused call raises none. A
 [`GrantCredits`](../actions/#grantcredits) action raises one with
 `cause: Scenario`. An armed `credits give`
 or `credits set` command raises one with `cause: Cheat`. A move that

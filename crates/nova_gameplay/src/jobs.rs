@@ -123,7 +123,7 @@ const FEE_STEPS: u32 = 5;
 /// raider and the fee.
 const ESCORT_CARGO_CR: (u32, u32) = (300, 2_400);
 /// What a distress call pays before the fee.
-const DISTRESS_BASE_CR: u32 = 200;
+pub(crate) const DISTRESS_BASE_CR: u32 = 200;
 /// What a supply job pays for the leg out to its caller, over its goods at
 /// ask plus half and twice the fee: a distress call's base.
 const SUPPLY_BASE_CR: u32 = DISTRESS_BASE_CR;

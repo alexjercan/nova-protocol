@@ -5109,6 +5109,89 @@ fn a_world_whose_parked_escort_moves_non_finite_is_refused_on_open() {
     assert_eq!(open(), refusal, "the refused open released the folder");
 }
 
+/// A saved repair job or rescue call that names a section the ship's
+/// design lacks refuses the load, naming the ship and the section, rather
+/// than drop the job.
+#[test]
+fn a_saved_job_on_a_section_the_design_lacks_is_refused_on_open() {
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Jobs").unwrap();
+    drop(lock);
+    // A plate job on `ghost`, a section entity the empty design never
+    // spawned, and the rescue call `call`.
+    let player_with = |plate_job: bool, call: Option<nova_ship::prelude::ShipRescueCall>| {
+        let mut world = World::new();
+        let ghost = world.spawn(EntityId("ghost".to_string())).id();
+        let mut ship = world.spawn((
+            spaceship_scenario_object(SpaceshipConfig::default()),
+            ShipInventory::new(&items(), 10_000, []),
+            DamageMarks::default(),
+            RcsBudget::default(),
+        ));
+        if plate_job {
+            ship.insert(nova_ship::prelude::ShipRepairJobs(vec![
+                nova_ship::prelude::RepairJob::plates(ghost, "HULL-9".to_string(), 1),
+            ]));
+        }
+        if let Some(call) = call {
+            ship.insert(call);
+        }
+        let ship = ship.id();
+        SavedPlayer {
+            ship: freeze_ship(&world, ship).expect("a bare ship is settled"),
+            ..state(1, 750).player
+        }
+    };
+    let call = nova_ship::prelude::ShipRescueCall::new(
+        GeneratedBodyId::new(SectorCoord::new(1, 0, 0), "cluster_station", 0),
+        CivilizationId {
+            world_seed: 1,
+            node: [0, 0, 0],
+        },
+        Meters3::ZERO,
+        vec![nova_ship::prelude::RescueRebuild {
+            section: "ghost".to_string(),
+            code: "DOCK-1".to_string(),
+        }],
+    );
+    let cases = [
+        (
+            player_with(true, None),
+            "the player ship 'player' runs repair job HULL-9 on section 'ghost', which its \
+             design lacks",
+        ),
+        (
+            player_with(false, Some(call)),
+            "the player ship 'player' carries a rescue call rebuilding section 'ghost', which \
+             its design lacks",
+        ),
+    ];
+    for (generation, (player, fault)) in (1..).zip(cases) {
+        let saved_state = WorldSaveState {
+            player,
+            ..state(generation, 750)
+        };
+        write_world(&folder, &header("Jobs", generation), &saved_state).unwrap();
+        assert_eq!(
+            open_world(
+                root.path(),
+                "jobs",
+                &catalog(7),
+                &roles(),
+                &items(),
+                &scenarios(),
+                &designs(),
+                &profiles()
+            )
+            .map(|_| ()),
+            Err(WorldRefusal::Unreadable(format!(
+                "state.{generation}.ron: {fault}"
+            ))),
+            "case at generation {generation}"
+        );
+    }
+}
+
 /// Every frozen ship's RCS magazine is a reading a session wrote: finite,
 /// not negative, idle not negative, and spent at most its hull's own
 /// capacity for the design it froze with. A neutralized sector ship carries

@@ -18,19 +18,27 @@ does NOT get an entry. Another page that states a different rule is wrong.
 ### Gameplay & Flight
 
 - Ship pane repairs are now timed jobs: one hull plate every 4 s of game time, spent as it is fitted. Jobs on several sections run side by side; Tab and pause hold them; Cancel keeps fitted plates.
+- A ship with no drive, computer or free port can call SOS from the Ship pane. After 60 s of game time the nearest station that admits you bills 200 cr plus parts, rebuilds them and docks you.
+- A saved Open World now keeps running repair jobs and an SOS call, and a Load resumes them. A v0.18.0 save still loads, with none running.
 
 ### Ships & Sections
 
 - Undocked, a lost section rebuilds in the field from its recipe parts in the hold, with no credits, 5 s a part (20 s at least). A lost docking port no longer ends docking for good.
-- A section destroyed in the same frame its ship's section graph was built no longer stops the game with an "Entity despawned" command error.
 
 ### Modding & Mod Portal
 
 - `OnRepaired` now fires when a repair job ends, with every plate it fitted. `OnRebuilt` also fires for a field rebuild, with `price_cr: 0` and no `OnCreditsChanged`.
+- `OnCreditsChanged` gains cause `Rescue`: an SOS rescue takes its charge in one change at the answer. Its `OnRebuilt` events carry hold parts and each section's share.
 
 ### Interface & HUD
 
 - The Ship pane lists running repairs with a bar, the time left and Cancel. In flight a chip under the RCS pips shows the first job, and a notice says how each one ends.
+- The Ship pane's Distress block says why the ship is stranded and what a rescue costs, then shows the call with Cancel. The HUD chip reads `SOS 42 S`; a notice says how it ends.
+
+### Fixes
+
+- A neutralized player ship that is repaired is back in the fight: enemies target it again. Before, it stayed neutralized and was never targeted again. AI ships stay neutralized.
+- A section destroyed in the same frame its ship's section graph was built no longer stops the game with an "Entity despawned" command error.
 
 ## [0.18.0] - 2026-11-15
 

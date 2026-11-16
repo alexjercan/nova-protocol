@@ -16,6 +16,8 @@ nova_sound = { path = "../nova_sound" }
 nova_ship = { path = "../nova_ship" }
 nova_world = { path = "../nova_world" }
 nova_world_base = { path = "../nova_world_base" }
+# The Ship pane offers an SOS call only in an open-world session.
+nova_scenario = { path = "../nova_scenario" }
 nova_hud = { path = "../nova_hud" }
 nova_events = { path = "../nova_events" }
 nova_command = { path = "../nova_command" }

@@ -63,6 +63,7 @@ pub mod plugin;
 pub mod projectile_hooks;
 pub mod relations;
 pub mod render_target;
+pub mod rescue;
 pub mod role_icon;
 pub mod rounds;
 pub mod saved_refs;
@@ -131,11 +132,11 @@ pub mod prelude {
         juice::prelude::*, lifetime::prelude::*, markers::prelude::*, market::prelude::*,
         math::prelude::*, mesh::prelude::*, narrative_accent::prelude::*, objectives::prelude::*,
         open_objectives::prelude::*, plugin::prelude::*, projectile_hooks::prelude::*,
-        relations::prelude::*, render_target::prelude::*, role_icon::prelude::*,
-        rounds::prelude::*, saved_refs::prelude::*, settings::prelude::*, shake::prelude::*,
-        soft_dot::prelude::*, station_visits::prelude::*, trade_profile::prelude::*,
-        transform::prelude::*, transient_light::prelude::*, EscapeOwner, GameMode, GameStates,
-        GuardedLeave, PauseStates, UnsavedWork,
+        relations::prelude::*, render_target::prelude::*, rescue::prelude::*,
+        role_icon::prelude::*, rounds::prelude::*, saved_refs::prelude::*, settings::prelude::*,
+        shake::prelude::*, soft_dot::prelude::*, station_visits::prelude::*,
+        trade_profile::prelude::*, transform::prelude::*, transient_light::prelude::*, EscapeOwner,
+        GameMode, GameStates, GuardedLeave, PauseStates, UnsavedWork,
     };
 }
 

@@ -798,15 +798,17 @@ pub enum ShipInventoryReport {
         /// Plates the job spent.
         count: u32,
     },
-    /// A Ship pane rebuild spent one section's [`BuildRecipe`] and put the
-    /// section back: at once at a docked station, or when a field rebuild
-    /// ends.
+    /// A rebuild spent one section's [`BuildRecipe`] and put the section
+    /// back: a Ship pane rebuild at a docked station, a field rebuild that
+    /// ended, or an answered SOS rescue.
     Rebuilt {
         /// Pane code of the rebuilt section (`PDC-1`).
         section: String,
-        /// Every part the recipe spent, from the hold and bought together.
+        /// Every part the recipe spent, from the hold and bought together;
+        /// for a rescue, only the parts taken from the hold.
         parts: BTreeMap<ItemDesignId, u32>,
-        /// Credits the ship paid the station; zero for a field rebuild.
+        /// Credits the ship paid the station; zero for a field rebuild; for
+        /// a rescue, the section's share of the charge after the fee.
         price_cr: u32,
     },
     /// A Ship pane swap at a docked station spent the offered part's

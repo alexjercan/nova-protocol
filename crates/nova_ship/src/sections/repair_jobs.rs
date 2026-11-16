@@ -24,8 +24,11 @@
 //!
 //! Every end writes one [`RepairJobEnded`] for the HUD notice and the pane
 //! note. A plate job that spent a plate queues one `Repaired` report; a
-//! field rebuild queues one `Rebuilt` report at no price. Jobs are not
-//! saved: a reload drops them, and nothing was spent early.
+//! field rebuild queues one `Rebuilt` report at no price.
+//!
+//! A save keeps the jobs as [`SavedRepairJob`]s: a plate job names its
+//! section by design id, never by entity, and a Load resumes each job with
+//! its elapsed time, queued and spent plates and held parts.
 //!
 //! [`PLATE_REPAIR_SECS`]: nova_gameplay::prelude::PLATE_REPAIR_SECS
 //! [`plan_plate_step`]: nova_gameplay::prelude::plan_plate_step
@@ -54,7 +57,8 @@ use super::prelude::{
 pub mod prelude {
     pub use super::{
         advance_ship_repair_jobs, RepairJob, RepairJobCancelRequest, RepairJobEndType,
-        RepairJobEnded, RepairJobKey, RepairJobSystems, RepairWorkType, ShipRepairJobs,
+        RepairJobEnded, RepairJobKey, RepairJobSystems, RepairWorkType, SavedRepairJob,
+        SavedRepairWorkType, ShipRepairJobs,
     };
 }
 
@@ -223,6 +227,135 @@ impl ShipRepairJobs {
             }
         }
         free
+    }
+}
+
+/// A [`RepairJob`] as a save keeps it. A plate job names its section by
+/// design id, which a Load resolves to the thawed section.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct SavedRepairJob {
+    /// Pane code of the section.
+    pub code: String,
+    /// What the job does.
+    pub work: SavedRepairWorkType,
+    /// See [`RepairJob::elapsed_secs`].
+    pub elapsed_secs: f32,
+}
+
+/// What a [`SavedRepairJob`] does: [`RepairWorkType`] with the plate job's
+/// section as its design id.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub enum SavedRepairWorkType {
+    /// See [`RepairWorkType::Plates`].
+    Plates {
+        /// The live section's design id.
+        section: String,
+        /// Plates the player queued.
+        queued: u32,
+        /// Plates fitted so far.
+        spent: u32,
+    },
+    /// See [`RepairWorkType::FieldRebuild`].
+    FieldRebuild {
+        /// The lost design section id.
+        section: String,
+        /// The recipe's parts held back.
+        parts: BTreeMap<ItemDesignId, u32>,
+        /// Game seconds the rebuild takes.
+        duration_secs: f32,
+    },
+}
+
+impl SavedRepairJob {
+    /// `job` as a save keeps it, with `section_id` giving a plate job's
+    /// section design id. `None` for a plate job whose section is already
+    /// gone: the next tick would end it as destroyed, and every plate it
+    /// fitted was taken and reported already.
+    pub fn save(job: &RepairJob, section_id: impl Fn(Entity) -> Option<String>) -> Option<Self> {
+        let work = match &job.work {
+            RepairWorkType::Plates {
+                section,
+                queued,
+                spent,
+            } => SavedRepairWorkType::Plates {
+                section: section_id(*section)?,
+                queued: *queued,
+                spent: *spent,
+            },
+            RepairWorkType::FieldRebuild {
+                section,
+                parts,
+                duration_secs,
+            } => SavedRepairWorkType::FieldRebuild {
+                section: section.clone(),
+                parts: parts.clone(),
+                duration_secs: *duration_secs,
+            },
+        };
+        Some(Self {
+            code: job.code.clone(),
+            work,
+            elapsed_secs: job.elapsed_secs,
+        })
+    }
+
+    /// The design section id the job works on.
+    pub fn section(&self) -> &str {
+        match &self.work {
+            SavedRepairWorkType::Plates { section, .. }
+            | SavedRepairWorkType::FieldRebuild { section, .. } => section,
+        }
+    }
+
+    /// Whether the job needs its section live (a plate job) rather than lost
+    /// (a field rebuild).
+    pub fn needs_live_section(&self) -> bool {
+        matches!(self.work, SavedRepairWorkType::Plates { .. })
+    }
+
+    /// The running job again, with `section` giving the thawed entity of a
+    /// plate job's section.
+    ///
+    /// # Panics
+    ///
+    /// When `section` has no entity for a plate job's section: the save
+    /// check refuses a job on a section the ship did not keep.
+    pub fn restore(self, section: impl Fn(&str) -> Option<Entity>) -> RepairJob {
+        let work = match self.work {
+            SavedRepairWorkType::Plates {
+                section: id,
+                queued,
+                spent,
+            } => RepairWorkType::Plates {
+                section: section(&id).unwrap_or_else(|| {
+                    panic!(
+                        "SavedRepairJob::restore: plate job {} names section '{id}' the thawed \
+                         ship lacks",
+                        self.code
+                    )
+                }),
+                queued,
+                spent,
+            },
+            SavedRepairWorkType::FieldRebuild {
+                section,
+                parts,
+                duration_secs,
+            } => RepairWorkType::FieldRebuild {
+                section,
+                parts,
+                duration_secs,
+            },
+        };
+        RepairJob {
+            code: self.code,
+            work,
+            elapsed_secs: self.elapsed_secs,
+        }
     }
 }
 

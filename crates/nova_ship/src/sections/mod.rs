@@ -33,6 +33,7 @@ pub mod patch;
 pub mod placeholder_art;
 pub mod railgun_section;
 pub mod repair_jobs;
+pub mod rescue_call;
 pub mod section_add;
 pub mod section_animation;
 pub mod section_preview;
@@ -65,13 +66,13 @@ pub mod prelude {
         hull_section::prelude::*, integrity::prelude::*, link_points::prelude::*,
         live_structure_anchor, mining_section::prelude::*, patch::prelude::*,
         placeholder_art::prelude::*, railgun_section::prelude::*, repair_jobs::prelude::*,
-        section_add::prelude::*, section_animation::prelude::*, section_preview::prelude::*,
-        section_strip::prelude::*, shell_shape::prelude::*, shell_skin::prelude::*,
-        ship_measure::prelude::*, signature::prelude::*, skin_decor::prelude::*,
-        skin_reading::prelude::*, skin_report::prelude::*, skin_style::prelude::*,
-        skin_surface::prelude::*, station_buy::prelude::*, thruster_section::prelude::*,
-        torpedo_section::prelude::*, turret_section::prelude::*, SpaceshipSectionPlugin,
-        SpaceshipSectionSystems,
+        rescue_call::prelude::*, section_add::prelude::*, section_animation::prelude::*,
+        section_preview::prelude::*, section_strip::prelude::*, shell_shape::prelude::*,
+        shell_skin::prelude::*, ship_measure::prelude::*, signature::prelude::*,
+        skin_decor::prelude::*, skin_reading::prelude::*, skin_report::prelude::*,
+        skin_style::prelude::*, skin_surface::prelude::*, station_buy::prelude::*,
+        thruster_section::prelude::*, torpedo_section::prelude::*, turret_section::prelude::*,
+        SpaceshipSectionPlugin, SpaceshipSectionSystems,
     };
 }
 
@@ -302,6 +303,20 @@ impl Plugin for SpaceshipSectionPlugin {
         app.add_systems(
             Update,
             repair_jobs::advance_ship_repair_jobs.in_set(repair_jobs::RepairJobSystems),
+        );
+        // A rescue call runs on the same game clock; `nova_world_base`
+        // answers a due call after `RescueSystems`. A ship that docked ends
+        // its call first, so a docked ship is never answered.
+        app.add_message::<rescue_call::RescueCallEnded>();
+        app.add_observer(rescue_call::cancel_rescue_call);
+        app.add_systems(
+            Update,
+            (
+                rescue_call::end_rescue_call_on_dock,
+                rescue_call::advance_ship_rescue_call,
+            )
+                .chain()
+                .in_set(rescue_call::RescueSystems),
         );
         // The authored-animation rig and driver. Unconditional, not
         // render-gated: the components must exist headless (a server loads

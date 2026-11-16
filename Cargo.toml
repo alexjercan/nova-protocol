@@ -172,6 +172,16 @@ name = "field_repair_sandbox"
 path = "examples/playable/field_repair_sandbox.rs"
 required-features = ["debug"]
 
+# SOS rescue by hand: New Game as the bounty hunter, 20 km off the start with
+# the bridge, drives and port collar lost. Call SOS from the Ship pane; the
+# nearest station that answers takes the bill, rebuilds and docks the ship.
+# Nothing ends it; under NOVA_AUTOPILOT a smoke walk calls SOS and checks the
+# dock.
+[[example]]
+name = "sos_rescue_sandbox"
+path = "examples/playable/sos_rescue_sandbox.rs"
+required-features = ["debug"]
+
 # Second-tier sections by hand: start docked at a generated yard that builds
 # all six, on a shipped hull (--hull picket|tug|warship) with the recipe parts
 # and credits aboard. Swap in the Ship pane, undock and use the part. Nothing

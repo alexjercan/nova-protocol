@@ -58,7 +58,7 @@ use nova_gameplay::prelude::{
 use nova_scenario::prelude::{CurrentScenario, OpenWorldSession, ScenarioWorldType};
 use nova_ship::prelude::GameStyles;
 #[cfg(not(target_arch = "wasm32"))]
-use nova_ship::prelude::SpaceshipTargetingSystems;
+use nova_ship::prelude::{RepairJobSystems, RescueSystems, SpaceshipTargetingSystems};
 use nova_world::prelude::*;
 
 mod chart;
@@ -71,6 +71,7 @@ mod jobs;
 mod layered;
 mod pdc_reserve;
 mod rcs_reserve;
+mod rescue;
 #[cfg(not(target_arch = "wasm32"))]
 mod save;
 mod sector_ships;
@@ -108,6 +109,7 @@ pub use crate::{
     environment::{Environment, EnvironmentFieldType, EnvironmentFields},
     jobs::PlayerHull,
     layered::{NovaLayeredWorld, CLEARANCE_MARGIN},
+    rescue::{find_rescue_station, RescueStation},
     sector_ships::{plan_ship, ship_stock, HullLineageType, HullSlot, PlannedShip},
     ship_layout::{
         generate_ship, generate_wreck, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
@@ -136,19 +138,19 @@ pub use crate::{
 /// format into scope.
 pub mod prelude {
     pub use super::{
-        apply_offence, enemy_neighbours, fine_cr, generate_ship, generate_station, generate_wreck,
-        generated_station, plan_ship, record_merit, role_style_id, sector_clusters, seeded_lawful,
-        seeded_stance, settle, ship_stock, standing, start_preview, start_session,
-        starting_station, station_archetype, station_ceiling, Civilization, CivilizationField,
-        CivilizationReach, CivilizationStatusType, ClusterSummary, Environment,
-        EnvironmentFieldType, EnvironmentFields, HullLineageType, HullSlot, NovaLayeredWorld,
-        NovaWorldBasePlugin, NovaWorldBaseSystems, PlannedShip, PlayerHull, SectorClusters,
-        ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType, ShipLayoutFailure,
-        ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault,
-        ShipPartPack, ShipPartSnapshot, ShipSpareDriveType, StanceStanding, StartPreview,
-        StationArchetypeType, StationLayout, StationLayoutConstraintType, StationLayoutFailure,
-        StationLayoutRequest, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID,
-        CLEARANCE_MARGIN, FINE_CR, INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS,
+        apply_offence, enemy_neighbours, find_rescue_station, fine_cr, generate_ship,
+        generate_station, generate_wreck, generated_station, plan_ship, record_merit,
+        role_style_id, sector_clusters, seeded_lawful, seeded_stance, settle, ship_stock, standing,
+        start_preview, start_session, starting_station, station_archetype, station_ceiling,
+        Civilization, CivilizationField, CivilizationReach, CivilizationStatusType, ClusterSummary,
+        Environment, EnvironmentFieldType, EnvironmentFields, HullLineageType, HullSlot,
+        NovaLayeredWorld, NovaWorldBasePlugin, NovaWorldBaseSystems, PlannedShip, PlayerHull,
+        RescueStation, SectorClusters, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
+        ShipLayoutFailure, ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType,
+        ShipPartFault, ShipPartPack, ShipPartSnapshot, ShipSpareDriveType, StanceStanding,
+        StartPreview, StationArchetypeType, StationLayout, StationLayoutConstraintType,
+        StationLayoutFailure, StationLayoutRequest, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID,
+        CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, FINE_CR, INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS,
         OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, REFINE_ADVANCEMENT, SALVAGE_STYLE_ID,
         STANCE_ALLY_SHARE, STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS, START_PREVIEW_REACH,
         STATION_STYLE_ID,
@@ -295,12 +297,21 @@ impl Plugin for NovaWorldBasePlugin {
                     // The goal reads this frame's hand-ins before the save
                     // snapshots the record.
                     goal::track_role_goal,
-                    // The fresh player ship docks at the starting station
-                    // the frame it stands. Native only: it berths through
-                    // avian's `Position`/`Rotation`, which the web build has
-                    // none of.
+                    // A due rescue call is answered after this frame's
+                    // tick, and the rescued ship berths in the same frame
+                    // its station stands, like the fresh player ship at the
+                    // starting station. After the repair jobs too: the sync
+                    // point before this exclusive system applies a field
+                    // rebuild that ended this frame, so the answer sees that
+                    // section live and neither bills nor rebuilds it again.
+                    // Native only: both move the ship through avian's
+                    // `Position`/`Rotation`, which the web build has none of.
                     #[cfg(not(target_arch = "wasm32"))]
-                    start::berth_at_start,
+                    rescue::answer_rescue_calls
+                        .after(RescueSystems)
+                        .after(RepairJobSystems),
+                    #[cfg(not(target_arch = "wasm32"))]
+                    start::berth_at_station,
                     // A thawed trader's hold catches up before a board reads
                     // it; a served window is forgotten and every body's side
                     // follows its civilization's stance before the save.

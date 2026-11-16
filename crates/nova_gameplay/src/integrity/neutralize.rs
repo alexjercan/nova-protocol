@@ -11,8 +11,15 @@
 //! flight computer it had neutralizes it, as it does an armed hull. Unlike
 //! destruction (see [`explode`] and [`glue`]), a neutralized ship is NOT
 //! despawned - it lingers as a powerless drifting wreck. This module inserts
-//! [`NeutralizedMarker`], switches an AI [`NeutralizedMarker`] and fires the
-//! distinct [`OnNeutralizedEvent`] so scenarios can treat it as beaten.
+//! [`NeutralizedMarker`] and fires the distinct [`OnNeutralizedEvent`] so
+//! scenarios can treat it as beaten.
+//!
+//! For an AI ship the marker is one-way. For the player ship it is a live
+//! verdict: [`restore_neutralized`] removes it the frame the rule
+//! ([`neutralize_verdict`]) stops holding, after a field, station or rescue
+//! rebuild, so AI targets the player again. [`DefeatedMarker`] stays. A
+//! player neutralized again later fires both events again; while the rule
+//! holds the marker stays and nothing fires twice.
 //!
 //! It does NOT know about AI. Taking a neutralized enemy out of combat is the
 //! AI's own reaction to [`NeutralizedMarker`] landing (`input::ai`), which is
@@ -32,15 +39,16 @@ use nova_events::prelude::{CommandsGameEventExt, *};
 
 use super::core::prelude::*;
 use crate::prelude::{
-    ControllerSectionMarker, DerelictShipMarker, RailgunSectionMarker, SectionInactiveMarker,
-    SpaceshipRootMarker, StationMarker, ThrusterSectionMarker, TorpedoSectionMarker,
-    TurretSectionMarker,
+    ControllerSectionMarker, DerelictShipMarker, PlayerSpaceshipMarker, RailgunSectionMarker,
+    SectionInactiveMarker, SpaceshipRootMarker, StationMarker, ThrusterSectionMarker,
+    TorpedoSectionMarker, TurretSectionMarker,
 };
 
 /// Defeat and neutralization state markers.
 pub mod prelude {
     pub use super::{
-        DefeatedMarker, HadFlightComputer, HadThruster, NeutralizedMarker, WasArmedCombatant,
+        neutralize_verdict, DefeatedMarker, HadFlightComputer, HadThruster, NeutralizeFacts,
+        NeutralizedMarker, WasArmedCombatant,
     };
 }
 
@@ -55,9 +63,10 @@ pub struct DefeatedMarker;
 /// combatant and now has zero working weapon sections, or lost the flight
 /// computer it once had (no brain: nothing aims or flies the ship); or it was
 /// an unarmed hull and lost the last working thruster it once had. The ship
-/// stays in the world (a drifting wreck); this marker is inserted once and
-/// never removed. Its presence gates the detection system so a ship is only
-/// neutralized once.
+/// stays in the world (a drifting wreck). On an AI ship it is inserted once
+/// and never removed; on the player ship it comes off when the rule stops
+/// holding ([`restore_neutralized`]). Its presence gates the detection system
+/// so a ship is not neutralized twice while the rule holds.
 #[derive(Component, Debug, Clone, Copy, Default, Reflect)]
 #[reflect(Component)]
 pub struct NeutralizedMarker;
@@ -106,7 +115,138 @@ impl Plugin for NeutralizePlugin {
         // section counts as "working", so the worst case is detecting a
         // neutralize one frame LATE, never a false neutralize. Do not tighten
         // this expecting same-frame semantics.
-        app.add_systems(Update, detect_neutralized.after(IntegritySystems));
+        app.add_systems(
+            Update,
+            (detect_neutralized, restore_neutralized)
+                .chain()
+                .after(IntegritySystems),
+        );
+    }
+}
+
+/// What the neutralize rule reads off a ship root and its sections.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NeutralizeFacts {
+    /// The root carries [`WasArmedCombatant`].
+    pub was_armed: bool,
+    /// The root carries [`HadFlightComputer`].
+    pub had_computer: bool,
+    /// The root carries [`HadThruster`].
+    pub had_thruster: bool,
+    /// The root is a [`StationMarker`] station.
+    pub station: bool,
+    /// At least one weapon section is live and not inactive.
+    pub working_weapon: bool,
+    /// At least one flight computer section is live and not inactive.
+    pub working_computer: bool,
+    /// At least one thruster section is live and not inactive.
+    pub working_thruster: bool,
+}
+
+/// Whether `facts` neutralize a ship. Armed: no working weapon, or a lost
+/// computer it had. Unarmed: a lost last thruster it had, or, for a station,
+/// a lost computer it had. The one rule [`detect_neutralized`] and
+/// [`restore_neutralized`] share.
+pub fn neutralize_verdict(facts: NeutralizeFacts) -> bool {
+    let brain_dead = facts.had_computer && !facts.working_computer;
+    if facts.was_armed {
+        !facts.working_weapon || brain_dead
+    } else {
+        (facts.had_thruster && !facts.working_thruster) || (facts.station && brain_dead)
+    }
+}
+
+/// The section query both passes read: weapon, computer and thruster
+/// sections, each with whether it is inactive.
+type NeutralizeSectionQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Has<SectionInactiveMarker>,
+        Has<ControllerSectionMarker>,
+        Has<ThrusterSectionMarker>,
+        Has<TurretSectionMarker>,
+        Has<TorpedoSectionMarker>,
+        Has<RailgunSectionMarker>,
+    ),
+    Or<(
+        With<TurretSectionMarker>,
+        With<TorpedoSectionMarker>,
+        With<RailgunSectionMarker>,
+        With<ControllerSectionMarker>,
+        With<ThrusterSectionMarker>,
+    )>,
+>;
+
+/// What a root's `children` hold, as `(has_weapon, working_weapon,
+/// has_computer, working_computer, has_thruster, working_thruster)`.
+fn section_facts(
+    children: &Children,
+    q_section: &NeutralizeSectionQuery,
+) -> (bool, bool, bool, bool, bool, bool) {
+    let mut facts = (false, false, false, false, false, false);
+    for child in children.iter() {
+        let Ok((inactive, controller, thruster, turret, torpedo, railgun)) = q_section.get(child)
+        else {
+            continue;
+        };
+        if turret || torpedo || railgun {
+            facts.0 = true;
+            facts.1 |= !inactive;
+        }
+        if controller {
+            facts.2 = true;
+            facts.3 |= !inactive;
+        }
+        if thruster {
+            facts.4 = true;
+            facts.5 |= !inactive;
+        }
+    }
+    facts
+}
+
+/// Take [`NeutralizedMarker`] off the player ship the frame
+/// [`neutralize_verdict`] stops holding for it: a rebuilt gun, computer or
+/// thruster puts it back in the fight, and AI targets it again.
+/// [`DefeatedMarker`] stays, so a later destruction fires no second
+/// `OnDefeated`. AI ships keep the marker for good.
+fn restore_neutralized(
+    mut commands: Commands,
+    q_root: Query<
+        (
+            Entity,
+            &Children,
+            Has<WasArmedCombatant>,
+            Has<HadFlightComputer>,
+            Has<HadThruster>,
+            Has<StationMarker>,
+        ),
+        (
+            With<SpaceshipRootMarker>,
+            With<PlayerSpaceshipMarker>,
+            With<NeutralizedMarker>,
+            Without<DerelictShipMarker>,
+        ),
+    >,
+    q_section: NeutralizeSectionQuery,
+) {
+    for (root, children, was_armed, had_computer, had_thruster, station) in &q_root {
+        let (_, working_weapon, _, working_computer, _, working_thruster) =
+            section_facts(children, &q_section);
+        let neutralized = neutralize_verdict(NeutralizeFacts {
+            was_armed,
+            had_computer,
+            had_thruster,
+            station,
+            working_weapon,
+            working_computer,
+            working_thruster,
+        });
+        if !neutralized {
+            debug!("restore_neutralized: player ship {root:?} is back in the fight");
+            commands.entity(root).try_remove::<NeutralizedMarker>();
+        }
     }
 }
 
@@ -138,44 +278,21 @@ fn detect_neutralized(
             Without<DerelictShipMarker>,
         ),
     >,
-    // A weapon section: turret, torpedo or railgun. `Has<SectionInactiveMarker>`
-    // reports whether it is disabled (destroyed non-leaf); a destroyed leaf
-    // section is despawned and so is simply absent from the root's children.
-    // Every kind `spaceship.rs` counts as arming a ship belongs here, or a
-    // hull keeping one of them is called beaten while it still shoots.
-    q_weapon: Query<
-        Has<SectionInactiveMarker>,
-        Or<(
-            With<TurretSectionMarker>,
-            With<TorpedoSectionMarker>,
-            With<RailgunSectionMarker>,
-        )>,
-    >,
-    q_controller: Query<Has<SectionInactiveMarker>, With<ControllerSectionMarker>>,
-    q_thruster: Query<Has<SectionInactiveMarker>, With<ThrusterSectionMarker>>,
+    // A weapon section is a turret, torpedo or railgun. Every kind
+    // `spaceship.rs` counts as arming a ship belongs in the query, or a hull
+    // keeping one of them is called beaten while it still shoots. A destroyed
+    // leaf section is despawned and so is simply absent from the children.
+    q_section: NeutralizeSectionQuery,
 ) {
     for (root, children, id, type_name, was_armed, had_computer, had_thruster, station) in &q_root {
-        let mut has_weapon_section = false;
-        let mut working_weapon = false;
-        let mut has_controller_section = false;
-        let mut working_controller = false;
-        let mut has_thruster_section = false;
-        let mut working_thruster = false;
-
-        for child in children.iter() {
-            if let Ok(inactive) = q_weapon.get(child) {
-                has_weapon_section = true;
-                working_weapon |= !inactive;
-            }
-            if let Ok(inactive) = q_controller.get(child) {
-                has_controller_section = true;
-                working_controller |= !inactive;
-            }
-            if let Ok(inactive) = q_thruster.get(child) {
-                has_thruster_section = true;
-                working_thruster |= !inactive;
-            }
-        }
+        let (
+            has_weapon_section,
+            working_weapon,
+            has_controller_section,
+            working_controller,
+            has_thruster_section,
+            working_thruster,
+        ) = section_facts(children, &q_section);
 
         // History stamps. Both land even on a not-yet-armed hull: history is
         // history, whichever section attaches first. try_insert, for the
@@ -191,35 +308,26 @@ fn detect_neutralized(
 
         // Arming guard: a root only becomes eligible for the armed rule once
         // it has carried a weapon section. Stamp it the first frame we see
-        // one, and never neutralize on that same frame.
-        if !was_armed {
-            if has_weapon_section {
-                commands.entity(root).try_insert(WasArmedCombatant);
-                continue;
-            }
-            // Confirmed unarmed this frame: the thruster rule applies
-            // instead. `had_thruster` is this frame's EARLIER-frame read, so
-            // a thruster seen inactive for the first time this frame does not
-            // neutralize until the next frame - the same same-frame spawn
-            // guard the computer stamp gives the armed rule.
-            // A station has no thruster to lose, and its flight computer is
-            // what keeps it a living station, so the lost computer stands in
-            // for the lost drive.
-            let stranded = had_thruster && !working_thruster;
-            let station_brain_dead = station && had_computer && !working_controller;
-            if stranded || station_brain_dead {
-                neutralize(&mut commands, root, id, type_name);
-            }
+        // one, and never neutralize on that same frame. Unarmed, the thruster
+        // rule reads `had_thruster` from an EARLIER frame, so a thruster seen
+        // inactive for the first time this frame does not neutralize until
+        // the next frame - the same same-frame spawn guard the computer stamp
+        // gives the armed rule.
+        if !was_armed && has_weapon_section {
+            commands.entity(root).try_insert(WasArmedCombatant);
             continue;
         }
-
-        let disarmed = !working_weapon;
-        let brain_dead = had_computer && !working_controller;
-        if !disarmed && !brain_dead {
-            continue;
+        if neutralize_verdict(NeutralizeFacts {
+            was_armed,
+            had_computer,
+            had_thruster,
+            station,
+            working_weapon,
+            working_computer: working_controller,
+            working_thruster,
+        }) {
+            neutralize(&mut commands, root, id, type_name);
         }
-
-        neutralize(&mut commands, root, id, type_name);
     }
 }
 
@@ -393,6 +501,58 @@ mod tests {
         assert!(
             !app.world().entities().contains(root),
             "the reaper is the owner that wins: the root is gone"
+        );
+    }
+
+    /// A neutralized player who gets a working gun back is in the fight
+    /// again: the marker comes off, `DefeatedMarker` stays, and nothing
+    /// fires while the rule held. Neutralized again, both events fire again.
+    #[test]
+    fn a_repaired_player_is_no_longer_neutralized_and_an_ai_ship_stays_neutralized() {
+        let mut app = neutralize_app();
+        let (player, player_guns, ..) = spawn_ship(&mut app, 1, 1, 1);
+        app.world_mut()
+            .entity_mut(player)
+            .insert(PlayerSpaceshipMarker);
+        let (npc, npc_guns, ..) = spawn_ship(&mut app, 1, 1, 1);
+        app.update();
+        disable(&mut app, player_guns[0]);
+        disable(&mut app, npc_guns[0]);
+        for _ in 0..3 {
+            app.update();
+        }
+        assert!(is_neutralized(&app, player) && is_neutralized(&app, npc));
+        assert_eq!(
+            fired(&app).len(),
+            4,
+            "each ship fires OnDefeated and OnNeutralized once while the rule holds: {:?}",
+            fired(&app)
+        );
+
+        for gun in [player_guns[0], npc_guns[0]] {
+            app.world_mut()
+                .entity_mut(gun)
+                .remove::<SectionInactiveMarker>();
+        }
+        app.update();
+        app.update();
+        assert!(
+            !is_neutralized(&app, player),
+            "the player is back in the fight"
+        );
+        assert!(app.world().entity(player).contains::<DefeatedMarker>());
+        assert!(is_neutralized(&app, npc), "an AI ship stays neutralized");
+        assert_eq!(fired(&app).len(), 4, "a recovery fires nothing");
+
+        disable(&mut app, player_guns[0]);
+        app.update();
+        app.update();
+        assert!(is_neutralized(&app, player));
+        assert_eq!(
+            fired(&app).len(),
+            6,
+            "a second neutralize fires both events again: {:?}",
+            fired(&app)
         );
     }
 

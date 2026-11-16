@@ -253,7 +253,7 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
 /// New Game's open world authors it in place of a fixed player ship. The ship
 /// is the role's catalog hull, named after that design, with the role's kit
 /// and [`start_role_bindings`]. It spawns in the open space of the session's
-/// [`StartingStation`], facing it, carrying a [`StartBerthMarker`] so the
+/// [`StartingStation`], facing it, carrying a [`StationBerth`] so the
 /// world berths it there; the pose is the session's, not authored, since the
 /// station is the seed's. It spawns through the same path as a
 /// `SpawnScenarioObject` ship, so a Load thaws the saved ship in its place,
@@ -282,9 +282,15 @@ impl EventAction<NovaEventWorld> for StartRoleSpawnConfig {
                         let fresh = world
                             .get_resource::<ResumedSpaceship>()
                             .is_none_or(|resumed| resumed.id.0 != config.id);
+                        let station = world
+                            .get_resource::<OpenWorldSession>()
+                            .map(|session| session.start.id.clone());
                         let root = spawn_scenario_spaceship(world, &base, &config.id, ship);
-                        if fresh {
-                            world.entity_mut(root).insert(StartBerthMarker);
+                        if let (true, Some(station)) = (fresh, station) {
+                            world.entity_mut(root).insert(StationBerth {
+                                station,
+                                purpose: StationBerthType::Start,
+                            });
                         }
                     }
                     Err(cause) => {
