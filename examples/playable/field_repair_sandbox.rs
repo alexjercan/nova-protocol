@@ -34,9 +34,10 @@
 //!
 //! No deadline ends the run unless `NOVA_AUTOPILOT=1` is set. Then a smoke
 //! walk checks the staging, opens the Ship pane, clicks Rebuild on `DOCK-1`,
-//! closes the interface, waits for the port to come back and checks that the
-//! recipe left the hold. `NOVA_CAPTURE=1` shoots the flight view, the pane
-//! with the job and the flight view with the port back.
+//! closes the interface, waits for the port to come back, checks that the
+//! recipe left the hold, then berths at the waystation and docks on the
+//! rebuilt port. `NOVA_CAPTURE=1` shoots the flight view, the pane with the
+//! job and the flight view with the port back.
 
 #[expect(dead_code, reason = "this example flies the tender and moors no spar")]
 #[path = "shared/docking_pair.rs"]
@@ -140,10 +141,13 @@ fn load_the_void(mut commands: Commands, game_assets: Res<GameAssets>) {
 }
 
 /// Whether the fixture damage was put on the hull. The staging stops there,
-/// so a repair or a rebuild is never undone.
+/// so a repair or a rebuild is never undone. `docked` is set by the smoke
+/// walk once the rebuilt port holds a dock, because a walk predicate reads
+/// the world but cannot query it.
 #[derive(Resource, Default)]
 struct Staging {
     damaged: bool,
+    docked: bool,
 }
 
 /// The live section of `player` with design id `id`.
@@ -402,6 +406,40 @@ mod smoke {
         info!("field_repair_sandbox: PASS DOCK-1 rebuilt in the field from the hold");
     }
 
+    /// Berth at the waystation and ask to dock, each frame until the dock
+    /// holds.
+    fn dock_on_the_rebuilt_port(world: &mut World) {
+        if station_void::berth_and_dock_at(world, STATION_ID) {
+            world.resource_mut::<Staging>().docked = true;
+        }
+    }
+
+    /// The dock holds on the rebuilt port, and the pair stands still.
+    fn assert_the_dock(world: &mut World) {
+        let player = station_void::player_root(world).expect("field_repair_sandbox: a player");
+        let station = station_void::station_root(world, STATION_ID)
+            .expect("field_repair_sandbox: the waystation is up");
+        assert!(
+            station_void::docked_at(world, STATION_ID),
+            "field_repair_sandbox: docked at the waystation"
+        );
+        let port = section_of(world, player, LOST_PORT)
+            .expect("field_repair_sandbox: the rebuilt port is live");
+        let connection = world
+            .get::<DockedShip>(player)
+            .expect("field_repair_sandbox: a docked player carries DockedShip")
+            .connection;
+        let connection = world
+            .get::<DockingConnection>(connection)
+            .expect("field_repair_sandbox: the dock has its connection");
+        assert!(
+            [connection.first_section, connection.second_section].contains(&port),
+            "field_repair_sandbox: the dock holds on the rebuilt DOCK-1"
+        );
+        station_void::assert_at_rest(world, player, station);
+        info!("field_repair_sandbox: PASS docked at {STATION_NAME} on the rebuilt DOCK-1");
+    }
+
     /// The smoke walk. Inert unless `NOVA_AUTOPILOT` is set.
     pub(super) fn script() -> AutopilotPlugin<GameStates> {
         AutopilotPlugin::<GameStates>::new()
@@ -466,6 +504,19 @@ mod smoke {
             .on_enter(|world: &mut World| shoot(world, REBUILT_SHOT))
             .until(shot_written(REBUILT_SHOT))
             .deadline(SHOT_DEADLINE_SECS)
+            .add()
+            .step("field repair sandbox: dock on the rebuilt port")
+            .each(|world, _, _| dock_on_the_rebuilt_port(world))
+            .until(when(|world| {
+                world
+                    .get_resource::<Staging>()
+                    .is_some_and(|staging| staging.docked)
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("field repair sandbox: check the dock")
+            .on_enter(assert_the_dock)
+            .until(frames(SETTLE_FRAMES))
             .add()
     }
 }

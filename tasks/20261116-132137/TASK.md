@@ -1,6 +1,6 @@
 # Survive section loss: timed repair and field rebuild of lost sections
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 100
 - TAGS: v0.19.0, survival, repair
 
@@ -120,6 +120,8 @@ for v0.19.0.
   three manual launches without a crash; system_hold_events and
   lesson_interface_ship walks PASS; frames inspected for the Repairs block,
   the one-line hint and the HUD chip with the RCS row hidden.
-- Not verified: docking with another ship after a field rebuild. The respawn
-  uses the station rebuild path, and the ECS test shows a live port entity.
-  Workspace tests and clippy not run (CI runs them).
+- Dock on a field-rebuilt port, live: the field_repair_sandbox walk now
+  berths at the waystation after the rebuild and asserts the dock holds on
+  the rebuilt DOCK-1 (`DockingConnection` names that section) with the pair
+  at rest. PASS under Xvfb and lavapipe; rebuild 22 s, dock 2.5 s later.
+- Not run: workspace tests and clippy (CI runs them).
