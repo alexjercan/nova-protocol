@@ -163,6 +163,15 @@ name = "refine_sandbox"
 path = "examples/playable/refine_sandbox.rs"
 required-features = ["debug"]
 
+# Field repair by hand: undocked in a void with three hurt plates, the docking
+# port lost, and hull plates and the port's recipe parts in the hold. Repair
+# and Rebuild run as jobs on the game clock. Nothing ends it; under
+# NOVA_AUTOPILOT a smoke walk rebuilds the port in the field and checks it.
+[[example]]
+name = "field_repair_sandbox"
+path = "examples/playable/field_repair_sandbox.rs"
+required-features = ["debug"]
+
 # Second-tier sections by hand: start docked at a generated yard that builds
 # all six, on a shipped hull (--hull picket|tug|warship) with the recipe parts
 # and credits aboard. Swap in the Ship pane, undock and use the part. Nothing

@@ -58,6 +58,27 @@ for v0.19.0.
   or works from any hull. Links to task 20261116-132140 (crafting).
 - Whether the repair timer runs while TAB is open, or the pane must close.
 
+## Decisions (owner said implement 2026-11-16; agent calls, stated)
+- Clock: repair and field rebuild progress on the gameplay clock only. TAB
+  and pause freeze them, so healing takes real fight time. The Ship pane says
+  so, and a compact HUD line shows progress in flight. Owner may flip this to
+  run under the pane.
+- Plate repair is a per-section job: N plates queued, one plate spent and
+  20 HP added at the end of each plate interval. Nothing is spent up front,
+  so a cancel, a save or a lost section never loses an unspent plate. One
+  job per section; jobs on different sections run side by side. A job stops
+  with a reason when the hold has no plate or the section is destroyed.
+- Field rebuild: any lost, anchored design section, undocked, no Rebuild
+  service needed. Cost = the section's build recipe parts from the ship hold
+  only, no credits (no seller). Parts are checked at start and taken at
+  completion. Takes longer than plate repair. Docked station Rebuild stays
+  instant and unchanged.
+- No new section is required for field work; any hull can do it.
+- Jobs are not saved. A reload drops the queue; nothing is lost because
+  nothing is spent early.
+- Durations are named constants next to `HULL_PLATE_HEALTH`, not content
+  fields, in this pass.
+
 ## Delivery
 1. Timed plate repair: the Ship pane queues a repair, a progress bar fills on
    the sim clock, health rises when it completes. Cancel refunds unspent
@@ -79,3 +100,26 @@ for v0.19.0.
   again.
 - Plate repair takes visible time with a progress bar.
 - Wiki and changelog describe the new repair rules.
+
+## Delivery record (2026-11-16)
+- Landed: timed plate jobs and field rebuild (`crates/nova_ship/src/sections/repair_jobs.rs`),
+  `RebuildSiteType::{Field, Station}` in `crates/nova_gameplay/src/inventory.rs`,
+  Ship pane Repairs block, HUD repair chip and end notices, docs, lesson text
+  and media, `examples/playable/field_repair_sandbox.rs`. Map: `MAP.md`.
+- Found and fixed on the way: the ship graph builder inserted `ConnectedTo`
+  on a section despawned the same frame, which ended the app
+  (`crates/nova_ship/src/sections/integrity.rs`, now `try_insert`). Proof:
+  `a_section_despawned_in_the_graph_build_frame_leaves_the_rest_connected`
+  failed with the plain insert and passes with the fix.
+- Verified: targeted unit and ECS tests (nova_ship repair_jobs and integrity,
+  nova_gameplay field_rebuild and plate_step, nova_interface ship::, nova_hud
+  flight_status, nova_scenario field rebuild, nova_authoring lesson_media);
+  content gen and lint clean; fmt clean. Live under Xvfb and lavapipe:
+  field_repair_sandbox smoke walk PASS (DOCK-1 rebuilt in 20 s after the pane
+  closed); a plate job held 20 s with TAB open, then finished 8 s after close;
+  three manual launches without a crash; system_hold_events and
+  lesson_interface_ship walks PASS; frames inspected for the Repairs block,
+  the one-line hint and the HUD chip with the RCS row hidden.
+- Not verified: docking with another ship after a field rebuild. The respawn
+  uses the station rebuild path, and the ECS test shows a live port entity.
+  Workspace tests and clippy not run (CI runs them).

@@ -194,9 +194,19 @@ sections open at advancement 0. So any station rebuilds a start hull's parts.
 | the recipe | the section's [build recipe](../sections/#build-recipe): its `credits` plus every part |
 | parts | taken from the ship's hold first; the rest are bought from the station's stock at ask |
 | credits | the ship pays the recipe's `credits` plus the bought parts. The station receives all of it |
-| refusals | in this order: not docked, no `Rebuild` service, the station does not build the section, section not lost, no live section to attach to where the design places it, a part neither hold can cover, too few credits |
+| refusals | in this order: no `Rebuild` service, the station does not build the section, section not lost, no live section to attach to where the design places it, a part neither hold can cover, too few credits |
 | the result | the section spawns where the design places it, at full health, with the key binding it had when it was lost |
 | events | `OnRebuilt` and one `OnCreditsChanged` per party with `cause: Rebuild`, see [Hold events](../events/#hold-events) |
+
+Undocked, a ship rebuilds a lost section in the field instead. A field
+rebuild needs no station and no credits: it is a timed job that takes the
+recipe's parts from the ship's hold alone when its time is up, 5 s of game
+time per part and at least 20 s. It refuses a section that is not lost, one
+with no live section to attach to, and a part the hold does not carry free of
+other jobs, and checks the same again at its end. It fires `OnRebuilt` with a
+price of 0 and no `OnCreditsChanged`. The proof is the scenario test
+`a_field_rebuild_restores_a_lost_docking_port_and_takes_the_recipe_parts`, and
+`field_repair_sandbox` plays it by hand.
 
 A section code reads the ship's design, not its live sections, so a lost
 section keeps its code and a rebuilt one gets it back. A key binding the

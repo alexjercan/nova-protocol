@@ -3,7 +3,8 @@
 //!
 //! `nova_scenario`'s section spawn resolves the design and inserts
 //! [`ShipDesignSections`] beside the sections it spawns. A lost section is a
-//! design section with no live child of that id. A Ship pane rebuild raises a
+//! design section with no live child of that id. A Ship pane station
+//! rebuild, or a field rebuild job when it ends, raises a
 //! [`SectionRebuildRequest`], and the scenario crate spawns that design
 //! section again through the same per-section spawn the ship was built with.
 //!
@@ -27,10 +28,11 @@ use super::prelude::*;
 /// and the swap rules.
 pub mod prelude {
     pub use super::{
-        intake_in_dock_approach, plan_section_swap, rebuild_anchored, remove_build_fault,
-        section_swap_family, ship_build_fault, swap_build_fault, DesignSection,
-        RefitBuildFaultType, RefitPlacedSection, SectionFamilyFaultType, SectionRebuildRequest,
-        SectionRemoveRequest, SectionSwapRefusalType, SectionSwapRequest, ShipDesignSections,
+        intake_in_dock_approach, lost_section_facts, plan_section_swap, rebuild_anchored,
+        remove_build_fault, section_swap_family, ship_build_fault, swap_build_fault, DesignSection,
+        LostSectionFacts, RefitBuildFaultType, RefitPlacedSection, SectionFamilyFaultType,
+        SectionRebuildRequest, SectionRemoveRequest, SectionSwapRefusalType, SectionSwapRequest,
+        ShipDesignSections,
     };
 }
 
@@ -76,8 +78,9 @@ impl ShipDesignSections {
 }
 
 /// Asks to spawn design section `section` of ship `entity` again, at full
-/// health with the ship's binding for it. Raised by a Ship pane rebuild after
-/// the rebuild rule took the recipe; the scenario crate observes it.
+/// health with the ship's binding for it. Raised by a Ship pane station
+/// rebuild and by a field rebuild job once the rebuild rule took the recipe;
+/// the scenario crate observes it.
 #[derive(EntityEvent, Clone, Debug)]
 pub struct SectionRebuildRequest {
     /// The ship root.
@@ -111,6 +114,38 @@ pub fn rebuild_anchored(
     candidate_link_point_mates(&placed)
         .iter()
         .any(|mate| (mate.a.section_index == 0) != (mate.b.section_index == 0))
+}
+
+/// What a rebuild of one design section reads off the live ship: whether
+/// the section is lost and whether a live section would hold it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LostSectionFacts {
+    /// No live section wears the design section's id.
+    pub lost: bool,
+    /// A live section mates with it where the design places it
+    /// ([`rebuild_anchored`]).
+    pub anchored: bool,
+}
+
+/// The [`LostSectionFacts`] of design section `section` against the ship's
+/// `live` sections, each its id and placement in ship-root space. The one
+/// reading the Ship pane's station rebuild and the field rebuild job share.
+pub fn lost_section_facts(
+    section: &DesignSection,
+    live: &[(&str, PlacedSectionLinkPoints<'_>)],
+) -> LostSectionFacts {
+    let placed: Vec<PlacedSectionLinkPoints<'_>> = live.iter().map(|(_, placed)| *placed).collect();
+    LostSectionFacts {
+        lost: !live.iter().any(|(id, _)| *id == section.id),
+        anchored: rebuild_anchored(
+            &placed,
+            PlacedSectionLinkPoints {
+                position: section.position,
+                rotation: section.rotation,
+                link_points: &section.config.base.link_points,
+            },
+        ),
+    }
 }
 
 /// Asks to replace live design section `section` of ship `entity` with the

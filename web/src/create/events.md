@@ -53,8 +53,8 @@ The whole vocabulary at a glance:
 | [`OnJettisoned`](#hold-events) | `id`, `type_name`, `canister`, `item`, `count` | a cargo intake drops a stack out as a canister |
 | [`OnTraded`](#hold-events) | `id`, `other_id`, `other_type_name`, `trade`, `item`, `count`, `price_cr` | the player buys or sells a stack across a dock |
 | [`OnCreditsChanged`](#hold-events) | `id`, `type_name`, `previous_cr`, `current_cr`, `delta_cr`, `cause` | a ship's credits move |
-| [`OnRepaired`](#hold-events) | `id`, `type_name`, `section`, `item`, `count` | the Ship pane spends plates on a section |
-| [`OnRebuilt`](#hold-events) | `id`, `type_name`, `section`, `parts`, `price_cr` | the Ship pane rebuilds a lost section at a docked station |
+| [`OnRepaired`](#hold-events) | `id`, `type_name`, `section`, `item`, `count` | a Ship pane repair job ends, having fitted plates on a section |
+| [`OnRebuilt`](#hold-events) | `id`, `type_name`, `section`, `parts`, `price_cr` | the Ship pane rebuilds a lost section at a docked station, or a field rebuild job ends |
 | [`OnSwapped`](#hold-events) | `id`, `type_name`, `section`, `from`, `to`, `parts`, `price_cr` | the Ship pane swaps a section for another part at a docked station |
 | [`OnAdded`](#hold-events) | `id`, `type_name`, `section`, `part`, `at`, `point`, `parts`, `price_cr` | the Ship pane adds a part at a free socket at a docked station |
 | [`OnShipBought`](#hold-events) | `id`, `type_name`, `hull`, `price_cr` | the Station pane buys a whole hull from a docked station |
@@ -876,8 +876,8 @@ inventory, so a handler counts occurrences, not frames.
 | `OnJettisoned` | the ship whose intake dropped the stack | none | `canister`, `item`, `count` |
 | `OnTraded` | the ship traded WITH | the player's ship | `trade` (`Buy` or `Sell`, from the player's side), `item`, `count`, `price_cr` |
 | `OnCreditsChanged` | the ship whose purse moved | none | `previous_cr`, `current_cr`, `delta_cr` (signed), `cause` (`Trade`, `Take`, `Rebuild`, `Swap`, `Add`, `ShipBuy`, `EscortHire`, `StationBuy`, `JobReward`, `Settle`, `Refine`, `Scenario` or `Cheat`) |
-| `OnRepaired` | the repaired ship | none | `section` (the Ship pane code, `CTL-1`), `item`, `count` (plates spent) |
-| `OnRebuilt` | the rebuilt ship | none | `section` (the code the lost section had, `PDC-1`), `parts` (every recipe part, item id to count), `price_cr` (work plus bought parts) |
+| `OnRepaired` | the repaired ship | none | `section` (the Ship pane code, `CTL-1`), `item`, `count` (plates the job fitted; one event when the job ends, stops or is cancelled with at least one plate fitted) |
+| `OnRebuilt` | the rebuilt ship | none | `section` (the code the lost section had, `PDC-1`), `parts` (every recipe part, item id to count), `price_cr` (work plus bought parts; 0 for a field rebuild) |
 | `OnSwapped` | the refitted ship | none | `section` (the Ship pane code, `PDC-1`), `from` and `to` (the old and new section prototype ids), `parts` (every part of the new part's recipe), `price_cr` (work plus bought parts) |
 | `OnAdded` | the refitted ship | none | `section` (the new section's Ship pane code, `PDC-3`), `part` (its section prototype id), `at` and `point` (the code and socket id it mounts on), `parts` (every part of its recipe), `price_cr` (work plus bought parts) |
 | `OnShipBought` | the ship that bought | none | `hull` (the parked hull's name, `Vel civilian Mk 1`), `price_cr` (every section's recipe at ask, paid in full). A free Board of a ship the player owns fires none |

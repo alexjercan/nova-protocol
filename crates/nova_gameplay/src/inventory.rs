@@ -12,8 +12,9 @@
 //! An authored ship states its stock as a [`ShipInventoryStock`] through
 //! `SpaceshipConfig::inventory`, which RON requires; the spawn consumes that
 //! stock into a `ShipInventory` whose capacity its design derives. A Ship pane
-//! repair spends [`ItemRoleType::HullPlate`] by the [`plan_plate_repair`]
-//! rule, an Inventory pane transfer moves items between two docked ships by
+//! repair queues [`ItemRoleType::HullPlate`]s by the [`plan_plate_repair`]
+//! rule and fits them one at a time by the [`plan_plate_step`] rule, an
+//! Inventory pane transfer moves items between two docked ships by
 //! the [`plan_item_transfer`] rule, and a jettison queues [`CargoCanister`]s
 //! by the [`plan_item_jettison`] rule, a weapon's idle reload moves its
 //! ammunition item into the magazine, and a Buy or Sell with a docked trader
@@ -22,7 +23,9 @@
 //! offers Refine: the [`plan_item_refine`] rule turns the recipe's inputs
 //! and fee into the item.
 //! Every section config carries a [`BuildRecipe`]; a Ship pane rebuild or
-//! swap at a docked station pays it by the [`plan_recipe_payment`] rule. A living
+//! swap at a docked station pays it by the [`plan_recipe_payment`] rule, and
+//! a field rebuild away from a station takes its parts from the hold
+//! ([`plan_section_rebuild`] with [`RebuildSiteType::Field`]). A living
 //! station that offers Storage keeps a capped [`StationStorage`] beside its
 //! hold, and a Store or Withdraw moves items between it and the docked ship
 //! by the [`plan_item_storage`] rule, with no credits.
@@ -43,20 +46,22 @@ pub mod prelude {
     pub use nova_events::prelude::{CreditChangeCauseType, ItemTradeType};
 
     pub use super::{
-        cr_digits, cr_text, kg_text, lot_cr_text, market_deals_in, plan_credit_take,
-        plan_hull_strip, plan_item_jettison, plan_item_refine, plan_item_storage, plan_item_trade,
-        plan_item_transfer, plan_loot_take, plan_plate_repair, plan_recipe_payment,
-        plan_section_rebuild, plan_section_yield, strip_duration_secs, BuildRecipe, CargoCanister,
-        CargoCanisterIdAllocator, CargoCanisterRuntimeId, CreditTakeRefusalType, GameItems,
-        HullStrip, HullStripPartner, HullStripPauseType, HullStripRefusalType, ItemCategoryType,
-        ItemDesign, ItemDesignId, ItemJettison, ItemJettisonRefusalType, ItemRefine,
-        ItemRefineRecipe, ItemRefineRefusalType, ItemRoleType, ItemStorageRefusalType,
-        ItemStorageType, ItemTrade, ItemTradeRefusalType, ItemTransferRefusalType,
-        ItemTransferType, LootTake, LootableShipMarker, PlateRepair, PlateRepairRefusalType,
-        RecipePayment, RecipePaymentRefusalType, SectionRebuildRefusalType, ShipCredits,
-        ShipInventory, ShipInventoryReport, ShipInventoryReports, ShipInventoryStock,
-        StationPartner, StationStorage, StripTarget, TradePriceType, CARGO_CANISTER_MAX_MASS_G,
-        HULL_PLATE_HEALTH, STRIP_MIN_SECS, STRIP_SECS_PER_PART,
+        cr_digits, cr_text, field_rebuild_duration_secs, kg_text, lot_cr_text, market_deals_in,
+        plan_credit_take, plan_hull_strip, plan_item_jettison, plan_item_refine, plan_item_storage,
+        plan_item_trade, plan_item_transfer, plan_loot_take, plan_plate_repair, plan_plate_step,
+        plan_recipe_payment, plan_section_rebuild, plan_section_yield, strip_duration_secs,
+        BuildRecipe, CargoCanister, CargoCanisterIdAllocator, CargoCanisterRuntimeId,
+        CreditTakeRefusalType, GameItems, HullStrip, HullStripPartner, HullStripPauseType,
+        HullStripRefusalType, ItemCategoryType, ItemDesign, ItemDesignId, ItemJettison,
+        ItemJettisonRefusalType, ItemRefine, ItemRefineRecipe, ItemRefineRefusalType, ItemRoleType,
+        ItemStorageRefusalType, ItemStorageType, ItemTrade, ItemTradeRefusalType,
+        ItemTransferRefusalType, ItemTransferType, LootTake, LootableShipMarker, PlateRepair,
+        PlateRepairRefusalType, RebuildSiteType, RecipePayment, RecipePaymentRefusalType,
+        SectionRebuildRefusalType, ShipCredits, ShipInventory, ShipInventoryReport,
+        ShipInventoryReports, ShipInventoryStock, StationPartner, StationStorage, StripTarget,
+        TradePriceType, CARGO_CANISTER_MAX_MASS_G, FIELD_REBUILD_MIN_SECS,
+        FIELD_REBUILD_SECS_PER_PART, HULL_PLATE_HEALTH, PLATE_REPAIR_SECS, STRIP_MIN_SECS,
+        STRIP_SECS_PER_PART,
     };
 }
 
@@ -782,23 +787,26 @@ pub enum ShipInventoryReport {
         /// Units that moved.
         count: u32,
     },
-    /// A Ship pane repair spent hull plates on one section.
+    /// A Ship pane plate repair job ended after it spent hull plates on one
+    /// section: every queued plate went on, or the job stopped or was
+    /// cancelled after at least one.
     Repaired {
         /// Pane code of the repaired section (`HULL-3`).
         section: String,
         /// The plate item spent.
         item: ItemDesignId,
-        /// Plates spent.
+        /// Plates the job spent.
         count: u32,
     },
-    /// A Ship pane rebuild at a docked station spent one section's
-    /// [`BuildRecipe`] and put the section back.
+    /// A Ship pane rebuild spent one section's [`BuildRecipe`] and put the
+    /// section back: at once at a docked station, or when a field rebuild
+    /// ends.
     Rebuilt {
         /// Pane code of the rebuilt section (`PDC-1`).
         section: String,
         /// Every part the recipe spent, from the hold and bought together.
         parts: BTreeMap<ItemDesignId, u32>,
-        /// Credits the ship paid the station.
+        /// Credits the ship paid the station; zero for a field rebuild.
         price_cr: u32,
     },
     /// A Ship pane swap at a docked station spent the offered part's
@@ -1751,16 +1759,38 @@ pub fn plan_item_jettison(
 /// lost, not banked.
 pub const HULL_PLATE_HEALTH: f32 = 20.0;
 
-/// The plates a repair spends and the Health the section ends at.
+/// Game seconds one hull plate takes to fit. A plate repair job spends one
+/// plate and adds [`HULL_PLATE_HEALTH`] at the end of each interval, so a
+/// five-plate repair takes twenty seconds of flight.
+pub const PLATE_REPAIR_SECS: f32 = 4.0;
+
+/// The shortest field rebuild, in game seconds: longer than one plate, so a
+/// lost section always costs more time than a damaged one.
+pub const FIELD_REBUILD_MIN_SECS: f32 = 20.0;
+
+/// Game seconds a field rebuild takes per recipe part unit. Five times a
+/// strip's [`STRIP_SECS_PER_PART`]: a section is slower to build than to
+/// take apart.
+pub const FIELD_REBUILD_SECS_PER_PART: f32 = 5.0;
+
+/// How long a field rebuild of a section built by `recipe` takes, in game
+/// seconds: [`FIELD_REBUILD_SECS_PER_PART`] per part unit, at least
+/// [`FIELD_REBUILD_MIN_SECS`].
+pub fn field_rebuild_duration_secs(recipe: &BuildRecipe) -> f32 {
+    (recipe.part_count() as f32 * FIELD_REBUILD_SECS_PER_PART).max(FIELD_REBUILD_MIN_SECS)
+}
+
+/// The plates a repair job queues and the Health the section ends at.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PlateRepair {
-    /// Hull plates to remove from the ship's inventory; above zero.
+    /// Hull plates the job fits, one per interval; above zero.
     pub plates: u32,
     /// The section's `Health::current` after the repair.
     pub current: f32,
 }
 
-/// Why a section takes no plate repair, in check order.
+/// Why a section takes no plate repair, or why a running plate job stops,
+/// in check order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlateRepairRefusalType {
     /// No `Health`, or a max of zero or less.
@@ -1777,10 +1807,14 @@ pub enum PlateRepairRefusalType {
     ExcessPlates,
 }
 
-/// Plan a plate repair for a selected whole-plate quantity against live stock.
+/// Plan a plate repair job for a selected whole-plate quantity against live
+/// stock. The job spends nothing now; [`plan_plate_step`] spends each plate
+/// when its interval ends, and `current` is the Health the job ends at when
+/// nothing changes in between.
 ///
-/// Refuse an outdated selection rather than silently spending fewer plates.
+/// Refuse an outdated selection rather than silently queueing fewer plates.
 /// `disabled` is true when the section carries `IntegrityDisabledMarker`.
+/// `stock` is the plates no other running job has queued.
 pub fn plan_plate_repair(
     health: Option<&Health>,
     disabled: bool,
@@ -1812,6 +1846,19 @@ pub fn plan_plate_repair(
             .max
             .min(health.current + HULL_PLATE_HEALTH * requested_plates as f32),
     })
+}
+
+/// Plan one step of a running plate repair job: the section's
+/// `Health::current` after one more plate, or why the job stops. The step
+/// rule is [`plan_plate_repair`] for one plate, so a step spends one plate
+/// from `stock`, the ship's live plates, and stops on a destroyed, disabled
+/// or full section or an empty hold.
+pub fn plan_plate_step(
+    health: Option<&Health>,
+    disabled: bool,
+    stock: u32,
+) -> Result<f32, PlateRepairRefusalType> {
+    plan_plate_repair(health, disabled, 1, stock).map(|repair| repair.current)
 }
 
 /// What a station charges to build one section, and what stripping the
@@ -2185,9 +2232,7 @@ pub fn plan_recipe_payment(
 /// Why a rebuild changes nothing, in check order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SectionRebuildRefusalType {
-    /// The ship has no docked partner.
-    NotDocked,
-    /// The partner is not a living station that offers Rebuild.
+    /// The docked partner is not a living station that offers Rebuild.
     NoRebuildService,
     /// The station does not build the section's prototype, whatever parts
     /// the holds carry.
@@ -2196,40 +2241,60 @@ pub enum SectionRebuildRefusalType {
     SectionNotLost,
     /// No live section mates with the section where the design places it.
     Unanchored,
-    /// The recipe cannot be paid, see [`plan_recipe_payment`].
+    /// The recipe cannot be paid, see [`plan_recipe_payment`]. In the field
+    /// only [`RecipePaymentRefusalType::MissingParts`] applies, against the
+    /// ship's hold alone.
     Payment(RecipePaymentRefusalType),
 }
 
+/// Where a lost section is rebuilt.
+#[derive(Clone, Copy, Debug)]
+pub enum RebuildSiteType<'a> {
+    /// Undocked, away from any station: the crew builds the section from the
+    /// recipe's parts in the ship's hold. No credits change hands and no
+    /// station must build the prototype. The work takes
+    /// [`field_rebuild_duration_secs`].
+    Field,
+    /// Docked with `partner`: the station builds the section at once, paid
+    /// by [`plan_recipe_payment`] from the ship's balance `own_cr`.
+    Station {
+        /// The docked partner.
+        partner: StationPartner<'a>,
+        /// The ship's credits.
+        own_cr: u32,
+    },
+}
+
 /// Plan rebuilding one lost section, built from the prototype `prototype`
-/// by its `recipe`, while docked with `partner`.
+/// by its `recipe`, at `site`.
 ///
-/// `partner` is `None` while the ship is not docked; its `offers` is whether
-/// it is a living station that offers Rebuild, and its `builds` must name
+/// At a [`RebuildSiteType::Station`] the partner's `offers` is whether it is
+/// a living station that offers Rebuild, and its `builds` must name
 /// `prototype`: a lost section is crafted again, and a station crafts only
-/// what it builds. `lost` is true when the design section is not live on the
+/// what it builds. The recipe is paid by [`plan_recipe_payment`]. In the
+/// [`RebuildSiteType::Field`] the hold `own` must carry every part of the
+/// recipe; the payment takes them all from it and costs no credits.
+///
+/// At both sites `lost` is true when the design section is not live on the
 /// ship, and `anchored` when a live section mates with it where the design
-/// places it. The recipe is paid by [`plan_recipe_payment`]. Checks run in
-/// [`SectionRebuildRefusalType`] order, and a refusal changes nothing.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the recipe, its prototype, the partner, the section's state and the hold"
-)]
+/// places it. Checks run in [`SectionRebuildRefusalType`] order, and a
+/// refusal changes nothing.
 pub fn plan_section_rebuild(
     items: &GameItems,
     prototype: &str,
     recipe: &BuildRecipe,
-    partner: Option<StationPartner<'_>>,
+    site: RebuildSiteType<'_>,
     lost: bool,
     anchored: bool,
     own: &ShipInventory,
-    own_cr: u32,
 ) -> Result<RecipePayment, SectionRebuildRefusalType> {
-    let partner = partner.ok_or(SectionRebuildRefusalType::NotDocked)?;
-    if !partner.offers {
-        return Err(SectionRebuildRefusalType::NoRebuildService);
-    }
-    if !partner.builds.iter().any(|known| known == prototype) {
-        return Err(SectionRebuildRefusalType::NotBuilt);
+    if let RebuildSiteType::Station { partner, .. } = site {
+        if !partner.offers {
+            return Err(SectionRebuildRefusalType::NoRebuildService);
+        }
+        if !partner.builds.iter().any(|known| known == prototype) {
+            return Err(SectionRebuildRefusalType::NotBuilt);
+        }
     }
     if !lost {
         return Err(SectionRebuildRefusalType::SectionNotLost);
@@ -2237,15 +2302,40 @@ pub fn plan_section_rebuild(
     if !anchored {
         return Err(SectionRebuildRefusalType::Unanchored);
     }
-    plan_recipe_payment(
-        items,
-        recipe,
-        partner.stock,
-        partner.credits_cr,
-        own,
-        own_cr,
-    )
+    match site {
+        RebuildSiteType::Field => plan_field_parts(recipe, own),
+        RebuildSiteType::Station { partner, own_cr } => plan_recipe_payment(
+            items,
+            recipe,
+            partner.stock,
+            partner.credits_cr,
+            own,
+            own_cr,
+        ),
+    }
     .map_err(SectionRebuildRefusalType::Payment)
+}
+
+/// The field payment of `recipe`: every part from the hold `own`, no
+/// credits, or the first part in id order the hold is short of.
+fn plan_field_parts(
+    recipe: &BuildRecipe,
+    own: &ShipInventory,
+) -> Result<RecipePayment, RecipePaymentRefusalType> {
+    for (item, &count) in &recipe.parts {
+        let held = own.count(item);
+        if held < count {
+            return Err(RecipePaymentRefusalType::MissingParts {
+                item: item.clone(),
+                short: count - held,
+            });
+        }
+    }
+    Ok(RecipePayment {
+        from_hold: recipe.parts.clone(),
+        bought: BTreeMap::new(),
+        price_cr: 0,
+    })
 }
 
 // Hand-written rather than derived: a derived `Deserialize` would accept a
@@ -2506,6 +2596,37 @@ mod tests {
         assert_eq!(plan(0.0, 0.0, false, 1, 12), Err(NoIntegrity));
         assert_eq!(plan_plate_repair(None, false, 1, 12), Err(NoIntegrity));
         assert_eq!(plan(100.0, 100.0, false, 1, 0), Err(Full));
+    }
+
+    /// A plate job step fits one plate: it adds one plate's Health up to the
+    /// max, and stops on a destroyed, disabled or full section or an empty
+    /// hold, in that order.
+    #[test]
+    fn a_plate_step_fits_one_plate_or_names_why_the_job_stops() {
+        let step = |current: f32, disabled: bool, stock: u32| {
+            plan_plate_step(
+                Some(&Health {
+                    current,
+                    max: 100.0,
+                }),
+                disabled,
+                stock,
+            )
+        };
+        use PlateRepairRefusalType::*;
+
+        assert_eq!(step(40.0, false, 3), Ok(40.0 + HULL_PLATE_HEALTH));
+        assert_eq!(
+            step(95.0, false, 1),
+            Ok(100.0),
+            "a step never passes the max"
+        );
+        assert_eq!(step(0.0, false, 3), Err(Destroyed));
+        assert_eq!(step(40.0, true, 3), Err(Destroyed));
+        assert_eq!(step(100.0, false, 3), Err(Full));
+        assert_eq!(step(40.0, false, 0), Err(NoPlates));
+        assert_eq!(step(0.0, false, 0), Err(Destroyed));
+        assert_eq!(plan_plate_step(None, false, 3), Err(NoIntegrity));
     }
 }
 
@@ -3349,11 +3470,13 @@ mod rebuild_tests {
             &items,
             "pdc",
             &pdc_recipe(),
-            Some(partner),
+            RebuildSiteType::Station {
+                partner,
+                own_cr: 500,
+            },
             true,
             true,
             &own,
-            500,
         )
         .expect("a docked, lost, anchored section with parts and credits rebuilds");
 
@@ -3389,21 +3512,24 @@ mod rebuild_tests {
         );
         let built = vec!["pdc".to_string()];
         let other: Vec<String> = vec!["hull".to_string()];
-        let station = |offers, builds, stock, credits_cr| {
-            Some(StationPartner {
-                offers,
-                builds,
-                stock,
-                credits_cr,
-            })
+        let station = |offers, builds, stock, credits_cr| StationPartner {
+            offers,
+            builds,
+            stock,
+            credits_cr,
         };
         let plan = |partner, lost, anchored, own_cr| {
             plan_section_rebuild(
-                &items, "pdc", &recipe, partner, lost, anchored, &empty, own_cr,
+                &items,
+                "pdc",
+                &recipe,
+                RebuildSiteType::Station { partner, own_cr },
+                lost,
+                anchored,
+                &empty,
             )
         };
 
-        assert_eq!(plan(None, false, false, 0), Err(NotDocked));
         assert_eq!(
             plan(station(false, &built, &stocked, 0), false, false, 0),
             Err(NoRebuildService)
@@ -3449,6 +3575,84 @@ mod rebuild_tests {
         assert_eq!(
             plan(station(true, &built, &stocked, 0), true, true, price).map(|plan| plan.price_cr),
             Ok(price)
+        );
+    }
+
+    /// A field rebuild needs no station: it refuses a live or unanchored
+    /// section, then a hold short of any part, and otherwise takes every
+    /// part from the hold for no credits, whatever the station gates say.
+    #[test]
+    fn a_field_rebuild_takes_every_part_from_the_hold_and_refuses_in_order() {
+        use SectionRebuildRefusalType::*;
+        let items = crate::test_support::test_items();
+        let recipe = pdc_recipe();
+        let stocked = hold(
+            &items,
+            &[
+                ("TurretBody", 1),
+                ("TurretBarrel", 1),
+                ("ActuatorPack", 1),
+                ("SectionPanel", 3),
+            ],
+        );
+        let short = hold(&items, &[("TurretBody", 1), ("SectionPanel", 1)]);
+        let plan = |lost, anchored, own: &ShipInventory| {
+            plan_section_rebuild(
+                &items,
+                "pdc",
+                &recipe,
+                RebuildSiteType::Field,
+                lost,
+                anchored,
+                own,
+            )
+        };
+
+        assert_eq!(plan(false, true, &stocked), Err(SectionNotLost));
+        assert_eq!(plan(true, false, &stocked), Err(Unanchored));
+        assert_eq!(
+            plan(true, true, &short),
+            Err(Payment(RecipePaymentRefusalType::MissingParts {
+                item: "ActuatorPack".into(),
+                short: 1,
+            })),
+            "no station sells the missing part in the field"
+        );
+        assert_eq!(
+            plan(true, true, &hold(&items, &[])),
+            Err(Payment(RecipePaymentRefusalType::MissingParts {
+                item: "ActuatorPack".into(),
+                short: 1,
+            }))
+        );
+        let rebuild = plan(true, true, &stocked).expect("a stocked hold rebuilds in the field");
+        assert_eq!(rebuild.from_hold, recipe.parts);
+        assert!(rebuild.bought.is_empty());
+        assert_eq!(rebuild.price_cr, 0, "a field rebuild pays no work credits");
+    }
+
+    /// A field rebuild takes five seconds a part, never under the floor.
+    #[test]
+    fn a_field_rebuild_takes_longer_than_one_plate_and_grows_with_the_recipe() {
+        let small = BuildRecipe {
+            credits: 10,
+            parts: [("SectionPanel".into(), 2)].into(),
+            strip_yield: 0.5,
+        };
+        assert_eq!(field_rebuild_duration_secs(&small), FIELD_REBUILD_MIN_SECS);
+        assert!(field_rebuild_duration_secs(&small) > PLATE_REPAIR_SECS);
+        assert_eq!(
+            field_rebuild_duration_secs(&pdc_recipe()),
+            FIELD_REBUILD_MIN_SECS.max(5.0 * FIELD_REBUILD_SECS_PER_PART)
+        );
+        let large = BuildRecipe {
+            credits: 10,
+            parts: [("FrameSpar".into(), 40)].into(),
+            strip_yield: 0.5,
+        };
+        assert_eq!(
+            field_rebuild_duration_secs(&large),
+            40.0 * FIELD_REBUILD_SECS_PER_PART
         );
     }
 

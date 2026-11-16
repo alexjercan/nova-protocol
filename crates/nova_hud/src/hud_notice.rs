@@ -20,7 +20,10 @@
 //! player's clamp closing ([`DockClamped`]) posts `DOCKED <NAME>` and letting
 //! go on a request ([`DockReleased`]) posts `UNDOCKED`, on whichever end of
 //! the dock the player's hull is; a dock a Load rebuilds and a dock damage
-//! takes apart raise neither.
+//! takes apart raise neither. A player repair job that ends on its own
+//! ([`RepairJobEnded`]) posts how: `HULL-3 REPAIRED: 2 PLATES`,
+//! `DOCK-1 REBUILT` or `HULL-3 REPAIR STOPPED: NO PLATES`. A cancel posts
+//! nothing: the player pressed it in the Ship pane, which notes it.
 //!
 //! One slot, no queue: a new text replaces the shown one and plays the cue; the
 //! same text again while it shows restarts the dwell and stays quiet. The dwell
@@ -37,7 +40,10 @@ use nova_gameplay::prelude::*;
 use nova_ship::{
     flight::prelude::{MatchRefusal, MatchRefusalType},
     input::prelude::FlightVerbHints,
-    sections::prelude::{DockClamped, DockPressRefusal, DockPressRefusalType, DockReleased},
+    sections::prelude::{
+        DockClamped, DockPressRefusal, DockPressRefusalType, DockReleased, RepairJobEndType,
+        RepairJobEnded,
+    },
 };
 use nova_sound::prelude::*;
 use nova_ui::{
@@ -176,9 +182,10 @@ impl HudNoticeKeepOut<'_, '_> {
 
 /// Registers [`HudNotice`], posts a station's dock refusal, a MATCH refusal,
 /// a refused `DOCK` press, the player's clamp closing and letting go, a
-/// held job's done and a refused supply dock to it, and runs
-/// `post_dock_refusal_notice`, `post_match_refusal_notice`,
-/// `post_dock_press_notice`, `show_hud_notice` and `paint_hud_notice` chained
+/// held job's done, a refused supply dock and a player repair job's end to
+/// it, and runs `post_dock_refusal_notice`, `post_match_refusal_notice`,
+/// `post_dock_press_notice`, `post_repair_job_notice`, `show_hud_notice` and
+/// `paint_hud_notice` chained
 /// in Update within [`NovaHudSystems`]. The box itself is a player-scoped
 /// widget spawned by `NovaHudPlugin`.
 #[derive(Default)]
@@ -191,6 +198,7 @@ impl Plugin for HudNoticePlugin {
         // notice reader stands alone. A second registration is a no-op.
         app.add_message::<MatchRefusal>();
         app.add_message::<DockPressRefusal>();
+        app.add_message::<RepairJobEnded>();
         app.init_resource::<ShownNotice>();
         app.register_type::<HudNoticeMarker>();
         app.register_type::<HudNoticeText>();
@@ -204,6 +212,7 @@ impl Plugin for HudNoticePlugin {
                 post_dock_refusal_notice,
                 post_match_refusal_notice,
                 post_dock_press_notice,
+                post_repair_job_notice,
                 show_hud_notice,
                 paint_hud_notice,
             )
@@ -269,6 +278,64 @@ fn dock_press_refusal_line(refusal: DockPressRefusalType) -> &'static str {
         DockPressRefusalType::NotFacing => "DOCK: NOT FACING",
         DockPressRefusalType::TooFast => "DOCK: TOO FAST",
     }
+}
+
+/// Post how a player ship's repair job ended, unless the player cancelled it.
+fn post_repair_job_notice(
+    mut ended: MessageReader<RepairJobEnded>,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut notices: MessageWriter<HudNotice>,
+) {
+    for ended in ended.read() {
+        if !q_player.contains(ended.ship) {
+            continue;
+        }
+        if let Some(line) = repair_job_end_line(&ended.code, &ended.end) {
+            debug!("hud_notice: {line}");
+            notices.write(HudNotice(line));
+        }
+    }
+}
+
+/// The notice line for a repair job that ended on its own; `None` for a
+/// cancel.
+fn repair_job_end_line(code: &str, end: &RepairJobEndType) -> Option<String> {
+    let plates = |count: u32| {
+        if count == 1 {
+            "1 PLATE".to_string()
+        } else {
+            format!("{count} PLATES")
+        }
+    };
+    Some(match end {
+        RepairJobEndType::Repaired { plates: count } => {
+            format!("{code} REPAIRED: {}", plates(*count))
+        }
+        RepairJobEndType::Rebuilt => format!("{code} REBUILT"),
+        RepairJobEndType::RepairStopped { reason, .. } => {
+            let why = match reason {
+                PlateRepairRefusalType::NoPlates | PlateRepairRefusalType::InsufficientPlates => {
+                    "NO PLATES"
+                }
+                PlateRepairRefusalType::Destroyed | PlateRepairRefusalType::NoIntegrity => {
+                    "SECTION LOST"
+                }
+                PlateRepairRefusalType::Full | PlateRepairRefusalType::ExcessPlates => "FULL",
+            };
+            format!("{code} REPAIR STOPPED: {why}")
+        }
+        RepairJobEndType::RebuildStopped(refusal) => {
+            let why = match refusal {
+                SectionRebuildRefusalType::Payment(_) => "PARTS MISSING",
+                SectionRebuildRefusalType::Unanchored => "NO MOUNT",
+                SectionRebuildRefusalType::SectionNotLost => "NOT LOST",
+                SectionRebuildRefusalType::NoRebuildService
+                | SectionRebuildRefusalType::NotBuilt => "REFUSED",
+            };
+            format!("{code} REBUILD STOPPED: {why}")
+        }
+        RepairJobEndType::Cancelled { .. } => return None,
+    })
 }
 
 /// The hull the player is docked with, when the player's hull is one end of

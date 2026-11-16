@@ -1214,10 +1214,11 @@ impl Default for CreditsChangedEventInfo {
     }
 }
 
-/// A Ship pane repair spent hull plates on a section (`onrepaired`).
+/// A Ship pane repair job fitted hull plates on a section (`onrepaired`).
 ///
-/// One event per confirmed repair that spends at least one plate; a repair
-/// the rule refuses (no plates, a full section) fires nothing.
+/// One event when the job ends, stops or is cancelled, if it fitted at least
+/// one plate, naming every plate it fitted. A repair the rule refuses (no
+/// plates, a full section) starts no job and fires nothing.
 #[derive(Debug, Clone, EventKind, Reflect)]
 #[event_name("onrepaired")]
 #[event_info(RepairedEventInfo)]
@@ -1243,16 +1244,17 @@ pub struct RepairedEventInfo {
     /// Item design id of the plate the repair spent.
     #[serde(rename = "item")]
     pub item: String,
-    /// Plates the repair spent.
+    /// Plates the repair job fitted.
     #[serde(rename = "count")]
     pub count: u32,
 }
 
-/// A Ship pane rebuild at a docked station put a lost section back
-/// (`onrebuilt`).
+/// A Ship pane rebuild at a docked station, or a field rebuild job at its
+/// end, put a lost section back (`onrebuilt`).
 ///
 /// One event per rebuild the rule allows; a refused rebuild fires nothing.
-/// The credits it paid also raise one `OnCreditsChanged` per party.
+/// The credits a station rebuild paid also raise one `OnCreditsChanged` per
+/// party; a field rebuild pays none.
 #[derive(Debug, Clone, EventKind, Reflect)]
 #[event_name("onrebuilt")]
 #[event_info(RebuiltEventInfo)]
@@ -1280,7 +1282,8 @@ pub struct RebuiltEventInfo {
     /// hold and bought together.
     #[serde(rename = "parts")]
     pub parts: std::collections::BTreeMap<String, u32>,
-    /// Credits the ship paid: the recipe's work plus the bought parts at ask.
+    /// Credits the ship paid: the recipe's work plus the bought parts at ask
+    /// at a station, 0 for a field rebuild.
     #[serde(rename = "price_cr")]
     pub price_cr: u32,
 }

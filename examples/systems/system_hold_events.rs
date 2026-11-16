@@ -8,8 +8,10 @@
 //! - DOCK with the real key and Buy the tender's rations through the
 //!   Inventory pane: `OnTraded` once, with the tender as `id`, and
 //!   `OnCreditsChanged` once per party with the signed delta.
-//! - Hurt the bridge and repair it through the Ship pane: `OnRepaired` once,
-//!   naming the pane code and the plates spent.
+//! - Hurt the bridge and repair it through the Ship pane: the pane queues a
+//!   plate job, the job fits the plates once the interface closes and the
+//!   clock runs, and `OnRepaired` fires once, naming the pane code and the
+//!   plates spent.
 //! - Undock and Jettison the rations: `OnJettisoned` once, when the intake
 //!   drops the canister, not when the pane queued it.
 //! - Stand a canister in the intake's trigger: `OnPickedUp` once as the
@@ -463,7 +465,9 @@ mod walk {
             .step("hold_events: one OnTraded, one OnCreditsChanged per party")
             .on_enter(assert_the_trade)
             .add()
-            // REPAIR. Hurt every section, then All and Repair on the pane.
+            // REPAIR. Hurt every section, then All and Repair on the pane. The
+            // pane queues a job; the open interface holds the clock, so the
+            // job fits its plates only once the interface closes.
             .step("hold_events: hurt every section")
             .on_enter(hurt_every_section)
             .until(frames(1))
@@ -494,7 +498,11 @@ mod walk {
         .click_named(
             "hold_events: repair: confirm",
             "ShipRepair",
-            when(|world| held(world, PLAYER_ID, ItemRoleType::HullPlate.id()) == 0),
+            when(|world| {
+                world
+                    .get::<ShipRepairJobs>(root(world, PLAYER_ID))
+                    .is_some_and(|jobs| !jobs.0.is_empty())
+            }),
             SESSION_SECS,
         );
         let script = tap(script, "the interface key", "interface_toggle", unpaused())
@@ -690,8 +698,8 @@ mod walk {
         info!("hold_events: traded {TENDER_RATIONS} rations for {price} cr");
     }
 
-    /// One `OnRepaired` naming the pane code of the one section whose health
-    /// rose, and both plates.
+    /// One `OnRepaired`, at the end of the plate job, naming the pane code of
+    /// the one section whose health rose, and both plates.
     fn assert_the_repair(world: &mut World) {
         let hurt = world.resource::<HoldWatch>().hurt.clone();
         let healed: Vec<(Entity, String)> = hurt

@@ -22,6 +22,7 @@ use nova_ship::{
     flight::prelude::*,
     prelude::{
         CameraAuthoritySystems, DockedHelmType, DockedShip, DockingConnection, HullStripJob,
+        RepairWorkType, ShipRepairJobs,
     },
 };
 use nova_ui::hud::{chip_node, chip_paint, ChipText, ChipTone};
@@ -43,8 +44,8 @@ pub mod prelude {
         autopilot_destination_hud, flight_status_hud, AutopilotDestinationHudConfig,
         AutopilotDestinationHudMarker, AutopilotDestinationUIMarker, FlightStatusHudConfig,
         FlightStatusHudMarker, FlightStatusHudPlugin, FlightStatusHudTargetEntity,
-        ModeChipUIMarker, RcsBudgetChipUIMarker, RcsBudgetPipUIMarker, SpeedChipUIMarker,
-        DESTINATION_MARKER_PX,
+        ModeChipUIMarker, RcsBudgetChipUIMarker, RcsBudgetPipUIMarker, RepairChipUIMarker,
+        SpeedChipUIMarker, DESTINATION_MARKER_PX,
     };
 }
 
@@ -96,6 +97,10 @@ const MODE_CHIP_LIFT_PX: f32 = SPEED_CHIP_LIFT_PX - CHIP_ROW_PITCH_PX;
 /// The RCS magazine chip stacks one row below the speed chip.
 const RCS_CHIP_LIFT_PX: f32 = SPEED_CHIP_LIFT_PX + CHIP_ROW_PITCH_PX;
 
+/// The repair chip stacks one row below the RCS magazine chip, and takes the
+/// RCS row while that chip is hidden ([`closed_up_lift`]).
+const REPAIR_CHIP_LIFT_PX: f32 = RCS_CHIP_LIFT_PX + CHIP_ROW_PITCH_PX;
+
 /// Pips on the RCS magazine chip; each is a tenth of the magazine.
 const RCS_PIPS: usize = 10;
 
@@ -136,6 +141,11 @@ pub struct ModeChipUIMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct RcsBudgetChipUIMarker;
 
+/// Marker for the repair chip: the ship's first running repair job and its
+/// progress. Public for the same reason as [`SpeedChipUIMarker`].
+#[derive(Component, Debug, Clone, Reflect)]
+pub struct RepairChipUIMarker;
+
 /// One pip of the RCS magazine chip, by its index from the left.
 #[derive(Component, Debug, Clone, Copy, Deref, Reflect)]
 pub struct RcsBudgetPipUIMarker(pub usize);
@@ -157,9 +167,9 @@ pub struct FlightStatusHudConfig {
 }
 
 /// UI bundle for the ship status chips: one indicator layer with the speed
-/// chip (anchored to the ship from spawn - it is always on), and the mode and
-/// RCS magazine chips (anchors driven at runtime; they spawn hidden exactly
-/// like the idle state they start in).
+/// chip (anchored to the ship from spawn - it is always on), and the mode,
+/// RCS magazine and repair chips (anchors driven at runtime; they spawn
+/// hidden exactly like the idle state they start in).
 pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
     trace!("flight_status_hud: config {:?}", config);
 
@@ -252,6 +262,20 @@ pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
                     }))),
                 )],
             ),
+            (
+                Name::new("RepairChipUI"),
+                RepairChipUIMarker,
+                chip(None, REPAIR_CHIP_LIFT_PX),
+                Text::new(""),
+                TextFont::from_font_size(CHIP_FONT_PX),
+                TextLayout {
+                    linebreak: LineBreak::NoWrap,
+                    ..default()
+                },
+                chip_paint(ChipTone::Readout),
+                ChipText::value(ChipTone::Readout),
+                TextColor(Color::NONE),
+            ),
         ],
     )
 }
@@ -320,9 +344,10 @@ pub fn autopilot_destination_hud(config: AutopilotDestinationHudConfig) -> impl 
 }
 
 /// Drives the diegetic flight readouts: the speed chip, the autopilot mode
-/// chip, the RCS magazine chip, and the destination marker anchor.
-/// Adds `drive_speed_chip`, `emphasize_speed_on_burn`, `drive_mode_chip`,
-/// `drive_rcs_budget_chip` and `drive_destination_anchor` in Update within
+/// chip, the RCS magazine chip, the repair chip, and the destination marker
+/// anchor. Adds `drive_speed_chip`, `emphasize_speed_on_burn`,
+/// `drive_mode_chip`, `drive_rcs_budget_chip`, `drive_repair_chip` and
+/// `drive_destination_anchor` in Update within
 /// [`super::NovaHudSystems`], plus
 /// `anchor_flight_chips` in PostUpdate between the chase camera and the
 /// indicator projection.
@@ -340,6 +365,7 @@ impl Plugin for FlightStatusHudPlugin {
                 emphasize_speed_on_burn,
                 drive_mode_chip,
                 drive_rcs_budget_chip,
+                drive_repair_chip,
                 drive_destination_anchor,
             )
                 .in_set(super::NovaHudSystems),
@@ -373,7 +399,7 @@ impl Plugin for FlightStatusHudPlugin {
 /// The OUTER radius is used even in flat space, where the gravity shell is
 /// hidden, so the readouts do not jump sideways when a ship leaves a well.
 ///
-/// The chips are one stack that moves as a unit. Its box spans the three
+/// The chips are one stack that moves as a unit. Its box spans the four
 /// rows - always, shown or not, so it does not hop when the mode chip appears -
 /// and [`fit_box`] holds that box inside the view by [`CHIP_VIEW_MARGIN_PX`] on
 /// both axes and clear of the target inset by [`CHIP_INSET_GAP_PX`]. Every chip
@@ -485,6 +511,7 @@ fn anchor_flight_chips(
         .collect::<std::collections::BTreeSet<_>>()
     {
         let stack: Vec<&Placed> = placed.iter().filter(|p| p.hud == hud).collect();
+        let shown: Vec<f32> = stack.iter().map(|p| p.lift).collect();
         let first = stack[0];
         let widest = stack
             .iter()
@@ -497,7 +524,7 @@ fn anchor_flight_chips(
                     left,
                     first.com.y + MODE_CHIP_LIFT_PX - CHIP_ROW_PITCH_PX / 2.0,
                     left + widest,
-                    first.com.y + RCS_CHIP_LIFT_PX + CHIP_ROW_PITCH_PX / 2.0,
+                    first.com.y + REPAIR_CHIP_LIFT_PX + CHIP_ROW_PITCH_PX / 2.0,
                 );
                 fit_box(
                     stack_box,
@@ -513,11 +540,28 @@ fn anchor_flight_chips(
             if let Ok((_, _, mut offset, ..)) = q_chip.get_mut(p.chip) {
                 offset.set_if_neq(ScreenIndicatorOffset(Vec2::new(
                     p.stand_off + p.half_width + delta.x,
-                    p.lift + delta.y,
+                    closed_up_lift(p.lift, &shown) + delta.y,
                 )));
             }
         }
     }
+}
+
+/// The row a chip authored at `lift` is drawn on, given the authored lifts of
+/// the chips shown in its stack. The rows under the speed chip close up over
+/// a hidden row, so the repair chip takes the RCS row while the RCS chip is
+/// off and leaves no empty row. The speed chip and the rows above it keep
+/// their lift. The stack's box still spans every row, so the fit does not
+/// hop when a chip shows.
+fn closed_up_lift(lift: f32, shown: &[f32]) -> f32 {
+    if lift <= SPEED_CHIP_LIFT_PX {
+        return lift;
+    }
+    let shown_above = shown
+        .iter()
+        .filter(|&&other| other > SPEED_CHIP_LIFT_PX && other < lift)
+        .count();
+    SPEED_CHIP_LIFT_PX + CHIP_ROW_PITCH_PX * (shown_above + 1) as f32
 }
 
 /// The RCS violet the velocity sphere wears while RCS has the ship, full for
@@ -698,6 +742,49 @@ fn drive_mode_chip(
     }
 }
 
+/// The ship's first running repair job and its share done, below the RCS
+/// chip, such as `REPAIR HULL-3 40%` or `REBUILD DOCK-1 75% +1` with one more
+/// job running. A ship with no job shows nothing. The jobs run on the game
+/// clock, so the chip shows them moving only in flight.
+fn drive_repair_chip(
+    q_hud: Query<&FlightStatusHudTargetEntity, With<FlightStatusHudMarker>>,
+    mut q_ui: Query<(&mut ScreenIndicatorAnchor, &mut Text, &ChildOf), With<RepairChipUIMarker>>,
+    q_jobs: Query<&ShipRepairJobs>,
+) {
+    for (mut anchor, mut text, &ChildOf(parent)) in &mut q_ui {
+        let Ok(ship) = q_hud.get(parent) else {
+            continue;
+        };
+        let jobs = q_jobs.get(**ship).map_or(&[][..], |jobs| jobs.0.as_slice());
+        let Some(first) = jobs.first() else {
+            anchor.set_if_neq(ScreenIndicatorAnchor(None));
+            if !text.is_empty() {
+                text.clear();
+            }
+            continue;
+        };
+        let verb = match first.work {
+            RepairWorkType::Plates { .. } => "REPAIR",
+            RepairWorkType::FieldRebuild { .. } => "REBUILD",
+        };
+        let more = match jobs.len() - 1 {
+            0 => String::new(),
+            more => format!(" +{more}"),
+        };
+        let line = format!(
+            "{verb} {} {:.0}%{more}",
+            first.code,
+            first.progress() * 100.0
+        );
+        anchor.set_if_neq(ScreenIndicatorAnchor(Some(
+            ScreenIndicatorAnchorKind::Entity(**ship),
+        )));
+        if **text != line {
+            **text = line;
+        }
+    }
+}
+
 /// Anchor the destination marker to the engaged GOTO destination; manual
 /// mode, STOP, or a vanished destination clear the anchor, and the widget
 /// hides the marker (including while the destination is behind the camera).
@@ -741,6 +828,28 @@ mod tests {
 
     use super::*;
     use crate::prelude::ManeuverChip;
+
+    #[test]
+    fn the_repair_chip_takes_the_rcs_row_while_the_rcs_chip_is_hidden() {
+        let without_rcs = [SPEED_CHIP_LIFT_PX, REPAIR_CHIP_LIFT_PX];
+        assert_eq!(
+            closed_up_lift(REPAIR_CHIP_LIFT_PX, &without_rcs),
+            RCS_CHIP_LIFT_PX
+        );
+        let with_rcs = [SPEED_CHIP_LIFT_PX, RCS_CHIP_LIFT_PX, REPAIR_CHIP_LIFT_PX];
+        assert_eq!(
+            closed_up_lift(REPAIR_CHIP_LIFT_PX, &with_rcs),
+            REPAIR_CHIP_LIFT_PX
+        );
+        assert_eq!(
+            closed_up_lift(RCS_CHIP_LIFT_PX, &with_rcs),
+            RCS_CHIP_LIFT_PX
+        );
+        assert_eq!(
+            closed_up_lift(MODE_CHIP_LIFT_PX, &[MODE_CHIP_LIFT_PX]),
+            MODE_CHIP_LIFT_PX
+        );
+    }
 
     fn spawn_status_hud(world: &mut World, ship: Entity) -> (Entity, Entity) {
         let layer = world

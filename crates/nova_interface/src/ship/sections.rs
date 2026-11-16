@@ -454,8 +454,9 @@ pub(crate) fn takes_a_player_binding(kind: SectionClass) -> bool {
 const MAIN_DRIVE_ACTION: &str = "main_drive";
 
 /// Whether Repair is valid for a section, plus a reason for a disabled
-/// action. Uses the same [`plan_plate_repair`] check as [`repair_section`], so
-/// the panel button never disagrees with the handler.
+/// action. Uses the same [`plan_plate_repair`] check as
+/// [`start_plate_repair`], so the panel button never disagrees with the
+/// handler.
 pub(crate) struct PanelActions {
     pub(crate) repair_enabled: bool,
     pub(crate) reason: Option<String>,
@@ -468,6 +469,16 @@ impl PanelActions {
             repair_enabled: false,
             reason: None,
         }
+    }
+}
+
+/// The hull plates in `inventory` that no running repair job of `jobs` has
+/// queued: the stock a new plate job may take.
+pub(crate) fn free_plates(inventory: &ShipInventory, jobs: Option<&ShipRepairJobs>) -> u32 {
+    let plate = ItemDesignId::from(ItemRoleType::HullPlate);
+    match jobs {
+        Some(jobs) => jobs.free_hold(inventory).count(&plate),
+        None => inventory.count(&plate),
     }
 }
 
@@ -497,8 +508,8 @@ pub(crate) fn panel_action_state(
     }
 }
 
-/// A request to repair a player-ship section from hull plates, raised by the
-/// pane's repair key and panel button.
+/// A request to start a plate repair job on a player-ship section, raised by
+/// the pane's repair key and panel button.
 #[derive(Message, Clone, Copy, Debug)]
 pub struct SectionRepairCommand {
     /// The target section entity.
@@ -508,7 +519,7 @@ pub struct SectionRepairCommand {
 }
 
 /// The note line for a refused repair; the panel and the handler share it.
-fn repair_refusal_text(code: &str, refusal: PlateRepairRefusalType) -> String {
+pub(crate) fn repair_refusal_text(code: &str, refusal: PlateRepairRefusalType) -> String {
     match refusal {
         PlateRepairRefusalType::NoIntegrity => {
             format!("repair: {code} has no integrity to restore")
@@ -516,10 +527,10 @@ fn repair_refusal_text(code: &str, refusal: PlateRepairRefusalType) -> String {
         PlateRepairRefusalType::Destroyed => format!("repair: {code} is destroyed"),
         PlateRepairRefusalType::Full => format!("repair: {code} is at full integrity"),
         PlateRepairRefusalType::NoPlates => {
-            "repair: no hull plates selected or in stock".to_string()
+            "repair: no hull plates selected or free in the hold".to_string()
         }
         PlateRepairRefusalType::InsufficientPlates => {
-            format!("repair: {code} request exceeds live hull plate stock")
+            format!("repair: {code} request exceeds the free hull plates")
         }
         PlateRepairRefusalType::ExcessPlates => {
             format!("repair: {code} request exceeds live missing integrity")
@@ -527,54 +538,41 @@ fn repair_refusal_text(code: &str, refusal: PlateRepairRefusalType) -> String {
     }
 }
 
-/// Repair a section from the player ship's hull plates by the
-/// [`plan_plate_repair`] rule: spend the plates and set Health together, or
-/// change nothing. `disabled` is true when the section carries
-/// `IntegrityDisabledMarker`. A repair that spends plates queues one
-/// `Repaired` report for the scenario's `OnRepaired`.
-pub(crate) fn repair_section(
+/// Start a plate repair job on a section by the [`plan_plate_repair`] rule,
+/// or change nothing. `free_plates` is the plates no running job has queued
+/// ([`ShipRepairJobs::free_hold`]), and `busy` is true while the section
+/// already has a job. The job spends nothing now: the repair job tick fits
+/// one plate per [`PLATE_REPAIR_SECS`] while the game clock runs.
+pub(crate) fn start_plate_repair(
     code: &str,
-    health: Option<&mut Health>,
+    section: Entity,
+    health: Option<&Health>,
     disabled: bool,
+    busy: bool,
     requested_plates: u32,
-    inventory: &mut ShipInventory,
-    reports: &mut ShipInventoryReports,
-) -> TerminalRow {
-    let refused = |refusal| TerminalRow {
+    free_plates: u32,
+) -> Result<(RepairJob, TerminalRow), TerminalRow> {
+    let refused = |text| TerminalRow {
         kind: TerminalRowKind::Error,
-        text: repair_refusal_text(code, refusal),
+        text,
     };
-    let Some(health) = health else {
-        return refused(PlateRepairRefusalType::NoIntegrity);
-    };
-    match plan_plate_repair(
-        Some(health),
-        disabled,
-        requested_plates,
-        inventory.count(&ItemDesignId::from(ItemRoleType::HullPlate)),
-    ) {
-        Ok(repair) => {
-            let plate = ItemDesignId::from(ItemRoleType::HullPlate);
-            inventory.remove(&plate, repair.plates);
-            health.current = repair.current;
-            reports.0.push(ShipInventoryReport::Repaired {
-                section: code.to_string(),
-                item: plate,
-                count: repair.plates,
-            });
-            let noun = if repair.plates == 1 {
-                "plate"
-            } else {
-                "plates"
-            };
-            TerminalRow {
-                kind: TerminalRowKind::Info,
-                text: format!(
-                    "repaired {code}: {} hull {noun}, {:.0}/{:.0} HP",
-                    repair.plates, health.current, health.max
-                ),
-            }
-        }
-        Err(refusal) => refused(refusal),
+    if busy {
+        return Err(refused(format!("repair: {code} is already under repair")));
     }
+    let repair = plan_plate_repair(health, disabled, requested_plates, free_plates)
+        .map_err(|refusal| refused(repair_refusal_text(code, refusal)))?;
+    let noun = if repair.plates == 1 {
+        "plate"
+    } else {
+        "plates"
+    };
+    Ok((
+        RepairJob::plates(section, code.to_string(), repair.plates),
+        TerminalRow {
+            kind: TerminalRowKind::Info,
+            // No duration: the job row owns the time left, and a one-shot
+            // note would go stale against it.
+            text: format!("repairing {code}: {} hull {noun} queued", repair.plates),
+        },
+    ))
 }

@@ -996,7 +996,12 @@ pub(crate) fn build_ship_integrity_graph(
                 .iter()
                 .map(|neighbor| sections[*neighbor].0)
                 .collect();
-            commands.entity(*section).insert(ConnectedTo(connected));
+            // `try_insert`: the section list was read this frame, and a
+            // section destroyed in the same frame (a hit landing as a rebuilt
+            // section joins the ship) can be despawned by a command applied
+            // before this one. A despawned section needs no `ConnectedTo`;
+            // a plain insert there is a command error that ends the app.
+            commands.entity(*section).try_insert(ConnectedTo(connected));
         }
     }
 }
@@ -2659,6 +2664,35 @@ mod physics_tests {
         assert_eq!(bridge_neighbors.len(), 2);
         assert!(bridge_neighbors.contains(&left));
         assert!(bridge_neighbors.contains(&right));
+    }
+
+    #[test]
+    fn a_section_despawned_in_the_graph_build_frame_leaves_the_rest_connected() {
+        #[derive(Resource)]
+        struct Doomed(Entity);
+        fn despawn_doomed(mut commands: Commands, doomed: Res<Doomed>) {
+            commands.entity(doomed.0).despawn();
+        }
+
+        let mut app = App::new();
+        // The death path's despawn is queued first and applies first, after
+        // the builder has read every section of the spawn batch: no sync
+        // point between them, as in a frame where both land.
+        app.add_systems(
+            Update,
+            (despawn_doomed, build_ship_integrity_graph).chain_ignore_deferred(),
+        );
+        let root = app.world_mut().spawn(SpaceshipRootMarker).id();
+        let left = spawn_section(&mut app, root, Vec3::ZERO);
+        let right = spawn_section(&mut app, root, Vec3::X);
+        let doomed = spawn_section(&mut app, root, Vec3::X * 2.0);
+        app.insert_resource(Doomed(doomed));
+
+        app.update();
+
+        assert!(app.world().get_entity(doomed).is_err());
+        assert_eq!(neighbors(&app, left), vec![right]);
+        assert!(neighbors(&app, right).contains(&left));
     }
 
     #[test]

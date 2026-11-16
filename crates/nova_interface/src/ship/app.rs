@@ -1,8 +1,7 @@
-//! The Ship pane's side panel layout and the handler for the repair action
-//! its key and panel button route into `SectionRepairCommand`.
+//! The Ship pane's side panel layout and the handler that starts a plate
+//! repair job from the `SectionRepairCommand` its key and panel button raise.
 //!
-//! Touch this module when changing the ship panel or what the repair action
-//! does.
+//! Touch this module when changing the ship panel or how a repair starts.
 
 use bevy::{
     input::mouse::MouseWheel,
@@ -18,8 +17,8 @@ use bevy::{
         Button, Slider, SliderPrecision, SliderRange, SliderStep, SliderValue, TrackClick,
     },
 };
-use nova_command::prelude::TerminalRowKind;
 use nova_gameplay::prelude::*;
+use nova_ship::prelude::{RepairJobKey, ShipRepairJobs};
 use nova_sound::prelude::*;
 use nova_ui::{
     screen::drive_wheel_scroll,
@@ -34,6 +33,7 @@ use super::{
     delete::on_ship_delete_button,
     held::{spawn_ship_held_block, ShipSelectionBlock},
     rebuild::spawn_ship_rebuild_list,
+    repair_jobs::spawn_ship_repair_jobs,
     scene::*,
     sections::*,
 };
@@ -68,8 +68,8 @@ pub(crate) fn scroll_ship_panel(
 /// Build the section panel: the selected section's icon over its code, name
 /// and condition bar; its binding; Rebind; the Salvage block with what Delete
 /// gives back over the Delete button, muted with the reason as its tooltip
-/// while it is refused; the note line; the repair form;
-/// and the lost-section list, beside the view. While a part is in hand the
+/// while it is refused; the note line; the repair form; the Repairs block
+/// with the running jobs; and the lost-section list, beside the view. While a part is in hand the
 /// Placing block (`super::held`) stands in place of all of it. The parts a station builds are
 /// in the gallery the footer's Catalogue button opens (`super::catalogue`).
 /// [`update_ship_panel`] fills it. The texts carry a [`ShipPanelField`] so one
@@ -320,6 +320,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                                 .observe(on_ship_repair_button);
                             });
                     });
+                spawn_ship_repair_jobs(panel);
                 spawn_ship_rebuild_list(panel);
             });
         });
@@ -421,49 +422,83 @@ pub(crate) fn sync_ship_rebind_click_guard(
 }
 
 /// Apply in-app [`SectionRepairCommand`] messages (the `P` action key and the
-/// panel button) to player-ship sections, and flash the result on the panel
-/// note line. A target that is not a live section of the player ship is
-/// skipped with no note: every writer takes it from the pane's own list.
+/// panel button) to player-ship sections: start a plate repair job by
+/// [`start_plate_repair`], and flash the result on the panel note line. A
+/// target that is not a live section of the player ship is skipped with no
+/// note: every writer takes it from the pane's own list.
+#[expect(
+    clippy::type_complexity,
+    reason = "the player ship's hold and jobs beside the section reads"
+)]
 pub(crate) fn apply_ship_section_commands(
     mut messages: MessageReader<SectionRepairCommand>,
     mut runtime: ResMut<ShipRuntime>,
     mut q_player: Query<
-        (
-            Entity,
-            Option<&mut ShipInventory>,
-            &mut ShipInventoryReports,
-        ),
+        (Entity, Option<&ShipInventory>, Option<&mut ShipRepairJobs>),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
-    q_view: Query<(&ChildOf, &SectionCode, Has<IntegrityDisabledMarker>), With<SectionMarker>>,
-    mut q_health: Query<&mut Health>,
+    q_view: Query<
+        (
+            &ChildOf,
+            &SectionCode,
+            Option<&Health>,
+            Has<IntegrityDisabledMarker>,
+        ),
+        With<SectionMarker>,
+    >,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
 ) {
-    let Ok((player, inventory, mut reports)) = q_player.single_mut() else {
+    let Ok((player, inventory, jobs)) = q_player.single_mut() else {
         messages.clear();
         return;
     };
-    let mut inventory = inventory.expect("the player ship carries a ShipInventory");
+    let inventory = inventory.expect("the player ship carries a ShipInventory");
+    // The jobs this frame starts, on top of the ones already running, so two
+    // commands in one frame see each other.
+    let mut running = jobs.as_deref().cloned().unwrap_or_default();
+    let mut started = Vec::new();
     for command in messages.read() {
-        let Ok((child, code, disabled)) = q_view.get(command.target) else {
+        let Ok((child, code, health, disabled)) = q_view.get(command.target) else {
             continue;
         };
         if child.0 != player {
             continue;
         }
-        let row = repair_section(
+        let free_plates = running
+            .free_hold(inventory)
+            .count(&ItemDesignId::from(ItemRoleType::HullPlate));
+        let row = match start_plate_repair(
             &code.0,
-            q_health.get_mut(command.target).ok().as_deref_mut(),
+            command.target,
+            health,
             disabled,
+            running
+                .get(&RepairJobKey::Section(command.target))
+                .is_some(),
             command.requested_plates,
-            &mut inventory,
-            &mut reports,
-        );
-        match row.kind {
-            TerminalRowKind::Error => play_menu_deny(&mut commands, bank.as_deref()),
-            _ => play_menu_select(&mut commands, bank.as_deref()),
-        }
+            free_plates,
+        ) {
+            Ok((job, row)) => {
+                running.push(job.clone());
+                started.push(job);
+                play_menu_select(&mut commands, bank.as_deref());
+                row
+            }
+            Err(row) => {
+                play_menu_deny(&mut commands, bank.as_deref());
+                row
+            }
+        };
         runtime.note = Some((row.text, 2.5));
+    }
+    if started.is_empty() {
+        return;
+    }
+    match jobs {
+        Some(mut jobs) => jobs.0.extend(started),
+        None => {
+            commands.entity(player).insert(ShipRepairJobs(started));
+        }
     }
 }

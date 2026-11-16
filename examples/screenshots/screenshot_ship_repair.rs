@@ -173,7 +173,7 @@ fn the_hull_is_selected() -> std::sync::Arc<nova_protocol::nova_debug::harness::
 #[cfg(feature = "debug")]
 fn full_preview(max: f32) -> String {
     format!(
-        "Predicted integrity: {max:.0}/{max:.0} HP\n1 hull plate restores up to {HULL_PLATE_HEALTH:.0} HP."
+        "Predicted integrity: {max:.0}/{max:.0} HP\nA plate fits every {PLATE_REPAIR_SECS:.0} s, up to {HULL_PLATE_HEALTH:.0} HP."
     )
 }
 
@@ -227,7 +227,7 @@ fn check_the_draft(world: &mut World) {
         stock, STOCKED_PLATES,
         "screenshot_ship_repair: plates spent before Repair"
     );
-    let stock_line = format!("{STOCKED_PLATES} plates in stock");
+    let stock_line = format!("{STOCKED_PLATES} plates free in the hold");
     assert_eq!(
         visible_texts(world, |text| text == stock_line),
         1,

@@ -22,7 +22,7 @@ use nova_gameplay::prelude::*;
 use nova_input::prelude::InputBindings;
 use nova_ship::prelude::{
     derive_link_point_graph, GameSections, HeldPart, MountPose, PlacedSectionCollider,
-    PlacedSectionLinkPoints,
+    PlacedSectionLinkPoints, RepairJobKey, ShipRepairJobs,
 };
 use nova_sound::prelude::*;
 use nova_ui::{
@@ -798,7 +798,7 @@ pub(crate) fn ship_input(
     catalogue: Option<Res<GameSections>>,
     mut commands: MessageWriter<SectionRepairCommand>,
     mut deletes: MessageWriter<SectionDeleteCommand>,
-    q_inventory: Query<&ShipInventory, With<PlayerSpaceshipMarker>>,
+    q_inventory: Query<(&ShipInventory, Option<&ShipRepairJobs>), With<PlayerSpaceshipMarker>>,
     mut q_camera: Query<&mut ShipOrbit, With<ShipCameraMarker>>,
     mut q_mates: Query<&mut Visibility, With<ShipMateOverlay>>,
     q_panel: Query<&bevy::picking::hover::Hovered, With<ShipPanelMarker>>,
@@ -919,7 +919,7 @@ pub(crate) fn ship_input(
         let stock = q_inventory
             .single()
             .ok()
-            .map(|stock| stock.count(&ItemDesignId::from(ItemRoleType::HullPlate)));
+            .map(|(stock, jobs)| free_plates(stock, jobs));
         runtime.requested_plates = view.map(|view| {
             plate_repair_limit(view.health.as_ref(), view.disabled, stock.unwrap_or(0))
         });
@@ -1359,7 +1359,7 @@ pub(crate) fn on_ship_repair_all_button(
     _activate: On<Activate>,
     mut runtime: ResMut<ShipRuntime>,
     sections: ShipSections,
-    inventory: Query<&ShipInventory, With<PlayerSpaceshipMarker>>,
+    inventory: Query<(&ShipInventory, Option<&ShipRepairJobs>), With<PlayerSpaceshipMarker>>,
 ) {
     let Some(view) = runtime.selected.and_then(|selected| {
         sections
@@ -1369,13 +1369,13 @@ pub(crate) fn on_ship_repair_all_button(
     }) else {
         return;
     };
-    let Ok(stock) = inventory.single() else {
+    let Ok((stock, jobs)) = inventory.single() else {
         return;
     };
     runtime.requested_plates = Some(plate_repair_limit(
         view.health.as_ref(),
         view.disabled,
-        stock.count(&ItemDesignId::from(ItemRoleType::HullPlate)),
+        free_plates(stock, jobs),
     ));
 }
 
@@ -1384,7 +1384,7 @@ pub(crate) fn on_ship_repair_slider(
     change: On<ValueChange<f32>>,
     mut runtime: ResMut<ShipRuntime>,
     sections: ShipSections,
-    inventory: Query<&ShipInventory, With<PlayerSpaceshipMarker>>,
+    inventory: Query<(&ShipInventory, Option<&ShipRepairJobs>), With<PlayerSpaceshipMarker>>,
 ) {
     let Some(view) = runtime.selected.and_then(|selected| {
         sections
@@ -1394,13 +1394,13 @@ pub(crate) fn on_ship_repair_slider(
     }) else {
         return;
     };
-    let Ok(stock) = inventory.single() else {
+    let Ok((stock, jobs)) = inventory.single() else {
         return;
     };
     let max = plate_repair_limit(
         view.health.as_ref(),
         view.disabled,
-        stock.count(&ItemDesignId::from(ItemRoleType::HullPlate)),
+        free_plates(stock, jobs),
     );
     if max > 0 {
         runtime.requested_plates = Some(change.value.round().clamp(1.0, max as f32) as u32);
@@ -1498,7 +1498,7 @@ pub(crate) fn update_ship_panel(
         ),
         With<ShipRepairQuantity>,
     >,
-    q_inventory: Query<&ShipInventory, With<PlayerSpaceshipMarker>>,
+    q_inventory: Query<(&ShipInventory, Option<&ShipRepairJobs>), With<PlayerSpaceshipMarker>>,
 ) {
     if !runtime.active {
         return;
@@ -1512,9 +1512,14 @@ pub(crate) fn update_ship_panel(
     // no-section state rather than panicking on a query the scene hasn't
     // caught up to yet.
     let inventory = q_inventory.single().ok();
-    let stock = inventory.map_or(0, |inventory| {
-        inventory.count(&ItemDesignId::from(ItemRoleType::HullPlate))
-    });
+    let stock = inventory.map_or(0, |(inventory, jobs)| free_plates(inventory, jobs));
+    // A section under repair takes no second job: its form hides and the
+    // Repairs block shows the running one.
+    let busy = |view: &ShipSectionView| {
+        inventory
+            .and_then(|(_, jobs)| jobs)
+            .is_some_and(|jobs| jobs.get(&RepairJobKey::Section(view.entity)).is_some())
+    };
     let selected = inventory.and(selected);
     // This system's own rewrite below does not read as a change on its next
     // run, so only the player's typing lands here.
@@ -1551,6 +1556,7 @@ pub(crate) fn update_ship_panel(
     let form = selected
         .as_ref()
         .filter(|_| !read_only)
+        .filter(|view| !busy(view))
         .filter(|view| plate_repair_limit(view.health.as_ref(), view.disabled, u32::MAX) > 0)
         .map(|view| {
             let summary = match requested {
@@ -1559,9 +1565,10 @@ pub(crate) fn update_ship_panel(
                     plan_plate_repair(view.health.as_ref(), view.disabled, requested, stock)
                         .map(|repair| {
                             format!(
-                                "Predicted integrity: {:.0}/{:.0} HP\n1 hull plate restores up to {:.0} HP.",
+                                "Predicted integrity: {:.0}/{:.0} HP\nA plate fits every {:.0} s, up to {:.0} HP.",
                                 repair.current,
                                 view.health.as_ref().map_or(0.0, |h| h.max),
+                                PLATE_REPAIR_SECS,
                                 HULL_PLATE_HEALTH
                             )
                         })
@@ -1569,7 +1576,7 @@ pub(crate) fn update_ship_panel(
                 }
             };
             let noun = if stock == 1 { "plate" } else { "plates" };
-            (format!("{stock} {noun} in stock"), summary)
+            (format!("{stock} {noun} free in the hold"), summary)
         });
     let title = match &selected {
         Some(view) => format!("{}  {}", view.code, view.name),

@@ -1104,12 +1104,12 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Repair a section",
             looping(
                 "interface_ship_service",
-                "the Ship pane's inspector on a damaged PDC-1: Repair spends hull plates and \
-                 fills the integrity meter",
+                "the Ship pane's inspector on PDC-1 after its repair job ran in flight: the \
+                 integrity meter is full again",
             ),
             "The Ship pane shows your hull. Sections use short codes such as `THR-1` and `PDC-1`. \
-             Select a damaged section to repair it with hull plates from your inventory: each \
-             plate restores up to 20 HP. The repair happens immediately.",
+             Select a damaged section to repair it with hull plates from your inventory: one \
+             plate fits every 4 s in flight, up to 20 HP.",
             &["viewer_next", "viewer_prev", "ship_repair"],
             "wiki/interface#the-ship",
             None,

@@ -38,9 +38,12 @@
 //! key or panel button -> message), spending hull plates from the player
 //! ship's `ShipInventory`.
 //!
-//! While the ship is docked at a living station that offers Rebuild, the
-//! panel lists the design sections the ship has lost, each under its design
-//! code, with a Rebuild button that raises a `SectionRebuildCommand`. While
+//! The panel lists the design sections the ship has lost, each under its
+//! design code, with a Rebuild button that raises a `SectionRebuildCommand`:
+//! at once at a docked station that offers Rebuild, or as a timed field
+//! rebuild from the hold's parts while the ship is undocked. Repair and field
+//! rebuild run as jobs on the game clock; the Repairs block shows each with
+//! its progress bar and Cancel. While
 //! it is docked at a living station that offers Refit, the footer's Catalogue
 //! button opens the parts gallery over the pane: the parts the station can
 //! build, each with its price, and Swap on the focus card for a part of the
@@ -62,6 +65,7 @@
 //! | `sections` | Section codes, the live section view and the repair seam. |
 //! | `app` | The side panel layout and the repair action handler. |
 //! | `rebuild` | The lost-section list and the rebuild action handler. |
+//! | `repair_jobs` | The Repairs block: running repair jobs, their bars and Cancel. |
 //! | `refit` | The Swap and Add action handlers and their refusal lines. |
 //! | `delete` | The Delete action: its rule, handler and refusal lines. |
 //! | `catalogue` | The station catalogue: the gallery host, its listing and Swap. |
@@ -77,6 +81,7 @@ mod held;
 mod rebind;
 mod rebuild;
 mod refit;
+mod repair_jobs;
 mod scene;
 mod sections;
 
@@ -88,8 +93,8 @@ use nova_ship::prelude::{PartsGalleryPlugin, PartsGallerySystems};
 use nova_ui::input_mode::prelude::{in_input_mode, InputMode};
 
 pub(crate) use self::{
-    app::*, catalogue::*, delete::*, ghost::*, held::*, rebind::*, rebuild::*, refit::*, scene::*,
-    sections::*,
+    app::*, catalogue::*, delete::*, ghost::*, held::*, rebind::*, rebuild::*, refit::*,
+    repair_jobs::*, scene::*, sections::*,
 };
 pub use self::{
     delete::{delete_yield_lines, SectionDeleteCommand},
@@ -198,6 +203,7 @@ impl Plugin for ShipPanePlugin {
                     sync_ship_rebind_click_guard,
                     update_ship_held_block,
                     update_ship_rebuild_list.run_if(ship_view_editable),
+                    update_ship_repair_jobs.run_if(ship_view_editable),
                 )
                     .chain(),
             )

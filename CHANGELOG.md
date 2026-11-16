@@ -15,6 +15,23 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ## [Unreleased]
 
+### Gameplay & Flight
+
+- Ship pane repairs are now timed jobs: one hull plate every 4 s of game time, spent as it is fitted. Jobs on several sections run side by side; Tab and pause hold them; Cancel keeps fitted plates.
+
+### Ships & Sections
+
+- Undocked, a lost section rebuilds in the field from its recipe parts in the hold, with no credits, 5 s a part (20 s at least). A lost docking port no longer ends docking for good.
+- A section destroyed in the same frame its ship's section graph was built no longer stops the game with an "Entity despawned" command error.
+
+### Modding & Mod Portal
+
+- `OnRepaired` now fires when a repair job ends, with every plate it fitted. `OnRebuilt` also fires for a field rebuild, with `price_cr: 0` and no `OnCreditsChanged`.
+
+### Interface & HUD
+
+- The Ship pane lists running repairs with a bar, the time left and Cancel. In flight a chip under the RCS pips shows the first job, and a notice says how each one ends.
+
 ## [0.18.0] - 2026-11-15
 
 ### Gameplay & Flight

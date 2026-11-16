@@ -7,22 +7,24 @@
 //! interface comes up once, M switches to the Ship pane, and both
 //! demonstrations are photographed off the same inspector panel.
 //!
-//! ## Both are ACTION loops
+//! ## The rebind sheet is an ACTION loop, the service sheet a POSE loop
 //!
-//! Both lessons were authored as STILLS, and a still cannot make either claim.
-//! "Repair restores its integrity" photographed as a still is a picture of a
-//! meter at some reading, with nothing saying what moved it; "the next key
-//! takes over its trigger" is a picture of an amber line asking for a key that
-//! never arrives. So both are loops
-//! (`crates/nova_authoring/src/base_content/lessons.rs`) and their alt text
-//! describes the footage.
+//! "The next key takes over its trigger" photographed as a still is a picture
+//! of an amber line asking for a key that never arrives, so the rebind sheet
+//! records the prompt arming and the binding line taking a new key.
+//!
+//! A repair cannot be one two-second action. Repair queues a plate job, and
+//! the job fits one plate every 4 s of game time, which the open interface
+//! stops (`PauseStates::Interface` holds `Time<Virtual>` and `Time<Physics>`
+//! through `NovaMenuPlugin`). So the walk queues the repair, proves the open
+//! pane holds the job, closes the pane, flies until the job has fitted every
+//! plate, and reopens the pane: the service sheet is the repaired panel, its
+//! meter full again. The alt text in
+//! `crates/nova_authoring/src/base_content/lessons.rs` says so.
 //!
 //! The camera never moves, and there is no [`LessonSweep`](lesson::LessonSweep)
-//! here at all: the interface freezes the game (`PauseStates::Interface` stops
-//! `Time<Virtual>` and `Time<Physics>`) and hands the window to a themed pane
-//! that does not care where the world camera stands. What moves in the cell is
-//! the PANEL - the meter filling, the amber prompt arriving and the binding
-//! line taking a new key.
+//! here at all: the interface hands the window to a themed pane that does not
+//! care where the world camera stands.
 //!
 //! ## Why the turret is the section both sheets sit on
 //!
@@ -51,17 +53,16 @@
 //! trigger a player ship's turret carries (`shared/computer.rs`), because a
 //! section with no binding cannot be rebound - the pane disables the button.
 //!
-//! ## Why the interface is closed and reopened between the two sheets
+//! ## Why the interface is closed and reopened before each sheet
 //!
 //! The panel's note line is a transient (`ShipRuntime.note`), and it counts
 //! down on real time. An armed capture pins that clock at one cell per frame,
-//! so a 2.5 s note outlives a twenty-cell sheet, and the rebind sheet would
-//! have opened with the repair's own note line still sitting under the
-//! buttons. Leaving the pane clears the note, the selection and any armed
-//! rebind (`manage_ship_scene`'s teardown), so the walk closes the interface
-//! with TAB, reopens it - TAB reopens the last pane, which is Ship - and
-//! re-cycles. The second sheet then opens on a panel that says only what it
-//! is about.
+//! so a 2.5 s note outlives a twenty-cell sheet: the repair's own note line
+//! would sit under the buttons of whatever is recorded next. Leaving the pane
+//! clears the note, the selection and any armed rebind (`manage_ship_scene`'s
+//! teardown), so the walk closes the interface with TAB, reopens it - TAB
+//! reopens the last pane, which is Ship - and re-cycles. Each sheet then opens
+//! on a panel that says only what it is about.
 //!
 //! ## What did not work
 //!
@@ -116,7 +117,7 @@ const SERVICE_LESSON: &str = "interface_ship_service";
 #[cfg(feature = "debug")]
 const REBIND_LESSON: &str = "interface_rebind_section";
 
-/// Cells each sheet opens on before the first key goes down.
+/// Cells the rebind sheet opens on before the first key goes down.
 ///
 /// A step's entry takes a frame of its own and `frames(n)` is polled from the
 /// next one, so this is four cells: long enough to read the panel the action
@@ -124,9 +125,16 @@ const REBIND_LESSON: &str = "interface_rebind_section";
 #[cfg(feature = "debug")]
 const LEAD_CELLS: u32 = 3;
 
-/// Cells the repaired panel holds before the interface closes.
+/// Frames the open pane must hold the queued repair job with no plate
+/// fitted: proof the interface stops the job's clock.
 #[cfg(feature = "debug")]
-const REPAIR_CELLS: u32 = 4;
+const HELD_FRAMES: u32 = 10;
+
+/// Real seconds the walk flies while the job fits every plate: up to
+/// [`STOCKED_PLATES`] plates at 4 s of game time each, with room for a slow
+/// software renderer.
+#[cfg(feature = "debug")]
+const REPAIR_FLIGHT_DEADLINE_SECS: f32 = 120.0;
 
 /// Cells the armed rebind prompt holds before the new key arrives.
 ///
@@ -166,7 +174,12 @@ const STEPS_TO_THE_TURRET: usize = 2;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
-    let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
+    // NovaMenuPlugin explicitly: the interface's clock hold lives in
+    // nova_menu, and `with_game_plugins` turns the menu plugin off. The service
+    // sheet stands on that hold: the open pane keeps the repair job still.
+    let mut app = AppBuilder::new()
+        .with_game_plugins((custom_plugin, NovaMenuPlugin))
+        .build();
 
     #[cfg(feature = "debug")]
     {
@@ -235,6 +248,40 @@ fn the_ship_spent_hull_plates() -> std::sync::Arc<nova_protocol::nova_debug::har
                 ships.iter(world).any(|inventory| {
                     inventory.count(&ItemRoleType::HullPlate.into()) < STOCKED_PLATES
                 })
+            })
+    })
+}
+
+/// Advance once the player ship runs a repair job that has fitted no plate
+/// yet, with the hold still full.
+#[cfg(feature = "debug")]
+fn the_job_waits_unspent() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<(&ShipRepairJobs, &ShipInventory), With<PlayerSpaceshipMarker>>()
+            .is_some_and(|mut ships| {
+                ships.iter(world).any(|(jobs, inventory)| {
+                    !jobs.0.is_empty()
+                        && jobs
+                            .0
+                            .iter()
+                            .all(|job| matches!(job.work, RepairWorkType::Plates { spent: 0, .. }))
+                        && inventory.count(&ItemRoleType::HullPlate.into()) == STOCKED_PLATES
+                })
+            })
+    })
+}
+
+/// Advance once the player ship runs no repair job.
+#[cfg(feature = "debug")]
+fn no_job_runs() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<Option<&ShipRepairJobs>, With<PlayerSpaceshipMarker>>()
+            .is_some_and(|mut ships| {
+                ships
+                    .iter(world)
+                    .all(|jobs| jobs.is_none_or(|jobs| jobs.0.is_empty()))
             })
     })
 }
@@ -394,39 +441,56 @@ fn ship_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .until(the_turret_reads(|health| health.current < health.max))
         .deadline(STEP_DEADLINE_SECS)
         .add()
-        .step("open the service sheet on the damaged panel")
-        .on_enter(|world: &mut World| sheet_start(world, SERVICE_LESSON, LESSON_GRID))
-        .until(frames(LEAD_CELLS))
-        .add()
         .step("press repair")
         .on_enter(press_action("ship_repair"))
         .until(frames(1))
         .add()
-        // The honest end of "repair spends hull plates and fills the
-        // integrity meter": the section's own health and the ship's own
-        // stock, not a frame count that would have passed either way.
-        .step("let the key up and watch the meter fill")
+        // The open pane holds the game clock, so the queued job fits nothing
+        // while it shows. A plate fitted here fails this beat by name.
+        .step("let the key up and hold the queued job")
         .on_enter(release_action("ship_repair"))
+        .until(and(the_job_waits_unspent(), frames(HELD_FRAMES)))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("close the interface to fly the job")
+        .on_enter(press_action("interface_toggle"))
+        .until(frames(1))
+        .add()
+        .step("let the key up and wait for the flight")
+        .on_enter(release_action("interface_toggle"))
+        .until(resource_where::<State<PauseStates>>(|pause| {
+            *pause.get() == PauseStates::Unpaused
+        }))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        // The honest end of the repair: the section's own health, the ship's
+        // own stock and the job gone, not a frame count.
+        .step("fly until the job has fitted every plate")
         .until(and(
             and(
                 the_turret_reads(|health| health.current >= health.max),
                 the_ship_spent_hull_plates(),
             ),
-            frames(REPAIR_CELLS),
+            no_job_runs(),
         ))
-        .deadline(STEP_DEADLINE_SECS)
-        .add()
-        .step("hold the repaired panel until the sheet finishes recording")
+        .deadline(REPAIR_FLIGHT_DEADLINE_SECS)
+        .add();
+
+    let script = open_the_ship_pane(script, false);
+
+    let script = script
+        .step("record the repaired panel")
+        .on_enter(|world: &mut World| sheet_start(world, SERVICE_LESSON, LESSON_GRID))
         .until(sheet_written(SERVICE_LESSON))
         .deadline(60.0)
         .add()
-        // REBINDING. Out of the interface and back into it, which is what
-        // clears the note line the service sheet left under the buttons.
+        // REBINDING. Out of the interface and back into it, which clears the
+        // panel the service sheet recorded.
         .step("close the interface")
         .on_enter(press_action("interface_toggle"))
         .until(frames(1))
         .add()
-        .step("let the key up and wait for the flight")
+        .step("let the key up and wait for the flight again")
         .on_enter(release_action("interface_toggle"))
         .until(resource_where::<State<PauseStates>>(|pause| {
             *pause.get() == PauseStates::Unpaused

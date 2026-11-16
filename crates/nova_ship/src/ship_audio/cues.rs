@@ -330,10 +330,10 @@ pub(super) fn play_threat_lock_cue(
 /// How far back above its threshold a hull must come before the alarm can
 /// sound again.
 ///
-/// Nothing repairs a hull today, so in a fight this only ever prevents a
-/// re-trigger from float noise on the aggregate. It exists because the day
-/// something does repair one, an alarm sitting exactly on its threshold would
-/// chatter, and a hysteresis band is cheaper than finding that out in the seat.
+/// Plate repair jobs and field rebuilds raise the aggregate in steps while
+/// the fight goes on, so a hull can climb back to its threshold and take the
+/// next hit there. Without the band that hull would sound the alarm on every
+/// hit around the line.
 const WARN_HULL_REARM_MARGIN: f32 = 0.05;
 
 /// The hull alarm: this ship is down to the fraction of itself its computer
@@ -856,9 +856,9 @@ mod tests {
 
     #[test]
     fn the_alarm_rearms_only_well_clear_of_the_line_it_tripped_on() {
-        // Nothing repairs a hull today, so this band exists for the day
-        // something does: coming back to exactly the threshold must not arm a
-        // second alarm the next hit would sound.
+        // A plate repair can lift a hull back to its threshold mid-fight:
+        // coming back to exactly the line must not arm a second alarm the
+        // next hit would sound.
         let mut app = hull_warning_app();
         let ship = spawn_hull(&mut app, 0.30, true);
         hull_at(&mut app, ship, 0.25);

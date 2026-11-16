@@ -1,13 +1,17 @@
 //! The Ship pane's lost-section list and the Rebuild action.
 //!
 //! A lost section is a section of the player ship's design with no live
-//! section of that id. While the ship is docked at a living station that
-//! offers Rebuild, the panel lists each lost section with its design code, the
-//! price or the reason it cannot be rebuilt, and a Rebuild button. A click
-//! raises a [`SectionRebuildCommand`]; [`apply_ship_rebuild_commands`] plans
-//! it with [`plan_section_rebuild`], takes the parts and the credits, and
-//! raises the [`SectionRebuildRequest`] the scenario crate spawns the section
-//! from.
+//! section of that id. The panel lists each lost section with its design
+//! code, what a rebuild takes or why it cannot, and a Rebuild button. A
+//! click raises a [`SectionRebuildCommand`]; [`apply_ship_rebuild_commands`]
+//! plans it with [`plan_section_rebuild`] at the site the ship is at:
+//!
+//! - Docked: the station rebuilds at once. The handler takes the parts and
+//!   the credits and raises the [`SectionRebuildRequest`] the scenario crate
+//!   spawns the section from.
+//! - Undocked: a field rebuild. The handler starts a [`RepairJob`] that takes
+//!   the recipe's parts from the hold when its time is up and raises the same
+//!   request. The parts other jobs hold back are not free for it.
 //!
 //! Touch this module when changing what the lost list shows or what Rebuild
 //! takes.
@@ -35,8 +39,7 @@ pub struct SectionRebuildCommand {
     pub section: String,
 }
 
-/// The lost-section list container, hidden while the rebuild gate does not
-/// hold or nothing is lost.
+/// The lost-section list container, hidden while nothing is lost.
 #[derive(Component)]
 pub(crate) struct ShipRebuildList;
 
@@ -50,7 +53,11 @@ pub(crate) struct ShipRebuildRows(Vec<RebuildRow>);
 struct RebuildRow {
     section: String,
     code: String,
+    /// What a rebuild takes, or why there is none.
     line: String,
+    /// Whether the row offers Rebuild: the plan holds and no field rebuild
+    /// runs on the section.
+    offered: bool,
 }
 
 /// A live section of the player ship, placed in ship-root space.
@@ -297,8 +304,9 @@ impl ResolvedSite<'_> {
             .filter(move |section| !live.contains(section.id.as_str()))
     }
 
-    /// Plan rebuilding design section `section` against the hold `own`, the
-    /// balance `own_cr` and the docked partner's `stock` and balance.
+    /// Plan rebuilding design section `section` against the hold `own`: at
+    /// the docked partner with the balance `own_cr` and the partner's
+    /// `stock` and balance, or in the field while the ship is not docked.
     fn plan(
         &self,
         items: &GameItems,
@@ -307,60 +315,66 @@ impl ResolvedSite<'_> {
         own_cr: u32,
         partner: Option<(&ShipInventory, u32)>,
     ) -> Result<RecipePayment, SectionRebuildRefusalType> {
-        let lost = !self.live.iter().any(|live| live.id == section.id);
-        let placed: Vec<PlacedSectionLinkPoints<'_>> = self
+        let live: Vec<(&str, PlacedSectionLinkPoints<'_>)> = self
             .live
             .iter()
-            .map(|live| PlacedSectionLinkPoints {
-                position: live.position,
-                rotation: live.rotation,
-                link_points: &live.link_points,
+            .map(|live| {
+                (
+                    live.id.as_str(),
+                    PlacedSectionLinkPoints {
+                        position: live.position,
+                        rotation: live.rotation,
+                        link_points: &live.link_points,
+                    },
+                )
             })
             .collect();
-        let anchored = rebuild_anchored(
-            &placed,
-            PlacedSectionLinkPoints {
-                position: section.position,
-                rotation: section.rotation,
-                link_points: &section.config.base.link_points,
-            },
-        );
-        let partner =
-            self.partner
-                .zip(partner)
-                .map(
-                    |((_, offers, builds), (stock, credits_cr))| StationPartner {
+        let facts = lost_section_facts(section, &live);
+        let site = match self.partner {
+            None => RebuildSiteType::Field,
+            Some((_, offers, builds)) => {
+                let (stock, credits_cr) =
+                    partner.expect("a docked partner carries a ShipInventory and ShipCredits");
+                RebuildSiteType::Station {
+                    partner: StationPartner {
                         offers,
                         builds,
                         stock,
                         credits_cr,
                     },
-                );
+                    own_cr,
+                }
+            }
+        };
         plan_section_rebuild(
             items,
             &section.config.base.id,
             &section.config.base.build,
-            partner,
-            lost,
-            anchored,
+            site,
+            facts.lost,
+            facts.anchored,
             own,
-            own_cr,
         )
+    }
+
+    /// Whether the ship is in the field: not docked, so a rebuild is a
+    /// field rebuild job.
+    fn in_field(&self) -> bool {
+        self.partner.is_none()
     }
 }
 
 /// The note line for a refused rebuild; the list and the handler share it.
+/// `field` is true for a field rebuild, whose parts come from the hold alone.
 fn rebuild_refusal_text(
     items: &GameItems,
     code: &str,
+    field: bool,
     refusal: &SectionRebuildRefusalType,
 ) -> String {
     match refusal {
-        SectionRebuildRefusalType::NotDocked => {
-            "rebuild: dock at a station that rebuilds".to_string()
-        }
         SectionRebuildRefusalType::NoRebuildService => {
-            "rebuild: this dock offers no rebuild".to_string()
+            "rebuild: this dock offers no rebuild; undock to rebuild in the field".to_string()
         }
         SectionRebuildRefusalType::NotBuilt => {
             format!("rebuild: this station does not build {code}")
@@ -369,6 +383,13 @@ fn rebuild_refusal_text(
         SectionRebuildRefusalType::Unanchored => {
             format!("rebuild: {code} has no live section to mount on")
         }
+        SectionRebuildRefusalType::Payment(RecipePaymentRefusalType::MissingParts {
+            item,
+            short,
+        }) if field => format!(
+            "rebuild: {code} needs {short} more {} free in the hold",
+            items.design(item).name
+        ),
         SectionRebuildRefusalType::Payment(refusal) => {
             format!("rebuild: {}", payment_refusal_text(items, code, refusal))
         }
@@ -410,6 +431,17 @@ pub(crate) fn rebuild_price_text(rebuild: &RecipePayment) -> String {
     )
 }
 
+/// The line for a field rebuild the list can offer: its time and the parts
+/// it takes from the hold, such as `field: 20 s, 4 parts from the hold`.
+fn field_rebuild_text(section: &DesignSection) -> String {
+    let recipe = &section.config.base.build;
+    format!(
+        "field: {:.0} s, {} parts from the hold",
+        field_rebuild_duration_secs(recipe),
+        recipe.part_count()
+    )
+}
+
 /// Build the lost list under the repair form: a header and the rows
 /// [`update_ship_rebuild_list`] fills.
 pub(crate) fn spawn_ship_rebuild_list(panel: &mut ChildSpawnerCommands) {
@@ -438,13 +470,14 @@ pub(crate) fn spawn_ship_rebuild_list(panel: &mut ChildSpawnerCommands) {
         });
 }
 
-/// Show the lost list while the rebuild gate holds and a section is lost,
-/// and respawn its rows when a code, a price or a refusal changes.
+/// Show the lost list while a section is lost, and respawn its rows when a
+/// code, a price, a refusal or a running field rebuild changes. A section a
+/// field rebuild job works on shows no button: the job row has its progress.
 pub(crate) fn update_ship_rebuild_list(
     mut commands: Commands,
     items: Option<Res<GameItems>>,
     site: StationSite,
-    q_holds: Query<(&ShipInventory, &ShipCredits)>,
+    q_holds: Query<(&ShipInventory, &ShipCredits, Option<&ShipRepairJobs>)>,
     mut q_list: Query<&mut Node, With<ShipRebuildList>>,
     mut q_rows: Query<(Entity, &mut ShipRebuildRows)>,
 ) {
@@ -454,33 +487,42 @@ pub(crate) fn update_ship_rebuild_list(
     let Ok((rows_entity, mut shown)) = q_rows.single_mut() else {
         return;
     };
-    let resolved = if site.gate(StationServiceType::Rebuild) {
-        site.resolve(StationServiceType::Rebuild)
-    } else {
-        None
-    };
-    let rows = match (resolved, items) {
+    let rows = match (site.resolve(StationServiceType::Rebuild), items) {
         (Some(resolved), Some(items)) => {
-            let (own, own_cr) = q_holds
+            let (own, own_cr, jobs) = q_holds
                 .get(resolved.player)
                 .expect("the player ship carries a ShipInventory and ShipCredits");
+            let jobs = jobs.cloned().unwrap_or_default();
+            let free = jobs.free_hold(own);
             let partner = resolved
                 .partner
                 .and_then(|(partner, ..)| q_holds.get(partner).ok())
-                .map(|(stock, credits)| (stock, credits.0));
+                .map(|(stock, credits, _)| (stock, credits.0));
             resolved
                 .lost()
                 .map(|section| {
                     let code = design_section_code(resolved.design, &section.id)
                         .expect("a lost section is a design section");
-                    let line = match resolved.plan(&items, section, own, own_cr.0, partner) {
-                        Ok(rebuild) => rebuild_price_text(&rebuild),
-                        Err(refusal) => rebuild_refusal_text(&items, &code, &refusal),
+                    let running = jobs.get(&RepairJobKey::Lost(section.id.clone())).is_some();
+                    let line = if running {
+                        Err("rebuilding in the field".to_string())
+                    } else {
+                        match resolved.plan(&items, section, &free, own_cr.0, partner) {
+                            Ok(_) if resolved.in_field() => Ok(field_rebuild_text(section)),
+                            Ok(rebuild) => Ok(rebuild_price_text(&rebuild)),
+                            Err(refusal) => Err(rebuild_refusal_text(
+                                &items,
+                                &code,
+                                resolved.in_field(),
+                                &refusal,
+                            )),
+                        }
                     };
                     RebuildRow {
                         section: section.id.clone(),
                         code,
-                        line,
+                        offered: line.is_ok(),
+                        line: line.unwrap_or_else(|line| line),
                     }
                 })
                 .collect()
@@ -510,12 +552,14 @@ pub(crate) fn update_ship_rebuild_list(
                 .with_children(|cell| {
                     cell.spawn(themed_label(&row.code, 13.0, UiColorType::Text));
                     cell.spawn(themed_label(&row.line, 12.0, UiColorType::TextBody));
-                    cell.spawn((
-                        Name::new(format!("ShipRebuild-{}", row.code)),
-                        compact_button(ButtonSpec::new("Rebuild").fit().primary()),
-                        ButtonCueType::Owned,
-                    ))
-                    .observe(on_ship_rebuild_button(row.section.clone()));
+                    if row.offered {
+                        cell.spawn((
+                            Name::new(format!("ShipRebuild-{}", row.code)),
+                            compact_button(ButtonSpec::new("Rebuild").fit().primary()),
+                            ButtonCueType::Owned,
+                        ))
+                        .observe(on_ship_rebuild_button(row.section.clone()));
+                    }
                 });
         }
     });
@@ -534,11 +578,16 @@ fn on_ship_rebuild_button(
     }
 }
 
-/// Apply [`SectionRebuildCommand`]s by the [`plan_section_rebuild`] rule:
-/// take the hold's parts, buy the rest from the station at ask, pay the price
-/// to the station, queue one `Rebuilt` report, and raise the
-/// [`SectionRebuildRequest`] that spawns the section at full health. A
-/// refusal changes nothing and shows its reason on the note line.
+/// Apply [`SectionRebuildCommand`]s by the [`plan_section_rebuild`] rule.
+/// Docked: take the hold's parts, buy the rest from the station at ask, pay
+/// the price to the station, queue one `Rebuilt` report, and raise the
+/// [`SectionRebuildRequest`] that spawns the section at full health.
+/// Undocked: start a field rebuild [`RepairJob`] on the parts free in the
+/// hold. A refusal changes nothing and shows its reason on the note line.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the site, both holds, the jobs and the cue bank"
+)]
 pub(crate) fn apply_ship_rebuild_commands(
     mut messages: MessageReader<SectionRebuildCommand>,
     mut runtime: ResMut<ShipRuntime>,
@@ -550,6 +599,7 @@ pub(crate) fn apply_ship_rebuild_commands(
         &mut ShipCredits,
         &mut ShipInventoryReports,
     )>,
+    mut q_jobs: Query<&mut ShipRepairJobs>,
     bank: Option<Res<SoundBank<UiSfx>>>,
 ) {
     if messages.is_empty() {
@@ -574,27 +624,56 @@ pub(crate) fn apply_ship_rebuild_commands(
         });
         let code =
             design_section_code(resolved.design, &section.id).expect("a design section has a code");
+        let jobs = q_jobs.get(resolved.player).ok();
+        if resolved.in_field()
+            && jobs.is_some_and(|jobs| jobs.get(&RepairJobKey::Lost(section.id.clone())).is_some())
+        {
+            runtime.note = Some((format!("rebuild: {code} is already rebuilding"), 2.5));
+            play_menu_deny(&mut commands, bank.as_deref());
+            continue;
+        }
         let planned = {
             let (own, own_cr, _) = q_holds
                 .get(resolved.player)
                 .expect("the player ship carries a ShipInventory and ShipCredits");
+            let free = jobs.cloned().unwrap_or_default().free_hold(&own);
             let partner = resolved
                 .partner
                 .and_then(|(partner, ..)| q_holds.get(partner).ok())
                 .map(|(stock, credits, _)| (stock, credits.0));
-            resolved.plan(&items, section, own, own_cr.0, partner)
+            resolved.plan(&items, section, &free, own_cr.0, partner)
         };
         let rebuild = match planned {
             Ok(rebuild) => rebuild,
             Err(refusal) => {
-                runtime.note = Some((rebuild_refusal_text(&items, &code, &refusal), 2.5));
+                runtime.note = Some((
+                    rebuild_refusal_text(&items, &code, resolved.in_field(), &refusal),
+                    2.5,
+                ));
                 play_menu_deny(&mut commands, bank.as_deref());
                 continue;
             }
         };
-        let (station, ..) = resolved
-            .partner
-            .expect("a planned rebuild has a docked partner");
+        rebuilt = true;
+        play_menu_select(&mut commands, bank.as_deref());
+        let Some((station, ..)) = resolved.partner else {
+            let job = RepairJob::field_rebuild(
+                section.id.clone(),
+                code.clone(),
+                &section.config.base.build,
+            );
+            // No duration: the job row owns the time left.
+            runtime.note = Some((format!("rebuilding {code} in the field"), 2.5));
+            match q_jobs.get_mut(resolved.player) {
+                Ok(mut jobs) => jobs.push(job),
+                Err(_) => {
+                    commands
+                        .entity(resolved.player)
+                        .insert(ShipRepairJobs(vec![job]));
+                }
+            }
+            continue;
+        };
         let Ok(
             [(mut own, mut own_cr, mut own_reports), (mut stock, mut station_cr, mut station_reports)],
         ) = q_holds.get_many_mut([resolved.player, station])
@@ -625,7 +704,5 @@ pub(crate) fn apply_ship_rebuild_commands(
             format!("rebuilt {code}: {}", rebuild_price_text(&rebuild)),
             2.5,
         ));
-        play_menu_select(&mut commands, bank.as_deref());
-        rebuilt = true;
     }
 }

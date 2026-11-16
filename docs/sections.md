@@ -68,20 +68,52 @@ half, a pad button keeps the key. Every common pad button but Right Trigger 2
 (the guns' trigger, which sections may share) belongs to a Flight or Always
 action and is refused.
 
-The Ship pane (`nova_interface/src/ship/rebuild.rs`)
-lists lost sections while docked to a station that offers `Rebuild`, by
-`station_offers` (`nova_gameplay::markers`), the one gate the Inventory pane's
-Trade and Storage also read. A lost section whose prototype is not in the
-station's `StationBuilds` (`nova_gameplay::markers`, read through
-`StationPartner.builds`) is refused before payment, knowledge rather than
-materials. Its plan
-is `plan_section_rebuild` (`nova_gameplay::inventory`): hold parts first, the
-rest bought at ask, refused when the station lacks stock, the ship lacks
-credits, or `rebuild_anchored` finds no live mate for the lost section's
-sockets. A confirmed rebuild moves parts and credits (cause `Rebuild` on both
-parties), pushes `ShipInventoryReport::Rebuilt` (`OnRebuilt`), and triggers
-`SectionRebuildRequest`; `rebuild_design_section` spawns the section again at
-full health through the same per-section spawn the ship was built with.
+The Ship pane (`nova_interface/src/ship/rebuild.rs`) lists every lost
+section, and plans its rebuild by `plan_section_rebuild`
+(`nova_gameplay::inventory`) at the site the ship is at
+(`RebuildSiteType`). Both sites read `lost_section_facts`
+(`design_sections.rs`): the section must be lost, and `rebuild_anchored` must
+find a live mate for its sockets.
+
+- `Station`: docked to a station that offers `Rebuild`, by `station_offers`
+  (`nova_gameplay::markers`), the one gate the Inventory pane's Trade and
+  Storage also read. A lost section whose prototype is not in the station's
+  `StationBuilds` (read through `StationPartner.builds`) is refused before
+  payment, knowledge rather than materials. Hold parts go first, the rest are
+  bought at ask, refused when the station lacks stock or the ship lacks
+  credits. A confirmed rebuild moves parts and credits (cause `Rebuild` on
+  both parties), pushes `ShipInventoryReport::Rebuilt` (`OnRebuilt`), and
+  triggers `SectionRebuildRequest` at once.
+- `Field`: undocked. No station, no credits: every recipe part must be free in
+  the hold (`ShipRepairJobs::free_hold`). The pane pushes a
+  `RepairWorkType::FieldRebuild` job that holds the parts. When its
+  `field_rebuild_duration_secs` (5 s per part, at least 20 s) are up, the job
+  plans the rebuild again, takes the parts, pushes `Rebuilt` at price 0 and
+  triggers the same `SectionRebuildRequest`. A refusal at the end takes
+  nothing.
+
+`rebuild_design_section` (`nova_scenario`) observes the request and spawns
+the section again at full health through the same per-section spawn the ship
+was built with. The field site makes a lost docking port recoverable without
+a dock.
+
+### Repair jobs
+
+`ShipRepairJobs` (`nova_ship/src/sections/repair_jobs.rs`) sits on a ship root
+and holds its running jobs, at most one per section. `advance_ship_repair_jobs`
+(`RepairJobSystems`, `Update`) runs them on `Time<Virtual>`, so the TAB
+interface and the pause menu, which pause it, hold every job. A plate job
+(`RepairWorkType::Plates`) is started by the Ship pane's repair against the
+plates no other job has queued, spends nothing at the start, and at the end of
+each `PLATE_REPAIR_SECS` interval fits one plate by `plan_plate_step`: one
+plate leaves the hold, `HULL_PLATE_HEALTH` is added. It stops when the section
+is destroyed or disabled, full, or the hold has no plate. Every end writes one
+`RepairJobEnded` (the HUD notice reads it) and, for a plate job that fitted a
+plate, one `ShipInventoryReport::Repaired` naming every plate (`OnRepaired`).
+`RepairJobCancelRequest` ends a job early; fitted plates stay fitted. Jobs are
+not saved: a reload drops them, and nothing unspent was taken. The HUD repair
+chip (`nova_hud/src/flight_status.rs`, `drive_repair_chip`) shows the first
+job in flight.
 
 ### Swapping a section
 
@@ -1936,8 +1968,13 @@ per contact. A symmetric rule - ram damage - wants both.
   `crates/nova_ship/src/sections/base_section.rs`.
 - Spawn path: `insert_spaceship_sections` -
   `crates/nova_scenario/src/objects/spaceship.rs`.
+- Repair jobs and field rebuild: `ShipRepairJobs`, `advance_ship_repair_jobs` -
+  `crates/nova_ship/src/sections/repair_jobs.rs`; proof: its unit tests and
+  `a_field_rebuild_restores_a_lost_docking_port_and_takes_the_recipe_parts`
+  in `crates/nova_scenario/src/objects/spaceship.rs`; by hand:
+  `examples/playable/field_repair_sandbox.rs`.
 - Design sections, lost-section codes and rebuild: `ShipDesignSections`,
-  `SectionRebuildRequest`, `rebuild_anchored` -
+  `SectionRebuildRequest`, `rebuild_anchored`, `lost_section_facts` -
   `crates/nova_ship/src/sections/design_sections.rs`; `plan_section_rebuild` -
   `crates/nova_gameplay/src/inventory.rs`; the pane:
   `crates/nova_interface/src/ship/rebuild.rs`; proof:

@@ -124,10 +124,11 @@ fn section_codes_assigned_and_resolve() {
 }
 
 #[test]
-fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
-    // Repair spends exactly the selected whole plates, each restoring up to 20
-    // HP. Live stock and Health are validated before either mutates. Every
-    // refusal leaves Health, markers and both ships' inventories untouched.
+fn ship_repair_starts_a_plate_job_that_spends_nothing_up_front() {
+    // A repair command queues the selected whole plates as a job on the
+    // section. Nothing is spent and Health does not move now: the nova_ship
+    // tick fits the plates over game time. Plates other jobs queued are not
+    // free, a section runs one job, and every refusal starts nothing.
     let items = test_items();
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
@@ -159,6 +160,22 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
             .unwrap()
             .count(&ItemDesignId::from(ItemRoleType::HullPlate))
     };
+    let queued = |app: &App| -> Vec<(Entity, u32)> {
+        app.world()
+            .get::<ShipRepairJobs>(ship)
+            .map(|jobs| {
+                jobs.0
+                    .iter()
+                    .map(|job| match job.work {
+                        RepairWorkType::Plates {
+                            section, queued, ..
+                        } => (section, queued),
+                        RepairWorkType::FieldRebuild { .. } => panic!("no field rebuild here"),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
     let note = |app: &App| {
         app.world()
             .resource::<ShipRuntime>()
@@ -174,49 +191,46 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
         )
     };
 
-    // No plates: the P key still sends, and the hull stays at 80/100.
+    // No plates: the P key still sends, and no job starts.
     repair(&mut app, &[(hull, 1)]);
-    assert_eq!(
-        health(&app, hull),
-        80.0,
-        "a repair with no plates is not free"
+    assert!(
+        queued(&app).is_empty(),
+        "a repair with no plates is not queued"
     );
     assert_eq!(
         note(&app).as_deref(),
-        Some("repair: no hull plates selected or in stock")
+        Some("repair: no hull plates selected or free in the hold")
     );
 
-    // Two commands in one run: the first spends 1 plate for 20 missing HP, the
-    // second sees the committed full hull and spends nothing.
+    // Two commands in one frame: the first queues 1 plate on HULL-1 at 80/100,
+    // the second sees that job and refuses.
     app.world_mut().entity_mut(ship).insert(stock(2));
     repair(&mut app, &[(hull, 1), (hull, 1)]);
-    assert_eq!(health(&app, hull), 100.0);
-    assert_eq!(plates(&app, ship), 1);
+    assert_eq!(queued(&app), vec![(hull, 1)]);
+    assert_eq!(health(&app, hull), 80.0, "a queued job fits nothing yet");
+    assert_eq!(plates(&app, ship), 2, "a queued job spends nothing");
     assert_eq!(
         note(&app).as_deref(),
-        Some("repair: HULL-1 is at full integrity")
+        Some("repair: HULL-1 is already under repair")
     );
 
-    // PDC-1 at 12/60 accepts the selected one plate and spends it exactly.
+    // PDC-1 at 12/60: 2 plates exceed the 1 plate the HULL-1 job leaves free;
+    // 1 plate queues beside the HULL-1 job.
+    repair(&mut app, &[(turret, 2)]);
+    assert_eq!(
+        note(&app).as_deref(),
+        Some("repair: PDC-1 request exceeds the free hull plates")
+    );
     repair(&mut app, &[(turret, 1)]);
-    assert_eq!(health(&app, turret), 32.0);
-    assert!(app.world().get::<ShipInventory>(ship).unwrap().is_empty());
+    assert_eq!(queued(&app), vec![(hull, 1), (turret, 1)]);
+    assert_eq!(health(&app, turret), 12.0);
     assert_eq!(
         note(&app).as_deref(),
-        Some("repaired PDC-1: 1 hull plate, 32/60 HP")
+        Some("repairing PDC-1: 1 hull plate queued")
     );
 
-    // A destroyed section and a collapse-disabled one with HP left refuse
-    // without a spend, and keep their markers.
+    // A collapse-disabled section with HP left refuses and keeps its marker.
     app.world_mut().entity_mut(ship).insert(stock(5));
-    app.world_mut().entity_mut(turret).insert((
-        Health {
-            current: 0.0,
-            max: 60.0,
-        },
-        HealthZeroMarker,
-        IntegrityDisabledMarker,
-    ));
     app.world_mut().entity_mut(thruster).insert((
         Health {
             current: 50.0,
@@ -224,15 +238,8 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
         },
         IntegrityDisabledMarker,
     ));
-    repair(&mut app, &[(turret, 1), (thruster, 1)]);
-    assert_eq!(health(&app, turret), 0.0);
-    assert_eq!(health(&app, thruster), 50.0);
-    assert_eq!(plates(&app, ship), 5);
-    assert!(app.world().entity(turret).contains::<HealthZeroMarker>());
-    assert!(app
-        .world()
-        .entity(turret)
-        .contains::<IntegrityDisabledMarker>());
+    repair(&mut app, &[(thruster, 1)]);
+    assert_eq!(queued(&app).len(), 2);
     assert!(app
         .world()
         .entity(thruster)
@@ -240,7 +247,7 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
     assert_eq!(note(&app).as_deref(), Some("repair: THR-1 is destroyed"));
 
     // Another ship's section, a ship root and a despawned entity: silent, and
-    // nothing changes on either ship.
+    // no job starts on either ship.
     let other = app.world_mut().spawn((SpaceshipRootMarker, stock(4))).id();
     let foreign = app
         .world_mut()
@@ -260,111 +267,9 @@ fn ship_repair_spends_plates_only_on_a_damaged_player_section() {
     app.world_mut().despawn(gone);
     app.world_mut().resource_mut::<ShipRuntime>().note = None;
     repair(&mut app, &[(foreign, 1), (ship, 1), (gone, 1)]);
-    assert_eq!(health(&app, foreign), 40.0);
-    assert_eq!(plates(&app, other), 4);
-    assert_eq!(plates(&app, ship), 5);
+    assert!(app.world().get::<ShipRepairJobs>(other).is_none());
+    assert_eq!(queued(&app).len(), 2);
     assert_eq!(note(&app), None);
-}
-
-#[test]
-fn ship_repair_spends_selected_quantity_and_refuses_stale_requests_atomically() {
-    let items = test_items();
-    let mut app = App::new();
-    app.add_plugins(MinimalPlugins);
-    app.init_resource::<ShipRuntime>();
-    app.init_resource::<ShipViewSubject>();
-    app.init_resource::<HeldPart>();
-    app.add_message::<SectionRepairCommand>();
-    app.add_message::<SectionDeleteCommand>();
-    app.add_systems(Update, apply_ship_section_commands);
-    let (ship, _hull, turret, _thruster) = spawn_scripted_ship(app.world_mut());
-    app.world_mut()
-        .run_system_once(assign_section_codes)
-        .unwrap();
-
-    let stock = |count| {
-        ShipInventory::new(
-            &items,
-            400_000,
-            [(ItemDesignId::from(ItemRoleType::HullPlate), count)],
-        )
-    };
-    let health = |app: &App| app.world().get::<Health>(turret).unwrap().current;
-    let plates = |app: &App| {
-        app.world()
-            .get::<ShipInventory>(ship)
-            .unwrap()
-            .count(&ItemDesignId::from(ItemRoleType::HullPlate))
-    };
-    let repair = |app: &mut App, requested_plates| {
-        app.world_mut().write_message(SectionRepairCommand {
-            target: turret,
-            requested_plates,
-        });
-        app.update();
-    };
-
-    app.world_mut().entity_mut(ship).insert(stock(10));
-
-    // Selected 1, an intermediate 2, and All (the 3 plates currently needed)
-    // each spend exactly their request and restore 20 HP per plate.
-    repair(&mut app, 1);
-    assert_eq!(health(&app), 32.0);
-    assert_eq!(plates(&app), 9);
-
-    app.world_mut().get_mut::<Health>(turret).unwrap().current = 12.0;
-    repair(&mut app, 2);
-    assert_eq!(health(&app), 52.0);
-    assert_eq!(plates(&app), 7);
-
-    app.world_mut().get_mut::<Health>(turret).unwrap().current = 12.0;
-    let all = plate_repair_limit(app.world().get::<Health>(turret), false, plates(&app));
-    assert_eq!(all, 3);
-    repair(&mut app, all);
-    assert_eq!(health(&app), 60.0);
-    assert_eq!(plates(&app), 4);
-
-    // Stock falls after the quantity is requested but before the handler reads
-    // it. The stale request refuses without a partial spend or Health change.
-    app.world_mut().get_mut::<Health>(turret).unwrap().current = 12.0;
-    app.world_mut().entity_mut(ship).insert(stock(3));
-    app.world_mut().write_message(SectionRepairCommand {
-        target: turret,
-        requested_plates: 2,
-    });
-    app.world_mut().entity_mut(ship).insert(stock(1));
-    app.update();
-    assert_eq!(health(&app), 12.0);
-    assert_eq!(plates(&app), 1);
-    assert_eq!(
-        app.world()
-            .resource::<ShipRuntime>()
-            .note
-            .as_ref()
-            .map(|(text, _)| text.as_str()),
-        Some("repair: PDC-1 request exceeds live hull plate stock")
-    );
-
-    // Health changes after a 3-plate request is queued. Only one plate now
-    // fits the missing integrity, so the full request refuses atomically.
-    app.world_mut().entity_mut(ship).insert(stock(5));
-    app.world_mut().get_mut::<Health>(turret).unwrap().current = 12.0;
-    app.world_mut().write_message(SectionRepairCommand {
-        target: turret,
-        requested_plates: 3,
-    });
-    app.world_mut().get_mut::<Health>(turret).unwrap().current = 50.0;
-    app.update();
-    assert_eq!(health(&app), 50.0);
-    assert_eq!(plates(&app), 5);
-    assert_eq!(
-        app.world()
-            .resource::<ShipRuntime>()
-            .note
-            .as_ref()
-            .map(|(text, _)| text.as_str()),
-        Some("repair: PDC-1 request exceeds live missing integrity")
-    );
 }
 
 #[test]
@@ -1550,7 +1455,10 @@ fn panel_action_state_gates_repair() {
     // No plates: refused with a reason.
     let a = panel_action_state(&hull, 1, 0);
     assert!(!a.repair_enabled);
-    assert_eq!(reason(&a), "repair: no hull plates selected or in stock");
+    assert_eq!(
+        reason(&a),
+        "repair: no hull plates selected or free in the hold"
+    );
 
     // Full integrity refuses regardless of stock.
     let full = view_fixture(SectionClass::Hull, hp(100.0, 100.0));
@@ -1647,9 +1555,8 @@ fn panel_buttons_raise_section_repair_command() {
     }
     app.world_mut().trigger(Activate { entity: repair });
     app.update();
-    assert_eq!(
-        app.world().get::<Health>(hull).unwrap().current,
-        80.0,
+    assert!(
+        app.world().get::<ShipRepairJobs>(ship).is_none(),
         "a disabled repair button writes no command",
     );
     app.world_mut().flush();
@@ -1666,9 +1573,10 @@ fn panel_buttons_raise_section_repair_command() {
         .remove::<InteractionDisabled>();
     app.world_mut().trigger(Activate { entity: repair });
     app.update();
-    assert_eq!(
-        app.world().get::<Health>(hull).unwrap().current,
-        100.0,
+    assert!(
+        app.world()
+            .get::<ShipRepairJobs>(ship)
+            .is_some_and(|jobs| jobs.get(&RepairJobKey::Section(hull)).is_some()),
         "an enabled repair button routes through the SectionRepairCommand seam",
     );
     app.world_mut().flush();
@@ -1922,7 +1830,7 @@ fn update_ship_panel_reflects_selection() {
     );
     assert_eq!(
         field_text(&mut app, ShipPanelField::RepairStock),
-        "1 plate in stock"
+        "1 plate free in the hold"
     );
 
     // A damaged hull with plates caches repair ENABLED for the observer.
@@ -2165,17 +2073,17 @@ fn update_ship_panel_preview_names_the_exact_repair_refusal() {
         .map(|(_, text)| text.0.clone())
         .expect("preview field text");
     assert_eq!(
-        preview, "repair: HULL-1 request exceeds live hull plate stock",
+        preview, "repair: HULL-1 request exceeds the free hull plates",
         "the summary names the exact refusal of the draft"
     );
 }
 
 #[test]
-fn update_ship_panel_hides_the_repair_form_after_a_full_repair() {
-    // A full repair processed by `apply_ship_section_commands` fills the
+fn update_ship_panel_hides_the_repair_form_while_a_job_runs_on_the_section() {
+    // A repair processed by `apply_ship_section_commands` starts a job on the
     // section but leaves `requested_plates` untouched; the panel hides the
-    // form, and its field lets go of the keyboard, rather than restate the
-    // outstanding request.
+    // form, and its field lets go of the keyboard, while the Repairs block
+    // shows the job.
     let items = test_items();
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
@@ -2222,7 +2130,10 @@ fn update_ship_panel_hides_the_repair_form_after_a_full_repair() {
         requested_plates: 1,
     });
     app.update();
-    assert_eq!(app.world().get::<Health>(hull).unwrap().current, 100.0);
+    assert!(app
+        .world()
+        .get::<ShipRepairJobs>(ship)
+        .is_some_and(|jobs| jobs.get(&RepairJobKey::Section(hull)).is_some()));
     assert_eq!(
         app.world().resource::<ShipRuntime>().requested_plates,
         Some(1),
@@ -2246,7 +2157,11 @@ fn update_ship_panel_hides_the_repair_form_after_a_full_repair() {
         .find(|(field, _)| **field == ShipPanelField::RepairForm)
         .map(|(_, node)| node.display)
         .expect("repair form");
-    assert_eq!(form, Display::None, "a full section has no repair form");
+    assert_eq!(
+        form,
+        Display::None,
+        "a section under repair has no repair form"
+    );
     assert!(
         !app.world().entity(field).contains::<TextFieldFocused>(),
         "a hidden form's field lets go of the keyboard"

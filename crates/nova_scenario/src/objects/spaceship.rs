@@ -3514,4 +3514,154 @@ mod tests {
         ron::from_str::<EventActionConfig>(r#"SetSpeedCap((id: "player_spaceship"))"#)
             .expect_err("SetSpeedCap is no longer an action tag");
     }
+
+    /// A docking port lost in flight comes back from a field rebuild: when
+    /// the job's game time is up, a live port wears the design id again and
+    /// the recipe's parts left the hold, with no dock and no credits. Before
+    /// that, nothing is taken and no port spawns.
+    #[test]
+    fn a_field_rebuild_restores_a_lost_docking_port_and_takes_the_recipe_parts() {
+        use std::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+
+        let cube_points: Vec<LinkPoint> = [Vec3::X, Vec3::NEG_X, Vec3::Z, Vec3::NEG_Z]
+            .into_iter()
+            .enumerate()
+            .map(|(index, normal)| LinkPoint {
+                id: format!("socket_{index}"),
+                position: normal * 0.5,
+                normal,
+                skin: LinkPointSkinType::Clad,
+            })
+            .collect();
+        let recipe = BuildRecipe {
+            credits: 80,
+            parts: [
+                (ItemDesignId::from("DockingCollar"), 1),
+                (ItemDesignId::from("ActuatorPack"), 1),
+                (ItemDesignId::from("SectionPanel"), 2),
+            ]
+            .into(),
+            strip_yield: 0.5,
+        };
+        let mut plate = section_prototype("plate");
+        plate.base.link_points = cube_points.clone();
+        let port = SectionConfig {
+            base: BaseSectionConfig {
+                id: "port".to_string(),
+                name: "port".to_string(),
+                link_points: cube_points,
+                build: recipe.clone(),
+                ..default()
+            },
+            kind: SectionKind::Docking(DockingSectionConfig::default()),
+        };
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs(1)));
+        // The virtual clock clamps a frame to 0.25 s by default.
+        app.world_mut()
+            .resource_mut::<Time<Virtual>>()
+            .set_max_delta(Duration::from_secs(60));
+        app.add_message::<RepairJobEnded>();
+        app.add_systems(Update, advance_ship_repair_jobs);
+        let world = app.world_mut();
+        world.insert_resource(GameSections(vec![plate, port]));
+        world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
+        world.add_observer(insert_spaceship_sections);
+        world.add_observer(rebuild_design_section);
+        let placed = |id: &str, prototype: &str, z: f32| SpaceshipSectionConfig {
+            id: id.to_string(),
+            position: Vec3::new(0.0, 0.0, z),
+            rotation: Quat::IDENTITY,
+            source: SectionSource::prototype(prototype),
+        };
+        let ship = world
+            .spawn((
+                Transform::default(),
+                spaceship_scenario_object(SpaceshipConfig {
+                    design: ShipDesignSource::Inline(ShipDesign {
+                        sections: vec![
+                            placed("bow", "plate", 0.0),
+                            placed("stern", "plate", 1.0),
+                            placed("dock", "port", -1.0),
+                        ],
+                        ..default()
+                    }),
+                    inventory: ShipInventoryStock::new(recipe.parts.clone()),
+                    ..default()
+                }),
+            ))
+            .id();
+        world.flush();
+        let live_port = |world: &mut World| {
+            world
+                .query_filtered::<(&EntityId, &ChildOf), With<DockingSectionMarker>>()
+                .iter(world)
+                .filter(|(id, child)| id.0 == "dock" && child.parent() == ship)
+                .count()
+        };
+        let parts_held = |world: &World| {
+            let hold = world.get::<ShipInventory>(ship).unwrap();
+            recipe
+                .parts
+                .keys()
+                .map(|item| hold.count(item))
+                .collect::<Vec<_>>()
+        };
+        let lost = world
+            .query_filtered::<(Entity, &EntityId), With<DockingSectionMarker>>()
+            .iter(world)
+            .find(|(_, id)| id.0 == "dock")
+            .map(|(entity, _)| entity)
+            .expect("the port spawns with the ship");
+        world.despawn(lost);
+        assert_eq!(live_port(world), 0);
+        world
+            .entity_mut(ship)
+            .insert(ShipRepairJobs(vec![RepairJob::field_rebuild(
+                "dock".to_string(),
+                "DOCK-1".to_string(),
+                &recipe,
+            )]));
+        // The first frame's delta is zero; each later frame is one second.
+        app.update();
+
+        let duration = field_rebuild_duration_secs(&recipe) as u32;
+        for _ in 1..duration {
+            app.update();
+        }
+        assert_eq!(live_port(app.world_mut()), 0, "the job is still running");
+        assert_eq!(parts_held(app.world()), [1, 1, 2], "nothing is taken early");
+
+        app.update();
+        app.world_mut().flush();
+        assert_eq!(live_port(app.world_mut()), 1, "a live port is back");
+        assert_eq!(parts_held(app.world()), [0, 0, 0]);
+        assert!(app
+            .world()
+            .get::<ShipRepairJobs>(ship)
+            .unwrap()
+            .0
+            .is_empty());
+        let rebuilt: Vec<u32> = app
+            .world()
+            .get::<ShipInventoryReports>(ship)
+            .unwrap()
+            .0
+            .iter()
+            .filter_map(|report| match report {
+                ShipInventoryReport::Rebuilt { price_cr, .. } => Some(*price_cr),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            rebuilt,
+            [0],
+            "a field rebuild is reported once, at no price"
+        );
+    }
 }

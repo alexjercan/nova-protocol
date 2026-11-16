@@ -32,6 +32,7 @@ pub mod mining_section;
 pub mod patch;
 pub mod placeholder_art;
 pub mod railgun_section;
+pub mod repair_jobs;
 pub mod section_add;
 pub mod section_animation;
 pub mod section_preview;
@@ -63,13 +64,14 @@ pub mod prelude {
         greeble_solver::prelude::*, hull_buy::prelude::*, hull_radius::prelude::*,
         hull_section::prelude::*, integrity::prelude::*, link_points::prelude::*,
         live_structure_anchor, mining_section::prelude::*, patch::prelude::*,
-        placeholder_art::prelude::*, railgun_section::prelude::*, section_add::prelude::*,
-        section_animation::prelude::*, section_preview::prelude::*, section_strip::prelude::*,
-        shell_shape::prelude::*, shell_skin::prelude::*, ship_measure::prelude::*,
-        signature::prelude::*, skin_decor::prelude::*, skin_reading::prelude::*,
-        skin_report::prelude::*, skin_style::prelude::*, skin_surface::prelude::*,
-        station_buy::prelude::*, thruster_section::prelude::*, torpedo_section::prelude::*,
-        turret_section::prelude::*, SpaceshipSectionPlugin, SpaceshipSectionSystems,
+        placeholder_art::prelude::*, railgun_section::prelude::*, repair_jobs::prelude::*,
+        section_add::prelude::*, section_animation::prelude::*, section_preview::prelude::*,
+        section_strip::prelude::*, shell_shape::prelude::*, shell_skin::prelude::*,
+        ship_measure::prelude::*, signature::prelude::*, skin_decor::prelude::*,
+        skin_reading::prelude::*, skin_report::prelude::*, skin_style::prelude::*,
+        skin_surface::prelude::*, station_buy::prelude::*, thruster_section::prelude::*,
+        torpedo_section::prelude::*, turret_section::prelude::*, SpaceshipSectionPlugin,
+        SpaceshipSectionSystems,
     };
 }
 
@@ -292,6 +294,15 @@ impl Plugin for SpaceshipSectionPlugin {
         app.register_type::<hull_buy::ParkedHullType>();
         app.register_type::<nova_gameplay::prelude::OwnedShipMarker>();
         app.add_observer(section_strip::strip_section);
+        // Repair jobs run on the game clock in Update, so the TAB interface
+        // and the pause menu hold them; a ship flies on while they run.
+        app.register_type::<repair_jobs::ShipRepairJobs>();
+        app.add_message::<repair_jobs::RepairJobEnded>();
+        app.add_observer(repair_jobs::cancel_repair_job);
+        app.add_systems(
+            Update,
+            repair_jobs::advance_ship_repair_jobs.in_set(repair_jobs::RepairJobSystems),
+        );
         // The authored-animation rig and driver. Unconditional, not
         // render-gated: the components must exist headless (a server loads
         // the same content), and without spawned scenes the rigs stay empty.
