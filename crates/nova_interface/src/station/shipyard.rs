@@ -21,7 +21,7 @@ use bevy::{prelude::*, ui_widgets::Activate};
 use nova_events::prelude::{CreditChangeCauseType, Meters};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::theme::UiColorType;
+use nova_ui::prelude::{divider, text, TextRole, VerbGate};
 
 use super::{
     card_actions, offer_cell, offer_rows, spawn_card_price, spawn_hull_card_head,
@@ -29,7 +29,7 @@ use super::{
 };
 use crate::{
     icons::InterfaceIcons,
-    pane::{refusable_button, themed_label, ActionOutcomeType},
+    pane::{gated_verb, ActionOutcomeType},
     ship::{ResolvedSite, ShipRuntime, StationSite},
 };
 
@@ -91,8 +91,8 @@ struct HullRow {
     short_cr: Option<u64>,
     /// The action button's label: Buy or Board.
     label: &'static str,
-    /// Why the action is refused, or `None` when it is allowed.
-    refusal: Option<String>,
+    /// How Buy or Board answers the row.
+    gate: VerbGate,
 }
 
 /// The hull's length: the span of its section centres along its longest
@@ -106,20 +106,17 @@ pub(crate) fn hull_length_text(sections: &[DesignSection]) -> String {
     format!("{:.0} m", Meters::from_engine(span).0)
 }
 
-/// Why a buy of the hull named `name` is refused; the list and the handler
-/// share it.
-fn hull_refusal_text(name: &str, refusal: &HullBuyRefusalType) -> String {
+/// How a hull's Buy answers a refused buy: hidden off a refit dock, disabled
+/// while the balance is short (the price shows red) or would not fit.
+fn hull_gate(refusal: Option<&HullBuyRefusalType>) -> VerbGate {
     match refusal {
-        HullBuyRefusalType::NotDocked => "buy: dock at a station that refits".to_string(),
-        HullBuyRefusalType::NoRefitService => "buy: this dock offers no refit".to_string(),
-        HullBuyRefusalType::InsufficientCredits { need, have } => format!(
-            "buy: {name} costs {}; you have {}",
-            cr_text(*need),
-            cr_text(*have)
-        ),
-        HullBuyRefusalType::CreditOverflow => {
-            format!("buy: a balance after buying {name} does not fit")
+        None => VerbGate::Ready,
+        Some(HullBuyRefusalType::NotDocked | HullBuyRefusalType::NoRefitService) => {
+            VerbGate::Hidden
         }
+        Some(
+            HullBuyRefusalType::InsufficientCredits { .. } | HullBuyRefusalType::CreditOverflow,
+        ) => VerbGate::Disabled,
     }
 }
 
@@ -177,7 +174,7 @@ pub(crate) fn spawn_station_hull_list(panel: &mut ChildSpawnerCommands) {
             },
         ))
         .with_children(|list| {
-            list.spawn(crate::pane::divider());
+            list.spawn(divider());
             for (header, terms) in [
                 ("Your ships", ParkedHullType::Owned),
                 ("Ships for sale", ParkedHullType::Sale),
@@ -193,7 +190,7 @@ pub(crate) fn spawn_station_hull_list(panel: &mut ChildSpawnerCommands) {
                     },
                 ))
                 .with_children(|section| {
-                    section.spawn(themed_label(header, 13.0, UiColorType::Accent));
+                    section.spawn(text(header, TextRole::Heading));
                     section.spawn((
                         StationHullRows {
                             terms,
@@ -268,7 +265,7 @@ pub(crate) fn update_station_hull_list(
                                     _ => None,
                                 },
                                 label: "Buy",
-                                refusal: refusal.map(|refusal| hull_refusal_text(&name, &refusal)),
+                                gate: hull_gate(refusal.as_ref()),
                                 name,
                             }
                         }
@@ -281,7 +278,7 @@ pub(crate) fn update_station_hull_list(
                             price_cr: None,
                             short_cr: None,
                             label: "Board",
-                            refusal: None,
+                            gate: VerbGate::Ready,
                         },
                         ParkedHullType::Hire { .. } => unreachable!("hires are filtered out above"),
                     }
@@ -334,11 +331,11 @@ fn spawn_hull_card(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons, ro
             None => format!("{}  {}", row.name, row.length),
         };
         cell.spawn(card_actions()).with_children(|actions| {
-            refusable_button(
+            gated_verb(
                 actions,
                 format!("Hull{}-{index}", row.label),
                 row.label,
-                row.refusal.as_deref(),
+                row.gate.clone(),
             )
             .observe(on_hull_buy_button(row.hull));
             spawn_hull_info_button(actions, format!("HullInfo-{index}"), row.hull, line);
@@ -394,10 +391,7 @@ pub(crate) fn apply_station_hull_buy_commands(
         return;
     };
     let Some((station, ..)) = resolved.partner else {
-        runtime.notice.say(
-            ActionOutcomeType::Refused,
-            hull_refusal_text("", &HullBuyRefusalType::NotDocked),
-        );
+        runtime.cue.raise(ActionOutcomeType::Refused);
         return;
     };
     let Ok((parked, name, terms, design)) = q_hulls.get(command.hull) else {
@@ -409,16 +403,14 @@ pub(crate) fn apply_station_hull_buy_commands(
         command.hull
     );
     let name = name.to_string();
-    let note = match terms {
+    match terms {
         ParkedHullType::Sale => {
             let price_cr = parked_price_cr(&items, design);
             let plan = match plan_offer(&resolved, price_cr, &q_credits.p0()) {
                 Ok(plan) => plan,
                 Err(refusal) => {
-                    runtime.notice.say(
-                        ActionOutcomeType::Refused,
-                        hull_refusal_text(&name, &refusal),
-                    );
+                    debug!("nova_interface: refused: {refusal:?}");
+                    runtime.cue.raise(ActionOutcomeType::Refused);
                     return;
                 }
             };
@@ -440,14 +432,10 @@ pub(crate) fn apply_station_hull_buy_commands(
                 hull: name.clone(),
                 price_cr: plan.price_cr,
             });
-            format!(
-                "bought {name} for {}; your last ship is parked here.",
-                cr_text(plan.price_cr)
-            )
         }
-        ParkedHullType::Owned => format!("boarded {name}; your last ship is parked here."),
+        ParkedHullType::Owned => {}
         ParkedHullType::Hire { .. } => panic!("buy: {name} is an escort for hire, not for sale"),
-    };
+    }
     commands.trigger(HullBuyRequest {
         entity: resolved.player,
         station,
@@ -458,5 +446,5 @@ pub(crate) fn apply_station_hull_buy_commands(
     ship.repair_target = None;
     held.0 = None;
     ship.reselect = None;
-    runtime.notice.say(ActionOutcomeType::Done, note);
+    runtime.cue.raise(ActionOutcomeType::Done);
 }

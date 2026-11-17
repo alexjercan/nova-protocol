@@ -17,7 +17,8 @@
 //! block-meter and a solid fill, which are different widgets rather than
 //! different colours, so it REBUILDS its children where the others repaint.
 //!
-//! One family per module - `button`, `panel`, `list_row`, `slider`,
+//! One family per module - `button`, `layout` (the metrics scale, text roles,
+//! rows, blocks, tags, gates and the amount row), `panel`, `list_row`, `slider`,
 //! `segmented`, `chrome`, `tooltip`, `tabs`, `tree`, `popup`, `select`,
 //! `cascade`, `list_editor`, `icon_button` - all
 //! re-exported here, with the shared
@@ -30,25 +31,28 @@
 /// small layout helpers.
 pub mod prelude {
     pub use super::{
-        badge, button, button_on_setting, cascade_item, checkbox, checkbox_glyph, close_popups,
-        icon_button, key_chip, list_add, list_count, list_editor, list_entry_row, list_picker,
-        list_remove, list_row, list_row_colors, menu_button, panel, panel_head, panel_header,
-        panel_node, panel_radius, popup_row, search_cascade, segmented, segmented_container,
-        segmented_container_wrapping, segmented_option, segmented_option_compact,
-        segmented_option_fit, select, separator, slider_meter_color, slider_track, spawn_cascade,
-        spawn_popup, swatch, tab, tab_strip, text_field, themed_button, toggle, tree_keep,
-        tree_row, BadgeKind, ButtonCueMute, ButtonCueType, ButtonLabel, ButtonSpec, ButtonValue,
-        ButtonVariant, CascadeEntry, CascadeItem, CascadeMenu, CascadeNav, CascadeRow,
+        amount_row, bar, button, button_on_setting, card, cascade_item, cell, checkbox,
+        checkbox_glyph, chip, chip_bar, close_popups, control_row, divider, icon_button, icon_verb,
+        inspector, key_chip, list_add, list_count, list_editor, list_entry_row, list_picker,
+        list_remove, list_row, list_row_colors, metrics, panel, panel_head, panel_head_fixed,
+        panel_head_tag, panel_header, panel_node, panel_paint, panel_radius, popup_row,
+        preview_frame, search_cascade, segmented, segmented_container,
+        segmented_container_wrapping, segmented_option, segmented_option_fit, select, separator,
+        slider_meter_color, slider_track, spawn_block, spawn_cascade, spawn_kv, spawn_popup,
+        swatch, tab, tab_strip, tag, text, text_field, text_toned, toggle, tree_keep, tree_row,
+        verb_row, Amount, AmountChanged, AmountField, AmountMax, AmountSlider, AmountSpec,
+        AmountTop, Bar, BarFill, BlockHead, ButtonCueMute, ButtonCueType, ButtonLabel, ButtonSpec,
+        ButtonValue, ButtonVariant, CascadeEntry, CascadeItem, CascadeMenu, CascadeNav, CascadeRow,
         CascadeRowBundle, CascadeSearch, DoubleClick, IconButtonArmed, IconButtonGlyph,
         IconButtonType, KeyChip, KeyChipLabel, ListChoice, ListEditor, ListEntryAdded,
         ListEntryCounted, ListEntryPicked, ListEntryRemoved, ListRow, PanelHeadTag, PanelHeadTitle,
-        PopupPanel, PopupRoot, PopupRow, SegmentedSkin, Select, SelectChanged, SelectLabel,
-        Selected, SliderBlock, SliderFill, SliderTrack, TabLabel, TextField, TextFieldError,
-        TextFieldFocused, TextFieldSpec, TextFieldSubmitted, TextFieldSystems, TextFieldValue,
-        ThemedBadge, ThemedBorder, ThemedButton, ThemedCheckbox, ThemedFill, ThemedImageTint,
-        ThemedPanel, ThemedPanelHead, ThemedRadius, ThemedSeparator, ThemedSwatch, ThemedText,
-        ThemedTextShadow, ThemedToggle, Tooltip, TooltipPanel, TreeCaret, TreeRowSpec, UiText,
-        CLOSE_GLYPH, DOUBLE_CLICK_SECS, ICON_BUTTON_PX,
+        PopupPanel, PopupRoot, PopupRow, RowAlign, SegmentedSkin, Select, SelectChanged,
+        SelectLabel, Selected, Short, SliderBlock, SliderFill, SliderTrack, TabLabel, TextField,
+        TextFieldError, TextFieldFocused, TextFieldSpec, TextFieldSubmitted, TextFieldSystems,
+        TextFieldValue, TextRole, ThemedBorder, ThemedButton, ThemedCheckbox, ThemedFill,
+        ThemedImageTint, ThemedPanel, ThemedPanelHead, ThemedRadius, ThemedSeparator, ThemedSwatch,
+        ThemedTag, ThemedText, ThemedTextShadow, ThemedToggle, Tooltip, TooltipPanel, TreeCaret,
+        TreeRowSpec, UiText, VerbGate, CLOSE_GLYPH, DOUBLE_CLICK_SECS, ICON_BUTTON_PX,
     };
 }
 
@@ -57,6 +61,7 @@ mod cascade;
 mod chrome;
 mod double_click;
 mod icon_button;
+mod layout;
 mod list_editor;
 mod list_row;
 mod panel;
@@ -71,6 +76,8 @@ mod tree;
 
 #[cfg(test)]
 mod fixtures;
+#[cfg(test)]
+mod tests;
 
 use bevy::{
     input::keyboard::KeyboardInput,
@@ -84,6 +91,7 @@ pub use cascade::*;
 pub use chrome::*;
 pub use double_click::*;
 pub use icon_button::*;
+pub use layout::*;
 pub use list_editor::*;
 pub use list_row::*;
 pub use panel::*;
@@ -106,11 +114,15 @@ use self::{
         place_cascade_columns, sync_cascade_search, sync_cascades,
     },
     chrome::{
-        reconcile_badges, reconcile_checkboxes, reconcile_separators, reconcile_swatches,
-        reconcile_themed_images, reconcile_themed_nodes, reconcile_themed_text,
-        reconcile_themed_text_shadows, reconcile_toggles,
+        reconcile_checkboxes, reconcile_separators, reconcile_swatches, reconcile_themed_images,
+        reconcile_themed_nodes, reconcile_themed_text, reconcile_themed_text_shadows,
+        reconcile_toggles,
     },
     icon_button::paint_icon_buttons,
+    layout::{
+        amount_max_pressed, amount_wheel, apply_short_tone, apply_verb_gates, reconcile_tags,
+        sync_amount_rows, sync_bars,
+    },
     list_editor::submit_list_counts,
     list_row::{list_row_on_interaction, reconcile_list_row_themes},
     panel::{reconcile_panel_head_themes, reconcile_panel_themes},
@@ -128,6 +140,12 @@ use crate::{
     input_mode::{owns_or_enters, InputMode},
     theme::UiThemeSystems,
 };
+
+/// The kit's state reconcilers ([`VerbGate`], [`Short`], [`amount_row`],
+/// [`bar`]). Order a system that writes those components before this set to
+/// see the result in the same frame.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct WidgetSystems;
 
 /// Marks the currently-active button within a `ButtonValue<T>` selection group.
 #[derive(Component)]
@@ -174,7 +192,9 @@ pub(crate) fn build(app: &mut App) {
         .add_observer(close_popup_on_press)
         .add_observer(open_cascade_row)
         .add_observer(open_select)
-        .add_observer(pick_select_option);
+        .add_observer(pick_select_option)
+        .add_observer(amount_max_pressed)
+        .add_observer(amount_wheel);
 
     app.add_systems(
         Update,
@@ -190,7 +210,7 @@ pub(crate) fn build(app: &mut App) {
             reconcile_themed_images,
             reconcile_themed_nodes,
             reconcile_separators,
-            reconcile_badges,
+            reconcile_tags,
             reconcile_checkboxes,
             reconcile_swatches,
             reconcile_toggles,
@@ -238,6 +258,22 @@ pub(crate) fn build(app: &mut App) {
             .after(UiThemeSystems),
     );
     app.add_systems(Update, submit_list_counts.after(TextFieldSystems));
+    // The kit's state reconcilers: a gate, a short value, an amount row, a
+    // bar. Each writes only what changed. They run before the theme
+    // reconcilers' tuple reads the text colour a `Short` moved and the
+    // `InteractionDisabled` a gate set, so a gated verb paints in one frame.
+    app.add_systems(
+        Update,
+        (
+            apply_verb_gates,
+            apply_short_tone,
+            sync_amount_rows.after(TextFieldSystems),
+            sync_bars,
+        )
+            .in_set(WidgetSystems)
+            .after(UiThemeSystems),
+    );
+    app.configure_sets(Update, WidgetSystems.before(reconcile_themed_text));
     // Every frame and outside the reconcilers' tuple: hover, press and focus
     // move it as well as the theme, and it writes only what changed.
     app.add_systems(Update, paint_icon_buttons.after(UiThemeSystems));

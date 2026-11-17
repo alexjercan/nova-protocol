@@ -1067,7 +1067,7 @@ fn card(
         panel(),
     ))
     .with_children(|card| {
-        card.spawn(panel_head(title, None));
+        card.spawn(panel_head(title, &[]));
         card.spawn(Node {
             flex_grow: 1.0,
             min_height: px(0),
@@ -1144,26 +1144,13 @@ fn set_themed_text(
     }
 }
 
-/// A themed button small enough for the repair slot, a filter or the deal
-/// form.
-fn compact_button<'a>(
+/// A control button named `name`.
+fn spawn_button<'a>(
     parent: &'a mut ChildSpawnerCommands<'_>,
     spec: ButtonSpec,
     name: &str,
 ) -> EntityCommands<'a> {
-    let mut entity = parent.spawn((
-        button(ButtonSpec {
-            min_height: 22.0,
-            font_size: 12.0,
-            ..spec
-        }),
-        Name::new(name.to_string()),
-    ));
-    entity.entry::<Node>().and_modify(|mut node| {
-        node.margin = UiRect::ZERO;
-        node.padding = UiRect::axes(px(8), px(1));
-    });
-    entity
+    parent.spawn((button(spec), Name::new(name.to_string())))
 }
 
 /// The node a 3D scene draws into: it takes all the room its row or column
@@ -1218,7 +1205,7 @@ fn map_view(body: &mut ChildSpawnerCommands, icons: &SketchIcons, min_height: f3
             SketchView::Map,
             map_legend,
             |row| {
-                compact_button(row, ButtonSpec::new("Reframe").fit(), MAP_REFRAME)
+                spawn_button(row, ButtonSpec::control("Reframe"), MAP_REFRAME)
                     .insert(SketchClick)
                     .observe(reframe_map);
             },
@@ -1367,10 +1354,10 @@ fn ship_view(body: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: bool,
 /// Fit and Reset, the camera controls in the footer's button row. Prev and
 /// Next step the selection from the ship panel.
 fn ship_controls(row: &mut ChildSpawnerCommands) {
-    compact_button(row, ButtonSpec::new("Fit").fit(), SHIP_FIT)
+    spawn_button(row, ButtonSpec::control("Fit"), SHIP_FIT)
         .insert(SketchClick)
         .observe(fit_ship);
-    compact_button(row, ButtonSpec::new("Reset").fit(), SHIP_RESET)
+    spawn_button(row, ButtonSpec::control("Reset"), SHIP_RESET)
         .insert(SketchClick)
         .observe(reset_ship);
 }
@@ -1547,7 +1534,7 @@ fn ship_panel(split: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: boo
                                 for (label, name, step) in
                                     [("Prev", SHIP_PREV, -1), ("Next", SHIP_NEXT, 1)]
                                 {
-                                    compact_button(row, ButtonSpec::new(label).fit(), name)
+                                    spawn_button(row, ButtonSpec::control(label), name)
                                         .insert(SketchClick)
                                         .observe(step_section(step));
                                 }
@@ -4076,16 +4063,15 @@ fn fill_repair(
         ));
         return;
     }
-    let bay = ButtonSpec::new(if fixture.repair_bay {
+    let bay = ButtonSpec::control(if fixture.repair_bay {
         "Repair bay on"
     } else {
         "Repair bay off"
-    })
-    .fit();
+    });
     let bay = if fixture.repair_bay { bay } else { bay.ghost() };
     slot.spawn(control_row(JustifyContent::FlexStart))
         .with_children(|row| {
-            compact_button(row, bay, SHIP_BAY)
+            spawn_button(row, bay, SHIP_BAY)
                 .insert(SketchClick)
                 .observe(toggle_repair_bay);
             text(row, "fixture", 11.0, UiColorType::TextMuted);
@@ -4105,14 +4091,12 @@ fn fill_repair(
         .with_children(|row| {
             let price = fixture.repair_price(code);
             if price == 0 {
-                compact_button(row, ButtonSpec::new("Intact").fit(), SHIP_REPAIR)
+                spawn_button(row, ButtonSpec::control("Intact"), SHIP_REPAIR)
                     .insert(bevy::ui::InteractionDisabled);
             } else {
-                compact_button(
+                spawn_button(
                     row,
-                    ButtonSpec::new(format!("Repair {code}  {price} cr"))
-                        .fit()
-                        .primary(),
+                    ButtonSpec::control(format!("Repair {code}  {price} cr")).primary(),
                     SHIP_REPAIR,
                 )
                 .observe(repair_selected);
@@ -4656,7 +4640,7 @@ fn deal_form(form: &mut ChildSpawnerCommands) {
             cell.spawn((
                 Name::new(DEAL_FIELD),
                 DraftField,
-                text_field(TextFieldSpec::new("1").max_chars(5).dense()),
+                text_field(TextFieldSpec::new("1").max_chars(5).tool()),
             ));
         });
         row.spawn((
@@ -4668,7 +4652,7 @@ fn deal_form(form: &mut ChildSpawnerCommands) {
             },
             TextLayout::new(Justify::Left, LineBreak::NoWrap),
         ));
-        compact_button(row, ButtonSpec::new("All").fit().ghost(), DEAL_ALL)
+        spawn_button(row, ButtonSpec::control("All").ghost(), DEAL_ALL)
             .insert(SketchClick)
             .observe(fill_draft);
     });
@@ -4693,12 +4677,8 @@ fn deal_form(form: &mut ChildSpawnerCommands) {
     fact(form, "Hold after", DEAL_HOLD);
     form.spawn(control_row(JustifyContent::FlexStart))
         .with_children(|row| {
-            compact_button(
-                row,
-                ButtonSpec::new("Confirm").fit().primary(),
-                DEAL_CONFIRM,
-            )
-            .observe(confirm_draft);
+            spawn_button(row, ButtonSpec::control("Confirm").primary(), DEAL_CONFIRM)
+                .observe(confirm_draft);
         });
 }
 

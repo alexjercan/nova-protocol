@@ -6,10 +6,10 @@
 //! its name, seeded advancement, table stance and compact detail labels
 //! ([`stance_entry`]). A Station mark selected whose civilization is known
 //! adds that civilization's entry, then a row per Enemy neighbour of it
-//! ([`enemy_neighbours`]) with its fine and a Pay fine button; the row's
-//! tooltip says what paying does or why the button is greyed, and one line
-//! under the rows says where to pay while undocked. The button is enabled
-//! only docked at the selected station with the fine in hand. A click raises
+//! ([`enemy_neighbours`]) with its fine and a Pay fine button, and one line
+//! under the rows says where to pay while undocked. The button shows only
+//! docked at the selected station, and is disabled with the fine painted red
+//! while the balance is short of it. A click raises
 //! [`StanceSettleCommand`], which
 //! [`apply_station_settle_commands`](crate::station::apply_station_settle_commands)
 //! applies at the docked station.
@@ -18,20 +18,20 @@
 
 use std::collections::BTreeSet;
 
-use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
+use bevy::{prelude::*, ui_widgets::Activate};
 use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::*;
 use nova_ui::{
-    prelude::{badge, BadgeKind, ButtonCueType, ButtonSpec, Tooltip},
+    prelude::{
+        button, control_row, divider, tag, text, ButtonCueType, ButtonSpec, Short, TextRole,
+        Tooltip, VerbGate,
+    },
     theme::UiColorType,
 };
 use nova_world_base::prelude::{enemy_neighbours, standing, CivilizationField};
 
 use super::{chart_mark_code, MapChartMarkType, MapRuntime};
-use crate::{
-    pane::{compact_button, control_row, divider, themed_label},
-    station::{settle_refusal_text, SettleDock, StanceSettleCommand},
-};
+use crate::station::{SettleDock, StanceSettleCommand};
 
 /// The STANCES block's container in the Map side panel, shown only while the
 /// chart view is on.
@@ -71,14 +71,13 @@ enum MapStanceRowView {
         table: StanceType,
         details: Vec<(String, Option<&'static str>)>,
     },
-    /// An Enemy neighbour of the selected station's civilization: its
-    /// fine, its Pay fine button's state and the hint its row shows on
-    /// hover: what paying does, or why the button is greyed.
+    /// An Enemy neighbour of the selected station's civilization: its fine,
+    /// whether the balance is short of it, and its Pay fine button's gate.
     Settle {
         civilization: CivilizationId,
         fine: u32,
-        enabled: bool,
-        hint: String,
+        short: bool,
+        gate: VerbGate,
     },
     /// Where to pay, under the Settle rows, while the player is not
     /// docked at the selected station.
@@ -95,11 +94,11 @@ const fn stance_word(table: StanceType) -> &'static str {
 }
 
 /// The badge family `table` reads in: the Map's contact colours.
-const fn stance_badge_kind(table: StanceType) -> BadgeKind {
+const fn stance_badge_kind(table: StanceType) -> UiColorType {
     match table {
-        StanceType::Ally => BadgeKind::Blue,
-        StanceType::Neutral => BadgeKind::Mute,
-        StanceType::Enemy => BadgeKind::Red,
+        StanceType::Ally => UiColorType::Info,
+        StanceType::Neutral => UiColorType::TextSecondary,
+        StanceType::Enemy => UiColorType::Danger,
     }
 }
 
@@ -238,8 +237,7 @@ fn overview_rows(
 /// The rows for a selected Station mark whose civilization is `civilization`:
 /// its own entry, then a Pay fine row per Enemy neighbour, then the Dock line
 /// while the player is not docked here. A station whose civilization reads
-/// Enemy refuses the dock, so its hints and Dock line say so, and the hints
-/// name the charted stations that take the fine instead.
+/// Enemy refuses the dock, so its Dock line says so.
 #[expect(
     clippy::too_many_arguments,
     reason = "the records the rows read and the live dock facts the button reads"
@@ -270,33 +268,17 @@ fn station_rows(
         details,
     }];
     for (enemy, fine) in enemy_neighbours(civilization, stances) {
-        let name = enemy.name();
-        let enabled = docked_here && own_credits >= fine;
-        let hint = if enabled {
-            format!(
-                "Pay {}: {name} returns to NEUTRAL.",
-                cr_text(u64::from(fine))
-            )
-        } else if refuses {
-            let (codes, _) = fine_takers(chart, jobs, stances, enemy, now);
-            if codes.is_empty() {
-                format!("{station_code} refuses docking; no charted station takes it")
-            } else {
-                format!(
-                    "{station_code} refuses docking; pay at {}",
-                    codes.join(", ")
-                )
-            }
-        } else if !docked_here {
-            format!("Dock at {station_code} to pay: {name} returns to NEUTRAL.")
-        } else {
-            settle_refusal_text(&name, fine, own_credits)
+        let short = own_credits < fine;
+        let gate = match (docked_here, short) {
+            (false, _) => VerbGate::Hidden,
+            (true, true) => VerbGate::Disabled,
+            (true, false) => VerbGate::Ready,
         };
         rows.push(MapStanceRowView::Settle {
             civilization: enemy,
             fine,
-            enabled,
-            hint,
+            short,
+            gate,
         });
     }
     // With no Settle row there is no fine to pay, so no line says where.
@@ -327,10 +309,7 @@ pub(crate) fn spawn_map_stance_block(panel: &mut ChildSpawnerCommands) {
         ))
         .with_children(|block| {
             block.spawn(divider());
-            block.spawn((
-                themed_label("STANCES", 11.0, UiColorType::TextMuted),
-                Pickable::IGNORE,
-            ));
+            block.spawn((text("STANCES", TextRole::Label), Pickable::IGNORE));
             block.spawn((
                 MapStanceRows::default(),
                 Node {
@@ -465,13 +444,13 @@ pub(crate) fn update_map_stance_block(
                                 },
                                 Pickable::IGNORE,
                                 children![(
-                                    themed_label(name, 13.0, UiColorType::Text),
+                                    text(name, TextRole::Value),
                                     TextLayout::new(Justify::Left, LineBreak::NoWrap),
                                     Pickable::IGNORE
                                 )],
                             ));
                             row.spawn((
-                                badge(stance_badge_kind(*table), stance_word(*table)),
+                                tag(stance_word(*table), stance_badge_kind(*table)),
                                 Pickable::IGNORE,
                             ))
                             .insert(Node {
@@ -480,7 +459,7 @@ pub(crate) fn update_map_stance_block(
                                 ..default()
                             });
                             row.spawn((
-                                badge(BadgeKind::Mute, advancement),
+                                tag(advancement, UiColorType::TextSecondary),
                                 Tooltip("Civilization advancement: seeded generation potential, not per-ship technology or progression.".to_string()),
                             ))
                             .insert(Node {
@@ -490,7 +469,7 @@ pub(crate) fn update_map_stance_block(
                             });
                         });
                         for (detail, hint) in details {
-                            let label = themed_label(detail, 12.0, UiColorType::TextMuted);
+                            let label = text(detail, TextRole::Label);
                             if let Some(hint) = hint {
                                 // A Tooltip spawns its panel as a child, and a
                                 // text node with a child lays out as a container
@@ -505,12 +484,11 @@ pub(crate) fn update_map_stance_block(
                     MapStanceRowView::Settle {
                         civilization,
                         fine,
-                        enabled,
-                        hint,
+                        short,
+                        gate,
                     } => {
                         list.spawn((
                             Name::new(format!("MapStanceRow-{index}")),
-                            Tooltip(hint.clone()),
                             Node {
                                 column_gap: px(8),
                                 ..control_row(JustifyContent::FlexStart)
@@ -529,36 +507,32 @@ pub(crate) fn update_map_stance_block(
                                 },
                                 Pickable::IGNORE,
                                 children![(
-                                    themed_label(&civilization.name(), 13.0, UiColorType::Text),
+                                    text(&civilization.name(), TextRole::Value),
                                     TextLayout::new(Justify::Left, LineBreak::NoWrap),
                                     Pickable::IGNORE
                                 )],
                             ));
                             row.spawn((
-                                badge(
-                                    stance_badge_kind(StanceType::Enemy),
-                                    stance_word(StanceType::Enemy),
-                                ),
+                                tag(stance_word(StanceType::Enemy), stance_badge_kind(StanceType::Enemy)),
                                 Pickable::IGNORE,
                             ));
                             row.spawn((
-                                themed_label(&cr_text(u64::from(*fine)), 12.0, UiColorType::TextBody),
+                                text(cr_text(u64::from(*fine)), TextRole::Body),
+                                Short(*short),
                                 TextLayout::new(Justify::Right, LineBreak::NoWrap),
                                 Pickable::IGNORE,
                             ));
-                            let mut button = row.spawn((
+                            row.spawn((
                                 Name::new(format!("MapStancePayFine-{index}")),
-                                compact_button(ButtonSpec::new("Pay fine").fit().primary()),
+                                button(ButtonSpec::control("Pay fine").primary()),
                                 ButtonCueType::Owned,
-                            ));
-                            button.observe(on_pay_fine_button(*civilization));
-                            if !enabled {
-                                button.insert(InteractionDisabled);
-                            }
+                                gate.clone(),
+                            ))
+                            .observe(on_pay_fine_button(*civilization));
                         });
                     }
                     MapStanceRowView::Dock(line) => {
-                        list.spawn(themed_label(line, 12.0, UiColorType::TextMuted));
+                        list.spawn(text(line, TextRole::Label));
                     }
                 }
             }

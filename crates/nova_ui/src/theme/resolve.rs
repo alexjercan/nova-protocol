@@ -29,8 +29,6 @@ use super::config::{
 /// A shared metric the screens ask for by meaning.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UiMetric {
-    /// Hairline border width.
-    BorderWidth,
     /// Control corner radius.
     Radius,
     /// Panel corner radius.
@@ -159,8 +157,6 @@ pub struct ResolvedRow {
 pub struct ResolvedSlider {
     /// The well.
     pub surface: ResolvedSurface,
-    /// Track height in logical pixels.
-    pub height: f32,
     /// How the value is shown.
     pub meter: SliderMeter,
     /// The lit part of the meter.
@@ -172,12 +168,6 @@ pub struct ResolvedSlider {
 /// A resolved status badge.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedBadge {
-    /// `true` for the `[TAG]` text form, `false` for the bordered chip.
-    pub bracketed: bool,
-    /// Horizontal padding in logical pixels.
-    pub padding_x: f32,
-    /// Border width.
-    pub border_width: f32,
     /// Alpha applied to the family colour for the border.
     pub border_alpha: f32,
     /// Alpha applied to the family colour for the fill.
@@ -381,7 +371,6 @@ impl ActiveUiTheme {
     /// One shared metric.
     pub fn metric(&self, metric: UiMetric) -> f32 {
         match metric {
-            UiMetric::BorderWidth => self.metrics.border_width,
             UiMetric::Radius => self.metrics.radius,
             UiMetric::PanelRadius => self.metrics.panel_radius,
         }
@@ -653,9 +642,43 @@ pub fn resolve_theme(id: &str, themes: &[UiThemeConfig]) -> Result<ActiveUiTheme
 /// author fixes them one at a time anyway.
 pub fn lint_theme(config: &UiThemeConfig, registered: &[UiThemeConfig]) -> Vec<ThemeIssue> {
     match resolve_theme(&config.id, registered) {
-        Ok(_) => Vec::new(),
+        Ok(theme) => disabled_issues(&theme),
         Err(issue) => vec![issue],
     }
+}
+
+/// The most a disabled legend's alpha may be, as a share of the idle legend's.
+const DISABLED_LEGEND_SHARE: f32 = 0.5;
+
+/// Every button table whose disabled face could pass for a live one: its
+/// legend must be at most [`DISABLED_LEGEND_SHARE`] of the idle legend's
+/// alpha, and its face flat - no gradient and no cast shadow. A gated verb
+/// says nothing else, so its paint is the whole message.
+fn disabled_issues(theme: &ActiveUiTheme) -> Vec<ThemeIssue> {
+    [
+        (ThemeButton::Default, "button"),
+        (ThemeButton::Primary, "button_primary"),
+        (ThemeButton::Danger, "button_danger"),
+        (ThemeButton::Ghost, "button_ghost"),
+    ]
+    .into_iter()
+    .filter_map(|(table, role)| {
+        let normal = theme.button(table, ButtonState::Normal);
+        let disabled = theme.button(table, ButtonState::Disabled);
+        let dim = disabled.text.alpha() <= normal.text.alpha() * DISABLED_LEGEND_SHARE;
+        let flat = disabled.fill.gradient.is_none() && disabled.shadow.is_none();
+        (!dim || !flat).then(|| {
+            issue(
+                theme.id(),
+                format!(
+                    "role '{role}': the disabled state must read as dead - a legend alpha at \
+                     most {DISABLED_LEGEND_SHARE} of the normal legend's, no gradient and no \
+                     shadow"
+                ),
+            )
+        })
+    })
+    .collect()
 }
 
 /// The resolved palette + metrics one theme resolves its colours against.
@@ -802,7 +825,6 @@ impl Ctx<'_> {
     fn slider(&self, role: &SliderRole) -> Result<ResolvedSlider, ThemeIssue> {
         Ok(ResolvedSlider {
             surface: self.surface(&role.surface, self.metrics.radius)?,
-            height: role.height,
             meter: role.meter,
             lit: self.color(&role.lit)?,
             unlit: self.color(&role.unlit)?,
@@ -828,9 +850,6 @@ impl Ctx<'_> {
 
     fn badge(&self, role: &BadgeRole) -> ResolvedBadge {
         ResolvedBadge {
-            bracketed: role.bracketed,
-            padding_x: role.padding_x,
-            border_width: role.border_width,
             border_alpha: role.border_alpha,
             fill_alpha: role.fill_alpha,
         }

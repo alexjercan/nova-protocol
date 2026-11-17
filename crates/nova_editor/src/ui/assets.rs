@@ -63,7 +63,7 @@ use crate::{
     ExampleStates,
 };
 
-/// A tile's width: [`LINE_CHARS`] of [`density::TEXT_SMALL`] text and the
+/// A tile's width: [`LINE_CHARS`] of [`density::TEXT_LABEL`] text and the
 /// tile's padding.
 const TILE_W: f32 = 96.0;
 
@@ -462,7 +462,7 @@ pub(crate) fn spawn_asset_controls(row: &mut RelatedSpawnerCommands<ChildOf>) {
     row.spawn((
         Name::new("Asset Add Button"),
         AssetTabControl,
-        button(ButtonSpec::new("+").ghost().dense().fit()),
+        button(ButtonSpec::control("+").ghost()),
         observe(on_asset_add),
     ));
 }
@@ -1111,7 +1111,7 @@ fn tile_line(line: &str, colour: UiColorType) -> impl Bundle {
             justify: Justify::Center,
         },
         TextFont {
-            font_size: FontSize::Px(density::TEXT_SMALL),
+            font_size: FontSize::Px(density::TEXT_LABEL),
             ..default()
         },
         TextColor(Color::NONE),

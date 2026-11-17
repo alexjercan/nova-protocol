@@ -1,10 +1,10 @@
-//! Small chrome: section headers, separators, status badges, colour swatches,
+//! Small chrome: section headers, separators, colour swatches,
 //! checkboxes and pill toggles.
 //!
 //! Every factory here spawns UNPAINTED and carries a marker, and every marker
 //! has a reconciler below. That is what makes a theme flip reach chrome that is
 //! already on screen: before, this whole module read the current look ONCE at
-//! spawn, so a header, a badge or a toggle kept its old colours until its
+//! spawn, so a header or a toggle kept its old colours until its
 //! screen was next rebuilt.
 //!
 //! The on/off controls ([`checkbox`], [`toggle`]) keep their state in their own
@@ -359,122 +359,6 @@ pub(super) fn reconcile_separators(
     }
 }
 
-/// Semantic colour families for [`badge`].
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum BadgeKind {
-    /// Nominal / online.
-    Green,
-    /// Warning.
-    Amber,
-    /// Info.
-    Blue,
-    /// Fault.
-    Red,
-    /// Idle / neutral tag.
-    Mute,
-}
-
-impl BadgeKind {
-    /// The theme colour and the alpha this family reads at.
-    fn tone(self) -> (UiColorType, f32) {
-        match self {
-            BadgeKind::Green => (UiColorType::Nominal, 1.0),
-            BadgeKind::Amber => (UiColorType::Accent, 1.0),
-            BadgeKind::Blue => (UiColorType::Info, 1.0),
-            BadgeKind::Red => (UiColorType::Danger, 1.0),
-            BadgeKind::Mute => (UiColorType::TextMuted, 0.9),
-        }
-    }
-}
-
-/// Marks a [`badge`], carrying the family and the RAW legend.
-///
-/// The raw legend, not the rendered one: the theme decides whether a badge
-/// reads `[ONLINE]` or `ONLINE`, so the brackets cannot be baked in at spawn or
-/// a flip would either keep them or double them.
-#[derive(Component)]
-pub struct ThemedBadge {
-    kind: BadgeKind,
-    text: String,
-}
-
-/// Marks a badge's legend span.
-#[derive(Component)]
-pub(super) struct BadgeLabel;
-
-/// A status badge. Its shape is the theme's: the terminal look draws a
-/// bracketed `[TAG]` text span in the family colour with no chrome, the
-/// hardware look a bordered, tinted chip.
-pub fn badge(kind: BadgeKind, text: &str) -> impl Bundle {
-    (
-        ThemedBadge {
-            kind,
-            text: text.to_uppercase(),
-        },
-        Node {
-            align_items: AlignItems::Center,
-            ..default()
-        },
-        BorderColor::all(Color::NONE),
-        BackgroundColor(Color::NONE),
-        children![(
-            BadgeLabel,
-            UiText,
-            Text::new(String::new()),
-            TextFont {
-                font_size: FontSize::Px(10.0),
-                ..default()
-            },
-            TextColor(Color::NONE),
-        )],
-    )
-}
-
-/// Paint badges on a theme change and on spawn, legend included.
-pub(super) fn reconcile_badges(
-    theme: Res<ActiveUiTheme>,
-    mut q: Query<(
-        Entity,
-        &ThemedBadge,
-        &mut Node,
-        &mut BackgroundColor,
-        &mut BorderColor,
-        &Children,
-    )>,
-    changed: Query<Entity, Changed<ThemedBadge>>,
-    mut q_label: Query<(&mut Text, &mut TextColor), With<BadgeLabel>>,
-) {
-    let restyle_all = theme.is_changed();
-    let dirty: HashSet<Entity> = changed.iter().collect();
-    if !restyle_all && dirty.is_empty() {
-        return;
-    }
-    let paint = theme.badge();
-    let radius = theme.metric(UiMetric::Radius);
-    for (entity, badge, mut node, mut bg, mut border, children) in &mut q {
-        if !restyle_all && !dirty.contains(&entity) {
-            continue;
-        }
-        let (family, alpha) = badge.kind.tone();
-        let color = theme.color_alpha(family, alpha);
-        node.padding = UiRect::axes(px(paint.padding_x), px(3.0));
-        node.border = UiRect::all(px(paint.border_width));
-        node.border_radius = BorderRadius::all(px(radius));
-        border.set_all(color.with_alpha(color.alpha() * paint.border_alpha));
-        *bg = color.with_alpha(color.alpha() * paint.fill_alpha).into();
-        for &child in children {
-            if let Ok((mut text, mut text_color)) = q_label.get_mut(child) {
-                text.0 = if paint.bracketed {
-                    format!("[{}]", badge.text)
-                } else {
-                    badge.text.clone()
-                };
-                *text_color = TextColor(color);
-            }
-        }
-    }
-}
-
 /// Marks a [`checkbox`], carrying whether it is checked.
 ///
 /// Flip the box by writing this component; the reconciler repaints it and
@@ -733,36 +617,6 @@ mod tests {
             }
         }
         panic!("the widget has a text span");
-    }
-
-    /// A badge's SHAPE is the theme's, not the caller's: the terminal look
-    /// brackets the legend and draws no chrome, the hardware look drops the
-    /// brackets and draws a tinted chip. The legend is stored raw so a flip can
-    /// go both ways - baking the brackets in at spawn left `[[TAG]]` behind.
-    #[test]
-    fn a_badge_takes_its_brackets_and_its_chip_from_the_theme() {
-        let mut app = themed_app(PHOSPHOR_THEME_ID);
-        let chip = app
-            .world_mut()
-            .spawn(badge(BadgeKind::Green, "online"))
-            .id();
-        app.update();
-        assert_eq!(label_of(&mut app, chip), "[ONLINE]");
-        assert_eq!(
-            bg(&app, chip).alpha(),
-            0.0,
-            "no chip behind the legend on the terminal look"
-        );
-
-        select(&mut app, HARDWARE_THEME_ID);
-        app.update();
-        assert_eq!(label_of(&mut app, chip), "ONLINE");
-        let expected = phosphor().color(UiColorType::Text);
-        assert_eq!(
-            bg(&app, chip),
-            expected.with_alpha(hardware().badge().fill_alpha),
-            "the hardware look tints a chip behind it"
-        );
     }
 
     /// Writing [`ThemedCheckbox`] is the only way to flip a box: the reconciler

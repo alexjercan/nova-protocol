@@ -18,6 +18,7 @@ use bevy::{
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
+    prelude::{text, TextRole},
     theme::{ActiveUiTheme, UiColorType},
     widget::{ButtonCueType, ThemedBorder, ThemedFill, ThemedImageTint, ThemedText},
 };
@@ -25,7 +26,7 @@ use nova_ui::{
 use super::{app::*, contacts::*, *};
 use crate::{
     icons::{icon_node, BodyIconType, InterfaceIcons},
-    pane::{interface_shown, legend_entry, themed_label, InterfacePaneType},
+    pane::{interface_shown, legend_entry, InterfacePaneType},
     terminal::{NovaOsAppInput, NovaOsCloseTransition},
     // The viewer the Map and Ship panes are two framings of.
     viewer::{cycle_index, orbit_eye, unlit, zoom_radius, OrbitGesture},
@@ -991,10 +992,7 @@ fn spawn_map_route(commands: &mut Commands, viewport: Entity) {
         BorderColor::all(Color::NONE),
         ThemedBorder::alpha(UiColorType::Accent, 1.0),
         ChildOf(viewport),
-        children![(
-            themed_label("GOTO", 11.0, UiColorType::Accent),
-            Pickable::IGNORE
-        )],
+        children![(text("GOTO", TextRole::Heading), Pickable::IGNORE)],
     ));
 }
 
@@ -1083,7 +1081,7 @@ pub(crate) fn spawn_blip(
         ChildOf(blip),
         // The blip carries its unique CODE, not the freeform name, so the
         // label you read is the label the contact panel shows.
-        children![themed_label(&contact.code, 12.0, UiColorType::TextBody)],
+        children![text(&contact.code, TextRole::Body)],
     ));
     commands.entity(viewport).add_child(blip);
     blip
@@ -1418,11 +1416,7 @@ pub(crate) fn refresh_map_legend(
             for mark in &marks {
                 legend.spawn(legend_entry()).with_children(|entry| {
                     entry.spawn(icon_node(icons.body(mark.0), mark.1.color(), 16.0));
-                    entry.spawn(themed_label(
-                        legend_label(*mark),
-                        12.0,
-                        UiColorType::TextBody,
-                    ));
+                    entry.spawn(text(legend_label(*mark), TextRole::Body));
                 });
             }
         });

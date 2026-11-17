@@ -101,8 +101,8 @@ use crate::{
         fit_card_head, fit_pane_footer, leave_station_pane, next_interface_pane,
         play_interface_toggle, rebuild_interface_body, refresh_card_head_keys,
         refresh_pane_input_hints, show_pane_balance, show_pane_clock, show_pane_input_hints,
-        show_station_tab, spawn_interface_root, sync_nova_os_contexts, toggle_interface,
-        InterfacePaneType,
+        show_pane_mode_tags, show_station_tab, spawn_interface_root, sync_nova_os_contexts,
+        toggle_interface, InterfacePaneType,
     },
     ship::ShipPaneSystems,
     station::StationPaneSystems,
@@ -195,6 +195,7 @@ impl Plugin for InterfacePlugin {
                 show_pane_input_hints,
                 show_pane_clock,
                 show_pane_balance,
+                show_pane_mode_tags,
             )
                 .chain()
                 .in_set(InterfaceSystems),

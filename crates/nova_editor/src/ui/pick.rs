@@ -308,7 +308,7 @@ fn small_text(text: &str) -> impl Bundle {
         UiText,
         Text::new(text.to_string()),
         TextFont {
-            font_size: FontSize::Px(density::TEXT_SMALL),
+            font_size: FontSize::Px(density::TEXT_LABEL),
             ..default()
         },
         TextColor(Color::NONE),

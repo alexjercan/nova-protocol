@@ -5,6 +5,8 @@
 use bevy::{prelude::*, ui::InteractionDisabled};
 use nova_ui::{prelude::*, theme::UiColorType};
 
+// The gallery keeps its own fixed-size mock helpers; they shadow the kit's.
+use crate::chrome::{cell, control_row, divider, text};
 use crate::{
     chrome::*,
     data::{distance_hint, job, thousands, JobCard, JobKind},
@@ -69,7 +71,7 @@ fn board_panel(
                         (BoardTier::Core, "Core station"),
                     ] {
                         let mut option = seg.spawn((
-                            segmented_option_compact(label),
+                            segmented_option_fit(label),
                             ButtonValue(value),
                             Name::new(format!("{TIER_PREFIX} {value:?}")),
                         ));
@@ -137,14 +139,17 @@ fn board_panel(
                 r.spawn((
                     Name::new(format!("{ACCEPT_PREFIX} {id}")),
                     acts(
-                        compact_button(ButtonSpec::new("Accept").fit().primary()),
+                        button(ButtonSpec::control("Accept").primary()),
                         Click::Accept(id),
                     ),
                 ));
             });
         }
         if !any {
-            panel.spawn((Name::new(EMPTY_STATE), badge(BadgeKind::Mute, "EMPTY")));
+            panel.spawn((
+                Name::new(EMPTY_STATE),
+                tag("EMPTY", UiColorType::TextSecondary),
+            ));
         }
     });
 }
@@ -215,14 +220,14 @@ fn held_panel(
                 })
                 .with_children(|c| {
                     if docked && j.hand_in_here {
-                        c.spawn(tag(BadgeKind::Green, "HAND IN HERE"));
+                        c.spawn(tag("HAND IN HERE", UiColorType::Nominal));
                     }
                 });
                 let refusal = hand_in_refusal(j, docked);
                 let mut button = r.spawn((
                     Name::new(format!("{HAND_IN_PREFIX} {id}")),
                     acts(
-                        compact_button(ButtonSpec::new("Hand in").fit().primary()),
+                        button(ButtonSpec::control("Hand in").primary()),
                         Click::HandIn(id),
                     ),
                 ));
@@ -232,7 +237,7 @@ fn held_panel(
             });
         }
         if jobs.held.is_empty() {
-            panel.spawn(badge(BadgeKind::Mute, "EMPTY"));
+            panel.spawn(tag("EMPTY", UiColorType::TextSecondary));
         }
     });
 }
@@ -255,7 +260,7 @@ fn job_inspector(
         head.spawn(icon(icons, j.kind.icon(), 24.0));
         head.spawn(text(j.title, 15.0, UiColorType::Text));
         if j.done {
-            head.spawn(tag(BadgeKind::Green, "DONE"));
+            head.spawn(tag("DONE", UiColorType::Nominal));
         }
     });
     side.spawn(divider());
@@ -331,7 +336,7 @@ fn job_inspector(
             row.spawn((
                 Name::new(SHOW_ON_MAP),
                 acts(
-                    compact_button(ButtonSpec::new("Show on Map").fit()),
+                    button(ButtonSpec::control("Show on Map")),
                     Click::ShowOnMap(j.id),
                 ),
             ));

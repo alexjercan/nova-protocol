@@ -19,10 +19,14 @@ use bevy::{
     ui_widgets::{Activate, Button},
 };
 
-use super::{Selected, UiText};
+use super::{
+    layout::metrics::{
+        CONTROL_H, GAP_S, MENU_H, PAD_X, TAG_H, TEXT, TEXT_LABEL, TEXT_MENU, VERB_MIN_W,
+    },
+    Selected, UiText,
+};
 use crate::theme::{
-    density, ActiveUiTheme, ButtonState, ResolvedState, ThemeButton, UiColorType, UiMetric,
-    BORDER_W,
+    ActiveUiTheme, ButtonState, ResolvedState, ThemeButton, UiColorType, UiMetric, BORDER_W,
 };
 
 /// Marks a themed button so the colour observers + theme reconciler pick it up.
@@ -387,81 +391,57 @@ pub fn button_on_setting<
     }
 }
 
-/// The build recipe for a [`ThemedButton`]. Construct with [`ButtonSpec::new`]
-/// and the chainable modifiers.
+/// The build recipe for a [`ThemedButton`]. Construct with
+/// [`ButtonSpec::control`] (every tool surface) or [`ButtonSpec::menu`] (the
+/// main-menu screens), then the chainable modifiers.
+///
+/// There is no size knob: a button is [`CONTROL_H`] or [`MENU_H`] high, its
+/// label never wraps, and it is as wide as its label unless it asks to
+/// [`fill`](Self::fill) its row.
 #[derive(Clone)]
 pub struct ButtonSpec {
     /// The button label.
     pub text: String,
     /// Emphasis.
     pub variant: ButtonVariant,
-    /// Left-aligned full-width with a `> ` hover/selected cursor (menu/list style).
+    /// Left-aligned with a `> ` hover/selected cursor (menu/list style).
     pub block: bool,
     /// Optional trailing amber key-chip (`Enter`/`Esc`).
     pub key: Option<String>,
-    /// Size to the label instead of filling the row.
-    pub fit: bool,
-    /// Tighter side padding, for a bar that has to seat many short labels on
-    /// one line.
-    pub compact: bool,
-    /// Minimum height in px.
-    pub min_height: f32,
-    /// Label font size in px.
-    pub font_size: f32,
-    /// Never wrap the label, so a squeezed bar cannot fold it onto two lines.
-    pub one_line: bool,
-    /// No outer margin and a thin inside one, for a tool surface.
-    pub dense: bool,
+    /// Fill the row instead of fitting the label.
+    pub fill: bool,
+    /// The main-menu size.
+    pub menu: bool,
+    /// An icon before the label.
+    pub icon: Option<Handle<Image>>,
 }
 
 impl ButtonSpec {
-    /// A default 34px / 14px neutral button.
-    pub fn new(text: impl Into<String>) -> Self {
+    /// A [`CONTROL_H`] button: [`TEXT`] label, [`PAD_X`] sides, no margin, as
+    /// wide as its label and at least [`VERB_MIN_W`].
+    pub fn control(text: impl Into<String>) -> Self {
         Self {
             text: text.into(),
             variant: ButtonVariant::Default,
             block: false,
             key: None,
-            fit: false,
-            compact: false,
-            min_height: 34.0,
-            font_size: 14.0,
-            one_line: false,
-            dense: false,
+            fill: false,
+            menu: false,
+            icon: None,
         }
     }
 
-    /// The size of a control on a tool surface: see [`density`]. It fits its
-    /// label and stays on one line.
-    pub fn dense(mut self) -> Self {
-        self.dense = true;
-        self.compact = true;
-        self.fit = true;
-        self.one_line = true;
-        self.min_height = density::CONTROL_H;
-        self.font_size = density::TEXT;
-        self
+    /// A [`MENU_H`] main-menu button. The main-menu screens only.
+    pub fn menu(text: impl Into<String>) -> Self {
+        Self {
+            menu: true,
+            ..Self::control(text)
+        }
     }
 
-    /// Size to the label rather than filling the row.
-    ///
-    /// A full-width button in a WRAPPING row takes a line to itself, which
-    /// turns a bar of segments into a stack of them.
-    pub fn fit(mut self) -> Self {
-        self.fit = true;
-        self
-    }
-
-    /// Keep the label on one line.
-    pub fn one_line(mut self) -> Self {
-        self.one_line = true;
-        self
-    }
-
-    /// The larger main-menu sizing (40px / 16px).
-    pub fn menu(mut self) -> Self {
-        self.min_height = 40.0;
-        self.font_size = 16.0;
+    /// Fill the row, e.g. an equal pair of verbs. The default fits the label.
+    pub fn fill(mut self) -> Self {
+        self.fill = true;
         self
     }
 
@@ -494,12 +474,23 @@ impl ButtonSpec {
         self.key = Some(key.into());
         self
     }
+
+    /// An icon before the label. With an empty label the button is a
+    /// [`CONTROL_H`] square.
+    pub fn icon(mut self, icon: Handle<Image>) -> Self {
+        self.icon = Some(icon);
+        self
+    }
 }
 
+/// The side of a button's icon, in logical px.
+const ICON_PX: f32 = 14.0;
+
 /// Build the button bundle from a [`ButtonSpec`]. Spawns the label span, plus an
-/// optional block cursor and key-chip, as children, UNPAINTED:
+/// optional icon, block cursor and key-chip, as children, UNPAINTED:
 /// [`reconcile_button_themes`] paints it on the frame it appears, which is the
-/// single path from state to pixels.
+/// single path from state to pixels. A [`VerbGate`](super::VerbGate) on the
+/// same entity hides or disables it.
 ///
 /// An EMPTY `text` spawns no label span at all, which is how a caller that
 /// spawns its own content (an icon) gets a button with nothing else in it.
@@ -509,36 +500,39 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
         variant,
         block,
         key,
-        fit,
-        compact,
-        min_height,
-        font_size,
-        one_line,
-        dense,
+        fill,
+        menu,
+        icon,
     } = spec;
-    let padding = if dense {
-        UiRect::axes(px(7), px(1))
-    } else if compact {
-        UiRect::axes(px(7), px(4))
+    let (height, font_size) = if menu {
+        (MENU_H, TEXT_MENU)
     } else {
-        UiRect::axes(px(12), px(6))
+        (CONTROL_H, TEXT)
     };
-
     let justify = if block {
         JustifyContent::FlexStart
     } else {
         JustifyContent::Center
     };
+    let (width, min_width, padding) = if text.is_empty() && !block {
+        // An icon or caller-filled button: a square at least.
+        (Val::Auto, px(height), UiRect::ZERO)
+    } else {
+        (
+            if fill { percent(100) } else { Val::Auto },
+            px(VERB_MIN_W),
+            UiRect::axes(px(PAD_X), px(0)),
+        )
+    };
 
     (
         Node {
-            width: if fit { Val::Auto } else { percent(100) },
-            min_height: px(min_height),
-            margin: if dense {
-                UiRect::ZERO
-            } else {
-                UiRect::vertical(px(4))
-            },
+            width,
+            min_width,
+            height: px(height),
+            // A filled button in a full column shrinks nothing: only its
+            // width gives.
+            min_height: px(height),
             padding,
             // The border WIDTH is layout, so it is set here; its colour, the
             // fill and the radius are the theme's and land on the reconciler's
@@ -546,7 +540,10 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
             border: UiRect::all(px(BORDER_W)),
             justify_content: justify,
             align_items: AlignItems::Center,
-            column_gap: px(8),
+            column_gap: px(GAP_S),
+            // A fitted label never squeezes. Filled buttons sharing a row
+            // shrink evenly from 100% each, so the row holds them.
+            flex_shrink: if fill { 1.0 } else { 0.0 },
             ..default()
         },
         ThemedButton,
@@ -568,6 +565,18 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
                     TextColor(Color::NONE),
                 ));
             }
+            if let Some(icon) = icon {
+                parent.spawn((
+                    ImageNode::new(icon),
+                    Node {
+                        width: px(ICON_PX),
+                        height: px(ICON_PX),
+                        flex_shrink: 0.0,
+                        ..default()
+                    },
+                    Pickable::IGNORE,
+                ));
+            }
             // An EMPTY label spawns nothing, not an empty span: the button
             // lays its children out with a `column_gap`, so a zero-width span
             // would still push whatever the caller spawns inside off centre.
@@ -578,14 +587,7 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
                     ButtonLabel,
                     UiText,
                     Text::new(text),
-                    TextLayout {
-                        linebreak: if one_line {
-                            LineBreak::NoWrap
-                        } else {
-                            LineBreak::WordBoundary
-                        },
-                        ..default()
-                    },
+                    TextLayout::new(Justify::Left, LineBreak::NoWrap),
                     TextFont {
                         font_size: FontSize::Px(font_size),
                         ..default()
@@ -598,25 +600,28 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
                 ));
             }
             if let Some(key) = key {
-                parent.spawn(key_chip(&key, font_size));
+                parent.spawn(key_chip(&key));
             }
         })),
     )
 }
 
-/// The trailing amber key-chip span (`Enter`/`Esc`), bordered per the demo.
+/// The trailing amber key-chip span (`Enter`/`Esc`): [`TAG_H`] high, its
+/// legend at [`TEXT_LABEL`].
 ///
 /// Public because a chip is how this UI draws A KEY, and buttons are not the
 /// only surface that names one: the editor's menu rows and its key legend say
 /// the same thing about the same keyboard, and a second drawing of a chip
 /// would be a second answer to what a key looks like.
-pub fn key_chip(text: &str, font_size: f32) -> impl Bundle {
+pub fn key_chip(text: &str) -> impl Bundle {
     (
         KeyChip,
         Node {
-            margin: UiRect::left(px(8)),
-            padding: UiRect::axes(px(5), px(1)),
+            height: px(TAG_H),
+            padding: UiRect::axes(px(GAP_S), px(0)),
             border: UiRect::all(px(BORDER_W)),
+            align_items: AlignItems::Center,
+            flex_shrink: 0.0,
             ..default()
         },
         BorderColor::all(Color::NONE),
@@ -625,8 +630,9 @@ pub fn key_chip(text: &str, font_size: f32) -> impl Bundle {
             KeyChipLabel,
             UiText,
             Text::new(text.to_string()),
+            TextLayout::new(Justify::Left, LineBreak::NoWrap),
             TextFont {
-                font_size: FontSize::Px((font_size - 2.0).max(10.0)),
+                font_size: FontSize::Px(TEXT_LABEL),
                 ..default()
             },
             TextColor(Color::NONE),
@@ -681,18 +687,6 @@ pub(super) fn reconcile_key_chips(
     }
 }
 
-/// A default themed button (34px / 14px, neutral). The one-arg convenience the
-/// editor + menu spawn.
-pub fn themed_button(text: &str) -> impl Bundle {
-    button(ButtonSpec::new(text))
-}
-
-/// The larger main-menu button (40px / 16px), routed through the same
-/// [`ThemedButton`] observers so every button in the game shares one path.
-pub fn menu_button(text: &str) -> impl Bundle {
-    button(ButtonSpec::new(text).menu())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -728,7 +722,10 @@ mod tests {
     #[test]
     fn phosphor_button_states_render_cli_markers() {
         let mut app = themed_app(PHOSPHOR_THEME_ID);
-        let btn = app.world_mut().spawn(button(ButtonSpec::new("Go"))).id();
+        let btn = app
+            .world_mut()
+            .spawn(button(ButtonSpec::control("Go")))
+            .id();
         app.update();
 
         let theme = phosphor();
@@ -761,7 +758,10 @@ mod tests {
     #[test]
     fn hardware_button_states_render_bevel() {
         let mut app = themed_app(HARDWARE_THEME_ID);
-        let btn = app.world_mut().spawn(button(ButtonSpec::new("Go"))).id();
+        let btn = app
+            .world_mut()
+            .spawn(button(ButtonSpec::control("Go")))
+            .id();
         app.update();
 
         let theme = hardware();
@@ -793,7 +793,10 @@ mod tests {
     #[test]
     fn theme_switch_restyles_spawned_widgets() {
         let mut app = themed_app(PHOSPHOR_THEME_ID);
-        let first = app.world_mut().spawn(button(ButtonSpec::new("First"))).id();
+        let first = app
+            .world_mut()
+            .spawn(button(ButtonSpec::control("First")))
+            .id();
         app.update();
         assert!(!has_gradient(&app, first), "phosphor: flat");
 
@@ -808,7 +811,7 @@ mod tests {
         // painted hardware by the just-spawned override.
         let second = app
             .world_mut()
-            .spawn(button(ButtonSpec::new("Second")))
+            .spawn(button(ButtonSpec::control("Second")))
             .id();
         app.update();
         assert!(

@@ -6,6 +6,8 @@
 use bevy::prelude::*;
 use nova_ui::{prelude::*, theme::UiColorType};
 
+// The gallery keeps its own fixed-size mock helpers; they shadow the kit's.
+use crate::chrome::{cell, control_row, divider, text};
 use crate::{
     chart3d::{spawn_chart_scene, CellView, ChartView, MarkView, SceneAssets, SceneKind},
     chrome::*,
@@ -109,11 +111,11 @@ pub fn chart_page(
                 controls.spawn((
                     Name::new(MAP_REFRAME),
                     acts(
-                        button(ButtonSpec::new("Reframe").fit()),
+                        button(ButtonSpec::control("Reframe")),
                         Click::Reframe(SceneKind::Chart),
                     ),
                 ));
-                controls.spawn((Name::new(MAP_CHART), button(ButtonSpec::new("Chart").fit())));
+                controls.spawn((Name::new(MAP_CHART), button(ButtonSpec::control("Chart"))));
             },
             &[
                 ("Q/E", "Turn"),
@@ -137,7 +139,7 @@ fn objectives(side: &mut ChildSpawnerCommands, icons: &GalleryIcons, jobs: &Jobs
     .with_children(|r| {
         r.spawn(icon(icons, IconType::Milestone, 16.0));
         r.spawn(grow_cell(FIRST_MILESTONE, 13.0, UiColorType::Text));
-        r.spawn(tag(BadgeKind::Green, "MET"));
+        r.spawn(tag("MET", UiColorType::Nominal));
     });
     for &id in &jobs.held {
         let j = job(id);

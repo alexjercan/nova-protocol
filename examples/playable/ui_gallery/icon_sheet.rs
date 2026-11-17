@@ -5,6 +5,8 @@
 use bevy::prelude::*;
 use nova_ui::{prelude::*, theme::UiColorType};
 
+// The gallery keeps its own fixed-size mock helpers; they shadow the kit's.
+use crate::chrome::{control_row, divider, text};
 use crate::{
     chrome::*,
     icons::{icon_node, GalleryIcons, IconType},

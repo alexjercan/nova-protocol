@@ -18,24 +18,21 @@
 //! Touch this module when changing how the interface opens, which pane shows,
 //! or the layout around the panes.
 
-use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate, window::PrimaryWindow};
+use bevy::{prelude::*, ui_widgets::Activate, window::PrimaryWindow};
 use nova_gameplay::{
     prelude::{
-        cr_digits, play_menu_select, play_time_text, Chart, GameItems, ItemDesignId,
-        PlayerSpaceshipMarker, ShipCredits, SpaceshipRootMarker, WorldClock,
+        cr_digits, play_menu_select, play_time_text, Chart, DerelictShipMarker, GameItems,
+        ItemDesignId, PlayerSpaceshipMarker, ShipCredits, SpaceshipRootMarker, StationMarker,
+        StationServiceType, StationServices, WorldClock,
     },
     PauseStates,
 };
 use nova_input::prelude::{
     ActionContext, ActiveContexts, InputBindings, InputDeviceType, InputSources,
 };
-use nova_ship::prelude::{GalleryAction, GalleryState, HeldPart};
+use nova_ship::prelude::{DockedShip, DockingConnection, GalleryAction, GalleryState, HeldPart};
 use nova_sound::prelude::{PlaySound, SoundBank, SoundCategoryType, UiSfx};
-use nova_ui::{
-    prelude::*,
-    theme::UiColorType,
-    widget::{ThemedBorder, ThemedFill, ThemedText, UiText},
-};
+use nova_ui::{prelude::*, theme::UiColorType};
 
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
@@ -43,7 +40,7 @@ use crate::{
     jobs::jobs_body,
     map::{
         map_chart_button, on_map_chart_button, on_map_reframe_button, spawn_map_panel,
-        MapLegendMarker, MapNoticeMarker, MapRuntime, MapViewportMarker, MAP_NOTICE,
+        MapLegendMarker, MapRuntime, MapViewportMarker,
     },
     ship::{
         on_ship_fit_button, on_ship_reset_button, on_ship_viewport_click, on_ship_viewport_enter,
@@ -308,8 +305,9 @@ mod tests;
 /// Widest the interface grows, in logical px.
 const INTERFACE_MAX_PX: f32 = 1520.0;
 
-/// The card's title row, which holds the pane title, the pane tabs, the
-/// player balance and the play clock.
+/// The card's title row: the pane title, the pane tabs, the mode tags, the
+/// player balance, the play clock, the next-pane hint and Close. Everything
+/// right of the rule sits in a fixed slot, so the tabs never move.
 #[derive(Component)]
 pub(crate) struct InterfacePaneHead;
 
@@ -319,7 +317,7 @@ pub(crate) struct InterfacePaneHead;
 pub(crate) struct InterfacePaneBody;
 
 /// The play clock at the end of the title row, `h:mm:ss` of armed play.
-/// Hidden until the world arms, which is when the [`Chart`] first holds the
+/// Empty until the world arms, which is when the [`Chart`] first holds the
 /// start cell; a scenario with no streamed world never shows it.
 #[derive(Component)]
 pub(crate) struct InterfacePaneClock;
@@ -339,8 +337,109 @@ pub(crate) struct InterfaceNextHint;
 pub(crate) struct InterfaceNextKey;
 
 /// Width of the Close button's slot in the title row, in logical px: room for
-/// the word, a 14 px key chip of a short key name and the button's padding.
+/// the word, a key chip of a short key name and the button's padding.
 const CLOSE_SLOT_PX: f32 = 120.0;
+
+/// Width of the pane title's slot in the title row, in logical px: room for
+/// `INVENTORY`, the longest pane title, so the tabs keep their x on a switch.
+const TITLE_SLOT_PX: f32 = 80.0;
+
+/// Width of the balance slot in the title row, in logical px: the credit mask
+/// and eleven digits with their separators.
+const BALANCE_SLOT_PX: f32 = 120.0;
+
+/// Width of the play clock slot in the title row, in logical px: `hhh:mm:ss`.
+const CLOCK_SLOT_PX: f32 = 64.0;
+
+/// A fixed-width title-row slot that holds its content at its right edge.
+fn fixed_slot(width: f32) -> Node {
+    Node {
+        width: px(width),
+        flex_shrink: 0.0,
+        align_items: AlignItems::Center,
+        justify_content: JustifyContent::FlexEnd,
+        ..default()
+    }
+}
+
+/// The title row's mode tags: the docked station's name and the services it
+/// offers, or nothing in flight. Holds the words it shows, so the tags respawn
+/// only when they change.
+#[derive(Component, Default)]
+pub(crate) struct InterfaceModeTags(Vec<String>);
+
+/// The `Name` of the title row's mode tag slot, for tests and captures.
+pub const INTERFACE_MODE_TAGS: &str = "InterfaceModeTags";
+
+/// The services a mode tag names, in tag order, and the word each shows.
+/// Rebuild is a refit service to the player, so both read `REFIT`.
+const MODE_TAG_SERVICES: [(StationServiceType, &str); 5] = [
+    (StationServiceType::Refit, "REFIT"),
+    (StationServiceType::Rebuild, "REFIT"),
+    (StationServiceType::Craft, "CRAFT"),
+    (StationServiceType::Trade, "TRADE"),
+    (StationServiceType::Jobs, "JOBS"),
+];
+
+/// The words of the mode tags for a station named `name` that offers
+/// `services`: its name, then one word per service the head names, once each.
+pub(crate) fn mode_tag_words(name: &str, services: &StationServices) -> Vec<String> {
+    let mut words = vec![name.to_uppercase()];
+    for (service, word) in MODE_TAG_SERVICES {
+        if services.offers(service) && !words.iter().any(|shown| shown == word) {
+            words.push(word.to_string());
+        }
+    }
+    words
+}
+
+/// Write the docked station's name and services into the title row's mode
+/// tags, and clear them while the player ship is not docked at a living
+/// station. Runs with the pane shut too, as [`show_pane_clock`] does.
+pub(crate) fn show_pane_mode_tags(
+    mut commands: Commands,
+    q_player: Query<
+        (Entity, &DockedShip),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
+    q_connection: Query<&DockingConnection>,
+    q_station: Query<
+        (Option<&Name>, Option<&StationServices>),
+        (With<StationMarker>, Without<DerelictShipMarker>),
+    >,
+    mut q_tags: Query<(Entity, &mut InterfaceModeTags)>,
+) {
+    let Ok((slot, mut shown)) = q_tags.single_mut() else {
+        return;
+    };
+    let words = q_player
+        .single()
+        .ok()
+        .and_then(|(player, docked)| {
+            let connection = q_connection.get(docked.connection).ok()?;
+            let station = if connection.first_ship == player {
+                connection.second_ship
+            } else {
+                connection.first_ship
+            };
+            let (name, services) = q_station.get(station).ok()?;
+            Some(mode_tag_words(
+                name.map_or("Station", Name::as_str),
+                services.unwrap_or(&StationServices::default()),
+            ))
+        })
+        .unwrap_or_default();
+    if shown.0 == words {
+        return;
+    }
+    commands.entity(slot).despawn_children();
+    commands.entity(slot).with_children(|slot| {
+        for word in &words {
+            slot.spawn(panel_head_tag(word));
+        }
+    });
+    shown.0 = words;
+}
 
 /// Close the interface from its Close button, by the path the toggle key
 /// takes.
@@ -436,32 +535,24 @@ pub(crate) fn ui_width(window: &Window, scale: &UiScale) -> f32 {
 pub const INTERFACE_PANE_CLOCK: &str = "InterfacePaneClock";
 
 /// Write the play clock into the title row while the world is armed, and
-/// hide it otherwise. Runs with the pane shut too, at the cost of one text
-/// compare per frame, so the clock is right on the frame the card opens.
+/// empty it otherwise; its slot keeps its width either way. Runs with the pane
+/// shut too, at the cost of one text compare per frame, so the clock is right
+/// on the frame the card opens.
 pub(crate) fn show_pane_clock(
     clock: Option<Res<WorldClock>>,
     chart: Option<Res<Chart>>,
-    mut q_clock: Query<(&mut Text, &mut Node), With<InterfacePaneClock>>,
+    mut q_clock: Query<&mut Text, With<InterfacePaneClock>>,
 ) {
-    let Ok((mut text, mut node)) = q_clock.single_mut() else {
+    let Ok(mut text) = q_clock.single_mut() else {
         return;
     };
     let armed = chart.is_some_and(|chart| !chart.is_empty());
     let shown = clock
         .filter(|_| armed)
-        .map(|clock| play_time_text(clock.play_seconds));
-    let display = if shown.is_some() {
-        Display::Flex
-    } else {
-        Display::None
-    };
-    if node.display != display {
-        node.display = display;
-    }
-    if let Some(shown) = shown {
-        if text.0 != shown {
-            text.0 = shown;
-        }
+        .map(|clock| play_time_text(clock.play_seconds))
+        .unwrap_or_default();
+    if text.0 != shown {
+        text.0 = shown;
     }
 }
 
@@ -474,7 +565,7 @@ pub const CREDIT_FIGURE: &str = "CreditFigure";
 /// and a larger lift put the 15 px Station price mask 2 px high.
 const CREDIT_MASK_LIFT: f32 = 0.10;
 
-/// The credit mask, then `credits` as [`cr_digits`], both `size` px in `tone`.
+/// The credit mask, then `credits` as [`cr_digits`], both at `role`'s size in `tone`.
 /// `marker` goes on the digits node for callers that rewrite it in place; a
 /// `Name` in it replaces [`CREDIT_FIGURE`]. The figure ignores the pointer, so
 /// a row under it keeps its clicks.
@@ -482,10 +573,11 @@ pub(crate) fn spawn_credit_figure(
     parent: &mut ChildSpawnerCommands,
     icons: &InterfaceIcons,
     credits: u64,
-    size: f32,
+    role: TextRole,
     tone: UiColorType,
     marker: impl Bundle,
 ) {
+    let size = role.size();
     parent
         .spawn((
             Node {
@@ -510,7 +602,7 @@ pub(crate) fn spawn_credit_figure(
                 });
             figure
                 .spawn((
-                    themed_label(&cr_digits(credits), size, tone),
+                    text_toned(cr_digits(credits), role, tone),
                     TextLayout::new(Justify::Left, LineBreak::NoWrap),
                     Name::new(CREDIT_FIGURE),
                     Pickable::IGNORE,
@@ -642,12 +734,19 @@ fn spawn_interface_card(
             // pickable past the panel's top edge and take tab clicks. The
             // `ZIndex` stacks the head above the body for picking. Remove it
             // when bevy_ui is at 0.19.1 or later, which walks every ancestor.
-            card.spawn((InterfacePaneHead, ZIndex(1), panel_head(pane.label(), None)))
-                .with_children(|head| {
-                    head.spawn(segmented_container()).with_children(|seg| {
+            let mut tabs = Entity::PLACEHOLDER;
+            card.spawn((
+                InterfacePaneHead,
+                ZIndex(1),
+                panel_head_fixed(pane.label(), TITLE_SLOT_PX, &[]),
+            ))
+            .with_children(|head| {
+                tabs = head
+                    .spawn(segmented_container())
+                    .with_children(|seg| {
                         for (value, label) in InterfacePaneType::ALL {
                             let mut option = seg.spawn((
-                                segmented_option(label),
+                                segmented_option_fit(label),
                                 ButtonValue(value),
                                 ButtonCueType::Owned,
                                 Name::new(format!("InterfaceTab{label}")),
@@ -657,68 +756,71 @@ fn spawn_interface_card(
                                 option.insert(Selected);
                             }
                         }
+                    })
+                    .id();
+                head.spawn((
+                    InterfaceModeTags::default(),
+                    Name::new(INTERFACE_MODE_TAGS),
+                    Node {
+                        align_items: AlignItems::Center,
+                        column_gap: px(metrics::GAP_S),
+                        flex_shrink: 0.0,
+                        ..default()
+                    },
+                ));
+                // Fixed slots from here to the end: a growing balance or
+                // a key name never moves what stands left of it.
+                head.spawn(fixed_slot(BALANCE_SLOT_PX))
+                    .with_children(|slot| {
+                        spawn_credit_figure(
+                            slot,
+                            icons,
+                            0,
+                            TextRole::Value,
+                            UiColorType::Text,
+                            (InterfacePaneBalance, Name::new(INTERFACE_PANE_BALANCE)),
+                        );
                     });
-                    spawn_credit_figure(
-                        head,
-                        icons,
-                        0,
-                        12.0,
-                        UiColorType::Text,
-                        (InterfacePaneBalance, Name::new(INTERFACE_PANE_BALANCE)),
-                    );
-                    head.spawn((
+                head.spawn(fixed_slot(CLOCK_SLOT_PX)).with_children(|slot| {
+                    slot.spawn((
                         InterfacePaneClock,
                         Name::new(INTERFACE_PANE_CLOCK),
-                        themed_label("0:00:00", 12.0, UiColorType::TextMuted),
-                        Node {
-                            display: Display::None,
-                            min_width: px(64.0),
-                            ..default()
-                        },
+                        text("", TextRole::Label),
                         TextLayout::new(Justify::Right, LineBreak::NoWrap),
                     ));
-                    head.spawn((
-                        InterfaceNextHint,
-                        Name::new("InterfaceNextHint"),
-                        Node {
-                            align_items: AlignItems::Center,
-                            flex_shrink: 0.0,
-                            ..default()
-                        },
-                    ))
-                    .with_children(|hint| {
-                        hint.spawn((InterfaceNextKey, key_chip("", 12.0)));
-                        hint.spawn((
-                            themed_label("Next", 12.0, UiColorType::TextSecondary),
-                            TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                            Node {
-                                margin: UiRect::left(px(6)),
-                                ..default()
-                            },
-                        ));
-                    });
-                    // A fixed slot: the chip's text follows the binding, and
-                    // the head must not move when it does.
-                    head.spawn((
-                        Name::new("InterfaceCloseSlot"),
-                        Node {
-                            min_width: px(CLOSE_SLOT_PX),
-                            flex_shrink: 0.0,
-                            justify_content: JustifyContent::FlexEnd,
-                            ..default()
-                        },
-                    ))
+                });
+                head.spawn((
+                    InterfaceNextHint,
+                    Name::new("InterfaceNextHint"),
+                    Node {
+                        align_items: AlignItems::Center,
+                        column_gap: px(metrics::GAP_S),
+                        flex_shrink: 0.0,
+                        ..default()
+                    },
+                ))
+                .with_children(|hint| {
+                    hint.spawn((InterfaceNextKey, key_chip("")));
+                    hint.spawn((
+                        text("Next", TextRole::Label),
+                        TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                    ));
+                });
+                head.spawn((Name::new("InterfaceCloseSlot"), fixed_slot(CLOSE_SLOT_PX)))
                     .with_children(|slot| {
                         slot.spawn((
                             InterfaceCloseButton,
                             Name::new("InterfaceClose"),
-                            button(ButtonSpec::new("Close").ghost().key("").fit()),
+                            button(ButtonSpec::control("Close").ghost().key("")),
                             // Closing plays the interface toggle's blip.
                             ButtonCueType::Owned,
                         ))
                         .observe(on_interface_close_click);
                     });
-                });
+            })
+            // The tabs stand right of the title, left-anchored; the head's
+            // rule then fills the room between them and the mode tags.
+            .insert_children(1, &[tabs]);
             card.spawn((
                 InterfacePaneBody,
                 Node {
@@ -760,13 +862,12 @@ fn on_interface_tab_click(
     }
 }
 
-/// Whether a pane action went through or was refused: a notice's tone and
-/// its cue.
+/// Whether a pane action went through or was refused: which cue it plays.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ActionOutcomeType {
-    /// The action went through; the notice says what it did.
+    /// The action went through.
     Done,
-    /// The action changed nothing; the notice says why.
+    /// The action changed nothing.
     Refused,
 }
 
@@ -788,99 +889,55 @@ pub(crate) fn play_outcome_cue(
     commands.trigger(PlaySound::ui(bank.get(cue), category));
 }
 
-/// Seconds an action result stays on a pane's notice line, on the real
-/// clock: the interface holds the virtual one. Matches the HUD notice's
-/// dwell.
-pub(crate) const NOTICE_SECS: f32 = 4.0;
-
-/// Height of a pane's notice line, in logical px: a 13 px line's box, so
-/// what stands under it does not move when a notice comes and goes.
-pub(crate) const NOTICE_LINE_PX: f32 = 18.0;
-
-/// A pane's last action result: what its notice line shows, how long it has
-/// left, and the cue it owes. Each pane that reports an action holds one in
-/// its runtime resource, so the result shows on the pane the action was
-/// taken on.
+/// The cue a pane's last action owes. Each pane that reports an action holds
+/// one in its runtime resource. The pane shows no result text: the changed
+/// state is the result, and the cue is its only other trace.
 #[derive(Default, Debug)]
-pub struct ActionNotice {
-    /// The last action result, its outcome and the seconds it has left.
-    note: Option<(ActionOutcomeType, String, f32)>,
-    /// Set by [`say`](Self::say), taken by [`tick`](Self::tick) once it
-    /// plays the cue. It waits for the sound bank, so a result raised before
-    /// the bank lands is heard, not lost; it plays once whether or not the
-    /// pane body stands.
-    pending_cue: Option<ActionOutcomeType>,
+pub struct ActionCue {
+    /// Set by [`raise`](Self::raise), taken by [`tick`](Self::tick) once it
+    /// plays. It waits for the sound bank, so a result raised before the bank
+    /// lands is heard, not lost; it plays once whether or not the pane body
+    /// stands.
+    pending: Option<ActionOutcomeType>,
 }
 
-impl ActionNotice {
-    /// The transient notice the pane shows, with its outcome, while it lasts.
-    pub fn shown(&self) -> Option<(ActionOutcomeType, &str)> {
-        self.note
-            .as_ref()
-            .map(|(outcome, note, _)| (*outcome, note.as_str()))
+impl ActionCue {
+    /// The cue not yet played, if any.
+    pub fn pending(&self) -> Option<ActionOutcomeType> {
+        self.pending
     }
 
-    /// The transient notice's text, while it lasts.
-    pub fn text(&self) -> Option<&str> {
-        self.note.as_ref().map(|(_, note, _)| note.as_str())
+    /// Queue `outcome`'s cue. A second result the same frame replaces the
+    /// first, so one frame plays at most one cue.
+    pub(crate) fn raise(&mut self, outcome: ActionOutcomeType) {
+        self.pending = Some(outcome);
     }
 
-    /// Show `note` on the notice line for [`NOTICE_SECS`] in `outcome`'s
-    /// tone, and queue its cue. A second result the same frame replaces the
-    /// first and its cue, so one frame plays at most one cue.
-    pub(crate) fn say(&mut self, outcome: ActionOutcomeType, note: String) {
-        self.note = Some((outcome, note, NOTICE_SECS));
-        self.pending_cue = Some(outcome);
-    }
-
-    /// Count the dwell down by `dt`, clamped to a quarter second so one long
-    /// frame does not swallow the notice, and play the owed cue once `bank`
-    /// is present.
-    pub(crate) fn tick(
-        &mut self,
-        dt: f32,
-        bank: Option<&SoundBank<UiSfx>>,
-        commands: &mut Commands,
-    ) {
-        if let Some((.., remaining)) = self.note.as_mut() {
-            *remaining -= dt.min(0.25);
-            if *remaining <= 0.0 {
-                self.note = None;
-            }
-        }
+    /// Play the owed cue once `bank` is present.
+    pub(crate) fn tick(&mut self, bank: Option<&SoundBank<UiSfx>>, commands: &mut Commands) {
         if bank.is_some() {
-            if let Some(outcome) = self.pending_cue.take() {
+            if let Some(outcome) = self.pending.take() {
                 play_outcome_cue(commands, bank, outcome);
             }
         }
     }
-
-    /// The text and tone a notice line paints: Nominal for Done, Danger for
-    /// Refused, an empty Label line with nothing shown.
-    pub(crate) fn line(&self) -> (&str, UiColorType) {
-        match self.shown() {
-            Some((ActionOutcomeType::Done, note)) => (note, UiColorType::Nominal),
-            Some((ActionOutcomeType::Refused, note)) => (note, UiColorType::Danger),
-            None => ("", UiColorType::TextMuted),
-        }
-    }
 }
 
-/// The fixed notice line a pane body spawns with its marker:
-/// [`NOTICE_LINE_PX`] tall, 13 px text on one line, empty until a result
-/// lands. It never wraps, so a long result widens the line instead of
-/// growing it and moving what stands under it. The pane's notice system
-/// paints it from [`ActionNotice::line`].
-pub(crate) fn notice_line() -> impl Bundle {
-    (
-        themed_label("", 13.0, UiColorType::TextMuted),
-        TextLayout::new(Justify::Left, LineBreak::NoWrap),
-        Node {
-            min_height: px(NOTICE_LINE_PX),
-            flex_shrink: 0.0,
-            ..default()
-        },
-    )
+/// A primary verb named `name` under `gate`. The caller observes
+/// `On<Activate>` on the result. Its action can be refused, so the action's
+/// result plays the cue, not the press.
+pub(crate) fn gated_verb<'a>(
+    parent: &'a mut ChildSpawnerCommands,
+    name: String,
+    label: &str,
+    gate: VerbGate,
+) -> EntityCommands<'a> {
+    parent.spawn((
+        Name::new(name),
+        button(ButtonSpec::control(label).primary()),
+        ButtonCueType::Owned,
+        gate,
+    ))
 }
 
 /// A pane's 3D view: the node its scene image fills and its blips ride on.
@@ -908,139 +965,9 @@ pub(crate) fn view_split() -> Node {
     }
 }
 
-/// A row of controls.
-pub(crate) fn control_row(justify: JustifyContent) -> Node {
-    Node {
-        flex_direction: FlexDirection::Row,
-        align_items: AlignItems::Center,
-        justify_content: justify,
-        column_gap: px(12),
-        flex_shrink: 0.0,
-        ..default()
-    }
-}
-
-/// A fixed-width row cell that holds its content at its left edge, so the
-/// heading and every value of a column share one left edge. A fixed-width
-/// `Justify::Right` text does not right-align in Bevy 0.19 (its `NoWrap`
-/// bounds are unbounded); flex placement is what aligns a cell.
-pub(crate) fn fixed_cell(width: f32) -> impl Bundle {
-    (
-        Node {
-            width: px(width),
-            flex_shrink: 0.0,
-            align_items: AlignItems::Center,
-            ..default()
-        },
-        Pickable::IGNORE,
-    )
-}
-
-/// Width of a pane's side panel and inspector, in logical px, the same on
-/// the Map, Ship, Inventory and Jobs panes. Fixed: the card caps at
-/// [`INTERFACE_MAX_PX`], so a share of the row never passed this width.
-pub(crate) const SIDE_PANEL_PX: f32 = 300.0;
-
-/// Side of the preview frame at the head of a side panel, in logical px.
-pub(crate) const PANEL_PREVIEW_PX: f32 = 96.0;
-
-/// A pane's side panel or inspector: [`SIDE_PANEL_PX`] wide beside the
-/// view or the lists, whose content past its height takes `overflow`.
-pub(crate) fn side_panel(overflow: Overflow) -> impl Bundle {
-    (
-        Node {
-            width: px(SIDE_PANEL_PX),
-            flex_shrink: 0.0,
-            flex_direction: FlexDirection::Column,
-            row_gap: px(10),
-            padding: UiRect::all(px(12)),
-            border: UiRect::all(px(1)),
-            overflow,
-            ..default()
-        },
-        panel_paint(),
-        ThemedRadius::control(),
-    )
-}
-
-/// The fill and border of a pane's panel.
-pub(crate) fn panel_paint() -> impl Bundle {
-    (
-        BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColorType::TextSecondary, 0.08),
-        BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColorType::TextSecondary),
-    )
-}
-
-/// The framed square at the head of a side panel that holds the selection's
-/// icon.
-pub(crate) fn panel_preview_frame() -> impl Bundle {
-    (
-        Node {
-            width: px(PANEL_PREVIEW_PX),
-            height: px(PANEL_PREVIEW_PX),
-            flex_shrink: 0.0,
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            border: UiRect::all(px(1)),
-            ..default()
-        },
-        BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColorType::Surface, 0.6),
-        BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColorType::TextSecondary),
-        ThemedRadius::control(),
-    )
-}
-
 /// Lines an action form's summary reserves, so a one-line result and a
-/// two-line refusal leave the form's action button in place. A longer refusal
-/// still shows in full.
+/// two-line one leave the form's action button in place.
 pub(crate) const SUMMARY_LINES: f32 = 3.0;
-
-/// A one-pixel rule between groups of a panel.
-pub(crate) fn divider() -> impl Bundle {
-    (
-        Node {
-            height: px(1),
-            flex_shrink: 0.0,
-            ..default()
-        },
-        BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColorType::TextSecondary, 0.35),
-    )
-}
-
-/// A button sized for a narrow side panel or inspector.
-pub(crate) fn compact_button(spec: ButtonSpec) -> impl Bundle {
-    button(ButtonSpec {
-        min_height: 22.0,
-        font_size: 12.0,
-        ..spec
-    })
-}
-
-/// A compact primary button named `name`; `refusal` greys it with the
-/// reason as its tooltip. The caller observes `On<Activate>` on the result.
-/// Its action can be refused, so the action's result plays the cue, not the
-/// press.
-pub(crate) fn refusable_button<'a>(
-    parent: &'a mut ChildSpawnerCommands,
-    name: String,
-    label: &str,
-    refusal: Option<&str>,
-) -> EntityCommands<'a> {
-    let mut button = parent.spawn((
-        Name::new(name),
-        compact_button(ButtonSpec::new(label).fit().primary()),
-        ButtonCueType::Owned,
-    ));
-    if let Some(why) = refusal {
-        button.insert((InteractionDisabled, Tooltip(why.to_string())));
-    }
-    button
-}
 
 /// Height of the Map and Ship footer, in logical px. Fixed, so a legend or a
 /// hint that wraps cannot push the view up.
@@ -1359,7 +1286,7 @@ fn pane_footer(
                                     raw_key,
                                     when,
                                 },
-                                themed_label("", 12.0, UiColorType::TextBody),
+                                text("", TextRole::Body),
                                 Node {
                                     display: display(when),
                                     ..default()
@@ -1369,7 +1296,7 @@ fn pane_footer(
                         for (pointer, when) in POINTER_HINTS {
                             hints.spawn((
                                 PanePointerHint(when),
-                                themed_label(pointer, 12.0, UiColorType::TextMuted),
+                                text(pointer, TextRole::Label),
                                 Node {
                                     display: display(when),
                                     ..default()
@@ -1513,29 +1440,9 @@ pub(crate) fn show_pane_input_hints(
     }
 }
 
-/// The map: its notice line over the side panel, the scene and contact
-/// panel beside it, then legend, hints, Reframe and Chart.
+/// The map: the scene and contact panel beside it, then legend, hints,
+/// Reframe and Chart.
 fn map_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
-    // The notice sits at the right, in a cell at least the side panel's width,
-    // so its text starts at the panel's left edge and a longer result runs
-    // left over the view instead of wrapping.
-    body.spawn(Node {
-        flex_shrink: 0.0,
-        justify_content: JustifyContent::FlexEnd,
-        ..default()
-    })
-    .with_children(|row| {
-        row.spawn((
-            Node {
-                min_width: px(SIDE_PANEL_PX),
-                flex_shrink: 0.0,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            Pickable::IGNORE,
-        ))
-        .with_child((MapNoticeMarker, Name::new(MAP_NOTICE), notice_line()));
-    });
     body.spawn(view_split()).with_children(|split| {
         split.spawn((MapViewportMarker, viewport_node(), ImageNode::default()));
         spawn_map_panel(split, icons);
@@ -1558,7 +1465,7 @@ fn map_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
         |controls| {
             controls
                 .spawn((
-                    button(ButtonSpec::new("Reframe").fit()),
+                    button(ButtonSpec::control("Reframe")),
                     Name::new("MapReframe"),
                 ))
                 .observe(on_map_reframe_button);
@@ -1610,11 +1517,7 @@ fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                             for &icon in icons_in_row {
                                 row.spawn(legend_entry()).with_children(|entry| {
                                     entry.spawn(icon_node(icons.section(icon), icon.color(), 18.0));
-                                    entry.spawn(themed_label(
-                                        icon.label(),
-                                        12.0,
-                                        UiColorType::TextBody,
-                                    ));
+                                    entry.spawn(text(icon.label(), TextRole::Body));
                                 });
                             }
                         });
@@ -1627,17 +1530,14 @@ fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
             controls.spawn((
                 ShipCatalogueButton,
                 GalleryAction::Open,
-                button(ButtonSpec::new("Catalogue").fit()),
+                button(ButtonSpec::control("Catalogue")),
                 Name::new("ShipCatalogue"),
             ));
             controls
-                .spawn((button(ButtonSpec::new("Fit").fit()), Name::new("ShipFit")))
+                .spawn((button(ButtonSpec::control("Fit")), Name::new("ShipFit")))
                 .observe(on_ship_fit_button);
             controls
-                .spawn((
-                    button(ButtonSpec::new("Reset").fit()),
-                    Name::new("ShipReset"),
-                ))
+                .spawn((button(ButtonSpec::control("Reset")), Name::new("ShipReset")))
                 .observe(on_ship_reset_button);
         },
         SHIP_KEY_HINTS,
@@ -1652,20 +1552,6 @@ pub(crate) fn legend_entry() -> Node {
         column_gap: px(4),
         ..default()
     }
-}
-
-/// A themed text bundle for the interface chrome.
-pub(crate) fn themed_label(value: &str, size: f32, color: UiColorType) -> impl Bundle {
-    (
-        UiText,
-        Text::new(value.to_string()),
-        TextFont {
-            font_size: FontSize::Px(size),
-            ..default()
-        },
-        TextColor(Color::NONE),
-        ThemedText::new(color),
-    )
 }
 
 /// One part tile: its category glyph, `count` (`+3`, `2/23` or `23`) and its
@@ -1694,11 +1580,11 @@ pub(crate) fn spawn_part_tile(
             18.0,
         ));
         tile.spawn((
-            themed_label(count, 12.0, UiColorType::Text),
+            text(count, TextRole::Value),
             TextLayout::new(Justify::Left, LineBreak::NoWrap),
         ));
         tile.spawn((
-            themed_label(&design.name, 11.0, UiColorType::TextBody),
+            text_toned(&design.name, TextRole::Label, UiColorType::TextBody),
             TextLayout::new(Justify::Left, LineBreak::NoWrap),
         ));
     });

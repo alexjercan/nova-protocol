@@ -12,13 +12,13 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ui::{
+    prelude::{control_row, panel_paint, text, TextRole},
     theme::UiColorType,
-    widget::{badge, slider_track, BadgeKind, ThemedRadius},
+    widget::{slider_track, tag, ThemedRadius},
 };
 use nova_world_base::prelude::CivilizationField;
 
 use super::InventoryShips;
-use crate::pane::{control_row, panel_paint, themed_label};
 
 /// The `Name` of the strip's node, for tests and captures.
 pub const INVENTORY_MARKET_STRIP: &str = "InventoryMarketStrip";
@@ -192,17 +192,17 @@ fn spawn_strip_rows(strip: &mut ChildSpawnerCommands, draw: &MarketStripDraw) {
             ..control_row(JustifyContent::FlexStart)
         })
         .with_children(|row| {
-            row.spawn(themed_label("MARKET", 11.0, UiColorType::TextMuted));
-            row.spawn(themed_label("Buys", 12.0, UiColorType::TextBody));
+            row.spawn(text("MARKET", TextRole::Label));
+            row.spawn(text("Buys", TextRole::Body));
             for lead in &draw.pays_most {
-                row.spawn(badge(BadgeKind::Amber, &lead_text(lead)));
+                row.spawn(tag(&lead_text(lead), UiColorType::Accent));
             }
-            row.spawn(themed_label("Sells", 12.0, UiColorType::TextBody));
+            row.spawn(text("Sells", TextRole::Body));
             if draw.sells_cheapest.is_empty() {
-                row.spawn(themed_label("Empty", 12.0, UiColorType::TextMuted));
+                row.spawn(text("Empty", TextRole::Label));
             }
             for lead in &draw.sells_cheapest {
-                row.spawn(badge(BadgeKind::Green, &lead_text(lead)));
+                row.spawn(tag(&lead_text(lead), UiColorType::Nominal));
             }
             row.spawn(Node {
                 flex_grow: 1.0,
@@ -215,7 +215,7 @@ fn spawn_strip_rows(strip: &mut ChildSpawnerCommands, draw: &MarketStripDraw) {
                 };
                 row.spawn((
                     Name::new(INVENTORY_MARKET_REFUSED),
-                    badge(BadgeKind::Red, &text),
+                    tag(&text, UiColorType::Danger),
                 ));
             }
         });
@@ -225,7 +225,7 @@ fn spawn_strip_rows(strip: &mut ChildSpawnerCommands, draw: &MarketStripDraw) {
             ..control_row(JustifyContent::FlexStart)
         })
         .with_children(|row| {
-            row.spawn(themed_label("Restock", 12.0, UiColorType::TextBody));
+            row.spawn(text("Restock", TextRole::Body));
             match &draw.restock {
                 Some(restock) => {
                     row.spawn((
@@ -236,13 +236,12 @@ fn spawn_strip_rows(strip: &mut ChildSpawnerCommands, draw: &MarketStripDraw) {
                         },
                         children![slider_track(restock.fraction)],
                     ));
-                    row.spawn(themed_label(
+                    row.spawn(text(
                         &format!(
                             "{} {} / {}, {} min",
                             restock.name, restock.stock, restock.target, restock.minutes_away
                         ),
-                        12.0,
-                        UiColorType::TextMuted,
+                        TextRole::Label,
                     ));
                 }
                 None => {

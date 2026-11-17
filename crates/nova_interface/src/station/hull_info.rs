@@ -15,12 +15,12 @@
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_gameplay::prelude::*;
 use nova_ui::{
-    theme::UiColorType,
+    prelude::{button, text, TextRole},
     widget::{ButtonCueType, ButtonSpec},
 };
 
 use crate::{
-    pane::{compact_button, interface_shown, themed_label, InterfacePaneType},
+    pane::{interface_shown, InterfacePaneType},
     ship::{ShipPanelMarker, ShipViewSubject},
     terminal::NovaOsCloseTransition,
 };
@@ -43,20 +43,17 @@ pub(crate) fn spawn_hull_info_button(
     hull: Entity,
     line: String,
 ) {
-    row.spawn((
-        Name::new(name),
-        compact_button(ButtonSpec::new("Info").fit()),
-    ))
-    .observe(
-        move |_activate: On<Activate>,
-              mut subject: ResMut<ShipViewSubject>,
-              mut shown: ResMut<HullInfoLine>,
-              mut pane: ResMut<InterfacePaneType>| {
-            subject.0 = Some(hull);
-            shown.0.clone_from(&line);
-            *pane = InterfacePaneType::Ship;
-        },
-    );
+    row.spawn((Name::new(name), button(ButtonSpec::control("Info"))))
+        .observe(
+            move |_activate: On<Activate>,
+                  mut subject: ResMut<ShipViewSubject>,
+                  mut shown: ResMut<HullInfoLine>,
+                  mut pane: ResMut<InterfacePaneType>| {
+                subject.0 = Some(hull);
+                shown.0.clone_from(&line);
+                *pane = InterfacePaneType::Ship;
+            },
+        );
 }
 
 /// Leave the hull Info for the Station pane. The header's Close and Escape run
@@ -117,11 +114,11 @@ pub(crate) fn sync_hull_info_header(
             },
         ))
         .with_children(|header| {
-            header.spawn(themed_label(&shown.0, 13.0, UiColorType::Text));
+            header.spawn(text(&shown.0, TextRole::Value));
             header
                 .spawn((
                     Name::new(HULL_INFO_CLOSE),
-                    compact_button(ButtonSpec::new("Close").fit()),
+                    button(ButtonSpec::control("Close")),
                     ButtonCueType::Back,
                 ))
                 .observe(

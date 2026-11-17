@@ -9,11 +9,11 @@
 //!
 //! - [`phosphor_theme`] (`base/phosphor`, the default): the CLI-drawn terminal.
 //!   Flat phosphor-on-black fills, 1px phosphor borders, inverted selection,
-//!   2px corners, a block-meter slider and bracketed `[TAG]` badges. Controls
+//!   2px corners, a block-meter slider and bare-word tags. Controls
 //!   read as elements a terminal drew.
 //! - [`hardware_theme`] (`base/hardware`): the light-3D moulded casing.
 //!   Case-gradient faces, drop-shadow bevels, amber selection, 7px corners, a
-//!   solid slider fill and chip badges.
+//!   solid slider fill and chip tags.
 //!
 //! Both are ROOT themes (`inherit: None`) and therefore complete. Hardware does
 //! not derive from phosphor: the two disagree about nearly every role, so
@@ -156,7 +156,6 @@ pub fn phosphor_theme() -> UiThemeConfig {
             shadow: hex("#000000"),
         },
         metrics: Some(UiMetrics {
-            border_width: 1.0,
             radius: 2.0,
             // The same hard corner as a control: a phosphor panel is a drawn
             // frame on a screen, and a soft card corner beside 2 px buttons
@@ -262,7 +261,6 @@ pub fn phosphor_theme() -> UiThemeConfig {
                     effect: None,
                     radius: None,
                 },
-                height: 14.0,
                 meter: SliderMeter::Blocks {
                     segments: 24,
                     gap: 2.0,
@@ -297,9 +295,6 @@ pub fn phosphor_theme() -> UiThemeConfig {
                 ),
             }),
             badge: Some(BadgeRole {
-                bracketed: true,
-                padding_x: 2.0,
-                border_width: 0.0,
                 border_alpha: 0.0,
                 fill_alpha: 0.0,
             }),
@@ -353,13 +348,10 @@ fn phosphor_inverted_pressed() -> StatePaint {
     )
 }
 
+/// Disabled: no fill, a faint frame and a dim legend, so a dead control reads
+/// apart from a live ghost at a glance.
 fn phosphor_disabled() -> StatePaint {
-    state(
-        solid(va(C::Text, 0.02)),
-        va(C::Text, 0.25),
-        va(C::Text, 0.5),
-        None,
-    )
+    state(Fill::none(), va(C::Text, 0.15), va(C::Text, 0.35), None)
 }
 
 /// Primary reads as a PERMANENT selection: solid phosphor in every live state,
@@ -452,7 +444,6 @@ pub fn hardware_theme() -> UiThemeConfig {
             shadow: hex("#000000"),
         },
         metrics: Some(UiMetrics {
-            border_width: 1.0,
             radius: 7.0,
             panel_radius: 10.0,
         }),
@@ -560,7 +551,6 @@ pub fn hardware_theme() -> UiThemeConfig {
                     effect: None,
                     radius: Some(6.0),
                 },
-                height: 10.0,
                 meter: SliderMeter::Fill,
                 lit: var(C::NominalDark),
                 // The solid fill draws nothing behind itself: the well IS the
@@ -602,9 +592,6 @@ pub fn hardware_theme() -> UiThemeConfig {
                 ),
             }),
             badge: Some(BadgeRole {
-                bracketed: false,
-                padding_x: 8.0,
-                border_width: 1.0,
                 border_alpha: 0.4,
                 fill_alpha: 0.06,
             }),
@@ -619,8 +606,8 @@ pub fn hardware_theme() -> UiThemeConfig {
 }
 
 /// The idle moulded face: a lit top falling to a shaded bottom, standing on its
-/// drop shadow. The look's default surface - a button, a disabled button and a
-/// resting danger button are all this face under different legends.
+/// drop shadow. The look's default surface - a button and a resting danger
+/// button are both this face under different legends.
 fn hardware_face(text: ThemeColor) -> StatePaint {
     state(
         bevel3(C::Surface, C::SurfaceLit, C::Surface, C::SurfaceSunken),
@@ -634,8 +621,8 @@ fn hardware_face(text: ThemeColor) -> StatePaint {
 /// four this look shares.
 ///
 /// Selection is AMBER on every variant - a selected hardware control is an
-/// amber-lit moulded face whatever it does - and disabled is the idle face
-/// under a dimmed legend.
+/// amber-lit moulded face whatever it does - and disabled is a bare frame
+/// round a dim legend.
 fn hardware_button(normal: StatePaint, hovered: StatePaint, pressed: StatePaint) -> ButtonRole {
     ButtonRole {
         normal,
@@ -643,8 +630,15 @@ fn hardware_button(normal: StatePaint, hovered: StatePaint, pressed: StatePaint)
         pressed,
         selected: hardware_amber(),
         selected_pressed: hardware_amber_pressed(),
-        disabled: hardware_face(va(C::Text, 0.4)),
+        disabled: hardware_disabled(),
     }
+}
+
+/// Disabled: no face at all - no fill, bevel or shadow - only a faint frame
+/// round a dim legend, so a dead control reads apart from every moulded live
+/// one at a glance. A sunken flat face read as one more dark button.
+fn hardware_disabled() -> StatePaint {
+    state(Fill::none(), va(C::Text, 0.15), va(C::Text, 0.35), None)
 }
 
 fn hardware_amber() -> StatePaint {
@@ -688,6 +682,6 @@ fn hardware_primary_button() -> ButtonRole {
         ),
         selected: hardware_amber(),
         selected_pressed: hardware_amber_pressed(),
-        disabled: hardware_face(va(C::Text, 0.4)),
+        disabled: hardware_disabled(),
     }
 }

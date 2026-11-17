@@ -74,6 +74,69 @@ fn a_theme_decodes_from_authored_ron() {
     assert!((separator.alpha - 0.25).abs() < f32::EPSILON);
 }
 
+/// A theme may not size anything: the layout fields an older theme set (the
+/// border width, the slider height, the badge padding, border and brackets) no
+/// longer parse, so a mod that still sets them fails at load and lint instead
+/// of moving a control.
+#[test]
+fn a_theme_that_sets_a_size_is_refused() {
+    for authored in ["(border_width: 1.0, radius: 2.0, panel_radius: 2.0)"] {
+        assert!(
+            ron::from_str::<UiMetrics>(authored).is_err(),
+            "metrics decoded with a border width: {authored}"
+        );
+    }
+    for authored in [
+        "(bracketed: true, border_alpha: 0.0, fill_alpha: 0.0)",
+        "(padding_x: 2.0, border_alpha: 0.0, fill_alpha: 0.0)",
+        "(border_width: 1.0, border_alpha: 0.0, fill_alpha: 0.0)",
+    ] {
+        assert!(
+            ron::from_str::<BadgeRole>(authored).is_err(),
+            "a badge decoded with a size: {authored}"
+        );
+    }
+}
+
+/// A disabled button must read as dead in every theme: both shipped themes
+/// pass the lint, and a theme whose disabled ghost wears its live face is
+/// refused by name.
+#[test]
+fn a_disabled_button_that_looks_live_fails_the_lint() {
+    let themes = base_ui_themes();
+    for theme in &themes {
+        assert_eq!(
+            lint_theme(theme, &themes),
+            Vec::new(),
+            "{} lints clean",
+            theme.id
+        );
+    }
+
+    let phosphor = themes
+        .iter()
+        .find(|theme| theme.id == PHOSPHOR_THEME_ID)
+        .expect("phosphor ships");
+    let mut ghost = phosphor
+        .roles
+        .button_ghost
+        .clone()
+        .expect("phosphor paints a ghost");
+    ghost.disabled = ghost.normal.clone();
+    let mut registered = themes.clone();
+    let live = derived(
+        "t/live_disabled",
+        UiRoles {
+            button_ghost: Some(ghost),
+            ..UiRoles::default()
+        },
+    );
+    registered.push(live.clone());
+    let issues = lint_theme(&live, &registered);
+    assert_eq!(issues.len(), 1, "{issues:?}");
+    assert!(issues[0].message.contains("button_ghost"), "{}", issues[0]);
+}
+
 /// An unknown field is REFUSED rather than ignored - a typo in a theme file is
 /// an authoring error, not a silently missing colour.
 #[test]
@@ -253,7 +316,6 @@ fn an_incomplete_root_theme_is_refused_and_linted() {
         inherit: None,
         palette: UiPalette::default(),
         metrics: Some(UiMetrics {
-            border_width: 1.0,
             radius: 2.0,
             panel_radius: 10.0,
         }),
@@ -323,12 +385,12 @@ fn both_base_themes_resolve_completely() {
                 "{id} leaves {color:?} unpainted"
             );
         }
-        assert!(theme.metric(UiMetric::BorderWidth) > 0.0);
+        assert!(theme.metric(UiMetric::Radius) > 0.0);
     }
 }
 
 /// The two shipped looks differ in SHAPE, not only in colour - the blocks/fill
-/// meter and the bracketed/chip badge are the authored difference, and a theme
+/// meter and the bare-word/chip tag are the authored difference, and a theme
 /// that flattened them would be the same look twice.
 #[test]
 fn the_two_base_themes_differ_in_shape() {
@@ -344,8 +406,15 @@ fn the_two_base_themes_differ_in_shape() {
         SliderMeter::Fill,
         "the hardware look draws a solid fill"
     );
-    assert!(phosphor.badge().bracketed, "the terminal writes [TAG]");
-    assert!(!hardware.badge().bracketed, "the casing draws a chip");
+    assert_eq!(
+        phosphor.badge().border_alpha,
+        0.0,
+        "the terminal writes the bare word"
+    );
+    assert!(
+        hardware.badge().border_alpha > 0.0,
+        "the casing draws a chip"
+    );
 }
 
 /// A mod declaring an existing id RESTYLES it in place; a new id ADDS a look.
@@ -445,18 +514,15 @@ fn a_selection_that_is_gone_falls_back_and_says_why() {
     );
 }
 
-/// A badge role is pure shape and alpha, and it resolves without touching the
-/// palette - so a theme may declare one without repeating a colour.
+/// A badge role is alpha alone, and it resolves without touching the palette -
+/// so a theme may declare one without repeating a colour.
 #[test]
-fn a_badge_role_is_shape_and_alpha_alone() {
+fn a_badge_role_is_alpha_alone() {
     let mut themes = base_ui_themes();
     themes.push(derived(
         "t/badge",
         UiRoles {
             badge: Some(BadgeRole {
-                bracketed: false,
-                padding_x: 9.0,
-                border_width: 2.0,
                 border_alpha: 0.5,
                 fill_alpha: 0.25,
             }),
@@ -465,8 +531,6 @@ fn a_badge_role_is_shape_and_alpha_alone() {
     ));
     let theme = resolve_theme("t/badge", &themes).expect("it resolves");
     let badge = theme.badge();
-    assert!(!badge.bracketed);
-    assert!((badge.padding_x - 9.0).abs() < f32::EPSILON);
     assert!((badge.fill_alpha - 0.25).abs() < f32::EPSILON);
 }
 

@@ -1,5 +1,5 @@
-//! The Station pane's notice line: the outcome, the dwell and the one cue a
-//! result or a refusal plays, with no pane body spawned.
+//! The Station pane's buy results: the one cue a result or a refusal plays,
+//! with no pane body spawned.
 
 use core::time::Duration;
 
@@ -10,17 +10,10 @@ use nova_ship::prelude::*;
 use nova_sound::prelude::*;
 
 use super::*;
-use crate::{
-    pane::{ActionOutcomeType, NOTICE_SECS},
-    pointer_rig::{hear_ui_cues, take_cues},
-};
+use crate::pointer_rig::{hear_ui_cues, take_cues};
 
-/// Real seconds each `app.update()` counts off the notice: the strategy asks
-/// for 0.5 s and `update_station_panel` clamps a frame to 0.25 s.
-const FRAME_SECS: f32 = 0.25;
-
-/// The buy handler and the notice painter on a manual real clock, with the
-/// UI sound bank captured and no UI tree: the cue must not need the slot.
+/// The buy handler and the cue player on a manual real clock, with the UI
+/// sound bank captured and no UI tree: the cue must not need the slot.
 fn station_app() -> App {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
@@ -83,30 +76,20 @@ fn dock_at_station(world: &mut World, side: Allegiance) -> Entity {
     player
 }
 
-fn notice(app: &App) -> Option<(ActionOutcomeType, String)> {
-    app.world()
-        .resource::<StationRuntime>()
-        .notice
-        .shown()
-        .map(|(outcome, note)| (outcome, note.to_string()))
-}
-
-/// A refused buy posts one Refused notice with its reason and buzzes once;
-/// the frames after it stay silent. A refusal raised before the sound bank
-/// lands waits for it and buzzes once then, not never.
+/// A refused buy buzzes once; the frames after it stay silent. A refusal
+/// raised before the sound bank lands waits for it and buzzes once then, not
+/// never.
 #[test]
-fn a_refused_station_buy_posts_a_refusal_notice_and_buzzes_once() {
+fn a_refused_station_buy_buzzes_once() {
     let mut app = station_app();
-    dock_at_station(app.world_mut(), Allegiance::Neutral);
+    let player = dock_at_station(app.world_mut(), Allegiance::Neutral);
 
     app.world_mut().write_message(StationBuyCommand);
     app.update();
     assert_eq!(
-        notice(&app),
-        Some((
-            ActionOutcomeType::Refused,
-            "buy: STATION's civilization sells to its allies only".to_string()
-        ))
+        app.world().get::<ShipCredits>(player),
+        Some(&ShipCredits(100)),
+        "a refusal spends nothing"
     );
     assert_eq!(take_cues(&mut app), [UiSfx::EditorDeny]);
     app.update();
@@ -129,42 +112,22 @@ fn a_refused_station_buy_posts_a_refusal_notice_and_buzzes_once() {
     assert!(take_cues(&mut app).is_empty(), "the waited cue plays once");
 }
 
-/// A buy that goes through posts one Done notice naming the price, clicks
-/// once, and the notice clears after [`NOTICE_SECS`] of real time.
+/// A buy that goes through pays the price and clicks once; the frame after
+/// is silent.
 #[test]
-fn a_station_buy_posts_a_done_notice_that_clicks_once_and_clears_after_its_dwell() {
+fn a_station_buy_pays_and_clicks_once() {
     let mut app = station_app();
     let player = dock_at_station(app.world_mut(), Allegiance::Player);
 
     app.world_mut().write_message(StationBuyCommand);
     app.update();
     assert_eq!(
-        notice(&app),
-        Some((
-            ActionOutcomeType::Done,
-            "bought STATION for 100 cr".to_string()
-        ))
-    );
-    assert_eq!(
         app.world().get::<ShipCredits>(player),
         Some(&ShipCredits(0))
     );
     assert_eq!(take_cues(&mut app), [UiSfx::MenuSelect]);
-
-    let mut shown_secs = FRAME_SECS;
-    while notice(&app).is_some() {
-        app.update();
-        shown_secs += FRAME_SECS;
-        assert!(shown_secs <= NOTICE_SECS + FRAME_SECS, "the notice clears");
-    }
-    assert!(
-        (shown_secs - NOTICE_SECS).abs() < f32::EPSILON,
-        "the notice showed for {shown_secs} s, not {NOTICE_SECS} s"
-    );
-    assert!(
-        take_cues(&mut app).is_empty(),
-        "the dwell plays nothing more"
-    );
+    app.update();
+    assert!(take_cues(&mut app).is_empty(), "the cue plays once");
 }
 
 /// Every text under the entity named `name`, depth first.
@@ -229,7 +192,6 @@ fn buying_a_station_needs_a_second_press() {
         Some(&ShipCredits(100)),
         "the first press spends nothing"
     );
-    assert_eq!(notice(&app), None, "the first press buys nothing");
     let texts = texts_under(app.world_mut(), STATION_BUY_BUTTON);
     assert!(texts.iter().any(|text| text == "Confirm"), "{texts:?}");
     let asked = app

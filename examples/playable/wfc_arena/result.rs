@@ -505,9 +505,9 @@ fn tinted_result_text(text: impl Into<String>, size: f32, color: Color) -> impl 
 
 fn result_button(label: &str, action: ResultAction, primary: bool) -> impl Bundle {
     let spec = if primary {
-        ButtonSpec::new(label).primary()
+        ButtonSpec::control(label).primary().fill()
     } else {
-        ButtonSpec::new(label)
+        ButtonSpec::control(label).fill()
     };
     (button(spec), action)
 }

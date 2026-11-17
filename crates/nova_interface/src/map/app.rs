@@ -8,7 +8,7 @@ use bevy::{
 };
 use nova_events::prelude::{GeneratedBodyId, SectorCoord};
 use nova_ui::{
-    prelude::{button, ButtonSpec},
+    prelude::{button, inspector, metrics, preview_frame, text, ButtonSpec, TextRole},
     screen::drive_wheel_scroll,
     theme::UiColorType,
     widget::ThemedFill,
@@ -20,16 +20,8 @@ use super::{
 };
 use crate::{
     icons::{icon_node, BodyIconType, InterfaceIcons},
-    pane::{panel_preview_frame, side_panel, themed_label, ActionNotice, PANEL_PREVIEW_PX},
+    pane::ActionCue,
 };
-
-/// The name of the Map pane's notice line, over the side panel.
-pub const MAP_NOTICE: &str = "MapNotice";
-
-/// The Map pane's notice line, over the side panel: where a Pay fine result
-/// shows. [`update_map_notice`](super::update_map_notice) paints it.
-#[derive(Component)]
-pub(crate) struct MapNoticeMarker;
 
 /// The map pane's viewport node (holds the RTT image + blip children).
 #[derive(Component)]
@@ -130,18 +122,18 @@ pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &Interfa
         .spawn((
             MapPanelMarker,
             Name::new("MapPanel"),
-            side_panel(Overflow::scroll_y()),
+            inspector(Overflow::scroll_y()),
             ScrollPosition::default(),
             Hovered::default(),
         ))
         .with_children(|panel| {
-            panel.spawn(panel_preview_frame()).with_children(|frame| {
+            panel.spawn(preview_frame()).with_children(|frame| {
                 frame.spawn((
                     MapPanelIcon,
                     icon_node(
                         icons.body(BodyIconType::Ship),
                         MapContactKind::OwnShip.color(),
-                        PANEL_PREVIEW_PX * 0.75,
+                        metrics::PREVIEW * 0.75,
                     ),
                     Visibility::Hidden,
                 ));
@@ -163,38 +155,32 @@ pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &Interfa
                             ..default()
                         })
                         .with_children(|identity| {
-                            for (field, size, color) in [
-                                (MapPanelField::Code, 18.0, UiColorType::Text),
-                                (MapPanelField::Name, 13.0, UiColorType::TextBody),
-                                (MapPanelField::Kind, 12.0, UiColorType::TextBody),
+                            for (field, role) in [
+                                (MapPanelField::Code, TextRole::Title),
+                                (MapPanelField::Name, TextRole::Body),
+                                (MapPanelField::Kind, TextRole::Body),
                             ] {
-                                identity.spawn((field, themed_label("", size, color)));
+                                identity.spawn((field, text("", role)));
                             }
                         });
                     header.spawn(panel_rule());
                     for field in [MapPanelField::Range, MapPanelField::Bearing] {
-                        header.spawn((field, themed_label("", 13.0, UiColorType::Text)));
+                        header.spawn((field, text("", TextRole::Value)));
                     }
                     header.spawn(panel_rule());
-                    header.spawn((
-                        MapPanelField::Note,
-                        themed_label("", 12.0, UiColorType::TextMuted),
-                    ));
+                    header.spawn((MapPanelField::Note, text("", TextRole::Label)));
                     header.spawn(panel_rule());
                 });
             spawn_map_chart_sector(panel);
             spawn_map_chart_objectives(panel);
             spawn_map_chart_log(panel);
             spawn_map_stance_block(panel);
-            panel.spawn((
-                MapPanelField::Destination,
-                themed_label("", 12.0, UiColorType::TextMuted),
-            ));
+            panel.spawn((MapPanelField::Destination, text("", TextRole::Label)));
             // Disabled at spawn: the map opens with nothing selected.
             panel
                 .spawn((
                     MapGotoButton,
-                    button(ButtonSpec::new("GOTO").fit()),
+                    button(ButtonSpec::control("GOTO")),
                     InteractionDisabled,
                     Name::new("MapGoto"),
                 ))
@@ -202,7 +188,7 @@ pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &Interfa
             panel
                 .spawn((
                     MapCancelButton,
-                    button(ButtonSpec::new("CANCEL").fit()),
+                    button(ButtonSpec::control("CANCEL")),
                     InteractionDisabled,
                     Name::new("MapCancel"),
                 ))
@@ -323,5 +309,5 @@ pub(crate) struct MapRuntime {
     pub(crate) chart_live: Vec<(GeneratedBodyId, ChartStationLive)>,
     /// The last action result the pane reports: the STANCES block's Pay
     /// fine, settled or refused, on the notice line over the side panel.
-    pub(crate) notice: ActionNotice,
+    pub(crate) cue: ActionCue,
 }

@@ -13,7 +13,7 @@ use nova_ui::{
     theme,
     theme::UiColorType,
     widget::{
-        list_row, separator, themed_button, Selected, ThemedBorder, ThemedButton, ThemedFill,
+        button, list_row, separator, ButtonSpec, Selected, ThemedBorder, ThemedButton, ThemedFill,
         ThemedRadius, ThemedText, UiText,
     },
 };
@@ -552,7 +552,7 @@ pub(crate) fn refresh_scenario_details(
                     .with_children(|slot| {
                         slot.spawn((
                             Name::new("Scenario Play Button"),
-                            themed_button("Play"),
+                            button(ButtonSpec::control("Play").fill()),
                             ScenarioPlay {
                                 id: scenario.id.clone(),
                             },

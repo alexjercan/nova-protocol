@@ -82,10 +82,6 @@ pub struct TextFieldSpec {
     pub placeholder: String,
     /// Maximum Unicode scalar count.
     pub max_chars: usize,
-    /// Draw it SHORT: a field in a column of fields, rather than one control
-    /// on a menu. Same face and the same padding either side - the caret is
-    /// found by character width, so only the height gives way.
-    pub dense: bool,
     /// Draw it at the size of a tool surface: see [`density`].
     pub tool: bool,
 }
@@ -97,7 +93,6 @@ impl TextFieldSpec {
             value: value.into(),
             placeholder: String::new(),
             max_chars: 256,
-            dense: false,
             tool: false,
         }
     }
@@ -111,12 +106,6 @@ impl TextFieldSpec {
     /// Set the character limit.
     pub fn max_chars(mut self, max_chars: usize) -> Self {
         self.max_chars = max_chars;
-        self
-    }
-
-    /// Draw it short, for a panel that is a column of these.
-    pub fn dense(mut self) -> Self {
-        self.dense = true;
         self
     }
 
@@ -147,13 +136,12 @@ pub(super) struct TextFieldErrorDisplay;
 
 /// Build a themed single-line text field.
 pub fn text_field(spec: TextFieldSpec) -> impl Bundle {
-    // A dense field gives up HEIGHT only. The horizontal padding is what
-    // `caret_for_pointer` measures a click against, and the face is what
-    // `CHARACTER_WIDTH` is derived from, so neither may move.
-    let (min_height, vertical_pad) = if spec.tool {
-        (px(density::CONTROL_H), px(1))
-    } else if spec.dense {
-        (px(26), px(2))
+    // A tool field is a control: CONTROL_H high, the tool face. A menu field
+    // keeps the menu face. The horizontal padding is what `caret_for_pointer`
+    // measures a click against, and the face is what `CHARACTER_WIDTH` is
+    // derived from, so neither may move without the other.
+    let (height, vertical_pad) = if spec.tool {
+        (px(density::CONTROL_H), px(0))
     } else {
         (px(36), px(7))
     };
@@ -174,7 +162,7 @@ pub fn text_field(spec: TextFieldSpec) -> impl Bundle {
         Hovered::default(),
         Node {
             width: percent(100),
-            min_height,
+            height,
             align_items: AlignItems::Center,
             padding: UiRect::axes(px(side_pad), vertical_pad),
             border: UiRect::all(px(BORDER_W)),

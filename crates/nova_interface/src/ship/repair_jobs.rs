@@ -12,11 +12,10 @@ use bevy::{prelude::*, ui_widgets::Activate};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
+    prelude::{button, control_row, divider, text, TextRole},
     theme::UiColorType,
     widget::{ButtonSpec, ThemedFill, ThemedRadius},
 };
-
-use crate::pane::{compact_button, control_row, divider, themed_label};
 
 /// The Repairs block, hidden while the player ship runs no job.
 #[derive(Component)]
@@ -57,7 +56,7 @@ pub(crate) fn spawn_ship_repair_jobs(panel: &mut ChildSpawnerCommands) {
         ))
         .with_children(|block| {
             block.spawn(divider());
-            block.spawn(themed_label("Repairs", 13.0, UiColorType::Accent));
+            block.spawn(text("Repairs", TextRole::Heading));
             block.spawn((
                 ShipRepairJobRows::default(),
                 Node {
@@ -165,7 +164,7 @@ fn spawn_job_row(parent: &mut ChildSpawnerCommands, player: Entity, index: usize
                 .with_children(|line| {
                     line.spawn((
                         ShipRepairJobField::Label(index),
-                        themed_label(&repair_job_label(job), 12.0, UiColorType::Text),
+                        text(&repair_job_label(job), TextRole::Value),
                         TextLayout::new(Justify::Left, LineBreak::NoWrap),
                         Node {
                             flex_grow: 1.0,
@@ -177,7 +176,7 @@ fn spawn_job_row(parent: &mut ChildSpawnerCommands, player: Entity, index: usize
                     ));
                     line.spawn((
                         ShipRepairJobField::Time(index),
-                        themed_label("", 12.0, UiColorType::TextBody),
+                        text("", TextRole::Body),
                         TextLayout::new(Justify::Right, LineBreak::NoWrap),
                         Node {
                             flex_shrink: 0.0,
@@ -186,7 +185,7 @@ fn spawn_job_row(parent: &mut ChildSpawnerCommands, player: Entity, index: usize
                     ));
                     line.spawn((
                         Name::new(format!("ShipRepairCancel-{}", job.code)),
-                        compact_button(ButtonSpec::new("Cancel").fit().ghost()),
+                        button(ButtonSpec::control("Cancel").ghost()),
                     ))
                     .observe(on_cancel_button(player, job.key()));
                 });

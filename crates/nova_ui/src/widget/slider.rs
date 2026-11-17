@@ -10,6 +10,7 @@ use bevy::{
     ui_widgets::{SliderRange, SliderValue},
 };
 
+use super::metrics::SLIDER_TRACK_H;
 use crate::theme::{ActiveUiTheme, ResolvedSlider, SliderMeter, BORDER_W};
 
 /// Marks one segment of a block-meter track; the tuple is its index. The
@@ -82,12 +83,13 @@ impl SliderTrack {
     }
 }
 
-/// The track's own `Node` geometry under a theme - the single source the
-/// reconciler builds from.
+/// The track's own `Node` under a theme - the single source the reconciler
+/// builds from. Its height is the kit's [`SLIDER_TRACK_H`] in every theme; the
+/// theme sets the corner and the meter's gap.
 fn slider_track_node(paint: &ResolvedSlider) -> Node {
     Node {
         width: percent(100),
-        height: px(paint.height),
+        height: px(SLIDER_TRACK_H),
         border: UiRect::all(px(BORDER_W)),
         border_radius: BorderRadius::all(px(paint.surface.radius)),
         align_items: AlignItems::Center,
@@ -155,6 +157,7 @@ pub fn slider_track(fraction: f32) -> impl Bundle {
         SliderTrack(fraction.clamp(0.0, 1.0)),
         Node {
             width: percent(100),
+            height: px(SLIDER_TRACK_H),
             border: UiRect::all(px(BORDER_W)),
             align_items: AlignItems::Center,
             padding: UiRect::ZERO,
@@ -316,7 +319,7 @@ mod tests {
     use super::*;
     use crate::{
         theme::{HARDWARE_THEME_ID, PHOSPHOR_THEME_ID},
-        widget::fixtures::{hardware, phosphor, select, themed_app},
+        widget::fixtures::{phosphor, select, themed_app},
     };
 
     fn block_colors(app: &mut App, slider: Entity) -> Vec<Color> {
@@ -485,8 +488,8 @@ mod tests {
         );
         assert_eq!(
             app.world().entity(slider).get::<Node>().unwrap().height,
-            px(hardware().slider_track().height),
-            "the track geometry re-themed too, not just its children"
+            px(super::super::metrics::SLIDER_TRACK_H),
+            "the track keeps the kit's height in every theme"
         );
 
         select(&mut app, PHOSPHOR_THEME_ID);

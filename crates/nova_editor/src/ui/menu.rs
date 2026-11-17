@@ -91,8 +91,7 @@ pub(crate) struct MenuItem;
 #[derive(Component)]
 pub(crate) struct MenuScrim;
 
-/// One bar button. Wrapped in a slot by the caller for the same reason Play is:
-/// `themed_button` is `percent(100)` wide.
+/// One bar button's slot: the positioned ancestor its dropdown hangs off.
 pub(crate) fn menu_bar_slot() -> Node {
     Node {
         // The dropdown hangs off this, so it has to be the positioned ancestor.
@@ -262,7 +261,7 @@ fn menu_item_tail(tail: MenuTail) -> impl Bundle {
         Children::spawn(SpawnWith(
             move |parent: &mut RelatedSpawner<ChildOf>| match &tail {
                 Some(key) => {
-                    parent.spawn((MenuKeyChip, key_chip(key, TAIL_FONT + 2.0)));
+                    parent.spawn((MenuKeyChip, key_chip(key)));
                 }
                 None => {
                     parent.spawn((

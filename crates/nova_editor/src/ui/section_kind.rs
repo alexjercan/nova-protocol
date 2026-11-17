@@ -129,7 +129,7 @@ pub(crate) fn open_section_kind_modal(commands: &mut Commands) {
                         Name::new("Section Kind Prompt"),
                         words(
                             "Pick what the section is. Arrows move, Enter creates.",
-                            density::TEXT_SMALL,
+                            density::TEXT_LABEL,
                             UiColorType::TextMuted,
                         ),
                     ));
@@ -162,13 +162,13 @@ pub(crate) fn open_section_kind_modal(commands: &mut Commands) {
                         .with_children(|foot| {
                             foot.spawn((
                                 Name::new("Section Kind Cancel"),
-                                button(ButtonSpec::new("Cancel").dense().ghost()),
+                                button(ButtonSpec::control("Cancel").ghost()),
                                 ButtonCueType::Back,
                                 observe(on_cancel),
                             ));
                             foot.spawn((
                                 Name::new("Section Kind Create"),
-                                button(ButtonSpec::new("Create").dense().primary()),
+                                button(ButtonSpec::control("Create").primary()),
                                 ButtonCueType::Owned,
                                 observe(on_create),
                             ));
@@ -206,7 +206,7 @@ fn spawn_tile(tiles: &mut RelatedSpawnerCommands<ChildOf>, index: usize, kind: &
             // Body, not Label: a picked tile's fill drowns a muted line.
             tile.spawn(words(
                 section_kind_hint(kind).unwrap_or_default(),
-                density::TEXT_SMALL,
+                density::TEXT_LABEL,
                 UiColorType::TextBody,
             ));
         });

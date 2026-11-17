@@ -17,8 +17,8 @@ use bevy::{
 use nova_gameplay::prelude::{GameStates, GuardedLeave, PauseStates, UnsavedWork};
 use nova_ui::{
     prelude::{
-        icon_button, panel, scroll_bar, scroll_column, scroll_row, scroll_viewport, themed_button,
-        IconButtonType, UiText, CLOSE_GLYPH,
+        button, icon_button, panel, scroll_bar, scroll_column, scroll_row, scroll_viewport,
+        ButtonSpec, IconButtonType, UiText, CLOSE_GLYPH,
     },
     theme,
     theme::{density, UiColorType},
@@ -360,7 +360,7 @@ fn spawn_confirm_window(
                     // answer is the one a builder should be able to reach
                     // without reading, and "Cancel" against a warning is
                     // ambiguous about which thing it cancels.
-                    // A slot each, because `themed_button` is percent(100)
+                    // A slot each, because a filled button is percent(100)
                     // wide - the growing is the slot's job, and the marker and
                     // the observer belong on the BUTTON, which is what emits
                     // the press.
@@ -373,7 +373,7 @@ fn spawn_confirm_window(
                             slot.spawn((
                                 Name::new("Confirm Keep Button"),
                                 ConfirmAnswer,
-                                themed_button(verb.keep()),
+                                button(ButtonSpec::control(verb.keep()).fill()),
                                 ButtonCueType::Back,
                             ));
                         });
@@ -387,7 +387,7 @@ fn spawn_confirm_window(
                             let mut go = slot.spawn((
                                 Name::new("Confirm Discard Button"),
                                 ConfirmAnswer,
-                                themed_button(label),
+                                button(ButtonSpec::control(label).fill()),
                             ));
                             match verb {
                                 DestructiveVerb::MainMenu => go.observe(back_to_main_menu),

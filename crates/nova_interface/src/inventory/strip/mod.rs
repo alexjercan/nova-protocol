@@ -51,6 +51,7 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_sound::prelude::*;
 use nova_ui::{
+    prelude::{button, text, TextRole},
     theme::UiColorType,
     widget::{
         ButtonCueType, ButtonSpec, ThemedBorder, ThemedFill, ThemedRadius, ThemedText, Tooltip,
@@ -58,11 +59,7 @@ use nova_ui::{
 };
 
 use super::{loot_text, take_loot, InventoryShips};
-use crate::{
-    icons::InterfaceIcons,
-    pane::{compact_button, spawn_part_tile, themed_label},
-    ship::design_section_code,
-};
+use crate::{icons::InterfaceIcons, pane::spawn_part_tile, ship::design_section_code};
 
 /// The name of the strip block, shown only while docked with a wreck.
 pub const INVENTORY_STRIP_BLOCK: &str = "InventoryStripBlock";
@@ -468,7 +465,7 @@ pub(crate) fn spawn_strip_block(panel: &mut ChildSpawnerCommands) {
                     row.spawn((
                         StripBlockButton,
                         Name::new(INVENTORY_STRIP_BUTTON),
-                        compact_button(ButtonSpec::new("Strip").fit().primary()),
+                        button(ButtonSpec::control("Strip").primary()),
                         Tooltip::default(),
                         ButtonCueType::Owned,
                     ))
@@ -524,7 +521,7 @@ fn spawn_meter_row(
         })
         .with_children(|row| {
             row.spawn((
-                themed_label(label, 11.0, UiColorType::TextMuted),
+                text(label, TextRole::Label),
                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
                 Node {
                     width: Val::Px(64.0),
@@ -558,7 +555,7 @@ fn spawn_meter_row(
             });
             let mut value = row.spawn((
                 field,
-                themed_label("", 12.0, UiColorType::Text),
+                text("", TextRole::Value),
                 TextLayout::new(Justify::Right, LineBreak::NoWrap),
             ));
             if field == StripBlockField::Time {

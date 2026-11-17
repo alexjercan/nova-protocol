@@ -53,10 +53,7 @@ mod ui_walk;
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::{
-    nova_interface::{
-        jobs::prelude::JobAcceptCommand,
-        station::{EscortHireCommand, StationRuntime},
-    },
+    nova_interface::{jobs::prelude::JobAcceptCommand, station::EscortHireCommand},
     prelude::*,
 };
 use nova_ui::widget::TextFieldValue;
@@ -364,16 +361,6 @@ fn hire_the_escort(world: &mut World) {
     world.write_message(EscortHireCommand { hull });
 }
 
-/// Fail the run on a refused hire, naming the refusal.
-fn refuse_a_refused_hire(world: &mut World) {
-    if let Some(note) = world.resource::<StationRuntime>().notice.text() {
-        assert!(
-            !note.starts_with("hire:"),
-            "load screen: the station refused the hire: '{note}'"
-        );
-    }
-}
-
 /// Accept the starting station's first Procure as the Accept button does.
 ///
 /// # Panics
@@ -490,7 +477,6 @@ fn play_world(
             .add()
             .step(format!("{name}: hire one escort"))
             .on_enter(hire_the_escort)
-            .each(|world: &mut World, _, _| refuse_a_refused_hire(world))
             .until(when(|world| fleet_len(world) == 1))
             .deadline(BEAT_DEADLINE_SECS)
             .add()

@@ -315,7 +315,7 @@ fn panel_cell(
     build: impl FnOnce(&mut ChildSpawnerCommands),
 ) {
     body.spawn((panel_node(), panel())).with_children(|cell| {
-        cell.spawn((panel_head(title, tag),));
+        cell.spawn((panel_head(title, tag.as_slice()),));
         cell.spawn(Node {
             width: px(320),
             flex_direction: FlexDirection::Column,
@@ -331,11 +331,17 @@ fn buttons_panel(body: &mut ChildSpawnerCommands) {
     panel_cell(body, "Buttons", None, |c| {
         sub_header(c, "States");
         c.spawn(flow_row()).with_children(|r| {
-            r.spawn((button(ButtonSpec::new("Idle")), Name::new(IDLE_BUTTON)));
-            r.spawn((button(ButtonSpec::new("Pressed")), bevy::ui::Pressed));
-            r.spawn((button(ButtonSpec::new("Selected")), Selected));
             r.spawn((
-                button(ButtonSpec::new("Disabled")),
+                button(ButtonSpec::control("Idle").fill()),
+                Name::new(IDLE_BUTTON),
+            ));
+            r.spawn((
+                button(ButtonSpec::control("Pressed").fill()),
+                bevy::ui::Pressed,
+            ));
+            r.spawn((button(ButtonSpec::control("Selected").fill()), Selected));
+            r.spawn((
+                button(ButtonSpec::control("Disabled").fill()),
                 bevy::ui::InteractionDisabled,
             ));
         });
@@ -345,14 +351,18 @@ fn buttons_panel(body: &mut ChildSpawnerCommands) {
         );
         sub_header(c, "Emphasis");
         c.spawn(flow_row()).with_children(|r| {
-            r.spawn(button(ButtonSpec::new("Primary").primary()));
-            r.spawn(button(ButtonSpec::new("Default")));
-            r.spawn(button(ButtonSpec::new("Ghost").ghost()));
-            r.spawn(button(ButtonSpec::new("Danger").danger()));
+            r.spawn(button(ButtonSpec::control("Primary").primary().fill()));
+            r.spawn(button(ButtonSpec::control("Default").fill()));
+            r.spawn(button(ButtonSpec::control("Ghost").ghost().fill()));
+            r.spawn(button(ButtonSpec::control("Danger").danger().fill()));
         });
         sub_header(c, "Block + key-chip");
         c.spawn(button(
-            ButtonSpec::new("Play").primary().block().key("Enter"),
+            ButtonSpec::control("Play")
+                .primary()
+                .block()
+                .key("Enter")
+                .fill(),
         ));
     });
 }
@@ -412,11 +422,11 @@ fn content_panel(body: &mut ChildSpawnerCommands, checks: ZooChecks) {
         list_row_entry(c, checks.0[1], "Hard vacuum", "v0.4 // driftco", 1);
         sub_header(c, "Badges");
         c.spawn(flow_row()).with_children(|r| {
-            r.spawn(badge(BadgeKind::Green, "online"));
-            r.spawn(badge(BadgeKind::Amber, "warn"));
-            r.spawn(badge(BadgeKind::Blue, "info"));
-            r.spawn(badge(BadgeKind::Red, "fault"));
-            r.spawn(badge(BadgeKind::Mute, "idle"));
+            r.spawn(tag("online", UiColorType::Nominal));
+            r.spawn(tag("warn", UiColorType::Accent));
+            r.spawn(tag("info", UiColorType::Info));
+            r.spawn(tag("fault", UiColorType::Danger));
+            r.spawn(tag("idle", UiColorType::TextSecondary));
         });
     });
 }

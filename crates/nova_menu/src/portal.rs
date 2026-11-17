@@ -19,8 +19,8 @@ use nova_ui::{
     theme,
     theme::UiColorType,
     widget::{
-        button, themed_button, ButtonCueType, ButtonSpec, Selected, ThemedBorder, ThemedButton,
-        ThemedFill, ThemedRadius, ThemedText, UiText,
+        button, ButtonCueType, ButtonSpec, Selected, ThemedBorder, ThemedButton, ThemedFill,
+        ThemedRadius, ThemedText, UiText,
     },
 };
 
@@ -467,7 +467,13 @@ pub(crate) fn spawn_portal_button(
     id: &str,
     kind: PortalActionKind,
 ) {
-    spawn_portal_slot(row, name, id, kind, themed_button(label));
+    spawn_portal_slot(
+        row,
+        name,
+        id,
+        kind,
+        button(ButtonSpec::control(label).fill()),
+    );
 }
 
 /// [`spawn_portal_button`] around a caller-built button.
@@ -518,7 +524,7 @@ pub(crate) fn spawn_uninstall_button(row: &mut ChildSpawnerCommands, id: &str, a
             },
             children![(
                 Name::new("Mod Details Uninstall Cancel"),
-                button(ButtonSpec::new("Cancel")),
+                button(ButtonSpec::control("Cancel").fill()),
                 ButtonCueType::Back,
             )],
         ));
@@ -527,7 +533,7 @@ pub(crate) fn spawn_uninstall_button(row: &mut ChildSpawnerCommands, id: &str, a
             NAME,
             id,
             PortalActionKind::Uninstall,
-            button(ButtonSpec::new("Confirm").danger()),
+            button(ButtonSpec::control("Confirm").danger().fill()),
         );
     } else {
         spawn_portal_button(row, NAME, "Uninstall", id, PortalActionKind::Uninstall);

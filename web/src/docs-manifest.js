@@ -802,7 +802,7 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference", "interface"],
         summary:
-            "Author the look the whole interface paints in: the UiTheme item, the palette and metrics, colours, fills and effects, the sixteen roles, the slider and badge shapes, inheritance, restyling a base theme, and what the player picks in Settings.",
+            "Author the look the whole interface paints in: the UiTheme item, the palette and metrics, colours, fills and effects, the sixteen roles, the slider shape and badge alphas, inheritance, restyling a base theme, and what the player picks in Settings.",
         related: ["mod-files", "base-content", "reference"],
         headings: [
             "What a theme can and cannot change",

@@ -62,8 +62,8 @@ impl Plugin for NovaUiPlugin {
 /// (the live [`ActiveUiTheme`](theme::ActiveUiTheme) and the semantic
 /// [`UiColorType`](theme::UiColorType) / [`UiMetric`](theme::UiMetric) names screens
 /// ask it for), the [`units`] formatters and the
-/// themed-button widgets ([`themed_button`](widget::themed_button),
-/// [`ThemedButton`](widget::ThemedButton), [`Selected`](widget::Selected), ...)
+/// themed widgets and the layout kit ([`button`](widget::button),
+/// [`ThemedButton`](widget::ThemedButton), [`metrics`](widget::metrics), [`Selected`](widget::Selected), ...)
 /// into scope, plus the [`screen`] composition helpers and the [`status_bar`]
 /// names the composition root spawns.
 ///

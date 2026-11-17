@@ -195,7 +195,7 @@ pub(super) fn spawn_copy_control(row: &mut RelatedSpawnerCommands<ChildOf>) {
     row.spawn((
         Name::new("Copy Rows Button"),
         CopyRowsButton,
-        button(ButtonSpec::new("Copy").ghost().dense().fit()),
+        button(ButtonSpec::control("Copy").ghost()),
         ButtonCueType::Owned,
         observe(on_copy_button),
     ));

@@ -21,6 +21,9 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::{RepairJobKey, ShipRepairJobs};
 use nova_sound::prelude::*;
 use nova_ui::{
+    prelude::{
+        control_row, divider, inspector, metrics, preview_frame, text, text_toned, TextRole,
+    },
     screen::drive_wheel_scroll,
     theme::UiColorType,
     widget::{
@@ -41,10 +44,7 @@ use super::{
 };
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
-    pane::{
-        compact_button, control_row, divider, panel_preview_frame, side_panel, themed_label,
-        PANEL_PREVIEW_PX, SUMMARY_LINES,
-    },
+    pane::SUMMARY_LINES,
 };
 
 /// Wheel-scroll the section panel while the pointer is over it, through the
@@ -85,7 +85,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
         .spawn((
             ShipPanelMarker,
             Name::new("ShipPanel"),
-            side_panel(Overflow::scroll_y()),
+            inspector(Overflow::scroll_y()),
             ScrollPosition::default(),
             Hovered::default(),
         ))
@@ -109,13 +109,13 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         ..default()
                     })
                     .with_children(|head| {
-                        head.spawn(panel_preview_frame()).with_children(|frame| {
+                        head.spawn(preview_frame()).with_children(|frame| {
                             frame.spawn((
                                 ShipPreviewIcon,
                                 icon_node(
                                     icons.section(SectionIconType::Hull),
                                     SectionIconType::Hull.color(),
-                                    PANEL_PREVIEW_PX * 0.75,
+                                    metrics::PREVIEW * 0.75,
                                 ),
                             ));
                         });
@@ -126,10 +126,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                             ..default()
                         })
                         .with_children(|detail| {
-                            detail.spawn((
-                                ShipPanelField::Title,
-                                themed_label("", 16.0, UiColorType::Text),
-                            ));
+                            detail.spawn((ShipPanelField::Title, text("", TextRole::Title)));
                             detail
                                 .spawn((
                                     Node {
@@ -166,7 +163,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                     ))
                     .with_children(|fact| {
                         fact.spawn((
-                            themed_label("Control", 12.0, UiColorType::TextMuted),
+                            text("Control", TextRole::Label),
                             Node {
                                 flex_shrink: 0.0,
                                 ..default()
@@ -175,7 +172,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         fact.spawn((
                             ShipPanelField::Control,
                             Name::new("ShipControl"),
-                            themed_label("", 13.0, UiColorType::Text),
+                            text("", TextRole::Value),
                             TextLayout::new(Justify::Right, LineBreak::NoWrap),
                             Node {
                                 min_width: Val::Px(0.0),
@@ -195,7 +192,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                     .with_children(|row| {
                         row.spawn((
                             ShipPanelButton::Rebind,
-                            button(ButtonSpec::new("Rebind").fit()),
+                            button(ButtonSpec::control("Rebind")),
                         ))
                         .observe(on_ship_rebind_button);
                     });
@@ -217,7 +214,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                     ))
                     .with_children(|block| {
                         block.spawn(divider());
-                        block.spawn(themed_label("Salvage", 12.0, UiColorType::TextMuted));
+                        block.spawn(text("Salvage", TextRole::Label));
                         // One part per line, so two parts never read as one.
                         block.spawn((
                             ShipSalvageTiles::default(),
@@ -232,7 +229,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                             .with_children(|row| {
                                 row.spawn((
                                     ShipPanelButton::Delete,
-                                    compact_button(ButtonSpec::new("Delete").fit().danger()),
+                                    button(ButtonSpec::control("Delete").danger()),
                                     Tooltip::default(),
                                     Name::new("ShipDelete"),
                                 ))
@@ -240,10 +237,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                             });
                     });
                 // Under the actions: a result shows where the press was.
-                panel.spawn((
-                    ShipPanelField::Note,
-                    themed_label("", 12.0, UiColorType::TextMuted),
-                ));
+                panel.spawn((ShipPanelField::Note, text("", TextRole::Label)));
                 panel
                     .spawn((
                         ShipPanelField::RepairForm,
@@ -257,7 +251,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                     ))
                     .with_children(|form| {
                         form.spawn(divider());
-                        form.spawn(themed_label("Repair", 13.0, UiColorType::Accent));
+                        form.spawn(text("Repair", TextRole::Heading));
                         form.spawn(Node {
                             flex_wrap: FlexWrap::Wrap,
                             row_gap: Val::Px(6.0),
@@ -272,12 +266,12 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                             .with_children(|cell| {
                                 cell.spawn((
                                     ShipRepairQuantity,
-                                    text_field(TextFieldSpec::new("1").max_chars(5).dense()),
+                                    text_field(TextFieldSpec::new("1").max_chars(5).tool()),
                                 ));
                             });
                             row.spawn((
                                 ShipPanelField::RepairStock,
-                                themed_label("", 15.0, UiColorType::Text),
+                                text("", TextRole::Value),
                                 Node {
                                     flex_grow: 1.0,
                                     ..default()
@@ -286,7 +280,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                             ));
                             row.spawn((
                                 Name::new("ShipRepairAll"),
-                                compact_button(ButtonSpec::new("All").fit().ghost()),
+                                button(ButtonSpec::control("All").ghost()),
                             ))
                             .observe(on_ship_repair_all_button);
                         });
@@ -305,7 +299,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         .observe(on_ship_repair_slider);
                         form.spawn((
                             ShipPanelField::RepairPreview,
-                            themed_label("", 13.0, UiColorType::TextBody),
+                            text("", TextRole::Body),
                             Node {
                                 min_height: Val::Px(13.0 * 1.2 * SUMMARY_LINES),
                                 ..default()
@@ -316,7 +310,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                                 row.spawn((
                                     Name::new("ShipRepair"),
                                     ShipPanelButton::Repair,
-                                    compact_button(ButtonSpec::new("Repair").fit().primary()),
+                                    button(ButtonSpec::control("Repair").primary()),
                                     ButtonCueType::Owned,
                                 ))
                                 .observe(on_ship_repair_button);
@@ -352,7 +346,7 @@ pub(crate) fn spawn_ship_rebind_prompt(view: &mut ChildSpawnerCommands) {
     .with_children(|row| {
         row.spawn((
             ShipPanelField::RebindPrompt,
-            themed_label("", 14.0, UiColorType::Accent),
+            text_toned("", TextRole::Title, UiColorType::Accent),
             Node {
                 padding: UiRect::axes(Val::Px(10.0), Val::Px(4.0)),
                 ..default()

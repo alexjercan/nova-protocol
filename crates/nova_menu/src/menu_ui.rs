@@ -135,7 +135,7 @@ pub(crate) fn setup_menu_ui(
                 .with_children(|parent| {
                     parent.spawn((
                         Name::new("Settings Title"),
-                        panel_head("Settings", Some("SAVED ON CHANGE")),
+                        panel_head("Settings", &["SAVED ON CHANGE"]),
                     ));
                     build_settings_tabs(parent, active_settings_tab.0);
                     parent
@@ -213,7 +213,7 @@ pub(crate) fn setup_menu_ui(
                     panel(),
                 ))
                 .with_children(|parent| {
-                    parent.spawn((Name::new("Mods Title"), panel_head("Mods", Some("DELTA-9"))));
+                    parent.spawn((Name::new("Mods Title"), panel_head("Mods", &["DELTA-9"])));
                     parent.spawn((
                         Name::new("Mods Subtitle"),
                         Text::new("Enable installed mods. Base is always on."),
@@ -319,7 +319,7 @@ pub(crate) fn setup_menu_ui(
                 .with_children(|parent| {
                     parent.spawn((
                         Name::new("Scenarios Title"),
-                        panel_head("Scenarios", Some("PICK ONE")),
+                        panel_head("Scenarios", &["PICK ONE"]),
                     ));
                     parent.spawn((
                         Name::new("Scenarios Subtitle"),
@@ -394,7 +394,7 @@ pub(crate) fn setup_menu_ui(
                 .with_children(|parent| {
                     parent.spawn((
                         Name::new("Load Title"),
-                        panel_head("Load", Some("SAVED WORLDS")),
+                        panel_head("Load", &["SAVED WORLDS"]),
                     ));
 
                     parent.spawn((

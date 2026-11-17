@@ -88,9 +88,9 @@ fn restore_cursor(
 
 fn pause_button(label: &str, action: PauseAction, primary: bool) -> impl Bundle {
     let spec = if primary {
-        ButtonSpec::new(label).primary()
+        ButtonSpec::control(label).primary().fill()
     } else {
-        ButtonSpec::new(label)
+        ButtonSpec::control(label).fill()
     };
     (button(spec.block()), action)
 }

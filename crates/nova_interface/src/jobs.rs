@@ -26,10 +26,9 @@
 //! [`JobHandInCommand`]; [`apply_job_commands`] plans it with
 //! [`plan_job_accept`] or [`plan_job_hand_in`], moves the goods and the
 //! credits, moves the job in [`Jobs`] and raises [`JobAccepted`] so the open
-//! world puts the job's bodies in place. The result shows on the notice line
-//! under the panels for 4 s, green for a result, red for a refusal, with one
-//! sound; the buttons are silent on press. A hand-in's line names the
-//! payout, the new balance and the stance step it made.
+//! world puts the job's bodies in place. The result plays one sound and the
+//! changed balance and lists show it; the buttons are silent on press. A
+//! verb that cannot work is hidden or disabled by its [`VerbGate`].
 //!
 //! A held row's `X` drops nothing: it asks. The row then reads `Drop
 //! <title>?` and swaps Hand in and `X` for Drop and Back. Back leaves the
@@ -37,7 +36,7 @@
 //! [`apply_job_commands`] drops the job ([`Jobs::drop`]) with no payout,
 //! whatever station it is docked at, and takes out the bodies its accept
 //! put in the world, as a loss does. A drop of a job no longer held is
-//! refused on the notice line.
+//! refused with the deny sound.
 //!
 //! A board row's offer is not held: docked at its issuing station, it
 //! carries a compact `X` of its own. Pressing it asks a paid delete instead
@@ -51,7 +50,7 @@
 //! second [`JobOfferRefreshCommand`] for the same id, the same frame or the
 //! next, refuses instead of paying the fee twice. A refusal, including one
 //! an accept the same frame raises by holding the job first, changes
-//! nothing and shows on the notice line.
+//! nothing and plays the deny sound.
 //!
 //! Touch this module when changing what the lists show, what gates an
 //! offer, or what a hand-in moves.
@@ -59,7 +58,6 @@
 use bevy::{
     picking::hover::Hovered,
     prelude::*,
-    ui::InteractionDisabled,
     ui_widgets::{Activate, Button},
 };
 use nova_events::prelude::{
@@ -67,19 +65,14 @@ use nova_events::prelude::{
 };
 use nova_gameplay::prelude::*;
 use nova_sound::prelude::*;
-use nova_ui::{
-    prelude::*,
-    theme::UiColorType,
-    widget::{ThemedBorder, ThemedText},
-};
+use nova_ui::{prelude::*, theme::UiColorType, widget::ThemedBorder};
 use nova_world_base::prelude::{record_merit, PlayerHull};
 
 use crate::{
     icons::{icon_node, ChartIconType, InterfaceIcons, JobIconType},
     map::{job_cell, MapChartMarkType, MapRuntime},
     pane::{
-        compact_button, control_row, divider, notice_line, refusable_button, side_panel,
-        spawn_credit_figure, themed_label, view_split, ActionNotice, ActionOutcomeType,
+        gated_verb, spawn_credit_figure, view_split, ActionCue, ActionOutcomeType,
         InterfacePaneType,
     },
     ship::StationSite,
@@ -89,8 +82,7 @@ use crate::{
 pub mod prelude {
     pub use super::{
         JobAcceptCommand, JobHandInCommand, JobsRuntime, JOBS_BOARD, JOBS_BOARD_CLOSED, JOBS_HELD,
-        JOBS_MILESTONE, JOBS_NOTICE, JOBS_PANE, JOB_ACCEPT_PREFIX, JOB_HAND_IN_PREFIX,
-        JOB_SHOW_ON_MAP,
+        JOBS_MILESTONE, JOBS_PANE, JOB_ACCEPT_PREFIX, JOB_HAND_IN_PREFIX, JOB_SHOW_ON_MAP,
     };
 }
 
@@ -129,8 +121,6 @@ pub(crate) const JOB_REFRESH_CONFIRM_PREFIX: &str = "JobRefreshConfirm-";
 pub(crate) const JOB_REFRESH_BACK_PREFIX: &str = "JobRefreshBack-";
 /// The `Name` of the inspector's Show on Map button.
 pub const JOB_SHOW_ON_MAP: &str = "JobShowOnMap";
-/// The `Name` of the pane's notice line, under the panels.
-pub const JOBS_NOTICE: &str = "JobsNotice";
 
 /// A request to accept the posted job `id` off the docked station's board,
 /// raised by a board row's Accept button.
@@ -168,7 +158,7 @@ pub(crate) struct JobOfferRefreshCommand {
 }
 
 /// What the Jobs pane shows beyond the records: the selected row, the drop
-/// that waits for its confirm and the notice line. Kept while the interface
+/// that waits for its confirm and the result cue. Kept while the interface
 /// is closed, like the pane itself. A selection no row shows any more, or a
 /// confirm for a job no longer held, is cleared by [`update_jobs_pane`].
 #[derive(Resource, Default, Debug)]
@@ -179,8 +169,8 @@ pub struct JobsRuntime {
     pub(crate) confirm_drop: Option<JobId>,
     /// The board offer whose `X` was pressed: its row asks Refresh or Back.
     pub(crate) confirm_refresh: Option<JobId>,
-    /// The last Accept or Hand in result, shown on the notice line.
-    pub notice: ActionNotice,
+    /// The last command result's sound.
+    pub cue: ActionCue,
 }
 
 impl JobsRuntime {
@@ -197,10 +187,6 @@ impl JobsRuntime {
 /// The pane's row of panels, rebuilt by [`update_jobs_pane`].
 #[derive(Component)]
 pub(crate) struct JobsPaneMarker;
-
-/// The notice line under the panels.
-#[derive(Component)]
-pub(crate) struct JobsNoticeMarker;
 
 /// Which of the pane's three scrolling viewports a node is, so a rebuild
 /// carries each one's offset to its successor.
@@ -264,10 +250,9 @@ struct JobRefreshButton {
 #[derive(Component, Clone, Debug)]
 struct JobShowOnMap(MapChartMarkType);
 
-/// Build the Jobs pane body: the row of panels and the notice line.
+/// Build the Jobs pane body: the row of panels.
 pub(crate) fn jobs_body(body: &mut ChildSpawnerCommands) {
     body.spawn((JobsPaneMarker, Name::new(JOBS_PANE), view_split()));
-    body.spawn((JobsNoticeMarker, Name::new(JOBS_NOTICE), notice_line()));
 }
 
 /// The bodies a located job can name, read where they stand.
@@ -360,102 +345,71 @@ fn target_name(job: &Job, chart: &Chart) -> String {
     }
 }
 
-/// Why the hull cannot do a job, for a greyed Accept.
-fn hull_refusal_text(refusal: &JobHullRefusalType) -> String {
+/// How Accept answers a hull that cannot do a job: one word for the part
+/// the hull lacks.
+fn hull_gate(refusal: &JobHullRefusalType) -> VerbGate {
     match refusal {
-        JobHullRefusalType::HoldTooSmall { need_g, have_g } => format!(
-            "accept: {} does not fit the {} hold",
-            kg_text(*need_g),
-            kg_text(u64::from(*have_g))
-        ),
-        JobHullRefusalType::NoClamp => "accept: the hull has no docking section".to_string(),
-        JobHullRefusalType::NoWeapon => "accept: the hull has no weapon".to_string(),
+        JobHullRefusalType::HoldTooSmall { .. } => VerbGate::Tagged("HOLD"),
+        JobHullRefusalType::NoClamp => VerbGate::Tagged("NO DOCK"),
+        JobHullRefusalType::NoWeapon => VerbGate::Tagged("NO WEAPON"),
     }
 }
 
-/// Why an accept is refused.
-fn accept_refusal_text(refusal: &JobAcceptRefusalType) -> String {
+/// How Accept answers a refused accept: hidden where the offer cannot be
+/// taken, tagged when its target is gone.
+fn accept_gate(refusal: &JobAcceptRefusalType) -> VerbGate {
     match refusal {
-        JobAcceptRefusalType::NotDocked => "accept: dock at a station that posts jobs".to_string(),
-        JobAcceptRefusalType::NotPostedHere => "accept: this station did not post it".to_string(),
-        JobAcceptRefusalType::AlreadyHeld => "accept: you took it already".to_string(),
-        JobAcceptRefusalType::AlreadyDone => "accept: you completed it already".to_string(),
-        JobAcceptRefusalType::Expired => "accept: this offer expired".to_string(),
-        JobAcceptRefusalType::TargetGone => "accept: its target is gone".to_string(),
+        JobAcceptRefusalType::NotDocked
+        | JobAcceptRefusalType::NotPostedHere
+        | JobAcceptRefusalType::AlreadyHeld
+        | JobAcceptRefusalType::AlreadyDone
+        | JobAcceptRefusalType::Expired => VerbGate::Hidden,
+        JobAcceptRefusalType::TargetGone => VerbGate::Tagged("GONE"),
     }
 }
 
-/// Why a hand-in of `job` is refused; the list and the handler share it.
-/// The text never names the job: every place that shows it sits beside the
-/// job's title.
-fn hand_in_refusal_text(
-    job: &Job,
-    refusal: &JobHandInRefusalType,
-    chart: &Chart,
-    items: &GameItems,
-) -> String {
+/// How Hand in answers a refused hand-in: hidden away from the hand-in
+/// station (HAND IN HERE marks it), disabled while the work or the hold is
+/// short (the Progress count shows it), tagged when the station cannot pay.
+fn hand_in_gate(refusal: &JobHandInRefusalType) -> VerbGate {
     match refusal {
-        JobHandInRefusalType::NotDocked => {
-            format!("dock at {} to hand in", station_name(chart, &job.target))
+        JobHandInRefusalType::NotDocked | JobHandInRefusalType::WrongStation { .. } => {
+            VerbGate::Hidden
         }
-        JobHandInRefusalType::WrongStation { needed } => {
-            format!("hand in at {}", station_name(chart, needed))
-        }
-        JobHandInRefusalType::ShortItems { item, need, have } => {
-            format!(
-                "the hold carries {have} of {need} {}",
-                items.design(item).name
-            )
-        }
-        JobHandInRefusalType::NotDone => "not done yet".to_string(),
-        JobHandInRefusalType::StationCannotPay { need, have } => format!(
-            "hand in: it pays {}, the station holds {}",
-            cr_text(*need),
-            cr_text(*have)
-        ),
-        JobHandInRefusalType::CreditOverflow => {
-            "hand in: the ship's balance after the reward does not fit".to_string()
-        }
+        JobHandInRefusalType::ShortItems { .. }
+        | JobHandInRefusalType::NotDone
+        | JobHandInRefusalType::CreditOverflow => VerbGate::Disabled,
+        JobHandInRefusalType::StationCannotPay { .. } => VerbGate::Tagged("NO FUNDS"),
     }
 }
 
-/// Why an offer refresh would be refused, for its confirming row and the
-/// notice line. The text never names the job, like [`hand_in_refusal_text`].
-fn offer_refresh_refusal_text(refusal: &JobOfferRefreshRefusalType) -> String {
+/// How a refresh's Delete answers a refused refresh: hidden where no refresh
+/// can happen, disabled while the fee is short (the fee shows red).
+fn offer_refresh_gate(refusal: &JobOfferRefreshRefusalType) -> VerbGate {
     match refusal {
-        JobOfferRefreshRefusalType::Stale => "delete: this posting renewed already".to_string(),
-        JobOfferRefreshRefusalType::Held => "delete: you already hold this job".to_string(),
-        JobOfferRefreshRefusalType::Expired => "delete: this offer expired".to_string(),
-        JobOfferRefreshRefusalType::NotDocked => format!(
-            "delete: dock at the issuing station to pay {}",
-            cr_text(JOB_OFFER_REFRESH_FEE_CR)
-        ),
-        JobOfferRefreshRefusalType::CreditsShort { need, have } => format!(
-            "delete: it costs {}, the balance holds {}",
-            cr_text(*need),
-            cr_text(*have)
-        ),
-        JobOfferRefreshRefusalType::CreditOverflow => {
-            "delete: the station's balance after the fee does not fit".to_string()
-        }
+        JobOfferRefreshRefusalType::Stale
+        | JobOfferRefreshRefusalType::Held
+        | JobOfferRefreshRefusalType::Expired
+        | JobOfferRefreshRefusalType::NotDocked => VerbGate::Hidden,
+        JobOfferRefreshRefusalType::CreditsShort { .. }
+        | JobOfferRefreshRefusalType::CreditOverflow => VerbGate::Disabled,
     }
 }
 
 /// What a board does with an offer the hull gate judged `fit` and the
-/// accept rule judged `accept`: `None` leaves it off a starter board,
-/// `Some(None)` lists it with Accept, `Some(Some(why))` lists it with a
-/// greyed Accept and `why` in its tooltip. The hull's reason comes first:
-/// it is the one the player can act on.
+/// accept rule judged `accept`: `None` leaves it off a starter board, else it
+/// is listed with Accept under the gate. The hull's cause comes first: it is
+/// the one the player can act on.
 fn board_listing(
     starter: bool,
     fit: Result<(), JobHullRefusalType>,
     accept: Result<(), JobAcceptRefusalType>,
-) -> Option<Option<String>> {
+) -> Option<VerbGate> {
     match (starter, fit, accept) {
         (true, Err(_), _) => None,
-        (false, Err(refusal), _) => Some(Some(hull_refusal_text(&refusal))),
-        (_, Ok(()), Err(refusal)) => Some(Some(accept_refusal_text(&refusal))),
-        (_, Ok(()), Ok(())) => Some(None),
+        (false, Err(refusal), _) => Some(hull_gate(&refusal)),
+        (_, Ok(()), Err(refusal)) => Some(accept_gate(&refusal)),
+        (_, Ok(()), Ok(())) => Some(VerbGate::Ready),
     }
 }
 
@@ -473,16 +427,15 @@ struct PostedRow {
     /// The offer's window left: the share and the minutes. A scenario
     /// posting has no window: a full meter and [`NO_WINDOW_TEXT`].
     time_left: (f32, String),
-    /// Why Accept is greyed, if it is.
-    refusal: Option<String>,
+    /// How Accept answers the row.
+    gate: VerbGate,
     /// A slot posting: the row shows the `X` that asks a paid refresh. A
     /// visit posting has no slot to renew.
     refreshable: bool,
     /// Its `X` was pressed: the row asks Refresh or Back.
     confirming: bool,
-    /// Why a Refresh confirm would be refused right now, if `confirming`
-    /// and it would be.
-    refresh_refusal: Option<String>,
+    /// How the refresh's Delete answers the row while `confirming`.
+    refresh_gate: VerbGate,
 }
 
 /// One held row as the pane shows it.
@@ -495,8 +448,8 @@ struct HeldRow {
     need: u32,
     /// Docked at the station this job hands in at: the row shows HAND IN HERE.
     hand_in_here: bool,
-    /// Why Hand in is greyed, if it is.
-    refusal: Option<String>,
+    /// How Hand in answers the row.
+    gate: VerbGate,
     /// Its `X` was pressed: the row asks Drop or Back.
     confirming: bool,
 }
@@ -524,8 +477,6 @@ struct InspectorView {
     time_left: Option<(f32, String)>,
     /// A held job's `have / need`.
     progress: Option<(u32, u32)>,
-    /// A held job's hand-in refusal.
-    refusal: Option<String>,
     /// The mark Show on Map opens the chart on.
     show: MapChartMarkType,
 }
@@ -640,9 +591,8 @@ fn update_jobs_pane(
         )
         .err()
     };
-    let hand_in_refusal = |job: &Job| {
-        hand_in_check(job).map(|refusal| hand_in_refusal_text(job, &refusal, &chart, &items))
-    };
+    let hand_in_gate =
+        |job: &Job| hand_in_check(job).map_or(VerbGate::Ready, |refusal| hand_in_gate(&refusal));
     if runtime
         .confirm_drop
         .as_ref()
@@ -658,9 +608,9 @@ fn update_jobs_pane(
     }) {
         runtime.confirm_refresh = None;
     }
-    // Reused by the confirming row and the notice line, so both read the fee
-    // and the shortfall off the same check order as `apply_job_commands`.
-    let offer_refresh_refusal = |job: &Job| -> Option<String> {
+    // The confirming row reads the fee and the shortfall off the same check
+    // order as `apply_job_commands`.
+    let offer_refresh_gate = |job: &Job| -> VerbGate {
         let docked = partner.as_ref().filter(|(_, _, id)| *id == job.id.station);
         let station_cr = docked
             .and_then(|(_, station, _)| q_credits.get(*station).ok())
@@ -679,7 +629,7 @@ fn update_jobs_pane(
             station_cr,
         )
         .err()
-        .map(|refusal| offer_refresh_refusal_text(&refusal))
+        .map_or(VerbGate::Ready, |refusal| offer_refresh_gate(&refusal))
     };
 
     let board = partner.as_ref().and_then(|(_, station, station_id)| {
@@ -700,7 +650,7 @@ fn update_jobs_pane(
                     || (1.0, NO_WINDOW_TEXT.to_string()),
                     |remaining| time_left(job, remaining),
                 );
-                let Some(refusal) = board_listing(
+                let Some(gate) = board_listing(
                     starter,
                     plan_job_hull_fit(job, &items, fit),
                     plan_job_accept(
@@ -715,17 +665,21 @@ fn update_jobs_pane(
                     return None;
                 };
                 let confirming = runtime.confirm_refresh.as_ref() == Some(&job.id);
-                let refresh_refusal = confirming.then(|| offer_refresh_refusal(job)).flatten();
+                let refresh_gate = if confirming {
+                    offer_refresh_gate(job)
+                } else {
+                    VerbGate::Ready
+                };
                 Some(PostedRow {
                     id: job.id.clone(),
                     icon: JobIconType::of(&job.kind),
                     title: job.title(&items),
                     reward_cr: job.reward_cr.into(),
                     time_left,
-                    refusal,
+                    gate,
                     refreshable: postings.slot(&job.id).is_some(),
                     confirming,
-                    refresh_refusal,
+                    refresh_gate,
                 })
             })
             .collect();
@@ -751,43 +705,27 @@ fn update_jobs_pane(
                 have,
                 need,
                 hand_in_here,
-                refusal: hand_in_refusal(job),
+                gate: hand_in_gate(job),
                 confirming,
             }
         })
         .collect();
 
-    // The selected job, whether the player holds it, and why Accept is
-    // refused for a board offer: the inspector prints the reason a greyed
-    // Accept only carries in its tooltip.
+    // The selected job and whether the player holds it.
     let selected = runtime.selected.as_ref().and_then(|id| {
-        jobs.job(id).map(|job| (job, true, None)).or_else(|| {
-            let (_, station, station_id) = partner.as_ref()?;
-            let (board, starter) = q_boards.get(*station).ok()?;
+        jobs.job(id).map(|job| (job, true)).or_else(|| {
+            let (_, station, _) = partner.as_ref()?;
+            let (board, _) = q_boards.get(*station).ok()?;
             board
                 .job(id)
                 .filter(|job| !jobs.is_completed(&job.id) && !jobs.is_dropped(&job.id))
-                .map(|job| {
-                    let refusal = board_listing(
-                        starter,
-                        plan_job_hull_fit(job, &items, fit),
-                        plan_job_accept(
-                            job,
-                            Some(station_id),
-                            &jobs,
-                            false,
-                            target_standing(job, &q_targets),
-                        ),
-                    )
-                    .flatten();
-                    (job, false, refusal)
-                })
+                .map(|job| (job, false))
         })
     });
     if selected.is_none() && runtime.selected.is_some() {
         runtime.selected = None;
     }
-    let inspector = selected.map(|(job, held, accept_refusal)| {
+    let inspector = selected.map(|(job, held)| {
         let done = jobs.is_done(&job.id);
         let show = if held {
             MapChartMarkType::Job(job.id.clone())
@@ -809,22 +747,6 @@ fn update_jobs_pane(
                 .filter(|_| !held)
                 .map(|remaining| time_left(job, remaining)),
             progress: held.then(|| job.progress(hold, done)),
-            // A held job's inspector names only a refusal its rows do not
-            // show: the Hand in row names the station, Progress the hold
-            // count and the DONE badge the work.
-            refusal: if held {
-                hand_in_check(job)
-                    .filter(|refusal| {
-                        matches!(
-                            refusal,
-                            JobHandInRefusalType::StationCannotPay { .. }
-                                | JobHandInRefusalType::CreditOverflow
-                        )
-                    })
-                    .map(|refusal| hand_in_refusal_text(job, &refusal, &chart, &items))
-            } else {
-                accept_refusal
-            },
             show,
         }
     });
@@ -878,7 +800,7 @@ fn update_jobs_pane(
         });
         split
             .spawn((
-                side_panel(Overflow::scroll_y()),
+                nova_ui::prelude::inspector(Overflow::scroll_y()),
                 jobs_viewport(JobsScrollType::Inspector, inspector_offset),
             ))
             .with_children(|side| inspector_panel(side, &icons, view.inspector.as_ref()));
@@ -980,14 +902,14 @@ fn scroll_rows(
 /// what to do next, so it takes the secondary ink: at 12 px the label ink is
 /// under 3:1 on a panel.
 fn empty_line(panel: &mut ChildSpawnerCommands, sentence: &str) {
-    panel.spawn(themed_label(sentence, 12.0, UiColorType::TextSecondary));
+    panel.spawn(text(sentence, TextRole::Label));
 }
 
 /// A themed text that never wraps and takes no clicks, so a row's click
 /// lands on the row.
-fn text_nowrap(value: &str, size: f32, color: UiColorType) -> impl Bundle {
+fn text_nowrap(value: &str, role: TextRole, color: UiColorType) -> impl Bundle {
     (
-        themed_label(value, size, color),
+        text_toned(value.to_string(), role, color),
         TextLayout::new(Justify::Left, LineBreak::NoWrap),
         Node {
             overflow: Overflow::clip(),
@@ -999,7 +921,7 @@ fn text_nowrap(value: &str, size: f32, color: UiColorType) -> impl Bundle {
 }
 
 /// A fixed-width column cell, so the columns line up down a table.
-fn cell(width: f32, value: &str, size: f32, color: UiColorType) -> impl Bundle {
+fn text_cell(width: f32, value: &str, role: TextRole, color: UiColorType) -> impl Bundle {
     (
         Node {
             width: px(width),
@@ -1007,15 +929,15 @@ fn cell(width: f32, value: &str, size: f32, color: UiColorType) -> impl Bundle {
             ..default()
         },
         Pickable::IGNORE,
-        children![text_nowrap(value, size, color)],
+        children![text_nowrap(value, role, color)],
     )
 }
 
 /// A one-line label that ends in `...` when its cell is too narrow, and takes
 /// no clicks, so a row's click lands on the row.
-fn ellipsis_label(value: &str, size: f32, color: UiColorType) -> impl Bundle {
+fn ellipsis_label(value: &str, role: TextRole, color: UiColorType) -> impl Bundle {
     (
-        themed_label(value, size, color),
+        text_toned(value.to_string(), role, color),
         TextLayout::new(Justify::Left, LineBreak::NoWrap),
         EllipsisText(value.to_string()),
         Pickable::IGNORE,
@@ -1025,7 +947,7 @@ fn ellipsis_label(value: &str, size: f32, color: UiColorType) -> impl Bundle {
 /// A row's title cell: it grows, and it never gets narrower than
 /// [`TITLE_MIN_PX`], so the row wraps its other cells before the title is
 /// lost.
-fn title_cell(value: &str, size: f32, color: UiColorType) -> impl Bundle {
+fn title_cell(value: &str, role: TextRole, color: UiColorType) -> impl Bundle {
     (
         Node {
             flex_grow: 1.0,
@@ -1035,13 +957,13 @@ fn title_cell(value: &str, size: f32, color: UiColorType) -> impl Bundle {
             ..default()
         },
         Pickable::IGNORE,
-        children![ellipsis_label(value, size, color)],
+        children![ellipsis_label(value, role, color)],
     )
 }
 
 /// A confirming row's title cell: the question whole, then the job's title
 /// shortened to what is left.
-fn ask_title_cell(question: &str, title: &str, size: f32) -> impl Bundle {
+fn ask_title_cell(question: &str, title: &str, role: TextRole) -> impl Bundle {
     (
         Node {
             flex_grow: 1.0,
@@ -1055,7 +977,7 @@ fn ask_title_cell(question: &str, title: &str, size: f32) -> impl Bundle {
         Pickable::IGNORE,
         children![
             (
-                themed_label(question, size, UiColorType::Accent),
+                text_toned(question.to_string(), role, UiColorType::Accent),
                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
                 Node {
                     flex_shrink: 0.0,
@@ -1072,7 +994,7 @@ fn ask_title_cell(question: &str, title: &str, size: f32) -> impl Bundle {
                     ..default()
                 },
                 Pickable::IGNORE,
-                children![ellipsis_label(title, size, UiColorType::Text)],
+                children![ellipsis_label(title, role, UiColorType::Text)],
             ),
         ],
     )
@@ -1125,7 +1047,11 @@ fn meter(width: f32, have: u64, need: u64) -> impl Bundle {
         Pickable::IGNORE,
         children![
             bare_meter(width, fraction),
-            text_nowrap(&format!("{have} / {need}"), 12.0, UiColorType::TextBody),
+            text_nowrap(
+                &format!("{have} / {need}"),
+                TextRole::Body,
+                UiColorType::TextBody
+            ),
         ],
     )
 }
@@ -1151,9 +1077,18 @@ fn table_head(panel: &mut ChildSpawnerCommands, columns: &[(f32, &str)]) {
         .with_children(|row| {
             for (width, label) in columns {
                 if *width == 0.0 {
-                    row.spawn(title_cell(label, 11.0, UiColorType::TextSecondary));
+                    row.spawn(title_cell(
+                        label,
+                        TextRole::Label,
+                        UiColorType::TextSecondary,
+                    ));
                 } else {
-                    row.spawn(cell(*width, label, 11.0, UiColorType::TextSecondary));
+                    row.spawn(text_cell(
+                        *width,
+                        label,
+                        TextRole::Label,
+                        UiColorType::TextSecondary,
+                    ));
                 }
             }
         });
@@ -1198,13 +1133,13 @@ fn spawn_row<'a>(
     row
 }
 
-/// A row's action button, greyed with `refusal` in its tooltip when given.
+/// A row's action button under `gate`.
 fn action_button(
     row: &mut ChildSpawnerCommands,
     name: String,
     label: &str,
     button: JobActionButton,
-    refusal: Option<&String>,
+    gate: VerbGate,
 ) {
     // The button sits in a column as wide as the header's blank last column,
     // so the row's growing title cell matches the header's.
@@ -1220,22 +1155,19 @@ fn action_button(
         Pickable::IGNORE,
     ))
     .with_children(|column| {
-        refusable_button(column, name, label, refusal.map(String::as_str))
+        gated_verb(column, name, label, gate)
             .insert(button)
             .observe(on_job_button);
     });
 }
 
-/// A held row's drop step button, right-aligned in a column `width` wide,
-/// greyed with `refusal` as its tooltip when given, as [`refusable_button`]
-/// greys an action button.
+/// A held row's drop step button, right-aligned in a column `width` wide.
 fn drop_step_button(
     row: &mut ChildSpawnerCommands,
     width: f32,
     name: String,
     spec: ButtonSpec,
-    button: JobDropButton,
-    refusal: Option<&str>,
+    marker: JobDropButton,
 ) {
     row.spawn((
         Node {
@@ -1249,29 +1181,21 @@ fn drop_step_button(
         Pickable::IGNORE,
     ))
     .with_children(|column| {
-        let mut button = column.spawn((
-            Name::new(name),
-            compact_button(spec),
-            ButtonCueType::Owned,
-            button,
-        ));
+        let mut button =
+            column.spawn((Name::new(name), button(spec), ButtonCueType::Owned, marker));
         button.observe(on_job_drop_button);
-        if let Some(why) = refusal {
-            button.insert((InteractionDisabled, Tooltip(why.to_string())));
-        }
     });
 }
 
-/// A board row's refresh step button, right-aligned in a column `width`
-/// wide, greyed with `refusal` as its tooltip when given, as
-/// [`drop_step_button`] greys a held row's.
+/// A board row's refresh step button under `gate`, right-aligned in a
+/// column `width` wide.
 fn refresh_step_button(
     row: &mut ChildSpawnerCommands,
     width: f32,
     name: String,
     spec: ButtonSpec,
-    button: JobRefreshButton,
-    refusal: Option<&str>,
+    marker: JobRefreshButton,
+    gate: VerbGate,
 ) {
     row.spawn((
         Node {
@@ -1285,16 +1209,9 @@ fn refresh_step_button(
         Pickable::IGNORE,
     ))
     .with_children(|column| {
-        let mut button = column.spawn((
-            Name::new(name),
-            compact_button(spec),
-            ButtonCueType::Owned,
-            button,
-        ));
-        button.observe(on_job_refresh_button);
-        if let Some(why) = refusal {
-            button.insert((InteractionDisabled, Tooltip(why.to_string())));
-        }
+        let mut button =
+            column.spawn((Name::new(name), button(spec), ButtonCueType::Owned, marker));
+        button.insert(gate).observe(on_job_refresh_button);
     });
 }
 
@@ -1314,10 +1231,9 @@ fn board_panel(
                     ..control_row(JustifyContent::FlexStart)
                 })
                 .with_children(|head| {
-                    head.spawn(themed_label(
+                    head.spawn(text(
                         &format!("Jobs posted here: {}", board.station),
-                        15.0,
-                        UiColorType::Text,
+                        TextRole::Title,
                     ));
                 });
             table_head(
@@ -1353,31 +1269,31 @@ fn board_panel(
                             icon_node(icons.job(row.icon), row.icon.color(), 18.0),
                         ));
                         if row.confirming {
-                            r.spawn(ask_title_cell("Delete offer?", &row.title, 13.0));
+                            r.spawn(ask_title_cell("Delete offer?", &row.title, TextRole::Value));
                         } else {
-                            r.spawn(title_cell(&row.title, 13.0, UiColorType::Text));
+                            r.spawn(title_cell(&row.title, TextRole::Value, UiColorType::Text));
                         }
                         if row.confirming {
-                            let tooltip = row.refresh_refusal.clone().unwrap_or_else(|| {
-                                "pays the station to post a fresh offer in its place".to_string()
-                            });
-                            r.spawn((
-                                Node {
-                                    width: px(REWARD_PX),
-                                    flex_shrink: 0.0,
-                                    flex_direction: FlexDirection::Row,
-                                    align_items: AlignItems::Center,
-                                    ..default()
-                                },
-                                Tooltip(tooltip),
-                            ))
+                            // A short balance paints the fee it cannot pay.
+                            let tone = if row.refresh_gate == VerbGate::Disabled {
+                                UiColorType::Danger
+                            } else {
+                                UiColorType::Accent
+                            };
+                            r.spawn(Node {
+                                width: px(REWARD_PX),
+                                flex_shrink: 0.0,
+                                flex_direction: FlexDirection::Row,
+                                align_items: AlignItems::Center,
+                                ..default()
+                            })
                             .with_children(|fee| {
                                 spawn_credit_figure(
                                     fee,
                                     icons,
                                     u64::from(JOB_OFFER_REFRESH_FEE_CR),
-                                    13.0,
-                                    UiColorType::Accent,
+                                    TextRole::Value,
+                                    tone,
                                     (),
                                 );
                             });
@@ -1395,7 +1311,7 @@ fn board_panel(
                                     reward,
                                     icons,
                                     row.reward_cr,
-                                    13.0,
+                                    TextRole::Value,
                                     UiColorType::Accent,
                                     (),
                                 );
@@ -1410,17 +1326,17 @@ fn board_panel(
                                 r,
                                 TIME_PX,
                                 format!("{JOB_REFRESH_CONFIRM_PREFIX}{index}"),
-                                ButtonSpec::new("Delete").fit().danger(),
+                                ButtonSpec::control("Delete").danger(),
                                 refresh_button(JobAskStepType::Confirm),
-                                row.refresh_refusal.as_deref(),
+                                row.refresh_gate.clone(),
                             );
                             refresh_step_button(
                                 r,
                                 ACTION_PX,
                                 format!("{JOB_REFRESH_BACK_PREFIX}{index}"),
-                                ButtonSpec::new("Back").fit(),
+                                ButtonSpec::control("Back"),
                                 refresh_button(JobAskStepType::Back),
-                                None,
+                                VerbGate::Ready,
                             );
                             r.spawn(fixed(DROP_PX, ()));
                             return;
@@ -1436,7 +1352,11 @@ fn board_panel(
                                 Pickable::IGNORE,
                                 children![
                                     bare_meter(ROW_METER_PX, row.time_left.0),
-                                    text_nowrap(&row.time_left.1, 12.0, UiColorType::TextBody),
+                                    text_nowrap(
+                                        &row.time_left.1,
+                                        TextRole::Body,
+                                        UiColorType::TextBody
+                                    ),
                                 ],
                             ),
                         ));
@@ -1448,7 +1368,7 @@ fn board_panel(
                                 list: JobListType::Posted,
                                 id: row.id.clone(),
                             },
-                            row.refusal.as_ref(),
+                            row.gate.clone(),
                         );
                         // The ask step swaps the `X` label for the job-drop-cancel
                         // mark, the same asset the held row's `X` uses.
@@ -1469,7 +1389,7 @@ fn board_panel(
                             }
                             let mut ask = column.spawn((
                                 Name::new(format!("{JOB_REFRESH_PREFIX}{index}")),
-                                compact_button(ButtonSpec::new("").fit().ghost()),
+                                button(ButtonSpec::control("").ghost()),
                                 JobRefreshButton {
                                     step: JobAskStepType::Ask,
                                     id: row.id.clone(),
@@ -1497,7 +1417,7 @@ fn board_panel(
 fn closed_board_panel(col: &mut ChildSpawnerCommands) {
     col.spawn((Name::new(JOBS_BOARD_CLOSED), column_panel()))
         .with_children(|panel| {
-            panel.spawn(themed_label("Station board", 15.0, UiColorType::Text));
+            panel.spawn(text("Station board", TextRole::Title));
             empty_line(panel, "Dock at a station to see its job board.");
         });
 }
@@ -1512,7 +1432,7 @@ fn held_panel(
 ) {
     col.spawn((Name::new(JOBS_HELD), column_panel()))
         .with_children(|panel| {
-            panel.spawn(themed_label("Your jobs", 15.0, UiColorType::Text));
+            panel.spawn(text("Your jobs", TextRole::Title));
             let goal = match (&view.milestone, view.goal_met_at) {
                 (Some(line), _) => Some((
                     format!("{}: {}", view.goal_title, line.label),
@@ -1566,7 +1486,7 @@ fn held_panel(
                                 ..default()
                             },
                             Pickable::IGNORE,
-                            children![themed_label(&text, 13.0, color)],
+                            children![text_toned(&text, TextRole::Value, color)],
                         ));
                         match progress {
                             Some((have, need)) => {
@@ -1607,9 +1527,9 @@ fn held_panel(
                             icon_node(icons.job(row.icon), row.icon.color(), 18.0),
                         ));
                         if row.confirming {
-                            r.spawn(ask_title_cell("Drop job?", &row.title, 13.0));
+                            r.spawn(ask_title_cell("Drop job?", &row.title, TextRole::Value));
                         } else {
-                            r.spawn(title_cell(&row.title, 13.0, UiColorType::Text));
+                            r.spawn(title_cell(&row.title, TextRole::Value, UiColorType::Text));
                         }
                         r.spawn(fixed(
                             PROGRESS_PX,
@@ -1624,23 +1544,21 @@ fn held_panel(
                                 r,
                                 HAND_IN_PX,
                                 format!("{JOB_DROP_CONFIRM_PREFIX}{index}"),
-                                ButtonSpec::new("Drop").fit().danger(),
+                                ButtonSpec::control("Drop").danger(),
                                 drop_button(JobAskStepType::Confirm),
-                                None,
                             );
                             drop_step_button(
                                 r,
                                 ACTION_PX,
                                 format!("{JOB_DROP_BACK_PREFIX}{index}"),
-                                ButtonSpec::new("Back").fit(),
+                                ButtonSpec::control("Back"),
                                 drop_button(JobAskStepType::Back),
-                                None,
                             );
                             r.spawn(fixed(DROP_PX, ()));
                             return;
                         }
                         if row.hand_in_here {
-                            r.spawn(fixed(HAND_IN_PX, badge(BadgeKind::Green, "HAND IN HERE")));
+                            r.spawn(fixed(HAND_IN_PX, tag("HAND IN HERE", UiColorType::Nominal)));
                         } else {
                             r.spawn(fixed(HAND_IN_PX, ()));
                         }
@@ -1652,7 +1570,7 @@ fn held_panel(
                                 list: JobListType::Held,
                                 id: row.id.clone(),
                             },
-                            row.refusal.as_ref(),
+                            row.gate.clone(),
                         );
                         // The ask step swaps the `X` label for the job-drop-cancel
                         // mark: Bevy UI cannot draw the authored SVG directly, so
@@ -1672,7 +1590,7 @@ fn held_panel(
                         .with_children(|column| {
                             let mut ask = column.spawn((
                                 Name::new(format!("{JOB_DROP_PREFIX}{index}")),
-                                compact_button(ButtonSpec::new("").fit().ghost()),
+                                button(ButtonSpec::control("").ghost()),
                                 drop_button(JobAskStepType::Ask),
                                 Tooltip("Drop job".to_string()),
                                 ButtonCueType::Owned,
@@ -1701,7 +1619,12 @@ fn kv(side: &mut ChildSpawnerCommands, label: &str, value: &str) {
         ..control_row(JustifyContent::FlexStart)
     })
     .with_children(|row| {
-        row.spawn(cell(LABEL_PX, label, 12.0, UiColorType::TextMuted));
+        row.spawn(text_cell(
+            LABEL_PX,
+            label,
+            TextRole::Label,
+            UiColorType::TextMuted,
+        ));
         row.spawn((
             Node {
                 flex_grow: 1.0,
@@ -1709,7 +1632,7 @@ fn kv(side: &mut ChildSpawnerCommands, label: &str, value: &str) {
                 min_width: px(0),
                 ..default()
             },
-            children![themed_label(value, 13.0, UiColorType::Text)],
+            children![text(value, TextRole::Value)],
         ));
     });
 }
@@ -1737,15 +1660,15 @@ fn inspector_panel(
                 min_width: px(0),
                 ..default()
             },
-            children![themed_label(&job.title, 15.0, UiColorType::Text)],
+            children![text(&job.title, TextRole::Title)],
         ));
         if job.done {
-            head.spawn(badge(BadgeKind::Green, "DONE"));
+            head.spawn(tag("DONE", UiColorType::Nominal));
         }
     });
     side.spawn(divider());
-    side.spawn(themed_label("TASK", 11.0, UiColorType::TextMuted));
-    side.spawn(themed_label(&job.task, 12.0, UiColorType::TextBody));
+    side.spawn(text("TASK", TextRole::Label));
+    side.spawn(text(&job.task, TextRole::Body));
     side.spawn(divider());
     kv(side, "Target", &job.target);
     kv(side, "Hand in", &job.hand_in);
@@ -1754,8 +1677,20 @@ fn inspector_panel(
         ..control_row(JustifyContent::FlexStart)
     })
     .with_children(|row| {
-        row.spawn(cell(LABEL_PX, "Reward", 12.0, UiColorType::TextMuted));
-        spawn_credit_figure(row, icons, job.reward_cr, 13.0, UiColorType::Accent, ());
+        row.spawn(text_cell(
+            LABEL_PX,
+            "Reward",
+            TextRole::Label,
+            UiColorType::TextMuted,
+        ));
+        spawn_credit_figure(
+            row,
+            icons,
+            job.reward_cr,
+            TextRole::Value,
+            UiColorType::Accent,
+            (),
+        );
     });
     if let Some((fraction, minutes)) = &job.time_left {
         side.spawn(Node {
@@ -1763,9 +1698,14 @@ fn inspector_panel(
             ..control_row(JustifyContent::FlexStart)
         })
         .with_children(|row| {
-            row.spawn(cell(LABEL_PX, "Time left", 12.0, UiColorType::TextMuted));
+            row.spawn(text_cell(
+                LABEL_PX,
+                "Time left",
+                TextRole::Label,
+                UiColorType::TextMuted,
+            ));
             row.spawn(bare_meter(METER_PX, *fraction));
-            row.spawn(text_nowrap(minutes, 12.0, UiColorType::TextBody));
+            row.spawn(text_nowrap(minutes, TextRole::Body, UiColorType::TextBody));
         });
     }
     if let Some((have, need)) = job.progress {
@@ -1774,12 +1714,14 @@ fn inspector_panel(
             ..control_row(JustifyContent::FlexStart)
         })
         .with_children(|row| {
-            row.spawn(cell(LABEL_PX, "Progress", 12.0, UiColorType::TextMuted));
+            row.spawn(text_cell(
+                LABEL_PX,
+                "Progress",
+                TextRole::Label,
+                UiColorType::TextMuted,
+            ));
             row.spawn(meter(METER_PX, have.into(), need.into()));
         });
-    }
-    if let Some(refusal) = &job.refusal {
-        side.spawn(themed_label(refusal, 12.0, UiColorType::Accent));
     }
     side.spawn(divider());
     side.spawn(control_row(JustifyContent::FlexStart))
@@ -1787,7 +1729,7 @@ fn inspector_panel(
             row.spawn((
                 Name::new(JOB_SHOW_ON_MAP),
                 JobShowOnMap(job.show.clone()),
-                compact_button(ButtonSpec::new("Show on Map").fit()),
+                button(ButtonSpec::control("Show on Map")),
             ))
             .observe(on_show_on_map);
         });
@@ -1812,7 +1754,7 @@ fn on_job_row(
 }
 
 /// Raise the list's command for the button's job when it is activated. The
-/// press is silent: the result's notice plays the one cue.
+/// press is silent: the result plays the one cue.
 fn on_job_button(
     activate: On<Activate>,
     q_button: Query<&JobActionButton>,
@@ -1838,7 +1780,7 @@ fn on_job_button(
 
 /// Take the button's drop step when it is activated: `X` asks for a
 /// confirm and Back keeps the job, each with one click; Drop raises the
-/// [`JobDropCommand`] silently, as the result's notice plays the one cue.
+/// [`JobDropCommand`] silently, as the result plays the one cue.
 fn on_job_drop_button(
     activate: On<Activate>,
     q_button: Query<&JobDropButton>,
@@ -1870,8 +1812,8 @@ fn on_job_drop_button(
 
 /// Take the button's refresh step when it is activated: `X` asks for a
 /// confirm and Back keeps the offer, each with one click; Refresh raises
-/// the [`JobOfferRefreshCommand`] silently, as the result's notice plays
-/// the one cue.
+/// the [`JobOfferRefreshCommand`] silently, as the result plays the one
+/// cue.
 fn on_job_refresh_button(
     activate: On<Activate>,
     q_button: Query<&JobRefreshButton>,
@@ -1918,38 +1860,23 @@ fn on_show_on_map(
     *pane = InterfacePaneType::Map;
 }
 
-/// Tick the Jobs notice: count its dwell down on the real clock, play the
-/// cue a result owes once the sound bank is present, and paint the line in
-/// its outcome's tone. It runs whatever pane shows, like the Station pane's,
-/// so a result raised with the Jobs pane closed still plays its one cue.
-fn update_jobs_notice(
-    time: Res<Time<Real>>,
+/// Play the cue a Jobs result owes once the sound bank is present. It runs
+/// whatever pane shows, like the Station pane's, so a result raised with the
+/// Jobs pane closed still plays its one cue.
+fn play_jobs_cue(
     mut runtime: ResMut<JobsRuntime>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
-    mut q_notice: Query<(&mut Text, &mut ThemedText), With<JobsNoticeMarker>>,
 ) {
-    runtime
-        .notice
-        .tick(time.delta_secs(), bank.as_deref(), &mut commands);
-    let (note, tone) = runtime.notice.line();
-    for (mut text, mut themed) in &mut q_notice {
-        if text.0 != note {
-            text.0 = note.to_string();
-        }
-        if themed.color != tone {
-            themed.color = tone;
-        }
-    }
+    runtime.cue.tick(bank.as_deref(), &mut commands);
 }
 
 /// Apply [`JobAcceptCommand`]s by the [`plan_job_accept`] rule and
 /// [`JobHandInCommand`]s by the [`plan_job_hand_in`] rule: an accept holds
 /// the job and raises [`JobAccepted`]; a hand-in takes a procurement's goods
 /// out of the hold, pays the reward with `JobReward` credit changes on both
-/// sides, completes the job and raises [`JobHandedIn`], and reports the
-/// payout, the new balance and the stance step it made on one Done notice. A refusal changes nothing and
-/// shows its reason on the notice line. An accept of a job the docked
+/// sides, completes the job and raises [`JobHandedIn`]. Each result raises
+/// one cue; a refusal changes nothing. An accept of a job the docked
 /// station's board no longer posts is refused as expired: the slot renewed
 /// between the click and this frame. A [`JobDropCommand`] drops the held job
 /// ([`Jobs::drop`]) with no payout, raises [`JobDropped`] with the cause
@@ -1991,7 +1918,6 @@ fn apply_job_commands(
     mut runtime: ResMut<JobsRuntime>,
     items: Option<Res<GameItems>>,
     table: Option<Res<GamePriceTable>>,
-    chart: Res<Chart>,
     mut jobs: ResMut<Jobs>,
     mut postings: ResMut<JobPostings>,
     clock: Res<WorldClock>,
@@ -2020,10 +1946,7 @@ fn apply_job_commands(
     let partner = jobs_partner(&site, &q_ids);
     for command in accepts.read() {
         let Some((_, station, station_id)) = &partner else {
-            runtime.notice.say(
-                ActionOutcomeType::Refused,
-                accept_refusal_text(&JobAcceptRefusalType::NotDocked),
-            );
+            runtime.cue.raise(ActionOutcomeType::Refused);
             continue;
         };
         let Some(job) = q_boards
@@ -2035,10 +1958,7 @@ fn apply_job_commands(
                 "nova_interface: the accept of '{}' finds it off the board: expired",
                 command.id
             );
-            runtime.notice.say(
-                ActionOutcomeType::Refused,
-                accept_refusal_text(&JobAcceptRefusalType::Expired),
-            );
+            runtime.cue.raise(ActionOutcomeType::Refused);
             continue;
         };
         let expired = !postings.offers(&job.id, table.0.jobs, clock.play_seconds);
@@ -2054,13 +1974,12 @@ fn apply_job_commands(
                 jobs.accept(job.clone());
                 commands.trigger(JobAccepted { job: job.clone() });
                 info!("nova_interface: accepted the job '{}' ({title})", job.id);
-                runtime
-                    .notice
-                    .say(ActionOutcomeType::Done, format!("accepted: {title}"));
+                runtime.cue.raise(ActionOutcomeType::Done);
             }
-            Err(refusal) => runtime
-                .notice
-                .say(ActionOutcomeType::Refused, accept_refusal_text(&refusal)),
+            Err(refusal) => {
+                debug!("nova_interface: refused an accept: {refusal:?}");
+                runtime.cue.raise(ActionOutcomeType::Refused);
+            }
         }
     }
     for command in hand_ins.read() {
@@ -2076,10 +1995,7 @@ fn apply_job_commands(
             })
         });
         let Some((player, station, _)) = &partner else {
-            runtime.notice.say(
-                ActionOutcomeType::Refused,
-                hand_in_refusal_text(&job, &JobHandInRefusalType::NotDocked, &chart, &items),
-            );
+            runtime.cue.raise(ActionOutcomeType::Refused);
             continue;
         };
         let own_cr = q_credits
@@ -2095,10 +2011,8 @@ fn apply_job_commands(
         let plan = match plan_job_hand_in(&job, hand_in_partner.as_ref(), hold, own_cr, done) {
             Ok(plan) => plan,
             Err(refusal) => {
-                runtime.notice.say(
-                    ActionOutcomeType::Refused,
-                    hand_in_refusal_text(&job, &refusal, &chart, &items),
-                );
+                debug!("nova_interface: refused: {refusal:?}");
+                runtime.cue.raise(ActionOutcomeType::Refused);
                 continue;
             }
         };
@@ -2149,7 +2063,7 @@ fn apply_job_commands(
                 ));
             }
         }
-        runtime.notice.say(ActionOutcomeType::Done, line);
+        runtime.cue.raise(ActionOutcomeType::Done);
     }
     for command in drops.read() {
         if !jobs.holds(&command.id) {
@@ -2157,10 +2071,7 @@ fn apply_job_commands(
                 "nova_interface: the drop of '{}' finds it not held",
                 command.id
             );
-            runtime.notice.say(
-                ActionOutcomeType::Refused,
-                "drop: the job is no longer held".to_string(),
-            );
+            runtime.cue.raise(ActionOutcomeType::Refused);
             continue;
         }
         let job = jobs.drop(&command.id);
@@ -2176,9 +2087,7 @@ fn apply_job_commands(
         }
         let title = job.title(&items);
         info!("nova_interface: dropped the job '{}' ({title})", job.id);
-        runtime
-            .notice
-            .say(ActionOutcomeType::Done, format!("dropped: {title}"));
+        runtime.cue.raise(ActionOutcomeType::Done);
     }
     for command in refreshes.read() {
         let current = postings
@@ -2210,10 +2119,8 @@ fn apply_job_commands(
         let plan = match plan {
             Ok(plan) => plan,
             Err(refusal) => {
-                runtime.notice.say(
-                    ActionOutcomeType::Refused,
-                    offer_refresh_refusal_text(&refusal),
-                );
+                debug!("nova_interface: refused: {refusal:?}");
+                runtime.cue.raise(ActionOutcomeType::Refused);
                 continue;
             }
         };
@@ -2242,17 +2149,10 @@ fn apply_job_commands(
         );
         postings.request_paid_refresh(&command.id);
         info!(
-            "nova_interface: paid {} cr to refresh the offer '{}'",
+            "nova_interface: paid {} cr to refresh the offer '{}' ({title})",
             plan.fee_cr, command.id
         );
-        runtime.notice.say(
-            ActionOutcomeType::Done,
-            format!(
-                "deleted {title} for {}; balance {}",
-                cr_text(plan.fee_cr),
-                cr_text(own_credits.0)
-            ),
-        );
+        runtime.cue.raise(ActionOutcomeType::Done);
     }
 }
 
@@ -2268,7 +2168,7 @@ impl Plugin for JobsPanePlugin {
         app.add_message::<JobOfferRefreshCommand>();
         app.add_systems(
             Update,
-            (apply_job_commands, update_jobs_pane, update_jobs_notice)
+            (apply_job_commands, update_jobs_pane, play_jobs_cue)
                 .chain()
                 .in_set(JobsPaneSystems),
         );
@@ -2319,9 +2219,8 @@ mod tests {
         }
     }
 
-    /// The job handler and the notice painter on a manual real clock, with
-    /// the UI sound bank captured and no UI tree: the cue must not need the
-    /// line.
+    /// The job handler and the cue player on a manual real clock, with the
+    /// UI sound bank captured and no UI tree: the cue must not need the pane.
     fn jobs_app() -> App {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
@@ -2340,7 +2239,7 @@ mod tests {
         app.add_message::<JobHandInCommand>();
         app.add_message::<JobDropCommand>();
         app.add_message::<JobOfferRefreshCommand>();
-        app.add_systems(Update, (apply_job_commands, update_jobs_notice).chain());
+        app.add_systems(Update, (apply_job_commands, play_jobs_cue).chain());
         hear_ui_cues(&mut app);
         // The first frame advances the clock by nothing.
         app.update();
@@ -2441,20 +2340,10 @@ mod tests {
         (player, job)
     }
 
-    fn notice(app: &App) -> Option<(ActionOutcomeType, String)> {
-        app.world()
-            .resource::<JobsRuntime>()
-            .notice
-            .shown()
-            .map(|(outcome, note)| (outcome, note.to_string()))
-    }
-
-    /// A hand-in that steps the station's civilization posts one Done notice
-    /// with the payout, the balance after and the step, and clicks once; the
+    /// A hand-in pays the reward, completes the job and clicks once; the
     /// frame after is silent.
     #[test]
-    fn a_hand_in_that_steps_a_stance_shows_payout_balance_and_stance_on_one_done_notice_and_clicks_once(
-    ) {
+    fn a_hand_in_pays_completes_the_job_and_clicks_once() {
         let civilization = neutral_civilization();
         let mut app = jobs_app();
         let (player, job) = hand_in_fixture(&mut app, civilization);
@@ -2462,16 +2351,6 @@ mod tests {
         app.world_mut()
             .write_message(JobHandInCommand { id: job.id.clone() });
         app.update();
-        assert_eq!(
-            notice(&app),
-            Some((
-                ActionOutcomeType::Done,
-                format!(
-                    "handed in Bring 4 Iron ore for 146 cr; balance 2,146 cr; {} now holds you ally",
-                    civilization.name()
-                )
-            ))
-        );
         assert_eq!(
             app.world().get::<ShipCredits>(player),
             Some(&ShipCredits(2_146))
@@ -2482,10 +2361,9 @@ mod tests {
         assert!(take_cues(&mut app).is_empty(), "the cue plays once");
     }
 
-    /// An accept while undocked posts one Refused notice with the reason and
-    /// buzzes once; the frame after is silent.
+    /// An accept while undocked buzzes once; the frame after is silent.
     #[test]
-    fn a_refused_accept_posts_a_refusal_notice_and_buzzes_once() {
+    fn a_refused_accept_buzzes_once() {
         let mut app = jobs_app();
         let id = JobId::slot(
             GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0),
@@ -2495,20 +2373,13 @@ mod tests {
 
         app.world_mut().write_message(JobAcceptCommand { id });
         app.update();
-        assert_eq!(
-            notice(&app),
-            Some((
-                ActionOutcomeType::Refused,
-                accept_refusal_text(&JobAcceptRefusalType::NotDocked)
-            ))
-        );
         assert_eq!(take_cues(&mut app), [UiSfx::EditorDeny]);
         app.update();
         assert!(take_cues(&mut app).is_empty(), "the cue plays once");
     }
 
-    /// A drop of a job the player no longer holds posts one Refused notice,
-    /// buzzes once and changes no record.
+    /// A drop of a job the player no longer holds buzzes once and changes no
+    /// record.
     #[test]
     fn a_drop_of_a_job_no_longer_held_is_refused_and_changes_nothing() {
         let mut app = jobs_app();
@@ -2521,13 +2392,6 @@ mod tests {
         app.world_mut()
             .write_message(JobDropCommand { id: id.clone() });
         app.update();
-        assert_eq!(
-            notice(&app),
-            Some((
-                ActionOutcomeType::Refused,
-                "drop: the job is no longer held".to_string()
-            ))
-        );
         assert!(!app.world().resource::<Jobs>().is_dropped(&id));
         assert_eq!(take_cues(&mut app), [UiSfx::EditorDeny]);
         app.update();
@@ -2593,12 +2457,11 @@ mod tests {
                             panel,
                             ACTION_PX,
                             name.to_string(),
-                            ButtonSpec::new(label).fit(),
+                            ButtonSpec::control(label),
                             JobDropButton {
                                 step,
                                 id: job.id.clone(),
                             },
-                            None,
                         );
                     }
                 });
@@ -2623,7 +2486,6 @@ mod tests {
             world.resource::<Jobs>().holds(&job.id)
                 && world.get::<ShipCredits>(player) == Some(&ShipCredits(2_000))
                 && world.get_entity(standing).is_ok()
-                && notice(&rig.app).is_none()
         };
         let asking = |rig: &crate::pointer_rig::PanePointerRig| {
             rig.app
@@ -2656,13 +2518,6 @@ mod tests {
         assert!(
             world.get_entity(standing).is_err(),
             "the caller the accept put in the world is gone"
-        );
-        assert_eq!(
-            notice(&rig.app),
-            Some((
-                ActionOutcomeType::Done,
-                format!("dropped: {}", job.title(&test_items()))
-            ))
         );
     }
 
@@ -2800,8 +2655,7 @@ mod tests {
     /// An offer refresh of a current, unheld board offer docked at the
     /// issuing station moves the fee from the player to the station in one
     /// frame, queues a `JobRefresh` report on each side and marks the slot
-    /// for a refresh, naming its title (not held, since it was never
-    /// accepted) on the Done notice.
+    /// for a refresh; the offer is not held, since it was never accepted.
     #[test]
     fn an_offer_refresh_moves_the_fee_atomically_with_both_reports_and_marks_the_slot() {
         let mut app = jobs_app();
@@ -2845,16 +2699,6 @@ mod tests {
         assert!(
             !world.resource::<Jobs>().holds(&job.id),
             "the offer was never accepted"
-        );
-        assert_eq!(
-            notice(&app),
-            Some((
-                ActionOutcomeType::Done,
-                format!(
-                    "deleted {} for 100 cr; balance 1,900 cr",
-                    job.title(&test_items())
-                )
-            ))
         );
     }
 
@@ -2915,14 +2759,6 @@ mod tests {
             1,
             "only the first command's fee is reported"
         );
-        assert_eq!(
-            notice(&app),
-            Some((
-                ActionOutcomeType::Refused,
-                "delete: this posting renewed already".to_string()
-            )),
-            "the second command reads the slot the first already marked"
-        );
     }
 
     /// An offer refresh refuses, moving no credit, both when its slot never
@@ -2943,14 +2779,12 @@ mod tests {
                 world.get::<ShipCredits>(station),
                 Some(&ShipCredits(10_000))
             );
-            assert_eq!(
-                notice(&app),
-                Some((
-                    ActionOutcomeType::Refused,
-                    "delete: this posting renewed already".to_string()
-                ))
-            );
         }
+        assert_eq!(
+            take_cues(&mut app),
+            [UiSfx::EditorDeny],
+            "a stale refresh buzzes"
+        );
 
         let mut app = jobs_app();
         let (player, station, job) = offer_fixture(&mut app, 99, 10_000);
@@ -2966,11 +2800,9 @@ mod tests {
             Some(&ShipCredits(10_000))
         );
         assert_eq!(
-            notice(&app),
-            Some((
-                ActionOutcomeType::Refused,
-                "delete: it costs 100 cr, the balance holds 99 cr".to_string()
-            ))
+            take_cues(&mut app),
+            [UiSfx::EditorDeny],
+            "a short refresh buzzes"
         );
     }
 
@@ -2994,13 +2826,6 @@ mod tests {
         );
         let jobs = world.resource::<Jobs>();
         assert!(jobs.is_dropped(&job.id) && !jobs.holds(&job.id));
-        assert_eq!(
-            notice(&app),
-            Some((
-                ActionOutcomeType::Done,
-                format!("dropped: {}", job.title(&test_items()))
-            ))
-        );
     }
 
     /// The pane raises one `JobHandedIn` for a paid hand-in and one
@@ -3094,8 +2919,7 @@ mod tests {
         app.update();
         assert!(
             app.world().resource::<Jobs>().holds(&job.id),
-            "{:?}",
-            notice(&app)
+            "the accept holds the job"
         );
         app.world_mut()
             .write_message(JobHandInCommand { id: job.id.clone() });
@@ -3179,12 +3003,12 @@ mod tests {
                             panel,
                             ACTION_PX,
                             name.to_string(),
-                            ButtonSpec::new(label).fit(),
+                            ButtonSpec::control(label),
                             JobRefreshButton {
                                 step,
                                 id: job.id.clone(),
                             },
-                            None,
+                            VerbGate::Ready,
                         );
                     }
                 });
@@ -3213,7 +3037,6 @@ mod tests {
                     .slot(&job.id)
                     .unwrap()
                     .paid_refresh_requested
-                && notice(&rig.app).is_none()
         };
         let asking = |rig: &crate::pointer_rig::PanePointerRig| {
             rig.app
@@ -3250,20 +3073,10 @@ mod tests {
                 .unwrap()
                 .paid_refresh_requested
         );
-        assert_eq!(
-            notice(&rig.app),
-            Some((
-                ActionOutcomeType::Done,
-                format!(
-                    "deleted {} for 100 cr; balance 1,900 cr",
-                    job.title(&test_items())
-                )
-            ))
-        );
     }
 
     #[test]
-    fn the_starter_board_hides_a_job_the_hull_cannot_do_and_a_core_board_greys_its_accept() {
+    fn the_starter_board_hides_a_job_the_hull_cannot_do_and_a_core_board_tags_its_accept() {
         let unfit = || Err(JobHullRefusalType::NoWeapon);
         assert_eq!(
             board_listing(true, unfit(), Ok(())),
@@ -3272,57 +3085,23 @@ mod tests {
         );
         assert_eq!(
             board_listing(false, unfit(), Ok(())),
-            Some(Some("accept: the hull has no weapon".to_string())),
-            "a core board lists it with the hull's reason"
+            Some(VerbGate::Tagged("NO WEAPON")),
+            "a core board lists it tagged with the part the hull lacks"
         );
         assert_eq!(
             board_listing(false, unfit(), Err(JobAcceptRefusalType::TargetGone)),
-            Some(Some("accept: the hull has no weapon".to_string())),
-            "the hull's reason comes before the accept rule's"
+            Some(VerbGate::Tagged("NO WEAPON")),
+            "the hull's cause comes before the accept rule's"
         );
         assert_eq!(
             board_listing(true, Ok(()), Err(JobAcceptRefusalType::TargetGone)),
-            Some(Some("accept: its target is gone".to_string())),
-            "a fit job with a gone target is listed greyed on either board"
+            Some(VerbGate::Tagged("GONE")),
+            "a fit job with a gone target is listed tagged on either board"
         );
         assert_eq!(
             board_listing(true, Ok(()), Ok(())),
-            Some(None),
+            Some(VerbGate::Ready),
             "a fit, open job lists with Accept"
-        );
-    }
-
-    #[test]
-    fn a_short_hold_hand_in_refusal_names_the_item_not_its_id() {
-        let item = ItemDesignId::from("CarbonOre");
-        let items = GameItems::new([ItemDesign {
-            id: item.clone(),
-            name: "Carbon ore".to_string(),
-            about: "Ore.".to_string(),
-            category: ItemCategoryType::Raw,
-            mass_g: 1_000,
-            price_lot: 1,
-            ask_cr: 10,
-            bid_cr: 8,
-        }]);
-        let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
-        let job = Job {
-            id: JobId::slot(station.clone(), 0, 0),
-            kind: JobType::Procure {
-                item: item.clone(),
-                count: 4,
-            },
-            target: station,
-            reward_cr: 100,
-        };
-        let refusal = JobHandInRefusalType::ShortItems {
-            item,
-            need: 4,
-            have: 2,
-        };
-        assert_eq!(
-            hand_in_refusal_text(&job, &refusal, &Chart::default(), &items),
-            "the hold carries 2 of 4 Carbon ore"
         );
     }
 
@@ -3374,7 +3153,7 @@ mod tests {
                 have: 1,
                 need: 4,
                 hand_in_here: true,
-                refusal: None,
+                gate: VerbGate::Ready,
                 confirming: false,
             }],
             ..default()
@@ -3400,7 +3179,7 @@ mod tests {
                         split.spawn(column()).with_children(|col| {
                             held_panel(col, &icons, &view, None, ScrollPosition::default());
                         });
-                        split.spawn(side_panel(Overflow::scroll_y()));
+                        split.spawn(inspector(Overflow::scroll_y()));
                     });
             });
         settle(&mut rig.app);

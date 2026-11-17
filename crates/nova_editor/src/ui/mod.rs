@@ -186,7 +186,7 @@ pub(super) fn spawn_menu_bar(left: &mut RelatedSpawnerCommands<ChildOf>) {
                     let mut bar_button = slot.spawn((
                         Name::new(format!("{} Menu Button", menu.label())),
                         menu,
-                        button(ButtonSpec::new(menu.label()).dense().ghost()),
+                        button(ButtonSpec::control(menu.label()).ghost()),
                     ));
                     if menu == MenuId::Add {
                         // A cascading menu under the button, not a dropdown.
@@ -2143,7 +2143,7 @@ fn legend_cell(index: usize) -> impl Bundle {
             ..default()
         },
         children![
-            (LegendChip, key_chip("", 12.0)),
+            (LegendChip, key_chip("")),
             (
                 LegendLabel,
                 UiText,

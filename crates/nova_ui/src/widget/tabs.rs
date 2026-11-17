@@ -44,7 +44,7 @@ pub fn tab(label: &str, fill: bool) -> impl Bundle {
                 ..default()
             },
             TextFont {
-                font_size: FontSize::Px(density::TEXT_SMALL),
+                font_size: FontSize::Px(density::TEXT_LABEL),
                 ..default()
             },
             TextColor(Color::NONE),

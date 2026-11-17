@@ -12,10 +12,12 @@ use nova_gameplay::prelude::{
     plan_consumable_use, GameConsumables, ItemDesignId, PlayerSpaceshipMarker, ShipInventory,
 };
 use nova_ship::prelude::{ConsumableFactsQuery, ConsumableUseRequest};
-use nova_ui::widget::{ButtonCueType, ButtonSpec};
+use nova_ui::{
+    prelude::button,
+    widget::{ButtonCueType, ButtonSpec},
+};
 
 use super::{InventoryRuntime, InventorySideType};
-use crate::pane::compact_button;
 
 /// The name of the inspector's Use button.
 pub const INVENTORY_USE_BUTTON: &str = "InventoryUse";
@@ -30,7 +32,7 @@ pub(crate) fn spawn_inventory_use_button(item: &mut ChildSpawnerCommands) {
     item.spawn((
         Name::new(INVENTORY_USE_BUTTON),
         InventoryUseButton,
-        compact_button(ButtonSpec::new("Use").fit()),
+        button(ButtonSpec::control("Use")),
         ButtonCueType::Owned,
         InteractionDisabled,
     ))

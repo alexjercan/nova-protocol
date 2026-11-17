@@ -29,10 +29,7 @@ use nova_ui::{prelude::*, theme::UiColorType};
 use super::{card_actions, offer_cell, spawn_card_price, StationRuntime};
 use crate::{
     icons::InterfaceIcons,
-    pane::{
-        compact_button, control_row, refusable_button, themed_label, ActionOutcomeType,
-        InterfacePaneType,
-    },
+    pane::{gated_verb, ActionOutcomeType, InterfacePaneType},
 };
 
 /// The name of the station Buy button.
@@ -73,9 +70,8 @@ struct StationRow {
     price_cr: Option<u64>,
     /// What the balance lacks of the price, or `None` while it is not short.
     short_cr: Option<u64>,
-    /// Why the buy is refused, or `None` when it is allowed or the station
-    /// is already owned.
-    refusal: Option<String>,
+    /// How Buy station answers the row.
+    gate: VerbGate,
     /// Whether the first press armed the buy and the button asks to confirm.
     confirming: bool,
 }
@@ -158,23 +154,20 @@ impl StationSale<'_, '_> {
     }
 }
 
-/// Why a buy of the station named `name` is refused; the block and the
-/// handler share it.
-fn station_refusal_text(name: &str, refusal: &StationBuyRefusalType) -> String {
+/// How Buy station answers a refused buy: hidden where no buy can happen,
+/// disabled when the civilization sells to allies only (the head tags it) or
+/// the balance is short (the price shows red).
+fn station_gate(refusal: Option<&StationBuyRefusalType>) -> VerbGate {
     match refusal {
-        StationBuyRefusalType::NotDocked => "buy: dock at a living station".to_string(),
-        StationBuyRefusalType::NotForSale => format!("buy: no civilization sells {name}"),
-        StationBuyRefusalType::AlreadyOwned => format!("buy: {name} is yours already"),
-        StationBuyRefusalType::NotAllied => {
-            format!("buy: {name}'s civilization sells to its allies only")
-        }
-        StationBuyRefusalType::InsufficientCredits { need, have } => {
-            format!(
-                "buy: {name} costs {}, the ship holds {}",
-                cr_text(*need),
-                cr_text(*have)
-            )
-        }
+        None => VerbGate::Ready,
+        Some(
+            StationBuyRefusalType::NotDocked
+            | StationBuyRefusalType::NotForSale
+            | StationBuyRefusalType::AlreadyOwned,
+        ) => VerbGate::Hidden,
+        Some(
+            StationBuyRefusalType::NotAllied | StationBuyRefusalType::InsufficientCredits { .. },
+        ) => VerbGate::Disabled,
     }
 }
 
@@ -194,8 +187,8 @@ pub(crate) fn spawn_station_sale_block(panel: &mut ChildSpawnerCommands) {
             },
         ))
         .with_children(|list| {
-            list.spawn(crate::pane::divider());
-            list.spawn(themed_label("This station", 13.0, UiColorType::Accent));
+            list.spawn(divider());
+            list.spawn(text("This station", TextRole::Heading));
             list.spawn((StationSaleRows::default(), offer_cell()));
         });
 }
@@ -223,10 +216,7 @@ pub(crate) fn update_station_sale_block(
             sale: docked.sale,
             price_cr: None,
             short_cr: None,
-            refusal: Some(station_refusal_text(
-                &docked.name,
-                &StationBuyRefusalType::NotAllied,
-            )),
+            gate: station_gate(Some(&StationBuyRefusalType::NotAllied)),
             confirming: false,
             name: docked.name,
         }),
@@ -235,7 +225,7 @@ pub(crate) fn update_station_sale_block(
             price_cr: None,
             short_cr: None,
             name: docked.name,
-            refusal: None,
+            gate: VerbGate::Ready,
             confirming: false,
         }),
         StationSaleType::ForSale => {
@@ -251,7 +241,7 @@ pub(crate) fn update_station_sale_block(
                     _ => None,
                 },
                 confirming: runtime.confirm_buy && refusal.is_none(),
-                refusal: refusal.map(|refusal| station_refusal_text(&docked.name, &refusal)),
+                gate: station_gate(refusal.as_ref()),
                 name: docked.name,
             })
         }
@@ -276,18 +266,13 @@ pub(crate) fn update_station_sale_block(
                 ..control_row(JustifyContent::FlexStart)
             })
             .with_children(|head| {
-                head.spawn(themed_label(&row.name, 13.0, UiColorType::Text));
+                head.spawn(text(&row.name, TextRole::Value));
                 match row.sale {
                     StationSaleType::Owned => {
-                        head.spawn((
-                            badge(BadgeKind::Green, "OWNED"),
-                            Tooltip(
-                                "It refuses no hull, and its stock sells to you at bid".to_string(),
-                            ),
-                        ));
+                        head.spawn(tag("OWNED", UiColorType::Nominal));
                     }
                     StationSaleType::NotAllied => {
-                        head.spawn(badge(BadgeKind::Mute, "ALLIES ONLY"));
+                        head.spawn(tag("ALLIES ONLY", UiColorType::TextSecondary));
                     }
                     StationSaleType::ForSale | StationSaleType::NotForSale => {}
                 }
@@ -311,23 +296,23 @@ pub(crate) fn update_station_sale_block(
                             .with_children(|slot| {
                                 slot.spawn((
                                     Name::new(STATION_BUY_CANCEL_BUTTON),
-                                    compact_button(ButtonSpec::new("Cancel")),
+                                    button(ButtonSpec::control("Cancel")),
                                     ButtonCueType::Back,
                                 ));
                             });
                         actions
                             .spawn((
                                 Name::new(STATION_BUY_BUTTON),
-                                compact_button(ButtonSpec::new("Confirm").fit().danger()),
+                                button(ButtonSpec::control("Confirm").danger()),
                                 ButtonCueType::Owned,
                             ))
                             .observe(on_station_buy_button);
                     } else {
-                        refusable_button(
+                        gated_verb(
                             actions,
                             STATION_BUY_BUTTON.to_string(),
                             "Buy station",
-                            row.refusal.as_deref(),
+                            row.gate.clone(),
                         )
                         .observe(on_station_buy_button);
                     }
@@ -335,10 +320,9 @@ pub(crate) fn update_station_sale_block(
                 if let (true, Some(price_cr)) = (row.confirming, row.price_cr) {
                     cell.spawn((
                         Name::new(STATION_BUY_ASK),
-                        themed_label(
+                        text(
                             &format!("Buy {} for {}?", row.name, cr_text(price_cr)),
-                            13.0,
-                            UiColorType::TextBody,
+                            TextRole::Body,
                         ),
                     ));
                 }
@@ -435,10 +419,7 @@ pub(crate) fn apply_station_buy_commands(
     // command this frame would plan against a station not yet owned.
     messages.clear();
     let Some(docked) = sale.docked() else {
-        runtime.notice.say(
-            ActionOutcomeType::Refused,
-            station_refusal_text("", &StationBuyRefusalType::NotDocked),
-        );
+        runtime.cue.raise(ActionOutcomeType::Refused);
         return;
     };
     let Ok((mut own_cr, mut reports)) = q_credits.get_mut(docked.player) else {
@@ -447,10 +428,8 @@ pub(crate) fn apply_station_buy_commands(
     let plan = match plan_station_buy(docked.price_cr, Some(docked.sale), own_cr.0) {
         Ok(plan) => plan,
         Err(refusal) => {
-            runtime.notice.say(
-                ActionOutcomeType::Refused,
-                station_refusal_text(&docked.name, &refusal),
-            );
+            debug!("nova_interface: refused: {refusal:?}");
+            runtime.cue.raise(ActionOutcomeType::Refused);
             return;
         }
     };
@@ -466,10 +445,7 @@ pub(crate) fn apply_station_buy_commands(
         price_cr: plan.price_cr,
     });
     commands.entity(docked.station).insert(owned_station());
-    runtime.notice.say(
-        ActionOutcomeType::Done,
-        format!("bought {} for {}", docked.name, cr_text(plan.price_cr)),
-    );
+    runtime.cue.raise(ActionOutcomeType::Done);
     info!(
         "station buy: {} ({:?}) is the player's for {} cr",
         docked.name, docked.station, plan.price_cr

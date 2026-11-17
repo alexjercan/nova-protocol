@@ -39,8 +39,8 @@ use nova_ui::{
     theme,
     theme::UiColorType,
     widget::{
-        badge, list_row, separator, themed_button, BadgeKind, ButtonCueType, ButtonSpec,
-        ButtonVariant, Selected, ThemedBorder, ThemedRadius, ThemedText, UiText,
+        button, list_row, separator, tag, ButtonCueType, ButtonSpec, ButtonVariant, Selected,
+        ThemedBorder, ThemedRadius, ThemedText, UiText,
     },
 };
 use nova_world_base::prelude::{
@@ -1024,7 +1024,7 @@ fn spawn_load_row(
             if checking {
                 slot.spawn((
                     Name::new("Load World Row Checking"),
-                    badge(BadgeKind::Mute, "Checking"),
+                    tag("Checking", UiColorType::TextSecondary),
                 ));
             } else {
                 match &listing.header {
@@ -1039,7 +1039,7 @@ fn spawn_load_row(
                     Err(_) => {
                         slot.spawn((
                             Name::new("Load World Row Invalid"),
-                            badge(BadgeKind::Amber, "Invalid"),
+                            tag("Invalid", UiColorType::Accent),
                         ));
                     }
                 }
@@ -1434,7 +1434,7 @@ pub(crate) fn refresh_load_details(
                     .with_children(|slot| {
                         let mut load = slot.spawn((
                             Name::new("Load World Button"),
-                            nova_ui::widget::button(ButtonSpec::new("Load").primary()),
+                            nova_ui::widget::button(ButtonSpec::control("Load").primary().fill()),
                             LoadWorldButton,
                             observe(on_load_world),
                         ));
@@ -1487,7 +1487,7 @@ pub(crate) fn refresh_load_details(
                         .with_children(|slot| {
                             slot.spawn((
                                 Name::new("Load World Delete Cancel Button"),
-                                themed_button("Cancel"),
+                                button(ButtonSpec::control("Cancel").fill()),
                                 ButtonCueType::Back,
                                 observe(on_delete_world_cancel),
                             ));

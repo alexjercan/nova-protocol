@@ -16,9 +16,7 @@ use bevy::{
 };
 use nova_ship::prelude::GalleryState;
 use nova_ui::{
-    prelude::{
-        button, text_field, themed_button, ButtonSpec, TextFieldSpec, TextFieldValue, UiText,
-    },
+    prelude::{button, text_field, ButtonSpec, TextFieldSpec, TextFieldValue, UiText},
     theme,
     theme::{density, ActiveUiTheme, UiColorType},
     widget::{ButtonCueType, ThemedBorder, ThemedText},
@@ -333,7 +331,7 @@ fn spawn_answers(frame: &mut RelatedSpawnerCommands<ChildOf>, kind: &FileWindowK
         .with_children(|answers| {
             // The safe answer FIRST and named for what it does, the way the
             // confirm window orders its two.
-            // A slot each, because `themed_button` is percent(100) wide - the
+            // A slot each, because a filled button is percent(100) wide - the
             // growing is the slot's job, and the marker and the observer belong
             // on the BUTTON, which is what emits the press.
             answers
@@ -345,7 +343,7 @@ fn spawn_answers(frame: &mut RelatedSpawnerCommands<ChildOf>, kind: &FileWindowK
                     slot.spawn((
                         Name::new("File Cancel Button"),
                         FileAnswer,
-                        themed_button("Cancel"),
+                        button(ButtonSpec::control("Cancel").fill()),
                         ButtonCueType::Back,
                     ));
                 });
@@ -359,7 +357,7 @@ fn spawn_answers(frame: &mut RelatedSpawnerCommands<ChildOf>, kind: &FileWindowK
                         Name::new("File Save Button"),
                         SaveConfirmButton,
                         FileAnswer,
-                        themed_button(go),
+                        button(ButtonSpec::control(go).fill()),
                         ButtonCueType::Owned,
                         observe(on_save),
                     ));
@@ -462,7 +460,7 @@ pub(crate) fn sync_path_window(
             list.spawn((
                 Name::new("Path Row Up"),
                 PathRow(up),
-                button(ButtonSpec::new("..").dense().block()),
+                button(ButtonSpec::control("..").block()),
                 observe(on_path_row),
             ));
         }
@@ -478,7 +476,7 @@ pub(crate) fn sync_path_window(
             list.spawn((
                 Name::new(format!("Path Row {label}")),
                 PathRow(row),
-                button(ButtonSpec::new(label).dense().block()),
+                button(ButtonSpec::control(label).block()),
                 observe(on_path_row),
             ));
         }

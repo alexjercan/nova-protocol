@@ -5,7 +5,7 @@ use bevy::ui::{ComputedNode, UiGlobalTransform};
 use nova_input::prelude::{BindingSpec, InputSource, RegisterInputActions};
 use nova_ship::prelude::{GameSections, PartsGalleryPlugin};
 use nova_sound::prelude::{PlaySound, SoundAt};
-use nova_ui::widget::button_on_setting;
+use nova_ui::{prelude::metrics, widget::button_on_setting};
 
 use super::*;
 use crate::pointer_rig::{
@@ -276,7 +276,7 @@ fn map_and_ship_share_a_fixed_footer_under_the_view_and_inventory_has_none() {
             "{pane:?} view {view:?} and panel {panel:?} sit above the footer {foot:?}"
         );
         assert!(
-            (panel.width() - SIDE_PANEL_PX).abs() <= 0.5,
+            (panel.width() - metrics::SIDE_PANEL_W).abs() <= 0.5,
             "{pane:?} panel is {} wide",
             panel.width()
         );
@@ -440,7 +440,7 @@ fn a_narrow_window_puts_the_footer_hints_under_the_legend_and_nothing_overlaps()
         "view {view:?} and panel {panel:?} sit above the footer {foot:?}"
     );
     assert!(
-        (panel.width() - SIDE_PANEL_PX).abs() <= 0.5,
+        (panel.width() - metrics::SIDE_PANEL_W).abs() <= 0.5,
         "panel is {} wide",
         panel.width()
     );
@@ -974,22 +974,24 @@ fn the_title_row_clock_reads_the_play_time_only_while_a_world_is_armed() {
     use nova_gameplay::prelude::{Chart, ClusterType, WorldClock};
 
     let mut rig = card_rig();
+    // The clock's slot stands always, so the head never shifts; off, it
+    // reads nothing.
     let clock_of = |world: &mut World| {
         world
-            .query_filtered::<(&Text, &Node), With<InterfacePaneClock>>()
+            .query_filtered::<&Text, With<InterfacePaneClock>>()
             .single(world)
-            .map(|(text, node)| (text.0.clone(), node.display != Display::None))
+            .map(|text| text.0.clone())
             .expect("the title row has one clock")
     };
 
-    // No clock and no chart: hidden.
+    // No clock and no chart: empty.
     rig.app
         .world_mut()
         .run_system_once(show_pane_clock)
         .expect("the clock system runs");
-    assert!(!clock_of(rig.app.world_mut()).1);
+    assert_eq!(clock_of(rig.app.world_mut()), "");
 
-    // A clock on an unarmed world (empty chart) stays hidden.
+    // A clock on an unarmed world (empty chart) stays empty.
     rig.app.insert_resource(WorldClock {
         play_seconds: 3_661.0,
     });
@@ -998,7 +1000,7 @@ fn the_title_row_clock_reads_the_play_time_only_while_a_world_is_armed() {
         .world_mut()
         .run_system_once(show_pane_clock)
         .expect("the clock system runs");
-    assert!(!clock_of(rig.app.world_mut()).1);
+    assert_eq!(clock_of(rig.app.world_mut()), "");
 
     // The start cell on the chart arms it: the clock shows the play time.
     rig.app.world_mut().resource_mut::<Chart>().visit(
@@ -1010,7 +1012,7 @@ fn the_title_row_clock_reads_the_play_time_only_while_a_world_is_armed() {
         .world_mut()
         .run_system_once(show_pane_clock)
         .expect("the clock system runs");
-    assert_eq!(clock_of(rig.app.world_mut()), ("1:01:01".to_string(), true));
+    assert_eq!(clock_of(rig.app.world_mut()), "1:01:01");
 }
 
 #[test]
@@ -1057,4 +1059,68 @@ fn the_title_row_shows_the_player_balance_grouped_and_hides_it_without_a_player_
     rig.app.world_mut().despawn(player);
     run(&mut rig.app);
     assert!(!balance_of(rig.app.world_mut()).1);
+}
+
+/// The head's slots are fixed: a balance that grows from one digit to the
+/// widest figure moves no tab, the mode tags or Close, and every head control
+/// is one control high.
+#[test]
+fn the_tabs_hold_their_place_as_the_balance_grows_and_the_pane_switches() {
+    let mut rig = card_rig();
+    rig.app.add_systems(Update, show_pane_balance);
+    let player = rig
+        .app
+        .world_mut()
+        .spawn((PlayerSpaceshipMarker, ShipCredits(5)))
+        .id();
+    settle(&mut rig.app);
+
+    let head_layout = |world: &mut World| {
+        let tabs: Vec<Vec2> = InterfacePaneType::ALL
+            .iter()
+            .filter(|(pane, _)| *pane != InterfacePaneType::Station)
+            .map(|(pane, _)| tab_centre(world, *pane))
+            .collect();
+        (
+            tabs,
+            rect_named(world, INTERFACE_MODE_TAGS),
+            rect_named(world, "InterfaceClose"),
+        )
+    };
+    let before = head_layout(rig.app.world_mut());
+
+    rig.app
+        .world_mut()
+        .get_mut::<ShipCredits>(player)
+        .unwrap()
+        .0 = 999_999_999;
+    settle(&mut rig.app);
+    let after = head_layout(rig.app.world_mut());
+    assert_eq!(before, after, "a growing balance moves nothing in the head");
+
+    // INVENTORY is the longest pane title and MAP the shortest.
+    *rig.app.world_mut().resource_mut::<InterfacePaneType>() = InterfacePaneType::Inventory;
+    settle(&mut rig.app);
+    let switched = head_layout(rig.app.world_mut());
+    assert_eq!(before, switched, "a pane switch moves nothing in the head");
+
+    let close = after.2;
+    assert!(
+        (close.height() - metrics::CONTROL_H).abs() < 0.5,
+        "Close is {} high, not {}",
+        close.height(),
+        metrics::CONTROL_H
+    );
+    let world = rig.app.world_mut();
+    let tab = world
+        .query::<(&ButtonValue<InterfacePaneType>, &ComputedNode)>()
+        .iter(world)
+        .find(|(value, _)| value.0 == InterfacePaneType::Map)
+        .map(|(_, node)| node.size().y * node.inverse_scale_factor())
+        .expect("the Map tab is laid out");
+    assert!(
+        (tab - metrics::CONTROL_H).abs() < 0.5,
+        "a tab is {tab} high, not {}",
+        metrics::CONTROL_H
+    );
 }

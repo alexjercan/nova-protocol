@@ -28,8 +28,8 @@ use nova_ship::prelude::{GameSections, WellTargetType};
 use nova_ui::{
     prelude::{
         button, panel, scroll_bar, scroll_column, scroll_row, scroll_viewport, segmented_container,
-        segmented_container_wrapping, segmented_option_compact, text_field, ButtonLabel,
-        ButtonSpec, ButtonVariant, Selected, TextFieldError, TextFieldFocused, TextFieldSpec,
+        segmented_container_wrapping, segmented_option_fit, text_field, ButtonLabel, ButtonSpec,
+        ButtonVariant, Selected, TextFieldError, TextFieldFocused, TextFieldSpec,
         TextFieldSubmitted, TextFieldValue, ThemedButton, UiText,
     },
     theme,
@@ -1240,7 +1240,7 @@ fn spawn_choice_options(
                         ButtonCueType::Owned,
                         observe(on_inspector_choice),
                     ));
-                    entity.insert(segmented_option_compact(option));
+                    entity.insert(segmented_option_fit(option));
                     if marked.get(index).copied().unwrap_or(false) {
                         entity.insert(Selected);
                     }
@@ -1499,7 +1499,7 @@ fn spawn_operand_row(
                                         variant: option.clone(),
                                     },
                                     field.clone(),
-                                    segmented_option_compact(option),
+                                    segmented_option_fit(option),
                                     ButtonCueType::Owned,
                                     observe(on_inspector_choice),
                                 ));
@@ -1611,7 +1611,7 @@ fn spawn_driver_row(
                             ship: node,
                             driver: option,
                         },
-                        segmented_option_compact(label),
+                        segmented_option_fit(label),
                         ButtonCueType::Owned,
                         observe(on_inspector_driver),
                     ));
@@ -1696,7 +1696,7 @@ fn spawn_well_target_row(
                         InspectorSlot(slot),
                         InspectorWellTarget(option),
                         field.clone(),
-                        segmented_option_compact(label),
+                        segmented_option_fit(label),
                         ButtonCueType::Owned,
                         observe(on_inspector_well_target),
                     ));
@@ -2426,7 +2426,7 @@ fn build_rows(
                         value.spawn((
                             Name::new(format!("Inspector Press {}", row.label)),
                             field.clone(),
-                            button(ButtonSpec::new(word.clone()).ghost().dense()),
+                            button(ButtonSpec::control(word.clone()).ghost()),
                             ButtonCueType::Owned,
                             observe(on_inspector_press),
                         ));
@@ -3564,7 +3564,7 @@ fn spawn_append_button(
             option: option.to_string(),
         },
         field.clone(),
-        button(ButtonSpec::new(word).ghost().dense()),
+        button(ButtonSpec::control(word).ghost()),
         ButtonCueType::Owned,
         observe(on_inspector_append),
     ));

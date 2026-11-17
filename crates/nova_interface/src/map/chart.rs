@@ -47,7 +47,7 @@ use nova_events::prelude::{GeneratedBodyId, SectorCoord};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::DockAdmission;
 use nova_ui::{
-    prelude::{button, ButtonSpec},
+    prelude::{button, control_row, divider, text, text_toned, ButtonSpec, TextRole},
     theme::{ActiveUiTheme, UiColorType},
     widget::{ThemedBorder, ThemedFill, Tooltip},
 };
@@ -56,7 +56,7 @@ use super::{app::*, contacts::*, tiles::ChartTileTextures, *};
 use crate::{
     icons::{icon_node, ChartIconType, InterfaceIcons, JobIconType},
     inventory::category_color,
-    pane::{control_row, divider, legend_entry, themed_label, InterfacePaneType},
+    pane::{legend_entry, InterfacePaneType},
     terminal::NovaOsAppInput,
     viewer::unlit,
 };
@@ -610,7 +610,7 @@ pub(crate) fn manage_map_chart(
                     coord.to_string(),
                     coord.to_string(),
                     UiColorType::TextMuted,
-                    10.0,
+                    TextRole::Label,
                 ));
             }
             None => {
@@ -725,7 +725,7 @@ pub(crate) fn manage_map_chart(
                 },
                 _ => code.clone(),
             };
-            labels.push((at, Some(mark.clone()), text, code, *color, 12.0));
+            labels.push((at, Some(mark.clone()), text, code, *color, TextRole::Value));
         }
     }
 
@@ -744,10 +744,10 @@ pub(crate) fn manage_map_chart(
         "YOU".to_string(),
         "YOU".to_string(),
         MapContactKind::OwnShip.color(),
-        11.0,
+        TextRole::Label,
     ));
 
-    for (anchor, mark, text, name, color, size) in labels {
+    for (anchor, mark, text, name, color, role) in labels {
         let label = spawn_chart_label(
             &mut commands,
             viewport,
@@ -756,7 +756,7 @@ pub(crate) fn manage_map_chart(
             &text,
             &name,
             color,
-            size,
+            role,
         );
         runtime.chart_labels.push(label);
     }
@@ -777,7 +777,7 @@ pub(crate) fn drop_map_chart(commands: &mut Commands, runtime: &mut MapRuntime) 
 /// mark; a tag takes no clicks.
 #[expect(
     clippy::too_many_arguments,
-    reason = "a label's place, mark, text, name, colour and size under the viewport"
+    reason = "a label's place, mark, text, name, colour and role under the viewport"
 )]
 fn spawn_chart_label(
     commands: &mut Commands,
@@ -787,7 +787,7 @@ fn spawn_chart_label(
     text: &str,
     name: &str,
     color: UiColorType,
-    size: f32,
+    role: TextRole,
 ) -> Entity {
     let clickable = mark.is_some();
     let mut label = commands.spawn((
@@ -808,7 +808,7 @@ fn spawn_chart_label(
             if clickable { 0.3 } else { 0.0 },
         ),
         ChildOf(viewport),
-        children![(themed_label(text, size, color), Pickable::IGNORE)],
+        children![(text_toned(text, role, color), Pickable::IGNORE)],
     ));
     if clickable {
         label
@@ -891,11 +891,8 @@ fn on_map_chart_log_row_click(
 }
 
 /// A section heading of a chart panel block.
-fn block_heading(parent: &mut ChildSpawnerCommands, text: &str) {
-    parent.spawn((
-        themed_label(text, 11.0, UiColorType::TextMuted),
-        Pickable::IGNORE,
-    ));
+fn block_heading(parent: &mut ChildSpawnerCommands, value: &str) {
+    parent.spawn((text(value, TextRole::Label), Pickable::IGNORE));
 }
 
 /// A `label  value` line of a chart panel block.
@@ -912,24 +909,15 @@ fn block_fact(parent: &mut ChildSpawnerCommands, label: &str, value: &str) {
                     flex_shrink: 0.0,
                     ..default()
                 },
-                children![(
-                    themed_label(label, 12.0, UiColorType::TextMuted),
-                    Pickable::IGNORE
-                )],
+                children![(text(label, TextRole::Label), Pickable::IGNORE)],
             ));
-            row.spawn((
-                themed_label(value, 13.0, UiColorType::Text),
-                Pickable::IGNORE,
-            ));
+            row.spawn((text(value, TextRole::Value), Pickable::IGNORE));
         });
 }
 
 /// A note line of a chart panel block.
-fn block_note(parent: &mut ChildSpawnerCommands, text: &str) {
-    parent.spawn((
-        themed_label(text, 12.0, UiColorType::TextBody),
-        Pickable::IGNORE,
-    ));
+fn block_note(parent: &mut ChildSpawnerCommands, value: &str) {
+    parent.spawn((text(value, TextRole::Body), Pickable::IGNORE));
 }
 
 /// One icon row of a chart panel block: an icon in its tint, a label that
@@ -940,7 +928,7 @@ fn spawn_icon_row<'a>(
     icon: Option<(Handle<Image>, UiColorType)>,
     label: &str,
     label_color: UiColorType,
-    trailing: &[(&str, f32, UiColorType)],
+    trailing: &[(&str, TextRole, UiColorType)],
 ) -> EntityCommands<'a> {
     spawn_icon_row_breaking(
         parent,
@@ -960,7 +948,7 @@ fn spawn_icon_row_breaking<'a>(
     icon: Option<(Handle<Image>, UiColorType)>,
     label: &str,
     label_color: UiColorType,
-    trailing: &[(&str, f32, UiColorType)],
+    trailing: &[(&str, TextRole, UiColorType)],
     line_break: LineBreak,
 ) -> EntityCommands<'a> {
     let mut row = parent.spawn(Node {
@@ -983,14 +971,14 @@ fn spawn_icon_row_breaking<'a>(
             },
             Pickable::IGNORE,
             children![(
-                themed_label(label, 13.0, label_color),
+                text_toned(label, TextRole::Value, label_color),
                 TextLayout::new(Justify::Left, line_break),
                 Pickable::IGNORE
             )],
         ));
-        for (text, size, color) in trailing {
+        for (value, role, color) in trailing {
             row.spawn((
-                themed_label(text, *size, *color),
+                text_toned(*value, *role, *color),
                 TextLayout::new(Justify::Right, LineBreak::NoWrap),
                 Pickable::IGNORE,
             ));
@@ -1117,15 +1105,11 @@ pub(crate) fn update_map_chart_sector(
                 .spawn(control_row(JustifyContent::SpaceBetween))
                 .with_children(|head| {
                     head.spawn((
-                        themed_label(&format!("SECTOR {coord}"), 15.0, UiColorType::Text),
+                        text(&format!("SECTOR {coord}"), TextRole::Title),
                         Pickable::IGNORE,
                     ));
                     head.spawn((
-                        themed_label(
-                            &route_hint(player_cell, coord),
-                            12.0,
-                            UiColorType::TextMuted,
-                        ),
+                        text(&route_hint(player_cell, coord), TextRole::Label),
                         Pickable::IGNORE,
                     ));
                 });
@@ -1198,7 +1182,7 @@ pub(crate) fn update_map_chart_sector(
                     Some((icons.chart(ChartIconType::Station), color)),
                     &station_row_label(&chart, &jobs, station),
                     color,
-                    &[(&facts, 12.0, UiColorType::TextMuted)],
+                    &[(&facts, TextRole::Label, UiColorType::TextMuted)],
                 );
                 select_row(
                     &mut row,
@@ -1219,7 +1203,7 @@ pub(crate) fn update_map_chart_sector(
                     Some((icons.chart(ChartIconType::Wreck), MAP_CHART_WRECK_COLOR)),
                     &code,
                     MAP_CHART_WRECK_COLOR,
-                    &[(&found, 12.0, UiColorType::TextMuted)],
+                    &[(&found, TextRole::Label, UiColorType::TextMuted)],
                 );
                 select_row(
                     &mut row,
@@ -1294,7 +1278,7 @@ pub(crate) fn update_map_chart_sector(
                     Some((icons.chart(ChartIconType::Job), MAP_CHART_JOB_COLOR)),
                     &job_title(job, items.as_deref()),
                     UiColorType::Text,
-                    &[(state, 12.0, UiColorType::TextMuted)],
+                    &[(state, TextRole::Label, UiColorType::TextMuted)],
                 );
                 select_row(
                     &mut row,
@@ -1315,7 +1299,7 @@ pub(crate) fn update_map_chart_sector(
                     Some((icons.chart(ChartIconType::Job), MAP_CHART_JOB_COLOR)),
                     &format!("{code} posts {count} jobs"),
                     UiColorType::Text,
-                    &[("open", 12.0, UiColorType::TextMuted)],
+                    &[("open", TextRole::Label, UiColorType::TextMuted)],
                 );
             }
         });
@@ -1343,7 +1327,7 @@ fn stock_row(
         icon,
         &name,
         UiColorType::Text,
-        &[(&format!("x{count}"), 12.0, UiColorType::TextBody)],
+        &[(&format!("x{count}"), TextRole::Body, UiColorType::TextBody)],
     );
 }
 
@@ -1438,10 +1422,9 @@ pub(crate) fn update_map_chart_objectives(
                     )),
                 ))
                 .with_children(|heading| {
-                    heading.spawn(themed_label(
+                    heading.spawn(text(
                         &format!("OBJECTIVES  LAYER {}", runtime.chart_layer),
-                        12.0,
-                        UiColorType::TextMuted,
+                        TextRole::Label,
                     ));
                 });
             let (objectives, met_at, _) = &rows;
@@ -1476,8 +1459,8 @@ pub(crate) fn update_map_chart_objectives(
                     &format!("{code} {title}"),
                     UiColorType::Text,
                     &[
-                        (&meter, 12.0, meter_color),
-                        (hand_in, 12.0, UiColorType::TextMuted),
+                        (&meter, TextRole::Value, meter_color),
+                        (hand_in, TextRole::Label, UiColorType::TextMuted),
                     ],
                 );
                 select_row(&mut row, format!("MapChartObjective{code}"), mark, false);
@@ -1490,7 +1473,7 @@ pub(crate) fn update_map_chart_objectives(
                 .any(|objective| matches!(objective, OpenObjectiveType::Milestone(_)))
                 || met_at.is_some()
             {
-                block.spawn(themed_label(&progress.title, 12.0, UiColorType::TextMuted));
+                block.spawn(text(&progress.title, TextRole::Label));
             }
             for objective in objectives {
                 if let OpenObjectiveType::Milestone(line) = objective {
@@ -1501,7 +1484,7 @@ pub(crate) fn update_map_chart_objectives(
                         UiColorType::Text,
                         &[(
                             &format!("{} / {}", line.have, line.need),
-                            12.0,
+                            TextRole::Body,
                             UiColorType::TextBody,
                         )],
                     )
@@ -1642,13 +1625,9 @@ pub(crate) fn update_map_chart_log(
             .entity(log)
             .despawn_related::<Children>()
             .with_children(|log| {
-                log.spawn(themed_label("DISCOVERY LOG", 12.0, UiColorType::TextMuted));
+                log.spawn(text("DISCOVERY LOG", TextRole::Label));
                 if entries.is_empty() {
-                    log.spawn(themed_label(
-                        "Nothing found yet.",
-                        11.0,
-                        UiColorType::TextMuted,
-                    ));
+                    log.spawn(text("Nothing found yet.", TextRole::Label));
                 }
                 for (index, entry) in entries.iter().enumerate() {
                     let view = chart_log_row(&chart, &jobs, entry);
@@ -1660,8 +1639,8 @@ pub(crate) fn update_map_chart_log(
                         &view.label,
                         view.color,
                         &[
-                            (&cell, 12.0, UiColorType::TextBody),
-                            (&when, 11.0, UiColorType::TextMuted),
+                            (&cell, TextRole::Body, UiColorType::TextBody),
+                            (&when, TextRole::Label, UiColorType::TextMuted),
                         ],
                     );
                     select_row(
@@ -1925,17 +1904,14 @@ pub(crate) fn spawn_chart_legend(legend: &mut ChildSpawnerCommands, icons: &Inte
     for icon in ChartIconType::LEGEND {
         legend.spawn(legend_entry()).with_children(|entry| {
             entry.spawn(icon_node(icons.chart(icon), icon.color(), 16.0));
-            entry.spawn(themed_label(icon.label(), 12.0, UiColorType::TextBody));
+            entry.spawn(text(icon.label(), TextRole::Body));
         });
     }
 }
 
 /// The footer button that switches the chart view.
 pub(crate) fn map_chart_button() -> impl Bundle {
-    (
-        button(ButtonSpec::new("Chart").fit()),
-        Name::new("MapChart"),
-    )
+    (button(ButtonSpec::control("Chart")), Name::new("MapChart"))
 }
 
 #[cfg(test)]

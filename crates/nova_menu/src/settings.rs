@@ -25,8 +25,8 @@ use nova_ui::{
     theme::{GameUiThemes, SelectedUiTheme, UiColorType, UiThemeDiagnostic},
     widget::{
         panel_header, segmented_container, segmented_container_wrapping, segmented_option,
-        segmented_option_compact, segmented_option_fit, separator, slider_track, ButtonCueType,
-        ButtonSpec, ButtonValue, Selected, ThemedImageTint, ThemedText, UiText,
+        segmented_option_fit, separator, slider_track, ButtonCueType, ButtonSpec, ButtonValue,
+        Selected, ThemedImageTint, ThemedText, UiText,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -292,11 +292,6 @@ pub(crate) enum ResetBindingsStep {
 /// What the armed Reset Defaults says it will do. Short enough to stay on the
 /// buttons' line in a 1280x720 window at a 150% interface.
 const RESET_BINDINGS_PROMPT: &str = "Resets key and pad bindings in every group.";
-
-/// The height (px) of a `segmented_option`, which the Reset Defaults button
-/// and its Cancel are. The armed Confirm takes it too, so the row is as tall
-/// armed as idle.
-const RESET_BUTTON_HEIGHT_PX: f32 = 28.0;
 
 /// The armed rebind and the last refusal.
 ///
@@ -1314,7 +1309,7 @@ fn build_controls_header(
             for group in &groups {
                 let mut button = bar.spawn((
                     Name::new(format!("Controls Group: {group}")),
-                    segmented_option_compact(group),
+                    segmented_option_fit(group),
                     ControlsGroupTab(group),
                     observe(on_controls_group_tab),
                 ));
@@ -1457,13 +1452,9 @@ fn build_controls_tab(
                     ButtonCueType::Back,
                 ));
             });
-        // The height and type size of the slot button beside it.
-        let mut confirm = ButtonSpec::new("Confirm").danger().fit();
-        confirm.min_height = RESET_BUTTON_HEIGHT_PX;
-        confirm.font_size = 12.0;
         row.spawn((
             Name::new("Reset Bindings"),
-            nova_ui::widget::button(confirm),
+            nova_ui::widget::button(ButtonSpec::control("Confirm").danger()),
             ResetBindings,
             observe(on_reset_bindings),
         ));

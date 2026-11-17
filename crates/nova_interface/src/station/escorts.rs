@@ -19,7 +19,11 @@ use bevy::{prelude::*, ui_widgets::Activate};
 use nova_events::prelude::{CreditChangeCauseType, GeneratedBodyId};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::{theme::UiColorType, widget::ThemedBorder};
+use nova_ui::{
+    prelude::{divider, text, TextRole, VerbGate},
+    theme::UiColorType,
+    widget::ThemedBorder,
+};
 
 use super::{
     card_actions, offer_cell, offer_rows, shipyard::hull_length_text, spawn_card_price,
@@ -27,7 +31,7 @@ use super::{
 };
 use crate::{
     icons::InterfaceIcons,
-    pane::{refusable_button, themed_label, ActionOutcomeType},
+    pane::{gated_verb, ActionOutcomeType},
     ship::{ResolvedSite, StationSite},
 };
 
@@ -70,32 +74,25 @@ struct EscortRow {
     price_cr: u64,
     /// What the balance lacks of the price, or `None` while it is not short.
     short_cr: Option<u64>,
-    /// Why the hire is refused, or `None` when it is allowed.
-    refusal: Option<String>,
+    /// How Hire answers the row.
+    gate: VerbGate,
 }
 
-/// Why a hire of the escort named `name` is refused; the list and the
-/// handler share it.
-fn escort_refusal_text(name: &str, refusal: &EscortHireRefusalType) -> String {
+/// How Hire answers a refused hire: hidden off a refit dock, tagged when the
+/// civilization is no ally, disabled while the fleet is full or the balance
+/// is short (the price shows red) or would not fit.
+fn escort_gate(refusal: Option<&EscortHireRefusalType>) -> VerbGate {
     match refusal {
-        EscortHireRefusalType::NotDocked => "hire: dock at a station that refits".to_string(),
-        EscortHireRefusalType::NoRefitService => "hire: this dock offers no refit".to_string(),
-        EscortHireRefusalType::NotAllied => {
-            "hire: this station's civilization is no ally of yours".to_string()
+        None => VerbGate::Ready,
+        Some(EscortHireRefusalType::NotDocked | EscortHireRefusalType::NoRefitService) => {
+            VerbGate::Hidden
         }
-        EscortHireRefusalType::FleetFull { cap } => {
-            format!("hire: the fleet holds its {cap} escorts")
-        }
-        EscortHireRefusalType::InsufficientCredits { need, have } => {
-            format!(
-                "hire: {name} costs {}, the ship holds {}",
-                cr_text(*need),
-                cr_text(*have)
-            )
-        }
-        EscortHireRefusalType::CreditOverflow => {
-            format!("hire: the station's balance after hiring {name} does not fit")
-        }
+        Some(EscortHireRefusalType::NotAllied) => VerbGate::Tagged("ALLIES ONLY"),
+        Some(
+            EscortHireRefusalType::FleetFull { .. }
+            | EscortHireRefusalType::InsufficientCredits { .. }
+            | EscortHireRefusalType::CreditOverflow,
+        ) => VerbGate::Disabled,
     }
 }
 
@@ -187,7 +184,7 @@ pub(crate) fn spawn_station_escort_list(panel: &mut ChildSpawnerCommands) {
             },
         ))
         .with_children(|list| {
-            list.spawn(crate::pane::divider());
+            list.spawn(divider());
             list.spawn((
                 StationEscortRows::default(),
                 Node {
@@ -211,7 +208,7 @@ fn spawn_fleet_row(list: &mut ChildSpawnerCommands, slots: &[Option<String>]) {
         ..default()
     })
     .with_children(|row| {
-        row.spawn(themed_label("FLEET", 11.0, UiColorType::TextMuted));
+        row.spawn(text("FLEET", TextRole::Label));
         for (side, name) in FLEET_SIDES.iter().zip(slots) {
             let border = if name.is_some() {
                 ThemedBorder::new(UiColorType::Accent)
@@ -231,14 +228,10 @@ fn spawn_fleet_row(list: &mut ChildSpawnerCommands, slots: &[Option<String>]) {
                 border,
             ))
             .with_children(|slot| {
-                slot.spawn(themed_label(
-                    fleet_side_label(*side),
-                    11.0,
-                    UiColorType::TextMuted,
-                ));
+                slot.spawn(text(fleet_side_label(*side), TextRole::Label));
                 match name {
-                    Some(name) => slot.spawn(themed_label(name, 12.0, UiColorType::Text)),
-                    None => slot.spawn(themed_label("--", 12.0, UiColorType::TextMuted)),
+                    Some(name) => slot.spawn(text(name, TextRole::Value)),
+                    None => slot.spawn(text("--", TextRole::Label)),
                 };
             });
         }
@@ -306,8 +299,7 @@ pub(crate) fn update_station_escort_list(
                             }
                             _ => None,
                         },
-                        refusal: refusal
-                            .map(|refusal| escort_refusal_text(name.as_str(), &refusal)),
+                        gate: escort_gate(refusal.as_ref()),
                     })
                 })
                 .collect();
@@ -336,7 +328,7 @@ pub(crate) fn update_station_escort_list(
                 ..default()
             })
             .with_children(|header| {
-                header.spawn(themed_label("Escorts for hire", 13.0, UiColorType::Accent));
+                header.spawn(text("Escorts for hire", TextRole::Heading));
                 spawn_fleet_row(header, &slots);
             });
         parent.spawn(offer_rows()).with_children(|cards| {
@@ -345,11 +337,11 @@ pub(crate) fn update_station_escort_list(
                     spawn_hull_card_head(cell, row.hull, &row.name, &row.length);
                     spawn_card_price(cell, &icons, row.price_cr, row.short_cr);
                     cell.spawn(card_actions()).with_children(|actions| {
-                        refusable_button(
+                        gated_verb(
                             actions,
                             format!("EscortHire-{index}"),
                             "Hire",
-                            row.refusal.as_deref(),
+                            row.gate.clone(),
                         )
                         .observe(on_escort_hire_button(row.hull));
                         spawn_hull_info_button(
@@ -426,10 +418,7 @@ pub(crate) fn apply_station_escort_hire_commands(
         return;
     };
     let Some((station, ..)) = resolved.partner else {
-        runtime.notice.say(
-            ActionOutcomeType::Refused,
-            escort_refusal_text("", &EscortHireRefusalType::NotDocked),
-        );
+        runtime.cue.raise(ActionOutcomeType::Refused);
         return;
     };
     let station_id = q_ids
@@ -450,10 +439,8 @@ pub(crate) fn apply_station_escort_hire_commands(
     let plan = match plan_offer(&resolved, price, &held, &q_credits.p0(), &q_sides) {
         Ok(plan) => plan,
         Err(refusal) => {
-            runtime.notice.say(
-                ActionOutcomeType::Refused,
-                escort_refusal_text(&name, &refusal),
-            );
+            debug!("nova_interface: refused: {refusal:?}");
+            runtime.cue.raise(ActionOutcomeType::Refused);
             return;
         }
     };
@@ -475,10 +462,7 @@ pub(crate) fn apply_station_escort_hire_commands(
         hull: name.clone(),
         price_cr: plan.price_cr,
     });
-    runtime.notice.say(
-        ActionOutcomeType::Done,
-        format!("hired {name} for {}", cr_text(plan.price_cr)),
-    );
+    runtime.cue.raise(ActionOutcomeType::Done);
     commands.trigger(EscortHireRequest {
         entity: resolved.player,
         station,

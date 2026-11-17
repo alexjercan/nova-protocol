@@ -35,7 +35,6 @@
             shadow: "#000000",
         ),
         metrics: Some((
-            border_width: 1.0,
             radius: 2.0,
             panel_radius: 2.0,
         )),
@@ -125,16 +124,16 @@
                 ),
                 disabled: (
                     fill: Solid((
-                        value: Variable(text),
-                        alpha: 0.02,
+                        value: Literal("#000000"),
+                        alpha: 0.0,
                     )),
                     border: (
                         value: Variable(text),
-                        alpha: 0.25,
+                        alpha: 0.15,
                     ),
                     text: (
                         value: Variable(text),
-                        alpha: 0.5,
+                        alpha: 0.35,
                     ),
                     effect: None,
                 ),
@@ -238,16 +237,16 @@
                 ),
                 disabled: (
                     fill: Solid((
-                        value: Variable(text),
-                        alpha: 0.02,
+                        value: Literal("#000000"),
+                        alpha: 0.0,
                     )),
                     border: (
                         value: Variable(text),
-                        alpha: 0.25,
+                        alpha: 0.15,
                     ),
                     text: (
                         value: Variable(text),
-                        alpha: 0.5,
+                        alpha: 0.35,
                     ),
                     effect: None,
                 ),
@@ -337,16 +336,16 @@
                 ),
                 disabled: (
                     fill: Solid((
-                        value: Variable(text),
-                        alpha: 0.02,
+                        value: Literal("#000000"),
+                        alpha: 0.0,
                     )),
                     border: (
                         value: Variable(text),
-                        alpha: 0.25,
+                        alpha: 0.15,
                     ),
                     text: (
                         value: Variable(text),
-                        alpha: 0.5,
+                        alpha: 0.35,
                     ),
                     effect: None,
                 ),
@@ -436,16 +435,16 @@
                 ),
                 disabled: (
                     fill: Solid((
-                        value: Variable(text),
-                        alpha: 0.02,
+                        value: Literal("#000000"),
+                        alpha: 0.0,
                     )),
                     border: (
                         value: Variable(text),
-                        alpha: 0.25,
+                        alpha: 0.15,
                     ),
                     text: (
                         value: Variable(text),
-                        alpha: 0.5,
+                        alpha: 0.35,
                     ),
                     effect: None,
                 ),
@@ -556,7 +555,6 @@
                     effect: None,
                     radius: None,
                 ),
-                height: 14.0,
                 meter: Blocks(
                     segments: 24,
                     gap: 2.0,
@@ -707,9 +705,6 @@
                 ),
             )),
             badge: Some((
-                bracketed: true,
-                padding_x: 2.0,
-                border_width: 0.0,
                 border_alpha: 0.0,
                 fill_alpha: 0.0,
             )),
@@ -780,7 +775,6 @@
             shadow: "#000000",
         ),
         metrics: Some((
-            border_width: 1.0,
             radius: 7.0,
             panel_radius: 10.0,
         )),
@@ -1006,52 +1000,19 @@
                     effect: None,
                 ),
                 disabled: (
-                    fill: Linear(
-                        base: (
-                            value: Variable(surface),
-                            alpha: 1.0,
-                        ),
-                        degrees: 180.0,
-                        stops: [
-                            (
-                                color: (
-                                    value: Variable(surface_lit),
-                                    alpha: 1.0,
-                                ),
-                                percent: 0.0,
-                            ),
-                            (
-                                color: (
-                                    value: Variable(surface),
-                                    alpha: 1.0,
-                                ),
-                                percent: 55.0,
-                            ),
-                            (
-                                color: (
-                                    value: Variable(surface_sunken),
-                                    alpha: 1.0,
-                                ),
-                                percent: 100.0,
-                            ),
-                        ],
-                    ),
+                    fill: Solid((
+                        value: Literal("#000000"),
+                        alpha: 0.0,
+                    )),
                     border: (
-                        value: Variable(border),
-                        alpha: 1.0,
+                        value: Variable(text),
+                        alpha: 0.15,
                     ),
                     text: (
                         value: Variable(text),
-                        alpha: 0.4,
+                        alpha: 0.35,
                     ),
-                    effect: Some((
-                        color: (
-                            value: Variable(shadow),
-                            alpha: 0.55,
-                        ),
-                        offset_y: 2.0,
-                        blur: 8.0,
-                    )),
+                    effect: None,
                 ),
             )),
             button_primary: Some((
@@ -1282,52 +1243,19 @@
                     effect: None,
                 ),
                 disabled: (
-                    fill: Linear(
-                        base: (
-                            value: Variable(surface),
-                            alpha: 1.0,
-                        ),
-                        degrees: 180.0,
-                        stops: [
-                            (
-                                color: (
-                                    value: Variable(surface_lit),
-                                    alpha: 1.0,
-                                ),
-                                percent: 0.0,
-                            ),
-                            (
-                                color: (
-                                    value: Variable(surface),
-                                    alpha: 1.0,
-                                ),
-                                percent: 55.0,
-                            ),
-                            (
-                                color: (
-                                    value: Variable(surface_sunken),
-                                    alpha: 1.0,
-                                ),
-                                percent: 100.0,
-                            ),
-                        ],
-                    ),
+                    fill: Solid((
+                        value: Literal("#000000"),
+                        alpha: 0.0,
+                    )),
                     border: (
-                        value: Variable(border),
-                        alpha: 1.0,
+                        value: Variable(text),
+                        alpha: 0.15,
                     ),
                     text: (
                         value: Variable(text),
-                        alpha: 0.4,
+                        alpha: 0.35,
                     ),
-                    effect: Some((
-                        color: (
-                            value: Variable(shadow),
-                            alpha: 0.55,
-                        ),
-                        offset_y: 2.0,
-                        blur: 8.0,
-                    )),
+                    effect: None,
                 ),
             )),
             button_danger: Some((
@@ -1544,52 +1472,19 @@
                     effect: None,
                 ),
                 disabled: (
-                    fill: Linear(
-                        base: (
-                            value: Variable(surface),
-                            alpha: 1.0,
-                        ),
-                        degrees: 180.0,
-                        stops: [
-                            (
-                                color: (
-                                    value: Variable(surface_lit),
-                                    alpha: 1.0,
-                                ),
-                                percent: 0.0,
-                            ),
-                            (
-                                color: (
-                                    value: Variable(surface),
-                                    alpha: 1.0,
-                                ),
-                                percent: 55.0,
-                            ),
-                            (
-                                color: (
-                                    value: Variable(surface_sunken),
-                                    alpha: 1.0,
-                                ),
-                                percent: 100.0,
-                            ),
-                        ],
-                    ),
+                    fill: Solid((
+                        value: Literal("#000000"),
+                        alpha: 0.0,
+                    )),
                     border: (
-                        value: Variable(border),
-                        alpha: 1.0,
+                        value: Variable(text),
+                        alpha: 0.15,
                     ),
                     text: (
                         value: Variable(text),
-                        alpha: 0.4,
+                        alpha: 0.35,
                     ),
-                    effect: Some((
-                        color: (
-                            value: Variable(shadow),
-                            alpha: 0.55,
-                        ),
-                        offset_y: 2.0,
-                        blur: 8.0,
-                    )),
+                    effect: None,
                 ),
             )),
             button_ghost: Some((
@@ -1728,52 +1623,19 @@
                     effect: None,
                 ),
                 disabled: (
-                    fill: Linear(
-                        base: (
-                            value: Variable(surface),
-                            alpha: 1.0,
-                        ),
-                        degrees: 180.0,
-                        stops: [
-                            (
-                                color: (
-                                    value: Variable(surface_lit),
-                                    alpha: 1.0,
-                                ),
-                                percent: 0.0,
-                            ),
-                            (
-                                color: (
-                                    value: Variable(surface),
-                                    alpha: 1.0,
-                                ),
-                                percent: 55.0,
-                            ),
-                            (
-                                color: (
-                                    value: Variable(surface_sunken),
-                                    alpha: 1.0,
-                                ),
-                                percent: 100.0,
-                            ),
-                        ],
-                    ),
+                    fill: Solid((
+                        value: Literal("#000000"),
+                        alpha: 0.0,
+                    )),
                     border: (
-                        value: Variable(border),
-                        alpha: 1.0,
+                        value: Variable(text),
+                        alpha: 0.15,
                     ),
                     text: (
                         value: Variable(text),
-                        alpha: 0.4,
+                        alpha: 0.35,
                     ),
-                    effect: Some((
-                        color: (
-                            value: Variable(shadow),
-                            alpha: 0.55,
-                        ),
-                        offset_y: 2.0,
-                        blur: 8.0,
-                    )),
+                    effect: None,
                 ),
             )),
             panel: Some((
@@ -1896,7 +1758,6 @@
                     effect: None,
                     radius: Some(6.0),
                 ),
-                height: 10.0,
                 meter: Fill,
                 lit: (
                     value: Variable(nominal_dark),
@@ -2037,9 +1898,6 @@
                 ),
             )),
             badge: Some((
-                bracketed: false,
-                padding_x: 8.0,
-                border_width: 1.0,
                 border_alpha: 0.4,
                 fill_alpha: 0.06,
             )),

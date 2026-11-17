@@ -9,16 +9,17 @@
 //!
 //! # What a theme may say
 //!
-//! Foreground, background and border colour; border width and corner radius;
-//! solid and gradient fills; glow and drop shadows; and the paint of every
-//! interaction state a role requires. Two roles additionally carry SHAPE,
-//! because the shipped looks differ there and the difference is the look:
-//! [`SliderRole::meter`] picks the block meter or the solid fill, and
-//! [`BadgeRole::bracketed`] picks the `[TAG]` text form or the bordered chip.
+//! Foreground, background and border colour; corner radius; solid and
+//! gradient fills; glow and drop shadows; and the paint of every interaction
+//! state a role requires. One role additionally carries SHAPE inside its own
+//! box, because the shipped looks differ there and the difference is the look:
+//! [`SliderRole::meter`] picks the block meter or the solid fill.
 //!
-//! A theme may NOT say where anything goes: no position, size, padding, gap,
-//! flex/grid, z order, visibility, pointer behaviour or font size. Those are
-//! structure, and structure is the screen's, not the theme's.
+//! A theme may NOT say where anything goes or how big it is: no position,
+//! size, padding, border width, gap, flex/grid, z order, visibility, pointer
+//! behaviour or font size. Those are structure, and structure is the screen's
+//! (`crate::widget::metrics`), so two themes lay a screen out to the same
+//! rects.
 //!
 //! # The palette
 //!
@@ -67,8 +68,8 @@ pub struct UiThemeConfig {
     /// sets every one; a derived theme sets the ones it changes.
     #[serde(default)]
     pub palette: UiPalette,
-    /// Border width and the two corner radii, or `None` to inherit the
-    /// parent's whole. A root theme must carry them.
+    /// The two corner radii, or `None` to inherit the parent's whole. A root
+    /// theme must carry them.
     pub metrics: Option<UiMetrics>,
     /// The per-control paint tables.
     #[serde(default)]
@@ -76,16 +77,14 @@ pub struct UiThemeConfig {
     pub roles: UiRoles,
 }
 
-/// The three shared numbers every screen's chrome is drawn with.
+/// The two shared corner radii every screen's chrome is drawn with.
 ///
-/// Not per-role: these are what a border and a corner MEAN in a theme, and the
-/// two shipped looks differ in exactly these three. A role that needs its own
-/// radius carries one (see [`SurfacePaint::radius`]).
+/// Not per-role: these are what a corner MEANS in a theme. A role that needs
+/// its own radius carries one (see [`SurfacePaint::radius`]). Radius is paint:
+/// it rounds a box without moving it.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Reflect)]
 #[serde(deny_unknown_fields)]
 pub struct UiMetrics {
-    /// Hairline border width, in logical pixels.
-    pub border_width: f32,
     /// Control corner radius (phosphor is square-ish, hardware moulded).
     pub radius: f32,
     /// Panel corner radius - larger than a control's in both shipped looks.
@@ -417,7 +416,7 @@ pub struct Effect {
 pub struct StatePaint {
     /// The background.
     pub fill: Fill,
-    /// The border colour (width comes from [`UiMetrics::border_width`]).
+    /// The border colour. Its width is layout (`crate::theme::BORDER_W`).
     pub border: ThemeColor,
     /// The label colour.
     pub text: ThemeColor,
@@ -535,15 +534,13 @@ impl SliderMeter {
     }
 }
 
-/// A slider track: the well it sits in, how tall it is, and how it meters.
+/// A slider track: the well it sits in and how it meters. Its height is
+/// layout (`crate::widget::metrics::SLIDER_TRACK_H`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SliderRole {
     /// The well.
     pub surface: SurfacePaint,
-    /// Track height in logical pixels. Authored because the block meter and the
-    /// solid fill are not legible at one height.
-    pub height: f32,
     /// How the value is shown.
     pub meter: SliderMeter,
     /// The lit part of the meter.
@@ -598,19 +595,12 @@ pub struct ToggleRole {
     pub on: StatePaint,
 }
 
-/// A status badge: the chip chrome, and whether it is a chip at all.
+/// A tag's chip paint. The tag's size, padding and border width are layout
+/// (`crate::widget::tag`); a `border_alpha` and `fill_alpha` of zero draw the
+/// bare word at the same size.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BadgeRole {
-    /// SHAPE: `true` renders the terminal's `[TAG]` text form with no chrome,
-    /// `false` the bordered chip. Authored for the same reason
-    /// [`SliderMeter`] is - the two shipped looks differ here, and a badge that
-    /// wore a chip in the terminal look would read as a different widget.
-    pub bracketed: bool,
-    /// Horizontal padding in logical pixels.
-    pub padding_x: f32,
-    /// Border width; `0.0` for the bracketed form.
-    pub border_width: f32,
     /// Alpha applied to the badge family's colour for its border.
     pub border_alpha: f32,
     /// Alpha applied to the badge family's colour for its fill.

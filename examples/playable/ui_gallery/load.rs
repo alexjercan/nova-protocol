@@ -5,6 +5,8 @@
 use bevy::prelude::*;
 use nova_ui::{prelude::*, theme::UiColorType};
 
+// The gallery keeps its own fixed-size mock helpers; they shadow the kit's.
+use crate::chrome::{cell, control_row, divider, text};
 use crate::{
     chart3d::{spawn_chart_scene, CellView, ChartView, MarkView, SceneAssets, SceneKind},
     chrome::*,
@@ -128,7 +130,7 @@ pub fn load_page(
                     row.spawn((
                         Name::new(CONTINUE),
                         acts(
-                            button(ButtonSpec::new("Continue").fit().primary()),
+                            button(ButtonSpec::control("Continue").primary()),
                             Click::Save(0),
                         ),
                     ));
@@ -183,7 +185,7 @@ pub fn load_page(
         });
         body.spawn(control_row(JustifyContent::FlexStart))
             .with_children(|footer| {
-                footer.spawn(button(ButtonSpec::new("Back").fit().key("Esc")));
+                footer.spawn(button(ButtonSpec::control("Back").key("Esc")));
             });
     });
 }
@@ -209,7 +211,7 @@ fn details(
             left.spawn(text(save.world, 15.0, UiColorType::Text));
         });
         if save.version != RUNNING_VERSION {
-            head.spawn(tag(BadgeKind::Amber, save.version));
+            head.spawn(tag(save.version, UiColorType::Accent));
         }
     });
     spawn_chart_scene(
@@ -285,11 +287,11 @@ fn details(
         .with_children(|row| {
             row.spawn((
                 Name::new(LOAD_LOAD),
-                button(ButtonSpec::new("Load").fit().primary().key("Enter")),
+                button(ButtonSpec::control("Load").primary().key("Enter")),
             ));
             row.spawn((
                 Name::new(LOAD_DELETE),
-                button(ButtonSpec::new("Delete").fit().danger()),
+                button(ButtonSpec::control("Delete").danger()),
             ));
         });
 }

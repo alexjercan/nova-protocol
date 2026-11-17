@@ -73,15 +73,6 @@ impl SettleDock<'_, '_> {
     }
 }
 
-/// Why the fine of `name` is refused: the ship holds less than the fine.
-pub(crate) fn settle_refusal_text(name: &str, need: u32, have: u32) -> String {
-    format!(
-        "settle: {name} asks {}, the ship holds {}",
-        cr_text(u64::from(need)),
-        cr_text(u64::from(have))
-    )
-}
-
 /// Apply [`StanceSettleCommand`]s: a civilization that is an Enemy
 /// neighbour of the docked station's and whose fine the ship holds is
 /// settled to Neutral, the fine moving with `Settle` credit changes on both
@@ -97,11 +88,8 @@ pub(crate) fn apply_station_settle_commands(
     mut commands: Commands,
 ) {
     for command in messages.read() {
-        let Some((player, station, station_name, home)) = dock.docked() else {
-            map.notice.say(
-                ActionOutcomeType::Refused,
-                "settle: dock at a station a civilization keeps".to_string(),
-            );
+        let Some((player, station, _, home)) = dock.docked() else {
+            map.cue.raise(ActionOutcomeType::Refused);
             continue;
         };
         let name = command.civilization.name();
@@ -109,10 +97,7 @@ pub(crate) fn apply_station_settle_commands(
             .into_iter()
             .find(|(civilization, _)| *civilization == command.civilization)
         else {
-            map.notice.say(
-                ActionOutcomeType::Refused,
-                format!("settle: {station_name} keeps no book for {name}"),
-            );
+            map.cue.raise(ActionOutcomeType::Refused);
             continue;
         };
         let Ok([(mut own_cr, mut own_reports), (mut station_cr, mut station_reports)]) =
@@ -121,17 +106,11 @@ pub(crate) fn apply_station_settle_commands(
             panic!("settle: the player ship and station {station:?} each carry credits");
         };
         if own_cr.0 < fine {
-            map.notice.say(
-                ActionOutcomeType::Refused,
-                settle_refusal_text(&name, fine, own_cr.0),
-            );
+            map.cue.raise(ActionOutcomeType::Refused);
             continue;
         }
         let Some(paid) = station_cr.0.checked_add(fine) else {
-            map.notice.say(
-                ActionOutcomeType::Refused,
-                format!("settle: {station_name}'s balance after the fine does not fit"),
-            );
+            map.cue.raise(ActionOutcomeType::Refused);
             continue;
         };
         let left = own_cr.0 - fine;
@@ -145,9 +124,6 @@ pub(crate) fn apply_station_settle_commands(
             "stance: settled with {name} for {fine} cr at {:.1} s of play: {step:?}",
             clock.play_seconds
         );
-        map.notice.say(
-            ActionOutcomeType::Done,
-            format!("settled with {name} for {}", cr_text(u64::from(fine))),
-        );
+        map.cue.raise(ActionOutcomeType::Done);
     }
 }

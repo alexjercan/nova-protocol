@@ -5,7 +5,7 @@ pause screen, the shipyard, the HUD chrome and every widget on them. The base
 game ships two - `base/phosphor`, the green terminal, and `base/hardware`, the
 moulded casing - and a mod adds a third by declaring a new id.
 
-A theme is DATA. It names colours, three metrics and the paint of every control
+A theme is DATA. It names colours, two radii and the paint of every control
 in every state it has. It runs no code, so a broken theme is a lint finding
 rather than a crash.
 
@@ -15,17 +15,18 @@ such as double parentheses, `Some(...)`, and asset schemes, see
 
 ## What a theme can and cannot change
 
-A theme owns PAINT and two shapes:
+A theme owns PAINT and one shape:
 
 - foreground, background and border colour;
-- border width and corner radius;
+- corner radius;
 - solid, linear and radial fills;
 - glows and drop shadows;
-- whether a slider meters in blocks or in one continuous fill;
-- whether a badge is a `[TAG]` or a bordered chip.
+- whether a slider meters in blocks or in one continuous fill.
 
-A theme owns NO layout. It cannot set a position, a size, padding, a gap, a
-flex or grid rule, a z order, visibility, pointer behaviour or a font size.
+A theme owns NO layout. It cannot set a position, a size, a border width,
+padding, a gap, a flex or grid rule, a z order, visibility, pointer behaviour
+or a font size. Every control has the same height and alignment in every
+theme.
 Those are the screen's, and a theme that could move them could make a screen
 unusable rather than ugly.
 
@@ -53,9 +54,6 @@ ships:
         metrics: None,
         roles: (
             badge: Some((
-                bracketed: false,
-                padding_x: 8.0,
-                border_width: 1.0,
                 border_alpha: 0.4,
                 fill_alpha: 0.06,
             )),
@@ -70,7 +68,7 @@ ships:
 | `name` | string | required | The label on the Settings row. |
 | `inherit` | `Option` string | required | The theme this one derives from, or `None` for a root theme - see [Inheritance](#inheritance). |
 | `palette` | palette | `()` | The fixed colour set, six-digit `#rrggbb` each - see [Palette](#palette). |
-| `metrics` | `Option` metrics | required | Border width and the two radii, or `None` to take the parent's - see [Metrics](#metrics). |
+| `metrics` | `Option` metrics | required | The two radii, or `None` to take the parent's - see [Metrics](#metrics). |
 | `roles` | roles | `()` | The per-control paint tables - see [Roles](#roles). |
 
 Unknown fields are refused, not ignored. A misspelled field stops the content
@@ -136,11 +134,10 @@ screen paints by job, whatever its role table says.
 
 ## Metrics
 
-Three numbers the whole interface is drawn with:
+Two numbers the whole interface is drawn with:
 
 ```ron
 metrics: Some((
-    border_width: 1.0,
     radius: 2.0,
     panel_radius: 2.0,
 )),
@@ -148,11 +145,10 @@ metrics: Some((
 
 | field | meaning |
 |---|---|
-| `border_width` | Hairline border width, in logical pixels. |
 | `radius` | Control corner radius. Phosphor is 2.0 and square-ish, hardware 7.0 and moulded. |
 | `panel_radius` | Panel corner radius. Phosphor is 2.0, the same hard corner as its controls; hardware 10.0, a moulded case. |
 
-`metrics: None` takes the nearest ancestor's three whole. A root theme must
+`metrics: None` takes the nearest ancestor's two whole. A root theme must
 carry them.
 
 ## Colours
@@ -247,7 +243,7 @@ every one.
 | `text_field` | A text field. | `normal`, `hovered`, `focused`, `error` |
 | `checkbox` | A checkbox, plus its own `radius`. | `off`, `on` |
 | `toggle` | A pill toggle, plus `radius` and `knob_radius`. | `off`, `on` |
-| `badge` | A status badge - see [Shape](#shape). | shape and alpha only |
+| `badge` | A status tag - see [Shape](#shape). | two alphas |
 | `scroll_bar` | A scrollbar: `track` and `thumb`. | two colours |
 | `key_chip` | A keycap chip. | one state |
 | `separator` | A rule between sections. | one colour |
@@ -275,10 +271,8 @@ badges, several spans - and each of those is already themed.
 
 ## Shape
 
-Two roles carry shape as well as paint, because the shipped looks differ there
-and the difference IS the look.
-
-A slider meters in discrete blocks or in one continuous fill:
+A slider carries a shape as well as paint, because the shipped looks differ
+there and the difference IS the look. A slider meters in discrete blocks or in one continuous fill:
 
 ```ron
 slider_track: Some((
@@ -288,7 +282,6 @@ slider_track: Some((
         effect: None,
         radius: None,
     ),
-    height: 14.0,
     meter: Blocks(segments: 24, gap: 2.0),
     lit: (value: Variable(text)),
     unlit: (value: Variable(text), alpha: 0.16),
@@ -296,27 +289,21 @@ slider_track: Some((
 ```
 
 `meter: Fill` draws one bar filled to the value instead, which is what the
-hardware look does behind its moulded well. `height` is authored because the
-two meters are not legible at one height.
+hardware look does behind its moulded well. The track is one height in every
+theme.
 
-A badge is the terminal's bracketed tag or a bordered chip:
+A tag is one word in a chip of one height in every theme:
 
 ```ron
 badge: Some((
-    bracketed: true,
-    padding_x: 2.0,
-    border_width: 0.0,
     border_alpha: 0.0,
     fill_alpha: 0.0,
 )),
 ```
 
-`bracketed: true` renders `[TAG]` as text with no chrome. `bracketed: false`
-draws the chip, and then `padding_x`, `border_width`, `border_alpha` and
-`fill_alpha` shape it. A badge's HUE comes from what it reports: a nominal
-badge reads `text`, a warning `accent`, a fault `danger`. The theme sets
-those colours in its palette, so the role itself carries alphas rather than
-colours.
+A tag's HUE comes from what it reports: a nominal tag reads `nominal`, a
+warning `accent`, a fault `danger`. The theme sets those colours in its
+palette, so the role carries only the alphas of the chip's border and fill.
 
 ## Inheritance
 
@@ -338,7 +325,9 @@ Chains can be any depth. The game refuses:
 - an `inherit` that names a theme nothing declares;
 - an inheritance cycle, by the names in it;
 - a theme whose chain sets no value for a role, a palette colour or the metrics;
-- a hex that does not parse.
+- a hex that does not parse;
+- a `disabled` button state that looks live: its text alpha must be at most
+  half the `normal` text alpha, with no gradient fill and no effect.
 
 Each is one lint finding naming the theme and what is missing.
 

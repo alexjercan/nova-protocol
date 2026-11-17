@@ -324,13 +324,13 @@ fn spawn_ship_pane(strip: &mut RelatedSpawnerCommands<ChildOf>, ship: &ShipPaneD
                             ));
                             row.spawn((
                                 Name::new("Reroll Seed Button"),
-                                button(ButtonSpec::new("Reroll").ghost().dense()),
+                                button(ButtonSpec::control("Reroll").ghost()),
                                 observe(reroll_seed),
                             ));
                             row.spawn((
                                 Name::new("Generate Button"),
                                 GenerateButton,
-                                button(ButtonSpec::new("Generate").dense()),
+                                button(ButtonSpec::control("Generate")),
                                 ButtonCueType::Owned,
                                 observe(generate_ship),
                             ));
@@ -453,7 +453,7 @@ pub(crate) fn spawn_browser(root: &mut RelatedSpawnerCommands<ChildOf>, ship: &S
                     tools.spawn((
                         Name::new("Browser Fold"),
                         BrowserFold,
-                        button(ButtonSpec::new("Fold").ghost().dense().fit()),
+                        button(ButtonSpec::control("Fold").ghost()),
                         observe(on_browser_fold),
                     ));
                 });

@@ -40,10 +40,10 @@
 //!
 //! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the dock,
 //! buys the station from the Station tab, checks it is owned, on the Player
-//! side and named as the player's, and shoots the green `bought` notice over
-//! the panel as `station-own-sandbox-notice.png`. It then switches
-//! to the Hardware theme, asks to buy the station again and shoots the red
-//! `yours already` refusal as `station-own-sandbox-refusal-hardware.png`.
+//! side and named as the player's, and shoots the panel after the buy as
+//! `station-own-sandbox-bought.png`. It then switches to the Hardware theme,
+//! checks Buy station is hidden for the owned station and shoots the panel as
+//! `station-own-sandbox-owned-hardware.png`.
 //! Last it closes the interface and shoots `station-own-sandbox.png`, all
 //! with `NOVA_CAPTURE=1`. Unset, no walk and no deadline run.
 
@@ -427,8 +427,8 @@ mod smoke {
     use nova_protocol::{
         nova_debug::harness::{shoot, AutopilotPlugin, Predicate, SHOT_DEADLINE_SECS},
         nova_interface::{
-            pane::{ActionOutcomeType, InterfacePaneType},
-            station::{StationBuyCommand, StationRuntime, STATION_BUY_ASK, STATION_BUY_BUTTON},
+            pane::InterfacePaneType,
+            station::{STATION_BUY_ASK, STATION_BUY_BUTTON},
         },
     };
     use nova_ui::theme::{SelectedUiTheme, HARDWARE_THEME_ID};
@@ -445,14 +445,13 @@ mod smoke {
     const STATION_PANEL: &str = "StationPanel";
     /// The frame the walk shoots.
     const SHOT: &str = "station-own-sandbox.png";
-    /// The Station pane the frame after the buy: the green notice over the
-    /// panel, in the default Phosphor theme.
-    const NOTICE_SHOT: &str = "station-own-sandbox-notice.png";
-    /// The Station pane after a second buy of the owned station: the red
-    /// refusal notice, in the Hardware theme.
-    const REFUSAL_SHOT: &str = "station-own-sandbox-refusal-hardware.png";
-    /// Frames the theme switch gets to repaint before the refusal is raised:
-    /// few, so the notice is still up when the shot lands.
+    /// The Station pane the frame after the buy, in the default Phosphor
+    /// theme.
+    const BOUGHT_SHOT: &str = "station-own-sandbox-bought.png";
+    /// The Station pane of the owned station, Buy station hidden, in the
+    /// Hardware theme.
+    const OWNED_SHOT: &str = "station-own-sandbox-owned-hardware.png";
+    /// Frames the theme switch gets to repaint before the shot.
     const THEME_FRAMES: u32 = 3;
 
     fn when(check: impl Fn(&World) -> bool + Send + Sync + 'static) -> Arc<Predicate> {
@@ -589,9 +588,9 @@ mod smoke {
         .step("station own sandbox: check the station is the player's")
         .on_enter(assert_the_players)
         .add()
-        .step("station own sandbox: shoot the buy notice")
-        .on_enter(|world: &mut World| shoot(world, NOTICE_SHOT))
-        .until(shot_written(NOTICE_SHOT))
+        .step("station own sandbox: shoot the panel after the buy")
+        .on_enter(|world: &mut World| shoot(world, BOUGHT_SHOT))
+        .until(shot_written(BOUGHT_SHOT))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
         .step("station own sandbox: switch to the Hardware theme")
@@ -600,22 +599,23 @@ mod smoke {
         })
         .until(frames(THEME_FRAMES))
         .add()
-        .step("station own sandbox: ask to buy the owned station again")
-        .on_enter(|world: &mut World| {
-            world.write_message(StationBuyCommand);
-        })
+        .step("station own sandbox: Buy station is hidden for the owned station")
         .until(when(|world| {
             world
-                .resource::<StationRuntime>()
-                .notice
-                .shown()
-                .is_some_and(|(outcome, _)| outcome == ActionOutcomeType::Refused)
+                .try_query::<(&Name, &Node)>()
+                .and_then(|mut query| {
+                    query
+                        .iter(world)
+                        .find(|(name, _)| name.as_str() == STATION_BUY_BUTTON)
+                        .map(|(_, node)| node.display == Display::None)
+                })
+                .unwrap_or(true)
         }))
         .deadline(BEAT_SECS)
         .add()
-        .step("station own sandbox: shoot the refusal notice")
-        .on_enter(|world: &mut World| shoot(world, REFUSAL_SHOT))
-        .until(shot_written(REFUSAL_SHOT))
+        .step("station own sandbox: shoot the owned station")
+        .on_enter(|world: &mut World| shoot(world, OWNED_SHOT))
+        .until(shot_written(OWNED_SHOT))
         .deadline(SHOT_DEADLINE_SECS)
         .add();
         tap(

@@ -25,12 +25,12 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_sound::prelude::*;
 use nova_ui::{
+    prelude::{button, divider, text, text_toned, TextRole},
     theme::UiColorType,
     widget::{ButtonCueType, ButtonSpec},
 };
 
 use super::{scene::ShipRuntime, sections::design_section_code};
-use crate::pane::{compact_button, themed_label};
 
 /// A request to rebuild one lost section of the player ship, raised by a
 /// lost-list Rebuild button.
@@ -501,8 +501,8 @@ pub(crate) fn spawn_ship_rebuild_list(panel: &mut ChildSpawnerCommands) {
             },
         ))
         .with_children(|list| {
-            list.spawn(crate::pane::divider());
-            list.spawn(themed_label("Lost sections", 13.0, UiColorType::Accent));
+            list.spawn(divider());
+            list.spawn(text("Lost sections", TextRole::Heading));
             list.spawn((
                 ShipRebuildRows::default(),
                 Node {
@@ -602,19 +602,19 @@ pub(crate) fn update_ship_rebuild_list(
                     ..default()
                 })
                 .with_children(|cell| {
-                    cell.spawn(themed_label(&row.code, 13.0, UiColorType::Text));
+                    cell.spawn(text(&row.code, TextRole::Value));
                     if !row.line.is_empty() {
                         let tone = if row.short {
                             UiColorType::Danger
                         } else {
                             UiColorType::TextBody
                         };
-                        cell.spawn(themed_label(&row.line, 12.0, tone));
+                        cell.spawn(text_toned(&row.line, TextRole::Value, tone));
                     }
                     if row.offered {
                         cell.spawn((
                             Name::new(format!("ShipRebuild-{}", row.code)),
-                            compact_button(ButtonSpec::new("Rebuild").fit().primary()),
+                            button(ButtonSpec::control("Rebuild").primary()),
                             ButtonCueType::Owned,
                         ))
                         .observe(on_ship_rebuild_button(row.section.clone()));

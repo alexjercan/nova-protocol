@@ -25,12 +25,12 @@ use nova_world_base::prelude::{
 use super::{app::*, contacts::*, scene::*, *};
 use crate::{
     icons::{BodyIconType, InterfaceIcons},
-    pane::{notice_line, ActionOutcomeType, InterfacePaneType},
+    pane::InterfacePaneType,
     pointer_rig::{
         click_at, hear_ui_cues, move_cursor_to, pane_pointer_rig, settle, take_churn, take_cues,
         track_node_churn, NodeChurn, PanePointerRig, RIG_PANEL_MIN,
     },
-    station::{apply_station_settle_commands, settle_refusal_text, StanceSettleCommand},
+    station::{apply_station_settle_commands, StanceSettleCommand},
     terminal::NovaOsCloseTransition,
     viewer::cycle_index,
 };
@@ -1363,24 +1363,22 @@ fn standing_table(rig: &PanePointerRig, civilization: CivilizationId) -> StanceT
 }
 
 /// The STANCES block's Pay fine button only moves the fine while the ship is
-/// docked at the station that keeps the book, and the Map's own notice line
-/// reports each result with one cue: undocked, the button reads disabled, its
-/// row's hint says to dock, a Dock line says where to pay, and a click moves
-/// nothing, settles nothing, shows nothing and plays nothing; docked with the
-/// balance short, the hint gives the short-balance reason and a settle command
-/// is refused on the line in red with it, one deny buzz, and nothing moves;
-/// docked with the fine in hand, the hint says what paying does, no Dock line
-/// stands, and a click pays it both ways, reports a Settle credit change on
-/// each ship's reports, settles the civilization to Neutral, and shows the
-/// settlement on the line in green with one click.
+/// docked at the station that keeps the book, and each result plays one cue:
+/// undocked, the button is hidden and a Dock line says where to pay; docked
+/// with the balance short, the button is disabled, the fine reads red, and a
+/// settle command is refused with one deny buzz and moves nothing; docked
+/// with the fine in hand, no Dock line stands, and a click pays it both ways,
+/// reports a Settle credit change on each ship's reports, settles the
+/// civilization to Neutral and clicks once.
 #[test]
-fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_it_on_the_map_notice(
-) {
+fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station() {
     let (civilization, enemy, fine) = civilization_with_enemy_neighbour();
     assert!(fine > 0, "a fine of nothing has no short balance to refuse");
 
     let mut rig = pane_pointer_rig();
     let app = &mut rig.app;
+    // The kit's gate and short-tone reconcilers.
+    app.add_plugins(nova_ui::NovaUiPlugin);
     app.insert_resource(InterfaceIcons::blank());
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
@@ -1393,7 +1391,7 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
         (
             update_map_stance_block,
             apply_station_settle_commands,
-            update_map_notice,
+            play_map_cue,
         )
             .chain(),
     );
@@ -1422,9 +1420,6 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
         .entity(content)
         .with_children(|content| {
             spawn_map_stance_block(content);
-            // The rig's root lays its children out in a row: the line stands
-            // beside the block, where its width cannot push the block.
-            content.spawn((MapNoticeMarker, Name::new(MAP_NOTICE), notice_line()));
         });
 
     let player = app
@@ -1478,29 +1473,16 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
             })
             .expect("the Pay fine button spawned")
     };
-    let button = find_button(&mut rig);
-    let disabled =
-        |rig: &PanePointerRig| rig.app.world().get::<InteractionDisabled>(button).is_some();
+    let gate = |rig: &mut PanePointerRig| {
+        let button = find_button(rig);
+        let world = rig.app.world();
+        (
+            world.get::<Node>(button).unwrap().display,
+            world.get::<InteractionDisabled>(button).is_some(),
+        )
+    };
     let credits = |rig: &PanePointerRig, entity: Entity| {
         rig.app.world().get::<ShipCredits>(entity).unwrap().0
-    };
-    let notice = |rig: &PanePointerRig| {
-        rig.app
-            .world()
-            .resource::<MapRuntime>()
-            .notice
-            .shown()
-            .map(|(outcome, note)| (outcome, note.to_string()))
-    };
-    // What the Map's notice line paints: its text and tone.
-    let line = |rig: &mut PanePointerRig| {
-        let (text, themed) = rig
-            .app
-            .world_mut()
-            .query_filtered::<(&Text, &ThemedText), With<MapNoticeMarker>>()
-            .single(rig.app.world())
-            .expect("the rig spawned one Map notice line");
-        (text.0.clone(), themed.color)
     };
     let settle_reports = |rig: &PanePointerRig, entity: Entity| {
         rig.app
@@ -1520,21 +1502,14 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
             })
             .count()
     };
-    // The enemy's row follows the civilization's own Entry row.
-    let enemy_row = format!(
-        "MapStanceRow-{}",
-        1 + enemy_neighbours(civilization, &CivilizationStances::default())
-            .iter()
-            .position(|(id, _)| *id == enemy)
-            .expect("the enemy is a neighbour of the civilization")
-    );
-    let hint = |rig: &mut PanePointerRig| {
+    let fine_tone = |rig: &mut PanePointerRig| {
+        let fine_text = cr_text(u64::from(fine));
         rig.app
             .world_mut()
-            .query::<(&Name, &Tooltip)>()
+            .query::<(&Text, &ThemedText)>()
             .iter(rig.app.world())
-            .find_map(|(name, tooltip)| (name.as_str() == enemy_row).then(|| tooltip.0.clone()))
-            .expect("the enemy's Settle row spawned")
+            .find_map(|(text, themed)| (text.0 == fine_text).then_some(themed.color))
+            .expect("the enemy's Settle row shows its fine")
     };
     let dock_line = |rig: &mut PanePointerRig| {
         rig.app
@@ -1544,48 +1519,15 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
             .any(|text| text.0 == "DOCK STN-1")
     };
     assert!(take_cues(&mut rig.app).is_empty(), "the rig starts silent");
-    assert_eq!(line(&mut rig), (String::new(), UiColorType::TextMuted));
 
-    assert!(
-        disabled(&rig),
-        "undocked: the Pay fine button reads disabled"
-    );
     assert_eq!(
-        hint(&mut rig),
-        format!("Dock at STN-1 to pay: {} returns to NEUTRAL.", enemy.name()),
-        "undocked: the row's hint says to dock"
+        gate(&mut rig).0,
+        Display::None,
+        "undocked: the Pay fine button is hidden"
     );
     assert!(
         dock_line(&mut rig),
         "undocked: the Dock line says where to pay"
-    );
-    let at = rig_rect(&rig, button).center();
-    click_at(&mut rig, at);
-    settle(&mut rig.app);
-    assert_eq!(
-        credits(&rig, player),
-        fine,
-        "a disabled button moves no credits"
-    );
-    assert_eq!(
-        credits(&rig, station),
-        0,
-        "a disabled button moves no credits"
-    );
-    assert_eq!(
-        standing_table(&rig, enemy),
-        StanceType::Enemy,
-        "a disabled button settles nothing"
-    );
-    assert_eq!(notice(&rig), None, "a disabled button reports nothing");
-    assert_eq!(
-        line(&mut rig),
-        (String::new(), UiColorType::TextMuted),
-        "a disabled button paints nothing"
-    );
-    assert!(
-        take_cues(&mut rig.app).is_empty(),
-        "a disabled button plays nothing"
     );
 
     // Dock the player at the station, as `SettleDock` reads it.
@@ -1607,33 +1549,35 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
         drives: false,
     });
     settle(&mut rig.app);
-    assert!(
-        !disabled(&rig),
-        "docked at the station with the fine in hand: the button reads enabled"
+    assert_eq!(
+        gate(&mut rig),
+        (Display::Flex, false),
+        "docked at the station with the fine in hand: the button is live"
     );
 
-    // Docked with the balance one short, a settle command raised past the
-    // button, which a short balance disables, is refused on the Map line.
+    // Docked with the balance one short, the button is disabled with the
+    // fine in red, and a settle command raised past it is refused.
     rig.app
         .world_mut()
         .get_mut::<ShipCredits>(player)
         .unwrap()
         .0 = fine - 1;
+    settle(&mut rig.app);
+    assert_eq!(
+        gate(&mut rig),
+        (Display::Flex, true),
+        "a short balance disables the button"
+    );
+    assert_eq!(
+        fine_tone(&mut rig),
+        UiColorType::Danger,
+        "a short balance paints the fine red"
+    );
+    take_cues(&mut rig.app);
     rig.app.world_mut().write_message(StanceSettleCommand {
         civilization: enemy,
     });
     rig.app.update();
-    let refusal = settle_refusal_text(&enemy.name(), fine, fine - 1);
-    assert_eq!(
-        notice(&rig),
-        Some((ActionOutcomeType::Refused, refusal.clone())),
-        "a short balance is refused on the Map notice"
-    );
-    assert_eq!(
-        line(&mut rig),
-        (refusal, UiColorType::Danger),
-        "the Map line paints the refusal in red"
-    );
     assert_eq!(
         take_cues(&mut rig.app),
         [UiSfx::EditorDeny],
@@ -1665,11 +1609,6 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
         StanceType::Enemy,
         "a refusal settles nothing"
     );
-    assert_eq!(
-        hint(&mut rig),
-        settle_refusal_text(&enemy.name(), fine, fine - 1),
-        "docked with the balance short: the row's hint gives the reason"
-    );
 
     rig.app
         .world_mut()
@@ -1677,28 +1616,21 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
         .unwrap()
         .0 = fine;
     settle(&mut rig.app);
-    let button = find_button(&mut rig);
-    assert!(
-        rig.app.world().get::<InteractionDisabled>(button).is_none(),
-        "the fine in hand again: the button reads enabled"
-    );
     assert_eq!(
-        hint(&mut rig),
-        format!(
-            "Pay {}: {} returns to NEUTRAL.",
-            cr_text(u64::from(fine)),
-            enemy.name()
-        ),
-        "docked with the fine in hand: the row's hint says what paying does"
+        gate(&mut rig),
+        (Display::Flex, false),
+        "the fine in hand again: the button is live"
+    );
+    assert_ne!(
+        fine_tone(&mut rig),
+        UiColorType::Danger,
+        "the fine in hand: the fine no longer reads red"
     );
     assert!(!dock_line(&mut rig), "docked: no Dock line stands");
-    assert_eq!(
-        rig_rect(&rig, button).center(),
-        at,
-        "the shown notice never moves the block beside it"
-    );
     take_cues(&mut rig.app);
 
+    let button = find_button(&mut rig);
+    let at = rig_rect(&rig, button).center();
     click_at(&mut rig, at);
     settle(&mut rig.app);
 
@@ -1725,25 +1657,10 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
         }],
         "the paid fine raises one stance step and the refusals before it none"
     );
-    let settled = format!(
-        "settled with {} for {}",
-        enemy.name(),
-        cr_text(u64::from(fine))
-    );
-    assert_eq!(
-        notice(&rig),
-        Some((ActionOutcomeType::Done, settled.clone())),
-        "the settlement is reported on the Map notice"
-    );
-    assert_eq!(
-        line(&mut rig),
-        (settled, UiColorType::Nominal),
-        "the Map line paints the settlement in green"
-    );
     assert_eq!(
         take_cues(&mut rig.app),
-        [UiSfx::MenuSelect],
-        "a settlement clicks once: the press is silent"
+        [UiSfx::MenuFocus, UiSfx::MenuSelect],
+        "the pointer's hover tick, then one settlement click: the press is silent"
     );
     settle(&mut rig.app);
     assert!(

@@ -57,6 +57,7 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_sound::prelude::*;
 use nova_ui::{
+    prelude::{control_row, divider, inspector, panel_paint, text, text_toned, TextRole},
     screen::drive_wheel_scroll,
     theme::UiColorType,
     widget::{
@@ -67,10 +68,7 @@ use nova_ui::{
 use crate::{
     icons::{icon_node, InterfaceIcons},
     inventory::{category_color, category_label, chip_paint, FILTER_ORDER},
-    pane::{
-        compact_button, control_row, divider, panel_paint, play_outcome_cue, refusable_button,
-        side_panel, themed_label, ActionOutcomeType, InterfacePaneBody, InterfacePaneType,
-    },
+    pane::{play_outcome_cue, ActionOutcomeType, InterfacePaneBody, InterfacePaneType},
 };
 
 /// Glob-import surface: `use nova_interface::craft::prelude::*`.
@@ -476,7 +474,7 @@ pub(crate) fn spawn_craft_open_button(bar: &mut ChildSpawnerCommands) {
     .with_children(|slot| {
         slot.spawn((
             Name::new(INVENTORY_CRAFT),
-            button(ButtonSpec::new("Craft").fit()),
+            button(ButtonSpec::control("Craft")),
         ))
         .observe(on_craft_open);
     });
@@ -571,7 +569,7 @@ pub(crate) fn craft_body(body: &mut ChildSpawnerCommands) {
                             ..control_row(JustifyContent::FlexStart)
                         },
                     ));
-                    row.spawn((Name::new(CRAFT_BACK), button(ButtonSpec::new("Back").fit())))
+                    row.spawn((Name::new(CRAFT_BACK), button(ButtonSpec::control("Back"))))
                         .observe(on_craft_back);
                 });
                 left.spawn((
@@ -597,7 +595,7 @@ pub(crate) fn craft_body(body: &mut ChildSpawnerCommands) {
                 ));
             });
         split
-            .spawn((Name::new("CraftCard"), side_panel(Overflow::clip())))
+            .spawn((Name::new("CraftCard"), inspector(Overflow::clip())))
             .with_children(|card| {
                 card.spawn((
                     CraftFocusCard::default(),
@@ -634,16 +632,16 @@ fn spawn_batch_form(card: &mut ChildSpawnerCommands) {
             ..control_row(JustifyContent::FlexStart)
         })
         .with_children(|row| {
-            row.spawn(themed_label("Batches", 12.0, UiColorType::TextBody));
+            row.spawn(text("Batches", TextRole::Body));
             row.spawn((
                 Name::new(CRAFT_BATCHES),
                 CraftBatchField::Count,
-                themed_label("1", 15.0, UiColorType::Text),
+                text("1", TextRole::Value),
                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
             ));
             row.spawn((
                 CraftBatchField::Most,
-                themed_label("", 15.0, UiColorType::Text),
+                text("", TextRole::Value),
                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
                 Node {
                     flex_grow: 1.0,
@@ -652,7 +650,7 @@ fn spawn_batch_form(card: &mut ChildSpawnerCommands) {
             ));
             row.spawn((
                 Name::new(CRAFT_MAX),
-                compact_button(ButtonSpec::new("Max").fit().ghost()),
+                button(ButtonSpec::control("Max").ghost()),
             ))
             .observe(on_craft_max);
         });
@@ -670,9 +668,14 @@ fn spawn_batch_form(card: &mut ChildSpawnerCommands) {
             slider_track(0.0),
         ))
         .observe(on_craft_slider);
-        refusable_button(form, CRAFT_BUTTON.to_string(), "Craft", None)
-            .insert(CraftStartButton)
-            .observe(on_craft_start);
+        form.spawn((
+            Name::new(CRAFT_BUTTON),
+            button(ButtonSpec::control("Craft").primary()),
+            // The start can be refused, so its result plays the cue.
+            ButtonCueType::Owned,
+            CraftStartButton,
+        ))
+        .observe(on_craft_start);
     });
 }
 
@@ -704,7 +707,7 @@ fn spawn_job_row(body: &mut ChildSpawnerCommands) {
             .with_children(|line| {
                 line.spawn((
                     CraftJobField::Label,
-                    themed_label("", 13.0, UiColorType::Text),
+                    text("", TextRole::Value),
                     TextLayout::new(Justify::Left, LineBreak::NoWrap),
                     Node {
                         flex_grow: 1.0,
@@ -716,7 +719,7 @@ fn spawn_job_row(body: &mut ChildSpawnerCommands) {
                 ));
                 line.spawn((
                     CraftJobField::Time,
-                    themed_label("", 12.0, UiColorType::TextBody),
+                    text("", TextRole::Body),
                     TextLayout::new(Justify::Right, LineBreak::NoWrap),
                     Node {
                         flex_shrink: 0.0,
@@ -725,7 +728,7 @@ fn spawn_job_row(body: &mut ChildSpawnerCommands) {
                 ));
                 line.spawn((
                     Name::new(CRAFT_CANCEL),
-                    compact_button(ButtonSpec::new("Cancel").fit().ghost()),
+                    button(ButtonSpec::control("Cancel").ghost()),
                 ))
                 .observe(on_craft_cancel);
             });
@@ -904,11 +907,7 @@ pub(crate) fn update_craft_view(
             commands.entity(panel).with_children(|panel| match &card {
                 Some(card) => spawn_card(panel, card),
                 None => {
-                    panel.spawn(themed_label(
-                        "No recipe is loaded.",
-                        13.0,
-                        UiColorType::TextMuted,
-                    ));
+                    panel.spawn(text("No recipe is loaded.", TextRole::Label));
                 }
             });
             drawn.0 = Some(card.clone());
@@ -1033,10 +1032,7 @@ fn filter_chip(
                 16.0,
             ));
         }
-        chip_node.spawn((
-            themed_label(label, 12.0, UiColorType::TextBody),
-            Pickable::IGNORE,
-        ));
+        chip_node.spawn((text(label, TextRole::Body), Pickable::IGNORE));
     });
 }
 
@@ -1052,7 +1048,7 @@ fn spawn_tile(grid: &mut ChildSpawnerCommands, tile: &CraftTileView, icons: &Int
         (false, false) => (UiColorType::TextSecondary, 0.1, 0.6),
         (false, true) => (UiColorType::TextSecondary, 0.04, 0.25),
     };
-    let text = |color| if muted { UiColorType::TextMuted } else { color };
+    let tone = |color| if muted { UiColorType::TextMuted } else { color };
     grid.spawn((
         Name::new(craft_tile_name(&tile.recipe)),
         Button,
@@ -1082,11 +1078,15 @@ fn spawn_tile(grid: &mut ChildSpawnerCommands, tile: &CraftTileView, icons: &Int
         };
         cell.spawn(icon_node(icons.category(tile.category), tint, 22.0));
         cell.spawn((
-            themed_label(&tile.name, 13.0, text(UiColorType::Text)),
+            text_toned(&tile.name, TextRole::Value, tone(UiColorType::Text)),
             Pickable::IGNORE,
         ));
         cell.spawn((
-            themed_label(&tile.yield_line, 11.0, text(UiColorType::TextBody)),
+            text_toned(
+                &tile.yield_line,
+                TextRole::Label,
+                tone(UiColorType::TextBody),
+            ),
             TextLayout::new(Justify::Left, LineBreak::NoWrap),
             Pickable::IGNORE,
         ));
@@ -1098,8 +1098,8 @@ fn spawn_card(panel: &mut ChildSpawnerCommands, card: &CraftCardView) {
     panel
         .spawn(control_row(JustifyContent::SpaceBetween))
         .with_children(|head| {
-            head.spawn(themed_label(&card.title, 14.0, UiColorType::Text));
-            head.spawn(themed_label(card.site, 11.0, UiColorType::TextSecondary));
+            head.spawn(text(&card.title, TextRole::Title));
+            head.spawn(text(card.site, TextRole::Label));
         });
     panel.spawn(divider());
     for row in &card.rows {
@@ -1111,8 +1111,8 @@ fn spawn_card(panel: &mut ChildSpawnerCommands, card: &CraftCardView) {
         panel
             .spawn(control_row(JustifyContent::SpaceBetween))
             .with_children(|line| {
-                line.spawn(themed_label(&row.name, 12.0, UiColorType::TextBody));
-                line.spawn(themed_label(&row.value, 12.0, tone));
+                line.spawn(text(&row.name, TextRole::Body));
+                line.spawn(text_toned(&row.value, TextRole::Value, tone));
             });
     }
 }

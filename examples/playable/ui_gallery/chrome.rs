@@ -177,15 +177,6 @@ pub fn table_head(p: &mut ChildSpawnerCommands, columns: &[(f32, &str)]) {
     });
 }
 
-/// A button sized for a narrow side panel or inspector.
-pub fn compact_button(spec: ButtonSpec) -> impl Bundle {
-    button(ButtonSpec {
-        min_height: 22.0,
-        font_size: 12.0,
-        ..spec
-    })
-}
-
 /// The fill and border of a pane's panel.
 pub fn panel_paint() -> impl Bundle {
     (
@@ -335,11 +326,6 @@ pub fn fact(c: &mut ChildSpawnerCommands, label: &str, value: &str) {
     });
 }
 
-/// A small tag chip, the badge family at the panel's smallest size.
-pub fn tag(kind: BadgeKind, label: &str) -> impl Bundle {
-    badge(kind, label)
-}
-
 /// A filter chip: the icon and the word, lit when current.
 pub fn chip(
     bar: &mut ChildSpawnerCommands,
@@ -409,7 +395,7 @@ pub fn interface_card(
             panel(),
         ))
         .with_children(|card| {
-            card.spawn((ZIndex(1), panel_head(title, None)))
+            card.spawn((ZIndex(1), panel_head(title, &[])))
                 .with_children(|head| {
                     if let Some(clock) = clock {
                         head.spawn(Node {
@@ -470,7 +456,7 @@ pub fn menu_card(
             panel(),
         ))
         .with_children(|card| {
-            card.spawn(panel_head(title, Some(tag)));
+            card.spawn(panel_head(title, &[tag]));
             card.spawn(Node {
                 flex_grow: 1.0,
                 min_height: px(0),
@@ -544,7 +530,7 @@ pub fn pane_footer(
                     .with_children(|hints| {
                         for (key, verb) in keys {
                             hints.spawn(legend_entry()).with_children(|h| {
-                                h.spawn(key_chip(key, 11.0));
+                                h.spawn(key_chip(key));
                                 h.spawn(text(verb, 12.0, UiColorType::TextBody));
                             });
                         }

@@ -26,13 +26,13 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::{OpenWorldSession, StationBerth};
 use nova_ship::prelude::*;
 use nova_ui::{
+    prelude::{button, control_row, divider, text, TextRole},
     theme::UiColorType,
     widget::{ButtonSpec, ThemedFill, ThemedRadius},
 };
 use nova_world_base::prelude::find_rescue_station;
 
 use super::{design_section_code, ShipRuntime};
-use crate::pane::{compact_button, control_row, divider, themed_label};
 
 /// The Distress block, hidden unless the player ship is stranded or runs a
 /// call.
@@ -86,7 +86,7 @@ pub(crate) fn spawn_ship_rescue(panel: &mut ChildSpawnerCommands) {
         ))
         .with_children(|block| {
             block.spawn(divider());
-            block.spawn(themed_label("Distress", 13.0, UiColorType::Accent));
+            block.spawn(text("Distress", TextRole::Heading));
             block
                 .spawn((
                     ShipRescuePart::Offer,
@@ -97,16 +97,13 @@ pub(crate) fn spawn_ship_rescue(panel: &mut ChildSpawnerCommands) {
                     },
                 ))
                 .with_children(|offer| {
-                    offer.spawn((
-                        ShipRescueField::Reasons,
-                        themed_label("", 11.0, UiColorType::TextSecondary),
-                    ));
+                    offer.spawn((ShipRescueField::Reasons, text("", TextRole::Label)));
                     offer
                         .spawn(control_row(JustifyContent::FlexStart))
                         .with_children(|line| {
                             line.spawn((
                                 ShipRescueField::Bill,
-                                themed_label("", 12.0, UiColorType::TextBody),
+                                text("", TextRole::Body),
                                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
                                 Node {
                                     flex_grow: 1.0,
@@ -118,7 +115,7 @@ pub(crate) fn spawn_ship_rescue(panel: &mut ChildSpawnerCommands) {
                             ));
                             line.spawn((
                                 Name::new("ShipSosCall"),
-                                compact_button(ButtonSpec::new("Call SOS").fit()),
+                                button(ButtonSpec::control("Call SOS")),
                             ))
                             .observe(on_sos_button);
                         });
@@ -137,7 +134,7 @@ pub(crate) fn spawn_ship_rescue(panel: &mut ChildSpawnerCommands) {
                         .spawn(control_row(JustifyContent::FlexStart))
                         .with_children(|line| {
                             line.spawn((
-                                themed_label("SOS", 12.0, UiColorType::Text),
+                                text("SOS", TextRole::Value),
                                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
                                 Node {
                                     flex_grow: 1.0,
@@ -148,7 +145,7 @@ pub(crate) fn spawn_ship_rescue(panel: &mut ChildSpawnerCommands) {
                             ));
                             line.spawn((
                                 ShipRescueField::Time,
-                                themed_label("", 12.0, UiColorType::TextBody),
+                                text("", TextRole::Body),
                                 TextLayout::new(Justify::Right, LineBreak::NoWrap),
                                 Node {
                                     flex_shrink: 0.0,
@@ -157,7 +154,7 @@ pub(crate) fn spawn_ship_rescue(panel: &mut ChildSpawnerCommands) {
                             ));
                             line.spawn((
                                 Name::new("ShipSosCancel"),
-                                compact_button(ButtonSpec::new("Cancel").fit().ghost()),
+                                button(ButtonSpec::control("Cancel").ghost()),
                             ))
                             .observe(on_sos_cancel_button);
                         });

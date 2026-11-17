@@ -13,6 +13,8 @@ use bevy::{
 };
 use nova_ui::{prelude::*, theme::UiColorType};
 
+// The gallery keeps its own fixed-size mock helpers; they shadow the kit's.
+use crate::chrome::{cell, chip, control_row, divider, panel_paint, text};
 use crate::{
     chrome::*,
     data::{delta_percent, thousands, Category, Ware, OWN_HOLDS, STORAGE_CAP_KG, WARES},
@@ -377,11 +379,11 @@ fn deal_badge(side: TradeSide, delta: i32) -> impl Bundle {
         TradeSide::Storage => unreachable!("the storage column shows no price"),
     };
     let kind = match gain {
-        1 => BadgeKind::Green,
-        -1 => BadgeKind::Amber,
-        _ => BadgeKind::Mute,
+        1 => UiColorType::Nominal,
+        -1 => UiColorType::Accent,
+        _ => UiColorType::TextSecondary,
     };
-    badge(kind, &format!("{delta:+}%"))
+    tag(&format!("{delta:+}%"), kind)
 }
 
 /// The MARKET strip: the best buyer and the cheapest seller, the restock
@@ -422,33 +424,24 @@ fn market_strip(stores: &mut ChildSpawnerCommands, market: &MarketState) {
                 .with_children(|row| {
                     row.spawn(text("MARKET", 11.0, UiColorType::TextMuted));
                     row.spawn(text("Buys", 12.0, UiColorType::TextBody));
-                    row.spawn(tag(
-                        BadgeKind::Amber,
-                        &format!(
+                    row.spawn(tag(&format!(
                             "{} {:+}%",
                             pays_most.name,
                             delta_percent(pays_most.bid, pays_most.reference)
-                        ),
-                    ));
+                        ), UiColorType::Accent));
                     row.spawn(text("Sells", 12.0, UiColorType::TextBody));
-                    row.spawn(tag(
-                        BadgeKind::Green,
-                        &format!(
+                    row.spawn(tag(&format!(
                             "{} {:+}%",
                             cheapest.name,
                             delta_percent(cheapest.ask, cheapest.reference)
-                        ),
-                    ));
+                        ), UiColorType::Nominal));
                     row.spawn(Node {
                         flex_grow: 1.0,
                         ..default()
                     });
                     row.spawn((
                         Name::new(MARKET_REFUSED),
-                        tag(
-                            BadgeKind::Red,
-                            &format!("REFUSED {} min", market.refused_min),
-                        ),
+                        tag(&format!("REFUSED {} min", market.refused_min), UiColorType::Danger),
                     ));
                 });
             strip
@@ -498,14 +491,17 @@ fn inspector(side: &mut ChildSpawnerCommands, icons: &GalleryIcons, market: &Mar
         ..control_row(JustifyContent::FlexStart)
     })
     .with_children(|tags| {
-        tags.spawn(tag(BadgeKind::Mute, &w.category.label().to_uppercase()));
         tags.spawn(tag(
-            BadgeKind::Blue,
+            &w.category.label().to_uppercase(),
+            UiColorType::TextSecondary,
+        ));
+        tags.spawn(tag(
             match trade_side {
                 TradeSide::Tender => "IN HOLD",
                 TradeSide::Trader => "IN STOCK",
                 TradeSide::Storage => "IN STORAGE",
             },
+            UiColorType::Info,
         ));
     });
     side.spawn(divider());
@@ -560,40 +556,28 @@ fn inspector(side: &mut ChildSpawnerCommands, icons: &GalleryIcons, market: &Mar
         let can_sell = market.ship[i] > 0;
         let mut buy = row.spawn((
             Name::new(MARKET_BUY),
-            acts(
-                compact_button(ButtonSpec::new("Buy").fit().primary()),
-                Click::Buy,
-            ),
+            acts(button(ButtonSpec::control("Buy").primary()), Click::Buy),
         ));
         if !can_buy {
             buy.insert((InteractionDisabled, Tooltip("Nothing in stock".into())));
         }
         let mut sell = row.spawn((
             Name::new(MARKET_SELL),
-            acts(
-                compact_button(ButtonSpec::new("Sell").fit().primary()),
-                Click::Sell,
-            ),
+            acts(button(ButtonSpec::control("Sell").primary()), Click::Sell),
         ));
         if !can_sell {
             sell.insert((InteractionDisabled, Tooltip("Nothing in the hold".into())));
         }
         let mut buy_all = row.spawn((
             Name::new(MARKET_BUY_ALL),
-            acts(
-                compact_button(ButtonSpec::new("Buy all").fit()),
-                Click::BuyAll,
-            ),
+            acts(button(ButtonSpec::control("Buy all")), Click::BuyAll),
         ));
         if !can_buy {
             buy_all.insert(InteractionDisabled);
         }
         let mut sell_all = row.spawn((
             Name::new(MARKET_SELL_ALL),
-            acts(
-                compact_button(ButtonSpec::new("Sell all").fit()),
-                Click::SellAll,
-            ),
+            acts(button(ButtonSpec::control("Sell all")), Click::SellAll),
         ));
         if !can_sell {
             sell_all.insert(InteractionDisabled);
@@ -622,7 +606,7 @@ fn draft_form(side: &mut ChildSpawnerCommands, max: u32) {
             cell.spawn((
                 Name::new("Gallery Draft Quantity"),
                 MarketDraftField,
-                text_field(TextFieldSpec::new("1").max_chars(5).dense()),
+                text_field(TextFieldSpec::new("1").max_chars(5).tool()),
             ));
         });
         row.spawn((
@@ -634,10 +618,7 @@ fn draft_form(side: &mut ChildSpawnerCommands, max: u32) {
         ));
         row.spawn((
             Name::new("Gallery Draft All"),
-            acts(
-                compact_button(ButtonSpec::new("All").fit().ghost()),
-                Click::DraftAll,
-            ),
+            acts(button(ButtonSpec::control("All").ghost()), Click::DraftAll),
         ));
     });
     side.spawn((
@@ -710,20 +691,14 @@ fn storage_inspector(side: &mut ChildSpawnerCommands, market: &MarketState, i: u
     .with_children(|row| {
         let mut store = row.spawn((
             Name::new(MARKET_STORE),
-            acts(
-                compact_button(ButtonSpec::new("Store").fit().primary()),
-                Click::Store,
-            ),
+            acts(button(ButtonSpec::control("Store").primary()), Click::Store),
         ));
         if market.ship[i] == 0 {
             store.insert((InteractionDisabled, Tooltip("Nothing in the hold".into())));
         }
         let mut take = row.spawn((
             Name::new(MARKET_TAKE),
-            acts(
-                compact_button(ButtonSpec::new("Take").fit().primary()),
-                Click::Take,
-            ),
+            acts(button(ButtonSpec::control("Take").primary()), Click::Take),
         ));
         if market.storage[i] == 0 {
             take.insert((InteractionDisabled, Tooltip("Nothing in storage".into())));

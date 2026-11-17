@@ -9,7 +9,10 @@
 
 use bevy::{ecs::relationship::RelatedSpawner, platform::collections::HashSet, prelude::*};
 
-use super::{ThemedRadius, UiText};
+use super::{
+    metrics::{GAP, GAP_L, GAP_S, TAG_H, TEXT_LABEL, TEXT_TITLE},
+    ThemedRadius, UiText,
+};
 use crate::theme::{ActiveUiTheme, UiMetric, BORDER_W};
 
 /// Marks a panel surface, so the reconciler paints it and repaints it live on a
@@ -104,34 +107,54 @@ pub struct PanelHeadRule;
 #[derive(Component)]
 pub struct PanelHeadTag;
 
-/// A panel header row: an uppercase title, a rule that fills the row, and an
-/// optional trailing tag chip.
-pub fn panel_head(title: &str, tag: Option<&str>) -> impl Bundle {
+/// A panel header row: an uppercase title, a rule that fills the row, and one
+/// trailing tag chip per entry of `tags`. Every chip is
+/// [`TAG_H`](super::metrics::TAG_H) high.
+pub fn panel_head(title: &str, tags: &[&str]) -> impl Bundle {
+    head_row(title, None, tags)
+}
+
+/// A [`panel_head`] whose title stands in a fixed `title_w` px slot, for a
+/// head whose title changes in place: what stands right of the title keeps
+/// its x whichever title is shown.
+pub fn panel_head_fixed(title: &str, title_w: f32, tags: &[&str]) -> impl Bundle {
+    head_row(title, Some(title_w), tags)
+}
+
+fn head_row(title: &str, title_w: Option<f32>, tags: &[&str]) -> impl Bundle {
     let title = title.to_uppercase();
-    let tag = tag.map(str::to_string);
+    let tags: Vec<String> = tags.iter().map(|tag| tag.to_uppercase()).collect();
     (
         ThemedPanelHead,
         Node {
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: px(10),
-            padding: UiRect::axes(px(15), px(11)),
+            column_gap: px(GAP),
+            padding: UiRect::axes(px(GAP_L), px(GAP)),
             border: UiRect::bottom(px(BORDER_W)),
             ..default()
         },
         BorderColor::all(Color::NONE),
         Children::spawn(SpawnWith(move |parent: &mut RelatedSpawner<ChildOf>| {
-            parent.spawn((
+            let mut title = parent.spawn((
                 PanelHeadTitle,
                 UiText,
                 Text::new(title),
+                TextLayout::new(Justify::Left, LineBreak::NoWrap),
                 TextFont {
-                    font_size: FontSize::Px(13.0),
+                    font_size: FontSize::Px(TEXT_TITLE),
                     ..default()
                 },
                 TextColor(Color::NONE),
                 // Flat, no drop shadow - imprinted on the screen, not floating.
             ));
+            if let Some(width) = title_w {
+                title.insert(Node {
+                    width: px(width),
+                    flex_shrink: 0.0,
+                    ..default()
+                });
+            }
             parent.spawn((
                 PanelHeadRule,
                 Node {
@@ -141,29 +164,39 @@ pub fn panel_head(title: &str, tag: Option<&str>) -> impl Bundle {
                 },
                 BackgroundColor(Color::NONE),
             ));
-            if let Some(tag) = tag {
-                parent.spawn((
-                    PanelHeadTag,
-                    Node {
-                        padding: UiRect::axes(px(7.0), px(2.0)),
-                        border: UiRect::all(px(BORDER_W)),
-                        ..default()
-                    },
-                    ThemedRadius::control(),
-                    BorderColor::all(Color::NONE),
-                    children![(
-                        PanelHeadTitle,
-                        UiText,
-                        Text::new(tag),
-                        TextFont {
-                            font_size: FontSize::Px(10.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                    )],
-                ));
+            for tag in tags {
+                parent.spawn(panel_head_tag(&tag));
             }
         })),
+    )
+}
+
+/// One trailing chip of a [`panel_head`], for a head that changes its tags
+/// live: spawn it into the head's row.
+pub fn panel_head_tag(word: &str) -> impl Bundle {
+    (
+        PanelHeadTag,
+        Node {
+            height: px(TAG_H),
+            padding: UiRect::axes(px(GAP_S), px(0)),
+            border: UiRect::all(px(BORDER_W)),
+            align_items: AlignItems::Center,
+            flex_shrink: 0.0,
+            ..default()
+        },
+        ThemedRadius::control(),
+        BorderColor::all(Color::NONE),
+        children![(
+            PanelHeadTitle,
+            UiText,
+            Text::new(word.to_uppercase()),
+            TextLayout::new(Justify::Left, LineBreak::NoWrap),
+            TextFont {
+                font_size: FontSize::Px(TEXT_LABEL),
+                ..default()
+            },
+            TextColor(Color::NONE),
+        )],
     )
 }
 
@@ -176,16 +209,44 @@ pub(super) fn reconcile_panel_head_themes(
     theme: Res<ActiveUiTheme>,
     mut q_head: Query<(Entity, &mut BorderColor, &Children), With<ThemedPanelHead>>,
     added: Query<Entity, Added<ThemedPanelHead>>,
+    added_tags: Query<Entity, Added<PanelHeadTag>>,
+    q_tag_all: Query<Entity, With<PanelHeadTag>>,
     mut q_title: Query<&mut TextColor, With<PanelHeadTitle>>,
     mut q_rule: Query<&mut BackgroundColor, With<PanelHeadRule>>,
     mut q_tag: Query<(&mut BorderColor, &Children), (With<PanelHeadTag>, Without<ThemedPanelHead>)>,
 ) {
     let restyle_all = theme.is_changed();
     let just_added: HashSet<Entity> = added.iter().collect();
-    if !restyle_all && just_added.is_empty() {
+    if !restyle_all && just_added.is_empty() && added_tags.is_empty() {
         return;
     }
     let paint = theme.panel_head();
+    let paint_tag =
+        |tag: Entity,
+         q_tag: &mut Query<
+            (&mut BorderColor, &Children),
+            (With<PanelHeadTag>, Without<ThemedPanelHead>),
+        >,
+         q_title: &mut Query<&mut TextColor, With<PanelHeadTitle>>| {
+            if let Ok((mut tag_border, tag_children)) = q_tag.get_mut(tag) {
+                tag_border.set_all(paint.tag.with_alpha(0.4));
+                for &legend in tag_children {
+                    if let Ok(mut color) = q_title.get_mut(legend) {
+                        *color = TextColor(paint.tag);
+                    }
+                }
+            }
+        };
+    // A tag a head spawns after its own first frame (a live mode tag), or
+    // every tag on a theme change, wherever in the head it sits.
+    let tags: Vec<Entity> = if restyle_all {
+        added_tags.iter().chain(q_tag_all.iter()).collect()
+    } else {
+        added_tags.iter().collect()
+    };
+    for tag in tags {
+        paint_tag(tag, &mut q_tag, &mut q_title);
+    }
     for (entity, mut border, children) in &mut q_head {
         if !restyle_all && !just_added.contains(&entity) {
             continue;
@@ -198,14 +259,7 @@ pub(super) fn reconcile_panel_head_themes(
             if let Ok(mut bg) = q_rule.get_mut(child) {
                 *bg = paint.rule.into();
             }
-            if let Ok((mut tag_border, tag_children)) = q_tag.get_mut(child) {
-                tag_border.set_all(paint.tag.with_alpha(0.4));
-                for &legend in tag_children {
-                    if let Ok(mut color) = q_title.get_mut(legend) {
-                        *color = TextColor(paint.tag);
-                    }
-                }
-            }
+            paint_tag(child, &mut q_tag, &mut q_title);
         }
     }
 }
@@ -253,7 +307,7 @@ mod tests {
     #[test]
     fn panel_head_repaints_on_theme_change() {
         let mut app = themed_app(PHOSPHOR_THEME_ID);
-        let head = app.world_mut().spawn(panel_head("Status", None)).id();
+        let head = app.world_mut().spawn(panel_head("Status", &[])).id();
         app.update();
 
         let title_of = |app: &mut App, head: Entity| {

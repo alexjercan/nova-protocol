@@ -76,29 +76,21 @@ pub const ICON: f32 = 44.0;
 /// The hairline every themed border is DRAWN at, in logical pixels.
 ///
 /// Layout, not paint, which is why it is a `const` beside [`ICON`] rather than
-/// a role: a `Node`'s `border` is a box-model size, so it changes what the
-/// layout reserves and how the text inside sits. Both shipped themes ask for
-/// 1px ([`UiMetric::BorderWidth`]), and a theme that wanted 2px would reflow
-/// every screen rather than restyle it.
+/// a theme value: a `Node`'s `border` is a box-model size, so it changes what
+/// the layout reserves and how the text inside sits. A theme that set it would
+/// reflow every screen rather than restyle it.
 pub const BORDER_W: f32 = 1.0;
 
-/// The sizes of a dense tool surface, in logical px at UI scale 1.
-///
-/// The menu screens and the HUD are full-screen compositions with their own
-/// large type. A tool surface shows many controls at once, so it shares these.
+/// The editor's own spacing, in logical px at UI scale 1. Its control, row and
+/// text sizes are the kit's ([`crate::widget::metrics`]), so the editor and the
+/// interface share one control size.
 pub mod density {
-    /// A control: a button, a field, a select, a tab.
-    pub const CONTROL_H: f32 = 24.0;
-    /// A row of a tree or a list.
-    pub const ROW_H: f32 = 20.0;
+    pub use crate::widget::metrics::{CONTROL_H, ROW_H, TEXT, TEXT_LABEL};
+
     /// The inside margin of a panel.
     pub const PANEL_PAD: f32 = 5.0;
     /// The gap between two controls in a row or a column.
     pub const GAP: f32 = 4.0;
-    /// The text of a control or a row.
-    pub const TEXT: f32 = 12.0;
-    /// A label, a hint, a count.
-    pub const TEXT_SMALL: f32 = 11.0;
 }
 
 /// Semantic HUD accents: the meaning-carrying gameplay colours (threat, ally,

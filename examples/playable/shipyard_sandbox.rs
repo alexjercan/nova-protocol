@@ -86,9 +86,9 @@ use nova_input::prelude::InputSource;
 use nova_protocol::{
     nova_debug::diagnostics,
     nova_interface::{
-        pane::{ActionOutcomeType, InterfacePaneType},
+        pane::InterfacePaneType,
         ship::{ShipRuntime, ShipViewSubject},
-        station::{HullBuyCommand, StationRuntime, HULL_INFO_CLOSE},
+        station::{HullBuyCommand, HULL_INFO_CLOSE},
     },
     prelude::*,
 };
@@ -178,8 +178,6 @@ struct Sandbox {
     dock: StationDock,
     /// The connection the player held before the buy.
     released: Option<Entity>,
-    /// The Station pane's note after the buy.
-    buy_note: Option<String>,
     /// The bought hull's price, as the buy plans it.
     price_cr: Option<u32>,
 }
@@ -288,17 +286,6 @@ fn drive_the_sandbox(world: &mut World) {
             let (Some(player), Some(station)) = (the_player(world), chosen_station(world)) else {
                 return;
             };
-            if world.resource::<Sandbox>().buy_note.is_none() {
-                let note = world
-                    .resource::<StationRuntime>()
-                    .notice
-                    .text()
-                    .map(str::to_string);
-                if let Some(note) = note {
-                    info!("shipyard sandbox: the note line reads '{note}'");
-                    world.resource_mut::<Sandbox>().buy_note = Some(note);
-                }
-            }
             let released = world.resource::<Sandbox>().released;
             let redocked = world
                 .get::<DockedShip>(player)
@@ -985,19 +972,6 @@ mod smoke {
             world.get::<OwnedShipMarker>(left[0]).is_some(),
             "shipyard sandbox: the hull bought is the player's own"
         );
-        let notice = world
-            .resource::<StationRuntime>()
-            .notice
-            .shown()
-            .map(|(outcome, note)| (outcome, note.to_string()));
-        assert_eq!(
-            notice,
-            Some((
-                ActionOutcomeType::Done,
-                format!("boarded {}; your last ship is parked here.", before.name)
-            )),
-            "shipyard sandbox: the notice says the board, as a result"
-        );
         info!(
             "shipyard sandbox: PASS boarded '{}' for 0 cr ({} cr before and after); '{}' parked, \
              owned",
@@ -1109,13 +1083,6 @@ mod smoke {
     fn assert_the_shipyard(world: &mut World) {
         let player = the_player(world).expect("shipyard sandbox: one player ship");
         let station = chosen_station(world).expect("shipyard sandbox: the station stands");
-        let note = world.resource::<Sandbox>().buy_note.clone();
-        assert!(
-            note.as_deref()
-                .is_some_and(|note| note.starts_with("bought ")
-                    && note.ends_with("your last ship is parked here.")),
-            "shipyard sandbox: the buy note says the old ship is parked, got {note:?}"
-        );
         let price_cr = world
             .resource::<Sandbox>()
             .price_cr

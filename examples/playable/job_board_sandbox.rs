@@ -611,7 +611,7 @@ mod smoke {
 
     use nova_protocol::{
         nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
-        nova_interface::{jobs::prelude::*, pane::ActionOutcomeType},
+        nova_interface::jobs::prelude::*,
     };
 
     use super::*;
@@ -695,43 +695,6 @@ mod smoke {
 
     fn completed_count(count: usize) -> Arc<Predicate> {
         when(move |world| world.resource::<Jobs>().completed().len() == count)
-    }
-
-    /// The Jobs notice line shows `outcome` with a text `check` accepts.
-    fn jobs_notice(
-        outcome: ActionOutcomeType,
-        check: impl Fn(&World, &str) -> bool + Send + Sync + 'static,
-    ) -> Arc<Predicate> {
-        when(move |world| {
-            world
-                .resource::<JobsRuntime>()
-                .notice
-                .shown()
-                .is_some_and(|(shown, text)| shown == outcome && check(world, text))
-        })
-    }
-
-    /// The notice reads `accepted: <title>` for the one held job.
-    fn accepted_notice() -> Arc<Predicate> {
-        jobs_notice(ActionOutcomeType::Done, |world, text| {
-            let items = world.resource::<GameItems>();
-            world
-                .resource::<Jobs>()
-                .held()
-                .first()
-                .is_some_and(|job| text == format!("accepted: {}", job.title(items)))
-        })
-    }
-
-    /// The notice reads `handed in ...; balance <the player's balance> ...`.
-    fn handed_in_notice() -> Arc<Predicate> {
-        jobs_notice(ActionOutcomeType::Done, |world, text| {
-            let balance = world
-                .try_query::<(&ShipCredits, &PlayerSpaceshipMarker)>()
-                .and_then(|mut query| query.iter(world).next().map(|(credits, _)| credits.0));
-            text.starts_with("handed in ")
-                && balance.is_some_and(|cr| text.contains(&format!("; balance {}", cr_text(cr))))
-        })
     }
 
     fn ui_node_absent(name: &'static str) -> Arc<Predicate> {
@@ -982,10 +945,7 @@ mod smoke {
                 let row = procurement_row(world);
                 activate_named(world, &format!("{JOB_ACCEPT_PREFIX}{row}"));
             })
-            .until(and(
-                and(held_count(1), accepted_notice()),
-                frames(SETTLE_FRAMES),
-            ))
+            .until(and(held_count(1), frames(SETTLE_FRAMES)))
             .deadline(BEAT_SECS)
             .add()
             .step("job sandbox: accept a second job at another reward")
@@ -1138,10 +1098,7 @@ mod smoke {
         .add()
         .step("job sandbox: hand the job in")
         .on_enter(|world: &mut World| activate_named(world, &format!("{JOB_HAND_IN_PREFIX}0")))
-        .until(and(
-            and(completed_count(1), handed_in_notice()),
-            frames(SETTLE_FRAMES),
-        ))
+        .until(and(completed_count(1), frames(SETTLE_FRAMES)))
         .deadline(BEAT_SECS)
         .add()
         .step("job sandbox: shoot the Jobs tab after the hand-in")

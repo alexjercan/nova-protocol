@@ -10,6 +10,7 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
+    prelude::{control_row, divider, metrics, preview_frame, text, TextRole},
     theme::UiColorType,
     widget::{ThemedImageTint, ThemedText},
 };
@@ -21,10 +22,7 @@ use super::{
     scene::{ShipPanelField, ShipRuntime},
     sections::ShipViewSubject,
 };
-use crate::{
-    icons::{icon_node, InterfaceIcons, SectionIconType},
-    pane::{control_row, divider, panel_preview_frame, themed_label, PANEL_PREVIEW_PX},
-};
+use crate::icons::{icon_node, InterfaceIcons, SectionIconType};
 
 /// The `Name` of the Placing block, for driven runs.
 pub const SHIP_HELD_PANEL: &str = "ShipHeldPanel";
@@ -75,21 +73,18 @@ pub(crate) fn spawn_ship_held_block(panel: &mut ChildSpawnerCommands, icons: &In
             },
         ))
         .with_children(|block| {
-            block.spawn(themed_label("Placing", 13.0, UiColorType::Accent));
-            block.spawn(panel_preview_frame()).with_children(|frame| {
+            block.spawn(text("Placing", TextRole::Heading));
+            block.spawn(preview_frame()).with_children(|frame| {
                 frame.spawn((
                     ShipHeldIcon,
                     icon_node(
                         icons.section(SectionIconType::Hull),
                         SectionIconType::Hull.color(),
-                        PANEL_PREVIEW_PX * 0.75,
+                        metrics::PREVIEW * 0.75,
                     ),
                 ));
             });
-            block.spawn((
-                ShipHeldField::Name,
-                themed_label("", 16.0, UiColorType::Text),
-            ));
+            block.spawn((ShipHeldField::Name, text("", TextRole::Title)));
             block.spawn(divider());
             for (label, field) in [
                 ("Price", ShipHeldField::Price),
@@ -102,7 +97,7 @@ pub(crate) fn spawn_ship_held_block(panel: &mut ChildSpawnerCommands, icons: &In
                     .spawn(control_row(JustifyContent::SpaceBetween))
                     .with_children(|fact| {
                         fact.spawn((
-                            themed_label(label, 12.0, UiColorType::TextMuted),
+                            text(label, TextRole::Label),
                             Node {
                                 flex_shrink: 0.0,
                                 ..default()
@@ -110,7 +105,7 @@ pub(crate) fn spawn_ship_held_block(panel: &mut ChildSpawnerCommands, icons: &In
                         ));
                         fact.spawn((
                             field,
-                            themed_label("", 13.0, UiColorType::Text),
+                            text("", TextRole::Value),
                             TextLayout::new(Justify::Right, LineBreak::NoWrap),
                             Node {
                                 min_width: Val::Px(0.0),
@@ -120,10 +115,7 @@ pub(crate) fn spawn_ship_held_block(panel: &mut ChildSpawnerCommands, icons: &In
                         ));
                     });
             }
-            block.spawn((
-                ShipPanelField::Note,
-                themed_label("", 12.0, UiColorType::TextMuted),
-            ));
+            block.spawn((ShipPanelField::Note, text("", TextRole::Label)));
         });
 }
 

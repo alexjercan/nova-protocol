@@ -196,7 +196,7 @@ fn tinted_text(text: impl Into<String>, size: f32, color: Color) -> impl Bundle 
 }
 
 fn action_button(label: &str, action: LobbyAction) -> impl Bundle {
-    (button(ButtonSpec::new(label)), action)
+    (button(ButtonSpec::control(label).fill()), action)
 }
 
 pub(super) fn spawn_lobby(commands: &mut Commands, model: &LobbyModel, styles: &GameStyles) {

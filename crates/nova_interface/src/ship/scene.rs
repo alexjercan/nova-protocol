@@ -26,6 +26,7 @@ use nova_ship::prelude::{
 };
 use nova_sound::prelude::*;
 use nova_ui::{
+    prelude::{text, TextRole},
     theme::{ActiveUiTheme, UiColorType},
     widget::{
         ButtonCueType, Selected, TextFieldError, TextFieldFocused, TextFieldValue, ThemedBorder,
@@ -42,7 +43,7 @@ use super::{
 };
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
-    pane::{interface_shown, spawn_part_tile, themed_label, InterfacePaneType},
+    pane::{interface_shown, spawn_part_tile, InterfacePaneType},
     terminal::{NovaOsAppInput, NovaOsCloseTransition},
     viewer::{cycle_index, orbit_eye, solid, unlit, zoom_radius, OrbitGesture},
 };
@@ -1215,7 +1216,7 @@ pub(crate) fn spawn_ship_blip(
         ThemedFill::alpha(UiColorType::Background, 0.8),
         Visibility::Hidden,
         ChildOf(badge),
-        children![themed_label(&view.code, 12.0, UiColorType::TextBody)],
+        children![text(&view.code, TextRole::Body)],
     ));
     commands.entity(viewport).add_child(badge);
     badge
@@ -1737,11 +1738,7 @@ pub(crate) fn update_ship_panel(
                 .despawn_related::<Children>()
                 .with_children(|row| match &salvage {
                     Some(parts) if parts.is_empty() => {
-                        row.spawn(themed_label(
-                            "nothing to salvage",
-                            12.0,
-                            UiColorType::TextBody,
-                        ));
+                        row.spawn(text("nothing to salvage", TextRole::Body));
                     }
                     Some(parts) => {
                         for (item, count) in parts {

@@ -241,7 +241,7 @@ const BACK_MAX_W: f32 = 200.0;
 
 /// The one size every bar word is set in.
 fn bar_spec(label: &str) -> ButtonSpec {
-    ButtonSpec::new(label).ghost().dense()
+    ButtonSpec::control(label).ghost()
 }
 
 /// A bar button whose word drops to `narrow` in a small window.
@@ -326,7 +326,7 @@ pub(crate) fn spawn_top_bar(root: &mut RelatedSpawnerCommands<ChildOf>) {
                 Name::new("Play Button"),
                 PlayButton,
                 Tooltip::default(),
-                button(ButtonSpec::new(super::PLAY_LABEL).dense().primary()),
+                button(ButtonSpec::control(super::PLAY_LABEL).primary()),
                 ButtonCueType::Owned,
                 observe(continue_to_simulation),
             ));
@@ -367,7 +367,7 @@ pub(crate) fn spawn_top_bar(root: &mut RelatedSpawnerCommands<ChildOf>) {
             right.spawn((
                 Name::new("Unsaved Mark"),
                 UnsavedMark,
-                line("UNSAVED", density::TEXT_SMALL, UiColorType::Danger),
+                line("UNSAVED", density::TEXT_LABEL, UiColorType::Danger),
                 Node {
                     display: Display::None,
                     flex_shrink: 0.0,

@@ -37,7 +37,7 @@
 //! Pay fine row per civilization it stands Enemy with, paid only while
 //! docked at that station. A Pay fine result, settled or refused, shows on
 //! the pane's notice line over the side panel for four seconds, green or
-//! red, and plays one cue ([`ActionNotice`](crate::pane::ActionNotice)): the
+//! red, and plays one cue ([`ActionCue`](crate::pane::ActionCue)): the
 //! press itself is silent.
 //!
 //! # Module layout
@@ -65,7 +65,6 @@ use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{Chart, JobPostings, Jobs, WorldClock};
 use nova_hud::prelude::PreviewPlugin;
 use nova_sound::prelude::{SoundBank, UiSfx};
-use nova_ui::widget::ThemedText;
 
 pub use self::contacts::{MapContactCode, MapContactKind, MapContacts};
 pub(crate) use self::{app::*, chart::*, contacts::*, scene::*, stance::*};
@@ -76,7 +75,6 @@ pub mod prelude {
     // `pub(crate)` (the module glob above), which rustc rejects as an
     // ambiguous import visibility through `super::`.
     pub use super::{
-        app::MAP_NOTICE,
         chart::stack_chart_labels,
         contacts::{MapContactCode, MapContactKind, MapContacts},
         map_radius_default, map_radius_max, map_ring_radii, map_spread, MAP_RADIUS_MIN,
@@ -201,7 +199,7 @@ impl Plugin for MapPanePlugin {
                 update_map_chart_objectives,
                 update_map_chart_log,
                 update_map_stance_block,
-                update_map_notice,
+                play_map_cue,
                 drive_map_camera,
                 project_map_blips,
                 project_map_chart_labels,
@@ -215,29 +213,15 @@ impl Plugin for MapPanePlugin {
     }
 }
 
-/// Tick the Map's notice line: count its dwell down on the real clock, play
-/// the cue a result owes once the sound bank is present, and paint the line
-/// from the notice. It runs whatever pane shows, like the Station pane's, so
-/// a result raised with the Map closed still plays its one cue.
-pub(crate) fn update_map_notice(
-    time: Res<Time<Real>>,
+/// Play the cue a Map result owes once the sound bank is present. It runs
+/// whatever pane shows, like the Station pane's, so a result raised with the
+/// Map closed still plays its one cue.
+pub(crate) fn play_map_cue(
     mut runtime: ResMut<MapRuntime>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
-    mut q_notice: Query<(&mut Text, &mut ThemedText), With<MapNoticeMarker>>,
 ) {
-    runtime
-        .notice
-        .tick(time.delta_secs(), bank.as_deref(), &mut commands);
-    let (note, tone) = runtime.notice.line();
-    for (mut text, mut themed) in &mut q_notice {
-        if text.0 != note {
-            text.0 = note.to_string();
-        }
-        if themed.color != tone {
-            themed.color = tone;
-        }
-    }
+    runtime.cue.tick(bank.as_deref(), &mut commands);
 }
 
 /// System set for the Map pane's per-frame work.

@@ -13,6 +13,8 @@ use nova_ui::{
     widget::{ThemedRadius, ThemedTextShadow},
 };
 
+// The gallery keeps its own fixed-size mock helpers; they shadow the kit's.
+use crate::chrome::{cell, control_row, text};
 use crate::{
     chart3d::{spawn_backdrop_scene, spawn_chart_scene, spawn_hull_scene, SceneAssets, SceneKind},
     chrome::*,
@@ -118,7 +120,7 @@ fn menu_column(screen: &mut ChildSpawnerCommands) {
             menu.spawn((
                 Name::new(MENU_NEW_GAME),
                 acts(
-                    button(ButtonSpec::new("New Game").menu().primary()),
+                    button(ButtonSpec::menu("New Game").primary().fill()),
                     Click::NewGameStep(NewGameStep::World),
                 ),
             ));
@@ -130,9 +132,9 @@ fn menu_column(screen: &mut ChildSpawnerCommands) {
                 "Mods",
                 "Settings",
             ] {
-                menu.spawn(menu_button(label));
+                menu.spawn(button(ButtonSpec::menu(label).fill()));
             }
-            menu.spawn(button(ButtonSpec::new("Exit").menu().danger()));
+            menu.spawn(button(ButtonSpec::menu("Exit").danger().fill()));
             menu.spawn(Node {
                 width: percent(100),
                 justify_content: JustifyContent::SpaceBetween,
@@ -236,7 +238,10 @@ fn world_step(panel: &mut ChildSpawnerCommands, assets: &mut SceneAssets, new_ga
             })
             .with_child((
                 Name::new(RANDOMIZE),
-                acts(menu_button("Randomize"), Click::Randomize),
+                acts(
+                    button(ButtonSpec::menu("Randomize").fill()),
+                    Click::Randomize,
+                ),
             ));
         });
     spawn_chart_scene(
@@ -266,14 +271,14 @@ fn world_step(panel: &mut ChildSpawnerCommands, assets: &mut SceneAssets, new_ga
         actions.spawn(button_slot(SIDE_SLOT_W)).with_child((
             Name::new(NEW_GAME_CANCEL),
             acts(
-                menu_button("Cancel"),
+                button(ButtonSpec::menu("Cancel").fill()),
                 Click::NewGameStep(NewGameStep::Closed),
             ),
         ));
         actions.spawn(button_slot(MAIN_SLOT_W)).with_child((
             Name::new(NEW_GAME_NEXT),
             acts(
-                button(ButtonSpec::new("Next").menu().primary()),
+                button(ButtonSpec::menu("Next").primary().fill()),
                 Click::NewGameNext,
             ),
         ));
@@ -336,19 +341,22 @@ fn role_step(
     panel.spawn(actions_row()).with_children(|actions| {
         actions.spawn(button_slot(SIDE_SLOT_W)).with_child((
             Name::new(NEW_GAME_BACK),
-            acts(menu_button("Back"), Click::NewGameStep(NewGameStep::World)),
+            acts(
+                button(ButtonSpec::menu("Back").fill()),
+                Click::NewGameStep(NewGameStep::World),
+            ),
         ));
         actions.spawn(button_slot(SIDE_SLOT_W)).with_child((
             Name::new(NEW_GAME_CANCEL),
             acts(
-                menu_button("Cancel"),
+                button(ButtonSpec::menu("Cancel").fill()),
                 Click::NewGameStep(NewGameStep::Closed),
             ),
         ));
         actions.spawn(button_slot(MAIN_SLOT_W)).with_child((
             Name::new(CREATE),
             acts(
-                button(ButtonSpec::new("Create").menu().primary()),
+                button(ButtonSpec::menu("Create").primary().fill()),
                 Click::Create,
             ),
         ));

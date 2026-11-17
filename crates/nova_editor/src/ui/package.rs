@@ -275,7 +275,7 @@ fn spawn_field(
                 flex_shrink: 0.0,
                 ..default()
             },
-            children![words(label, density::TEXT_SMALL, UiColorType::TextMuted)],
+            children![words(label, density::TEXT_LABEL, UiColorType::TextMuted)],
         ));
         row.spawn(Node {
             flex_grow: 1.0,
@@ -301,7 +301,7 @@ fn spawn_settings(body: &mut RelatedSpawnerCommands<ChildOf>, modal: &PackageMod
         Some(Err(reason)) => {
             body.spawn((
                 Name::new("Package Plan Fault"),
-                words(reason.clone(), density::TEXT_SMALL, UiColorType::Danger),
+                words(reason.clone(), density::TEXT_LABEL, UiColorType::Danger),
             ));
         }
         None => {}
@@ -309,7 +309,7 @@ fn spawn_settings(body: &mut RelatedSpawnerCommands<ChildOf>, modal: &PackageMod
     if let Some(Err(reason)) = &modal.outcome {
         body.spawn((
             Name::new("Package Refusal"),
-            words(reason.clone(), density::TEXT_SMALL, UiColorType::Danger),
+            words(reason.clone(), density::TEXT_LABEL, UiColorType::Danger),
         ));
     }
     body.spawn((
@@ -325,13 +325,13 @@ fn spawn_settings(body: &mut RelatedSpawnerCommands<ChildOf>, modal: &PackageMod
     .with_children(|foot| {
         foot.spawn((
             Name::new("Package Cancel"),
-            button(ButtonSpec::new("Cancel").dense().ghost()),
+            button(ButtonSpec::control("Cancel").ghost()),
             ButtonCueType::Back,
             observe(on_close),
         ));
         let mut go = foot.spawn((
             Name::new("Package Button"),
-            button(ButtonSpec::new("Package").dense().primary()),
+            button(ButtonSpec::control("Package").primary()),
             ButtonCueType::Owned,
             observe(on_package),
         ));
@@ -379,7 +379,7 @@ fn spawn_plan(body: &mut RelatedSpawnerCommands<ChildOf>, plan: &PackagePlan) {
             let mut button_row = row.spawn((
                 Name::new(format!("Package Bump {}", bump.label())),
                 PackageBump(bump),
-                button(ButtonSpec::new(label).dense().ghost().fit()),
+                button(ButtonSpec::control(label).ghost()),
                 ButtonCueType::Owned,
                 observe(on_bump),
             ));
@@ -396,7 +396,7 @@ fn spawn_plan(body: &mut RelatedSpawnerCommands<ChildOf>, plan: &PackagePlan) {
             Name::new("Package Bump Note"),
             words(
                 "a bump steps a version of up to three numbers, like 1.0.0",
-                density::TEXT_SMALL,
+                density::TEXT_LABEL,
                 UiColorType::TextMuted,
             ),
         ));
@@ -408,7 +408,7 @@ fn spawn_plan(body: &mut RelatedSpawnerCommands<ChildOf>, plan: &PackagePlan) {
     spawn_field(body, "Package Output", "Output", |row| {
         row.spawn((
             Name::new("Package Output Folder"),
-            words(folder, density::TEXT_SMALL, tint),
+            words(folder, density::TEXT_LABEL, tint),
         ));
     });
     spawn_field(body, "Package File", "File", |row| {
@@ -416,7 +416,7 @@ fn spawn_plan(body: &mut RelatedSpawnerCommands<ChildOf>, plan: &PackagePlan) {
             Name::new("Package File Name"),
             words(
                 plan.file_name.clone(),
-                density::TEXT_SMALL,
+                density::TEXT_LABEL,
                 UiColorType::Text,
             ),
         ));
@@ -425,7 +425,7 @@ fn spawn_plan(body: &mut RelatedSpawnerCommands<ChildOf>, plan: &PackagePlan) {
     spawn_field(body, "Package Check", "Check", |row| {
         row.spawn((
             Name::new("Package Check Line"),
-            words(line, density::TEXT_SMALL, tint),
+            words(line, density::TEXT_LABEL, tint),
         ));
     });
     for (index, error) in plan.errors.iter().take(SHOWN_ERRORS).enumerate() {
@@ -437,7 +437,7 @@ fn spawn_plan(body: &mut RelatedSpawnerCommands<ChildOf>, plan: &PackagePlan) {
             },
             children![words(
                 error.clone(),
-                density::TEXT_SMALL,
+                density::TEXT_LABEL,
                 UiColorType::Danger
             )],
         ));
@@ -451,7 +451,7 @@ fn spawn_plan(body: &mut RelatedSpawnerCommands<ChildOf>, plan: &PackagePlan) {
             },
             children![words(
                 format!("+{} more in Problems", plan.errors.len() - SHOWN_ERRORS),
-                density::TEXT_SMALL,
+                density::TEXT_LABEL,
                 UiColorType::TextMuted,
             )],
         ));
@@ -464,7 +464,7 @@ fn spawn_plan(body: &mut RelatedSpawnerCommands<ChildOf>, plan: &PackagePlan) {
     };
     body.spawn((
         Name::new("Package Files Title"),
-        words(title, density::TEXT_SMALL, UiColorType::TextMuted),
+        words(title, density::TEXT_LABEL, UiColorType::TextMuted),
     ));
     body.spawn((Name::new("Package Files Scroll"), scroll_row()))
         .insert(Node {
@@ -519,7 +519,7 @@ fn spawn_file_row(list: &mut RelatedSpawnerCommands<ChildOf>, path: &str, size: 
                 flex_shrink: 0.0,
                 ..default()
             },
-            children![words(mark, density::TEXT_SMALL, UiColorType::TextMuted)],
+            children![words(mark, density::TEXT_LABEL, UiColorType::TextMuted)],
         ));
         row.spawn((
             Node {
@@ -529,9 +529,9 @@ fn spawn_file_row(list: &mut RelatedSpawnerCommands<ChildOf>, path: &str, size: 
                 overflow: Overflow::clip(),
                 ..default()
             },
-            children![words(path, density::TEXT_SMALL, tint)],
+            children![words(path, density::TEXT_LABEL, tint)],
         ));
-        row.spawn(words(detail, density::TEXT_SMALL, UiColorType::TextMuted));
+        row.spawn(words(detail, density::TEXT_LABEL, UiColorType::TextMuted));
     });
 }
 
@@ -549,7 +549,7 @@ fn spawn_done(
     spawn_field(body, "Package Done Path", "Path", |row| {
         row.spawn((
             Name::new("Package Done Path"),
-            words(path, density::TEXT_SMALL, UiColorType::Text),
+            words(path, density::TEXT_LABEL, UiColorType::Text),
         ));
     });
     spawn_field(body, "Package Done Size", "Size", |row| {
@@ -557,7 +557,7 @@ fn spawn_done(
             Name::new("Package Done Size"),
             words(
                 shown_size(done.size),
-                density::TEXT_SMALL,
+                density::TEXT_LABEL,
                 UiColorType::Text,
             ),
         ));
@@ -565,7 +565,7 @@ fn spawn_done(
     if let Some((line, tint)) = said {
         body.spawn((
             Name::new("Package Said"),
-            words(line.clone(), density::TEXT_SMALL, *tint),
+            words(line.clone(), density::TEXT_LABEL, *tint),
         ));
     }
     body.spawn((
@@ -581,19 +581,19 @@ fn spawn_done(
     .with_children(|foot| {
         foot.spawn((
             Name::new("Package Copy Path"),
-            button(ButtonSpec::new("Copy Path").dense().ghost()),
+            button(ButtonSpec::control("Copy Path").ghost()),
             ButtonCueType::Owned,
             observe(on_copy_path),
         ));
         foot.spawn((
             Name::new("Package Open Folder"),
-            button(ButtonSpec::new("Open Folder").dense().ghost()),
+            button(ButtonSpec::control("Open Folder").ghost()),
             ButtonCueType::Owned,
             observe(on_open_folder),
         ));
         foot.spawn((
             Name::new("Package Close"),
-            button(ButtonSpec::new("Close").dense().primary()),
+            button(ButtonSpec::control("Close").primary()),
             ButtonCueType::Back,
             observe(on_close),
         ));

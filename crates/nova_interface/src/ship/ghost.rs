@@ -35,6 +35,7 @@ use nova_input::prelude::{InputBindings, InputSources};
 use nova_ship::prelude::*;
 use nova_sound::prelude::*;
 use nova_ui::{
+    prelude::{text, TextRole},
     theme::UiColorType,
     widget::{ThemedFill, ThemedText},
 };
@@ -49,10 +50,7 @@ use super::{
     sections::{design_section_code, ShipSectionView, ShipSections},
     SHIP_LAYER,
 };
-use crate::{
-    icons::SectionIconType,
-    pane::{themed_label, InterfacePaneType},
-};
+use crate::{icons::SectionIconType, pane::InterfacePaneType};
 
 /// What a click on the view would add, solved under the pointer. Read by
 /// [`ship_placement`] for a diagnostics overlay.
@@ -753,10 +751,7 @@ pub(crate) fn sync_ship_ghost(
             // text on a dense hull.
             ZIndex(1),
             ChildOf(viewport),
-            children![(
-                themed_label("", 12.0, UiColorType::TextBody),
-                Pickable::IGNORE
-            )],
+            children![(text("", TextRole::Body), Pickable::IGNORE)],
         ));
         return;
     };

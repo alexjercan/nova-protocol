@@ -186,7 +186,7 @@ pub fn list_remove(list: Entity, index: usize) -> impl Bundle {
 pub fn list_add(list: Entity, word: &str) -> impl Bundle {
     (
         ListAdd { list },
-        button(ButtonSpec::new(format!("+ {word}")).dense().ghost().block()),
+        button(ButtonSpec::control(format!("+ {word}")).ghost().block()),
         observe(on_list_add),
     )
 }
@@ -196,12 +196,7 @@ pub fn list_add(list: Entity, word: &str) -> impl Bundle {
 pub fn list_picker(list: Entity, index: usize, label: &str) -> impl Bundle {
     (
         ListPicker { list, index },
-        button(
-            ButtonSpec::new(format!("{label} v"))
-                .dense()
-                .ghost()
-                .block(),
-        ),
+        button(ButtonSpec::control(format!("{label} v")).ghost().block()),
         observe(on_list_picker),
     )
 }

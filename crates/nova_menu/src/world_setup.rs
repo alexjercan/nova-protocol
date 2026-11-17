@@ -311,7 +311,7 @@ pub(crate) fn on_new_game(
                     parent.spawn((
                         Name::new("New Game Title"),
                         WorldSetupHead,
-                        panel_head("New Game", Some(WORLD_STEP_TAG)),
+                        panel_head("New Game", &[WORLD_STEP_TAG]),
                     ));
                     parent
                         .spawn((Name::new("World Step"), WorldStep, step_node(Display::Flex)))

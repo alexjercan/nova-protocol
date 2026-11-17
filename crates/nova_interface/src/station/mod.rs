@@ -24,7 +24,7 @@
 //! Every action's result (bought, boarded, hired, or refused) shows on the
 //! notice line above the panel for four seconds, green for a result and red
 //! for a refusal, and plays one cue: the interface click for a result, the
-//! deny buzz for a refusal ([`ActionNotice`]). The line never scrolls with
+//! deny buzz for a refusal ([`ActionCue`]). The line never scrolls with
 //! the panel, so it stays in view however long the lists run. The action
 //! buttons do not click on press: the outcome is the one sound. The Settle
 //! action's result goes to the Map pane's notice line, where its button is.
@@ -61,9 +61,10 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_sound::prelude::*;
 use nova_ui::{
+    prelude::{panel_paint, text, text_toned, TextRole},
     screen::drive_wheel_scroll,
     theme::UiColorType,
-    widget::{ThemedRadius, ThemedText},
+    widget::ThemedRadius,
 };
 
 pub use self::{
@@ -78,7 +79,7 @@ pub(crate) use self::{
 };
 use crate::{
     icons::InterfaceIcons,
-    pane::{notice_line, panel_paint, spawn_credit_figure, themed_label, ActionNotice},
+    pane::{spawn_credit_figure, ActionCue},
 };
 
 /// Glob-import surface: `use nova_interface::station::prelude::*`.
@@ -90,21 +91,18 @@ pub mod prelude {
         settle::StanceSettleCommand,
         shipyard::HullBuyCommand,
         station_buy::{StationBuyCommand, STATION_BUY_ASK, STATION_BUY_BUTTON},
-        StationRuntime, STATION_NOTICE, STATION_PANEL,
+        StationRuntime, STATION_PANEL,
     };
 }
 
 /// The name of the Station pane's scrolling panel.
 pub const STATION_PANEL: &str = "StationPanel";
 
-/// The name of the Station pane's notice line, above the panel.
-pub const STATION_NOTICE: &str = "StationNotice";
-
 /// The Station pane's state that outlives its body: the notice line.
 #[derive(Resource, Default, Debug)]
 pub struct StationRuntime {
     /// The last Buy, Board or Hire result, shown on the notice line.
-    pub notice: ActionNotice,
+    pub cue: ActionCue,
     /// The first press of the station Buy armed it: the button reads
     /// Confirm and the next press buys. Escape, another button, a pane switch,
     /// closing the interface and a refused buy disarm it.
@@ -143,10 +141,6 @@ impl StationDock<'_, '_> {
 #[derive(Component)]
 pub(crate) struct StationPanelMarker;
 
-/// The notice line above the panel: the transient action result.
-#[derive(Component)]
-pub(crate) struct StationNoticeMarker;
-
 /// The line inside the panel shown while none of the lists is.
 #[derive(Component)]
 pub(crate) struct StationEmptyLine;
@@ -154,11 +148,6 @@ pub(crate) struct StationEmptyLine;
 /// Build the Station pane body: the notice line, then one panel with the
 /// station block, the hull list, the escort list and the empty line.
 pub(crate) fn station_body(body: &mut ChildSpawnerCommands) {
-    body.spawn((
-        StationNoticeMarker,
-        Name::new(STATION_NOTICE),
-        notice_line(),
-    ));
     body.spawn((
         StationPanelMarker,
         Name::new(STATION_PANEL),
@@ -184,10 +173,9 @@ pub(crate) fn station_body(body: &mut ChildSpawnerCommands) {
         spawn_station_escort_list(panel);
         panel.spawn((
             StationEmptyLine,
-            themed_label(
+            text(
                 "This station sells no ships, hires no escorts and is not for sale.",
-                13.0,
-                UiColorType::TextMuted,
+                TextRole::Label,
             ),
         ));
     });
@@ -232,8 +220,8 @@ pub(crate) fn spawn_hull_card_head(
             ..default()
         },
     ));
-    cell.spawn(themed_label(name, 13.0, UiColorType::Text));
-    cell.spawn(themed_label(length, 12.0, UiColorType::TextBody));
+    cell.spawn(text(name, TextRole::Value));
+    cell.spawn(text(length, TextRole::Body));
 }
 
 /// A card's price block: the figure at 15 px, muted while short, then
@@ -257,7 +245,7 @@ pub(crate) fn spawn_card_price(
         } else {
             UiColorType::Accent
         };
-        spawn_credit_figure(line, icons, price_cr, 15.0, tone, ());
+        spawn_credit_figure(line, icons, price_cr, TextRole::Value, tone, ());
         if let Some(short_cr) = short_cr {
             // The ")" sits flush on the digits; the gap only splits the word
             // from the figure.
@@ -274,10 +262,17 @@ pub(crate) fn spawn_card_price(
                         ..default()
                     })
                     .with_children(|word| {
-                        word.spawn(themed_label("(missing", 15.0, UiColorType::Danger));
-                        spawn_credit_figure(word, icons, short_cr, 15.0, UiColorType::Danger, ());
+                        word.spawn(text_toned("(missing", TextRole::Value, UiColorType::Danger));
+                        spawn_credit_figure(
+                            word,
+                            icons,
+                            short_cr,
+                            TextRole::Value,
+                            UiColorType::Danger,
+                            (),
+                        );
                     });
-                missing.spawn(themed_label(")", 15.0, UiColorType::Danger));
+                missing.spawn(text_toned(")", TextRole::Value, UiColorType::Danger));
             });
         }
     });
@@ -323,11 +318,9 @@ pub(crate) fn scroll_station_panel(
     drive_wheel_scroll(wheel, q_panel);
 }
 
-/// Count the notice down on the real clock and paint it in its outcome's
-/// tone, play the cue a result queued, and show the empty line while no list
+/// Play the cue a result queued, and show the empty line while no list
 /// shows.
 pub(crate) fn update_station_panel(
-    time: Res<Time<Real>>,
     mut runtime: ResMut<StationRuntime>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
@@ -343,20 +336,8 @@ pub(crate) fn update_station_panel(
         ),
     >,
     mut q_empty: Query<&mut Node, With<StationEmptyLine>>,
-    mut q_notice: Query<(&mut Text, &mut ThemedText), With<StationNoticeMarker>>,
 ) {
-    runtime
-        .notice
-        .tick(time.delta_secs(), bank.as_deref(), &mut commands);
-    let (note, tone) = runtime.notice.line();
-    for (mut text, mut themed) in &mut q_notice {
-        if text.0 != note {
-            text.0 = note.to_string();
-        }
-        if themed.color != tone {
-            themed.color = tone;
-        }
-    }
+    runtime.cue.tick(bank.as_deref(), &mut commands);
     let any_list = q_lists.iter().any(|node| node.display != Display::None);
     let display = if any_list {
         Display::None

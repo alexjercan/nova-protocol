@@ -17,7 +17,7 @@ use nova_ui::{
     theme,
     theme::UiColorType,
     widget::{
-        badge, checkbox, list_row, separator, themed_button, BadgeKind, ButtonCueType, Selected,
+        button, checkbox, list_row, separator, tag, ButtonCueType, ButtonSpec, Selected,
         ThemedBorder, ThemedCheckbox, ThemedFill, ThemedRadius, ThemedText, UiText,
     },
 };
@@ -180,7 +180,7 @@ pub(crate) fn spawn_mod_row(
             // The base pack cannot be disabled - a muted badge, not a checkbox.
             row.spawn((
                 Name::new("Mod Base Badge"),
-                badge(BadgeKind::Mute, BASE_MOD_ID),
+                tag(BASE_MOD_ID, UiColorType::TextSecondary),
             ));
         } else {
             // The shared `checkbox` widget, a `Button` so it clicks and sounds.
@@ -441,7 +441,7 @@ pub(crate) fn refresh_mods_list(
                             .with_children(|slot| {
                                 slot.spawn((
                                     Name::new("Portal Retry Button"),
-                                    themed_button("Retry"),
+                                    button(ButtonSpec::control("Retry").fill()),
                                     observe(on_catalog_retry),
                                 ));
                             });
@@ -702,11 +702,14 @@ pub(crate) fn refresh_mod_details(
                                 .with_children(|slot| {
                                     slot.spawn((
                                         Name::new("Mod Details Toggle Button"),
-                                        themed_button(if is_enabled {
-                                            "Disable"
-                                        } else {
-                                            "Enable"
-                                        }),
+                                        button(
+                                            ButtonSpec::control(if is_enabled {
+                                                "Disable"
+                                            } else {
+                                                "Enable"
+                                            })
+                                            .fill(),
+                                        ),
                                         ModToggle {
                                             id: m.id.clone(),
                                             base: m.base,

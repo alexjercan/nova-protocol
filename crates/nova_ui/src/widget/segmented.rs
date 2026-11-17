@@ -3,7 +3,7 @@
 
 use bevy::{ecs::relationship::RelatedSpawner, platform::collections::HashSet, prelude::*};
 
-use super::{button, ButtonSpec, ButtonVariant, Selected};
+use super::{button, metrics::GAP_S, ButtonSpec, Selected};
 use crate::theme::{ActiveUiTheme, BORDER_W};
 
 /// Marks a [`segmented_container`] so the theme reconciler paints it and
@@ -21,8 +21,8 @@ pub fn segmented_container() -> impl Bundle {
     (
         Node {
             flex_direction: FlexDirection::Row,
-            column_gap: px(3),
-            padding: UiRect::all(px(3)),
+            column_gap: px(GAP_S),
+            padding: UiRect::all(px(0)),
             border: UiRect::all(px(BORDER_W)),
             align_self: AlignSelf::Start,
             ..default()
@@ -44,9 +44,9 @@ pub fn segmented_container_wrapping() -> impl Bundle {
         Node {
             flex_direction: FlexDirection::Row,
             flex_wrap: FlexWrap::Wrap,
-            column_gap: px(3),
-            row_gap: px(3),
-            padding: UiRect::all(px(3)),
+            column_gap: px(GAP_S),
+            row_gap: px(GAP_S),
+            padding: UiRect::all(px(0)),
             border: UiRect::all(px(BORDER_W)),
             align_self: AlignSelf::Start,
             ..default()
@@ -80,15 +80,12 @@ pub(super) fn reconcile_segmented_themes(
     }
 }
 
-/// One option of a segmented control: a segment-sized ghost `ThemedButton`. The
-/// caller adds a `ButtonValue<T>` (+ `Selected` on the active option) so the
-/// shared `button_on_setting::<T>` observer drives the setting on click.
+/// One option of a segmented control: a [`CONTROL_H`](super::metrics::CONTROL_H)
+/// ghost `ThemedButton` that shares a single-line bar evenly. The caller adds a
+/// `ButtonValue<T>` (+ `Selected` on the active option) so the shared
+/// `button_on_setting::<T>` observer drives the setting on click.
 pub fn segmented_option(label: &str) -> impl Bundle {
-    let mut spec = ButtonSpec::new(label);
-    spec.variant = ButtonVariant::Ghost;
-    spec.min_height = 28.0;
-    spec.font_size = 12.0;
-    button(spec)
+    button(ButtonSpec::control(label).ghost().fill())
 }
 
 /// One option of a WRAPPING segmented control ([`segmented_container_wrapping`]):
@@ -98,22 +95,7 @@ pub fn segmented_option(label: &str) -> impl Bundle {
 /// the row evenly. In a wrapping one it puts every segment on a line of its
 /// own.
 pub fn segmented_option_fit(label: &str) -> impl Bundle {
-    let mut spec = ButtonSpec::new(label).fit();
-    spec.variant = ButtonVariant::Ghost;
-    spec.min_height = 28.0;
-    spec.font_size = 12.0;
-    button(spec)
-}
-
-/// One option of a segmented bar that seats MANY short labels on one line: a
-/// [`segmented_option_fit`] a size down, with tighter side padding.
-pub fn segmented_option_compact(label: &str) -> impl Bundle {
-    let mut spec = ButtonSpec::new(label).fit();
-    spec.variant = ButtonVariant::Ghost;
-    spec.compact = true;
-    spec.min_height = 26.0;
-    spec.font_size = 11.0;
-    button(spec)
+    button(ButtonSpec::control(label).ghost())
 }
 
 /// A display-only segmented control: a [`segmented_container`] of

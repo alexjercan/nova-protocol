@@ -613,7 +613,7 @@ pub(crate) fn reconcile_pause_overlay(
                 .with_children(|parent| {
                     parent.spawn((
                         Name::new("Pause Settings Title"),
-                        panel_head("Settings", Some("SAVED ON CHANGE")),
+                        panel_head("Settings", &["SAVED ON CHANGE"]),
                     ));
                     build_settings_tabs(parent, active_settings_tab.0);
                     parent

@@ -6,9 +6,7 @@ use bevy::prelude::*;
 use nova_input::prelude::{gamepad_label, InputDeviceType};
 use nova_ui::{
     theme::UiColorType,
-    widget::{
-        menu_button, ButtonCueType, ButtonSpec, ButtonVariant, KeyChipLabel, ThemedText, UiText,
-    },
+    widget::{ButtonCueType, ButtonSpec, ButtonVariant, KeyChipLabel, ThemedText, UiText},
 };
 
 /// Marks a [`back_button`], whose key chip names the back-out input of the
@@ -27,17 +25,16 @@ pub(crate) fn close_screen(visibility: &mut Visibility) {
     *visibility = Visibility::Hidden;
 }
 
-/// The main-menu / pause / outcome button: the shared nova_ui [`menu_button`] (40px /
-/// 16px `ThemedButton`, coloured by the nova_ui observers + theme reconciler).
+/// The main-menu / pause / outcome button: a [`ButtonSpec::menu`] button that
+/// fills its column.
 pub(crate) fn button(text: &str) -> impl Bundle {
-    menu_button(text)
+    nova_ui::widget::button(ButtonSpec::menu(text).fill())
 }
 
 /// A menu button carrying an emphasis variant (primary call-to-action / danger)
-/// and an optional trailing key-chip - the shared nova_ui `ThemedButton` at the
-/// 40/16 menu sizing.
+/// and an optional trailing key-chip, at the menu size.
 pub(crate) fn button_variant(text: &str, variant: ButtonVariant, key: Option<&str>) -> impl Bundle {
-    let mut spec = ButtonSpec::new(text).menu();
+    let mut spec = ButtonSpec::menu(text).fill();
     spec.variant = variant;
     if let Some(key) = key {
         spec = spec.key(key);
@@ -45,12 +42,11 @@ pub(crate) fn button_variant(text: &str, variant: ButtonVariant, key: Option<&st
     nova_ui::widget::button(spec)
 }
 
-/// A danger button at the default 34px / 14px sizing, the size of a
-/// `themed_button` beside it in a details pane. [`button_variant`] is the 40px
-/// menu-column sizing.
+/// A danger button at the control size, beside the other verbs of a details
+/// pane. [`button_variant`] is the menu-column size.
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn danger_button(text: &str) -> impl Bundle {
-    nova_ui::widget::button(ButtonSpec::new(text).danger())
+    nova_ui::widget::button(ButtonSpec::control(text).danger().fill())
 }
 
 /// The key a back-out answers to. Escape is fixed by design (see

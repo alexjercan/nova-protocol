@@ -54,9 +54,7 @@ use bevy::prelude::*;
 use clap::Parser;
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
 use nova_protocol::{
-    nova_debug::diagnostics,
-    nova_interface::station::{EscortHireCommand, StationRuntime},
-    prelude::*,
+    nova_debug::diagnostics, nova_interface::station::EscortHireCommand, prelude::*,
 };
 use open_world_stage::{
     advance_station_dock, the_player, warm_to_ally, OpenWorldStartPlugin, StationCandidate,
@@ -233,11 +231,6 @@ fn drive_the_sandbox(world: &mut World) {
                 world.resource_mut::<Sandbox>().phase = SandboxPhaseType::Undocking;
                 info!("escort sandbox: {hired} escorts hired; undocking");
                 return;
-            }
-            if let Some(note) = world.resource::<StationRuntime>().notice.text() {
-                if note.starts_with("hire:") {
-                    panic!("escort sandbox: the station refused the hire: '{note}'");
-                }
             }
             if world.get::<Allegiance>(station) != Some(&Allegiance::Player) {
                 return;

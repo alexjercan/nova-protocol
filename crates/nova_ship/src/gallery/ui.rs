@@ -241,9 +241,7 @@ pub(crate) fn rebuild_gallery(
                             ..default()
                         },))
                         .with_children(|slot| {
-                            let mut spec = ButtonSpec::new(category.label());
-                            spec.min_height = 26.0;
-                            spec.font_size = 12.0;
+                            let mut spec = ButtonSpec::control(category.label()).fill();
                             if category != state.category {
                                 spec = spec.ghost();
                             }
@@ -264,9 +262,7 @@ pub(crate) fn rebuild_gallery(
                             ..default()
                         })
                         .with_children(|slot| {
-                            let mut spec = ButtonSpec::new("x").ghost();
-                            spec.min_height = 26.0;
-                            spec.font_size = 12.0;
+                            let spec = ButtonSpec::control("x").ghost().fill();
                             slot.spawn((
                                 Name::new("Gallery Clear Filter Button"),
                                 button(spec),
@@ -288,9 +284,7 @@ pub(crate) fn rebuild_gallery(
                                 ..default()
                             })
                             .with_children(|slot| {
-                                let mut spec = ButtonSpec::new(label);
-                                spec.min_height = 26.0;
-                                spec.font_size = 12.0;
+                                let mut spec = ButtonSpec::control(label).fill();
                                 if only != state.available_only {
                                     spec = spec.ghost();
                                 }
@@ -313,9 +307,7 @@ pub(crate) fn rebuild_gallery(
                             ..default()
                         })
                         .with_children(|slot| {
-                            let mut spec = ButtonSpec::new(label).ghost();
-                            spec.min_height = 26.0;
-                            spec.font_size = 12.0;
+                            let spec = ButtonSpec::control(label).ghost().fill();
                             slot.spawn((Name::new(name), button(spec), GalleryAction::Page(step)));
                         });
                 }
@@ -349,7 +341,7 @@ pub(crate) fn rebuild_gallery(
                     .with_children(|slot| {
                         slot.spawn((
                             Name::new("Gallery Close Button"),
-                            button(ButtonSpec::new("Close").key("Esc")),
+                            button(ButtonSpec::control("Close").key("Esc")),
                             ButtonCueType::Back,
                             GalleryAction::Close,
                         ));
@@ -947,7 +939,7 @@ fn focus_body(
                 }
                 // Enter places only what may be placed, so a muted part's
                 // button carries no key chip; its tooltip is the note.
-                let mut spec = ButtonSpec::new("Place This Part").primary();
+                let mut spec = ButtonSpec::control("Place This Part").primary().fill();
                 if placeable {
                     spec = spec.key("Enter");
                 }
@@ -962,7 +954,7 @@ fn focus_body(
                 if let Some(label) = entry.and_then(|entry| entry.alternate.as_deref()) {
                     card.spawn((
                         Name::new("Gallery Alternate Button"),
-                        button(ButtonSpec::new(label).primary()),
+                        button(ButtonSpec::control(label).primary().fill()),
                         // Its host answers the message, and can refuse.
                         ButtonCueType::Owned,
                         GalleryAction::Alternate,
@@ -970,7 +962,7 @@ fn focus_body(
                 }
                 card.spawn((
                     Name::new("Gallery Back Button"),
-                    button(ButtonSpec::new("Back").ghost()),
+                    button(ButtonSpec::control("Back").ghost().fill()),
                     ButtonCueType::Back,
                     GalleryAction::Back,
                 ));

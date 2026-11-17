@@ -220,7 +220,7 @@ pub(super) fn spawn_log_controls(row: &mut RelatedSpawnerCommands<ChildOf>) {
             Name::new(format!("Log Level {}", filter.label())),
             LogTabControl,
             LogLevelButton(filter),
-            button(ButtonSpec::new(filter.label()).ghost().dense().fit()),
+            button(ButtonSpec::control(filter.label()).ghost()),
             observe(on_log_level),
         ));
     }
@@ -245,7 +245,7 @@ pub(super) fn spawn_log_controls(row: &mut RelatedSpawnerCommands<ChildOf>) {
     row.spawn((
         Name::new("Log Clear"),
         LogTabControl,
-        button(ButtonSpec::new("Clear").ghost().dense().fit()),
+        button(ButtonSpec::control("Clear").ghost()),
         observe(on_log_clear),
     ));
 }

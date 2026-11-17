@@ -20,6 +20,7 @@ use nova_ship::prelude::{
 };
 use nova_sound::prelude::*;
 use nova_ui::{
+    prelude::metrics,
     screen::EllipsisText,
     theme::UiColorType,
     widget::{TextFieldError, TextFieldValue, ThemedText},
@@ -28,7 +29,7 @@ use nova_ui::{
 use super::*;
 use crate::{
     icons::InterfaceIcons,
-    pane::{InterfacePaneType, SIDE_PANEL_PX},
+    pane::InterfacePaneType,
     pointer_rig::{
         click_at, double_click_at, hear_ui_cues, move_cursor_to, pane_pointer_rig, resize_window,
         settle, take_churn, take_cues, track_node_churn, PanePointerRig, RIG_CONTENT,
@@ -213,10 +214,11 @@ fn inventory_columns_show_the_player_and_docked_partner_stacks() {
         ),
         "0"
     );
-    // A ship partner trades at reference: its row carries the ask of one.
+    // A ship partner trades at reference: its row carries the ask of one and
+    // a deal tag of no change.
     assert_eq!(
         column_texts(world, InventorySideType::Partner),
-        ["Hull plate", "x40", "40"]
+        ["Hull plate", "x40", "40", "+0%"]
     );
 
     // A ship with no stacks says so rather than drawing nothing.
@@ -313,8 +315,9 @@ fn undocked_the_partner_slot_is_blank_and_both_columns_keep_equal_width() {
         .map(|(_, node)| node.size().x)
         .expect("the pane has an inspector");
     assert!(
-        (inspector_w - SIDE_PANEL_PX).abs() <= 0.5,
-        "inspector {inspector_w} is not {SIDE_PANEL_PX}"
+        (inspector_w - metrics::SIDE_PANEL_W).abs() <= 0.5,
+        "inspector {inspector_w} is not {}",
+        metrics::SIDE_PANEL_W
     );
 
     // Idle: nothing is spawned, despawned or rewritten.
@@ -755,7 +758,7 @@ fn clicking_a_row_inspects_it_and_a_filter_chip_hides_other_categories() {
     );
     assert_eq!(
         column_texts(rig.app.world_mut(), InventorySideType::Own),
-        ["Hull plate", "x12", "30"]
+        ["Hull plate", "x12", "30", "+0%"]
     );
 }
 

@@ -194,7 +194,7 @@ fn spawn_head(hub: &mut RelatedSpawnerCommands<ChildOf>, status: &str) {
     .with_children(|head| {
         head.spawn((
             Name::new("Hub Back Button"),
-            button(ButtonSpec::new("Back").dense().ghost()),
+            button(ButtonSpec::control("Back").ghost()),
             ButtonCueType::Back,
             observe(on_back),
         ));
@@ -207,12 +207,12 @@ fn spawn_head(hub: &mut RelatedSpawnerCommands<ChildOf>, status: &str) {
                 slot.spawn((
                     Name::new("Hub Line"),
                     HubLine,
-                    line(status, density::TEXT_SMALL, UiColorType::Accent),
+                    line(status, density::TEXT_LABEL, UiColorType::Accent),
                 ));
             });
         let mut import = head.spawn((
             Name::new("Hub Import Button"),
-            button(ButtonSpec::new("Import").dense()),
+            button(ButtonSpec::control("Import")),
         ));
         if CAN_SAVE {
             import.observe(on_import);
@@ -221,7 +221,7 @@ fn spawn_head(hub: &mut RelatedSpawnerCommands<ChildOf>, status: &str) {
         }
         head.spawn((
             Name::new("Hub New Button"),
-            button(ButtonSpec::new("New").dense().primary()),
+            button(ButtonSpec::control("New").primary()),
             observe(on_new),
         ));
     });
@@ -249,7 +249,7 @@ fn spawn_list(hub: &mut RelatedSpawnerCommands<ChildOf>) {
         ] {
             heads.spawn(column(width)).with_child(line(
                 word,
-                density::TEXT_SMALL,
+                density::TEXT_LABEL,
                 UiColorType::TextMuted,
             ));
         }
@@ -334,10 +334,10 @@ fn spawn_new_modal(commands: &mut Commands, template: ScenarioTemplate) {
                         Name::new("Hub Id Preview"),
                         HubIdPreview,
                         Node {
-                            min_height: px(density::TEXT_SMALL + 3.0),
+                            min_height: px(density::TEXT_LABEL + 3.0),
                             ..default()
                         },
-                        line("", density::TEXT_SMALL, UiColorType::TextMuted),
+                        line("", density::TEXT_LABEL, UiColorType::TextMuted),
                     ));
                     modal
                         .spawn((
@@ -367,7 +367,7 @@ fn spawn_new_modal(commands: &mut Commands, template: ScenarioTemplate) {
                         .with_children(|foot| {
                             foot.spawn((
                                 Name::new("Hub Cancel Button"),
-                                button(ButtonSpec::new("Cancel").dense().ghost()),
+                                button(ButtonSpec::control("Cancel").ghost()),
                                 ButtonCueType::Back,
                                 observe(on_modal_cancel),
                             ));
@@ -375,7 +375,7 @@ fn spawn_new_modal(commands: &mut Commands, template: ScenarioTemplate) {
                                 Name::new("Hub Create Button"),
                                 HubCreateButton,
                                 InteractionDisabled,
-                                button(ButtonSpec::new("Create").dense().primary()),
+                                button(ButtonSpec::control("Create").primary()),
                                 observe(on_create),
                             ));
                         });
@@ -422,7 +422,7 @@ fn spawn_template_tile(
             UiText,
             Text::new(template.hint()),
             TextFont {
-                font_size: FontSize::Px(density::TEXT_SMALL),
+                font_size: FontSize::Px(density::TEXT_LABEL),
                 ..default()
             },
             TextColor(Color::NONE),
@@ -556,7 +556,7 @@ fn spawn_row(list: &mut RelatedSpawnerCommands<ChildOf>, entry: &HubEntry) {
                 || (entry.id.clone(), UiColorType::TextMuted),
                 |fault| (fault.clone(), UiColorType::Danger),
             );
-            name.spawn((line(detail, density::TEXT_SMALL, tint), Pickable::IGNORE));
+            name.spawn((line(detail, density::TEXT_LABEL, tint), Pickable::IGNORE));
         });
         row.spawn((column(Some(VERSION_W)), Pickable::IGNORE))
             .with_child((

@@ -19,11 +19,11 @@
 //! every price on the pane are affordable.
 //!
 //! The walk opens the interface with the real key, selects the Station tab
-//! and clicks the first escort's Hire button. The shot follows while the
-//! notice line still reads the hire as done: This station with its Buy,
-//! Ships for sale with its card, and Escorts for hire with STBD filled and
-//! PORT free. Before the shot it asserts each of those on the world and on
-//! the drawn pane, and that all of them stand inside the panel.
+//! and clicks the first escort's Hire button. The shot follows the hire:
+//! This station with its Buy, Ships for sale with its card, and Escorts for
+//! hire with STBD filled and PORT free. Before the shot it asserts each of
+//! those on the world and on the drawn pane, and that all of them stand
+//! inside the panel.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - the whole walk with its
@@ -46,8 +46,8 @@ use clap::Parser;
 use nova_protocol::{
     nova_debug::harness::{AutopilotPlugin, Predicate},
     nova_interface::{
-        pane::{ActionOutcomeType, InterfacePaneType},
-        station::prelude::{StationRuntime, STATION_BUY_BUTTON, STATION_PANEL},
+        pane::InterfacePaneType,
+        station::prelude::{STATION_BUY_BUTTON, STATION_PANEL},
     },
     prelude::*,
 };
@@ -288,21 +288,6 @@ fn slot_texts(world: &World, label: &str) -> Option<Vec<String>> {
     )
 }
 
-/// Every visible UI text laid out with a width and a height: a zero-height
-/// line draws nothing.
-fn drawn_texts(world: &World) -> Vec<String> {
-    world
-        .try_query::<(&Text, &ComputedNode, &InheritedVisibility)>()
-        .map(|mut texts| {
-            texts
-                .iter(world)
-                .filter(|(_, node, visible)| visible.get() && node.size().min_element() > 0.0)
-                .map(|(text, ..)| text.0.clone())
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 /// Whether the node `name` lays out inside the Station panel.
 fn in_the_panel(world: &World, name: &str) -> bool {
     match (
@@ -314,27 +299,14 @@ fn in_the_panel(world: &World, name: &str) -> bool {
     }
 }
 
-/// What the frame must show after the hire: the notice reads it as done,
-/// STBD names the escort, PORT is free, and This station's Buy, the sale
-/// card's Buy and the next escort's Hire stand inside the panel.
+/// What the frame must show after the hire: STBD names the escort, PORT is
+/// free, and This station's Buy, the sale card's Buy and the next escort's
+/// Hire stand inside the panel.
 fn the_pane_reads(world: &World) -> Result<(), String> {
     let hired = world.get_resource::<Hired>().ok_or("no hire recorded")?;
     let fleet = fleet(world);
     if fleet != [("STBD", hired.name.clone())] {
         return Err(format!("the fleet is {fleet:?}"));
-    }
-    let notice = format!("hired {} for ", hired.name);
-    let shown = world.resource::<StationRuntime>().notice.shown();
-    if !shown.is_some_and(|(outcome, text)| {
-        outcome == ActionOutcomeType::Done && text.starts_with(&notice)
-    }) {
-        return Err(format!("the notice holds {shown:?}"));
-    }
-    if !drawn_texts(world)
-        .iter()
-        .any(|text| text.starts_with(&notice))
-    {
-        return Err("the notice line does not read the hire".to_string());
     }
     let stbd = slot_texts(world, "STBD");
     if stbd != Some(vec!["STBD".to_string(), hired.name.clone()]) {
@@ -411,8 +383,6 @@ fn script() -> AutopilotPlugin<GameStates> {
             when(|world| the_pane_reads(world).is_ok()),
             BEAT_SECS,
         )
-        // No settle beat: the notice line holds the hire for four real
-        // seconds, and a software frame takes most of one.
         .step("station pane: shoot the pane")
         .on_enter(|world: &mut World| {
             if let Err(why) = the_pane_reads(world) {

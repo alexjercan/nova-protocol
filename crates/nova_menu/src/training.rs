@@ -47,8 +47,8 @@ use nova_ui::{
     theme,
     theme::UiColorType,
     widget::{
-        badge, list_row, panel, panel_header, BadgeKind, ButtonSpec, Selected, ThemedBorder,
-        ThemedFill, ThemedRadius, ThemedText, UiText,
+        list_row, panel, panel_header, tag, ButtonSpec, Selected, ThemedBorder, ThemedFill,
+        ThemedRadius, ThemedText, UiText,
     },
 };
 
@@ -388,7 +388,7 @@ pub(crate) fn spawn_menu_aside(commands: &mut Commands, note: Option<&FieldNote>
                             ),
                             (
                                 Name::new("Training Prompt Dismiss"),
-                                nova_ui::widget::button(ButtonSpec::new("Not now").ghost().fit()),
+                                nova_ui::widget::button(ButtonSpec::control("Not now").ghost()),
                                 nova_ui::widget::ButtonCueType::Back,
                                 observe(on_first_pilot_dismiss),
                             ),
@@ -462,13 +462,13 @@ fn spawn_field_note_card(commands: &mut Commands, aside: Entity, note: &FieldNot
                         actions.spawn((
                             Name::new("Menu Field Note Lesson Button"),
                             MenuFieldNoteLesson { id: lesson.clone() },
-                            nova_ui::widget::button(ButtonSpec::new("Open lesson").ghost().fit()),
+                            nova_ui::widget::button(ButtonSpec::control("Open lesson").ghost()),
                             observe(on_open_note_lesson),
                         ));
                     }
                     actions.spawn((
                         Name::new("Menu Field Note Dismiss"),
-                        nova_ui::widget::button(ButtonSpec::new("Don't show again").ghost().fit()),
+                        nova_ui::widget::button(ButtonSpec::control("Don't show again").ghost()),
                         nova_ui::widget::ButtonCueType::Back,
                         observe(on_dismiss_field_notes),
                     ));
@@ -698,11 +698,7 @@ pub(crate) fn sync_lesson_rows(
         if let Some((kind, text)) = status_badge(status) {
             let name = format!("Lesson Status: {}", row.id);
             commands.entity(entity).with_children(|parent| {
-                parent.spawn((
-                    Name::new(name),
-                    LessonStatusBadge(status),
-                    badge(kind, text),
-                ));
+                parent.spawn((Name::new(name), LessonStatusBadge(status), tag(text, kind)));
             });
         }
     }
@@ -864,7 +860,7 @@ fn spawn_lesson_row(
             row.spawn((
                 Name::new(format!("Lesson Status: {}", lesson.id)),
                 LessonStatusBadge(status),
-                badge(kind, text),
+                tag(text, kind),
             ));
         }
     });
@@ -872,11 +868,11 @@ fn spawn_lesson_row(
 
 /// The badge a row's state draws, or `None` for a lesson nobody has opened -
 /// an untouched list should read as a list, not as a column of tags.
-fn status_badge(status: LessonStatus) -> Option<(BadgeKind, &'static str)> {
+fn status_badge(status: LessonStatus) -> Option<(UiColorType, &'static str)> {
     match status {
         LessonStatus::New => None,
-        LessonStatus::Viewed => Some((BadgeKind::Mute, "read")),
-        LessonStatus::Completed => Some((BadgeKind::Green, "done")),
+        LessonStatus::Viewed => Some((UiColorType::TextSecondary, "read")),
+        LessonStatus::Completed => Some((UiColorType::Nominal, "done")),
     }
 }
 
@@ -1007,7 +1003,7 @@ pub(crate) fn refresh_training_details(
                         },
                     ));
                     if let Some((kind, text)) = status {
-                        head.spawn((Name::new("Lesson Details Status"), badge(kind, text)));
+                        head.spawn((Name::new("Lesson Details Status"), tag(text, kind)));
                     }
                 });
 
@@ -1144,10 +1140,10 @@ fn spawn_media_frame(
     media: &LessonMedia,
     resolved: Option<ResolvedMedia>,
 ) {
-    let (kind, tag) = if media.is_loop() {
-        (BadgeKind::Amber, "loop")
+    let (kind, word) = if media.is_loop() {
+        (UiColorType::Accent, "loop")
     } else {
-        (BadgeKind::Blue, "still")
+        (UiColorType::Info, "still")
     };
     let alt = media.alt().to_string();
     body.spawn((
@@ -1196,7 +1192,7 @@ fn spawn_media_frame(
             ));
         }
         None => {
-            frame.spawn((Name::new("Lesson Media Tag"), badge(kind, tag)));
+            frame.spawn((Name::new("Lesson Media Tag"), tag(word, kind)));
             frame.spawn((
                 Name::new("Lesson Media Legend"),
                 UiText,
@@ -1365,7 +1361,7 @@ fn spawn_lesson_actions(box_: &mut ChildSpawnerCommands, lesson: &Lesson) {
         if let Some(scenario) = &lesson.practice {
             actions.spawn((
                 Name::new("Lesson Practice Button"),
-                nova_ui::widget::button(ButtonSpec::new(PRACTICE_LABEL).primary().fit()),
+                nova_ui::widget::button(ButtonSpec::control(PRACTICE_LABEL).primary()),
                 LessonPractice {
                     scenario: scenario.clone(),
                 },
