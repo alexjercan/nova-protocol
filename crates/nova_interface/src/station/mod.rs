@@ -1,38 +1,38 @@
 //! The TAB interface's Station pane: what the docked station sells.
 //!
 //! The pane's tab shows only while the player ship is docked at a living
-//! station (see [`StationDock`]). The pane holds a notice line over one
-//! scrolling panel:
+//! station (see [`StationDock`]). The pane is one scrolling column of
+//! blocks, each under its own rule:
 //!
-//! - "This station": the station's price and a Buy button that raises a
-//!   `StationBuyCommand`, while a civilization keeps it. Docked at a station
-//!   the player owns, it says so.
+//! - "This station": a card with the station's name, its price and a Buy
+//!   button that raises a `StationBuyCommand`, while a civilization keeps it.
+//!   Docked at a station the player owns, the name wears an `OWNED` tag.
 //! - "Your ships": a card per ship the player owns parked at the station,
 //!   with its 3D view, its name and length, a Board button that raises a
 //!   `HullBuyCommand`, and Info (`hull_info`). Shown only while it has a card.
 //! - "Ships for sale": a card per hull the station sells, with its 3D view,
 //!   its name, length and price, a Buy button that raises a `HullBuyCommand`,
 //!   and Info.
-//! - "Escorts for hire": the fleet's slots in its header, then a card per
-//!   escort the station hires out, with its 3D view, its name, length and
-//!   price, a Hire button that raises an `EscortHireCommand`, and Info.
+//! - "Escorts": the fleet's slots, then a card per escort the station hires
+//!   out, with its 3D view, its name, length and price, a Hire button that
+//!   raises an `EscortHireCommand`, and Info.
 //!
-//! A card's price is a credit figure, with `(missing <figure>)` in red beside
-//! it while the balance is short. A refused action keeps its button, greyed,
-//! with the reason as its tooltip.
+//! Cards fill a grid: as many columns as fit, sharing the width evenly. A
+//! card's price is a credit figure, painted Danger with its verb disabled
+//! while the balance is short. A verb that cannot work is hidden or
+//! disabled by its [`VerbGate`](nova_ui::prelude::VerbGate), with one tag
+//! word for a cause the pane does not show (`ALLIES ONLY`).
 //!
-//! Every action's result (bought, boarded, hired, or refused) shows on the
-//! notice line above the panel for four seconds, green for a result and red
-//! for a refusal, and plays one cue: the interface click for a result, the
-//! deny buzz for a refusal ([`ActionCue`]). The line never scrolls with
-//! the panel, so it stays in view however long the lists run. The action
-//! buttons do not click on press: the outcome is the one sound. The Settle
-//! action's result goes to the Map pane's notice line, where its button is.
+//! Every action's result (bought, boarded, hired, or refused) plays one
+//! cue: the interface click for a result, the deny buzz for a refusal
+//! ([`ActionCue`]); the balance, the lists and the fleet show the change.
+//! The action buttons do not click on press: the outcome is the one sound.
 //!
-//! A line says so when the station offers none of the lists and parks none
-//! of the player's ships. Refit (rebuild, swap, add) stays in the Ship pane,
-//! beside the ship it changes; the wreck strip is in the Inventory pane; the
-//! station's job board is in the Jobs pane (`crate::jobs`).
+//! The empty word `Empty` shows while the station offers none of the lists
+//! and parks none of the player's ships. Refit (rebuild, swap, add) stays in
+//! the Ship pane, beside the ship it changes; the wreck strip is in the
+//! Inventory pane; the station's job board is in the Jobs pane
+//! (`crate::jobs`).
 //!
 //! # Module layout
 //!
@@ -43,7 +43,7 @@
 //! | `hull_preview` | The 3D view of each hull on a "Ships for sale" or "Escorts for hire" card. |
 //! | `escorts` | The "Escorts for hire" list and the hire action handler. |
 //! | `hull_info` | A card's Info: the hull in the Ship pane's view, read-only. |
-//! | `settle` | The Settle action: the fine the Map chart's stance block pays at the docked station, reported on the Map's notice line. |
+//! | `settle` | The Settle action: the fine the Map chart's stance block pays at the docked station, its cue played by the Map pane. |
 
 mod escorts;
 mod hull_info;
@@ -61,10 +61,9 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_sound::prelude::*;
 use nova_ui::{
-    prelude::{panel_paint, text, text_toned, TextRole},
+    prelude::{card, control_row, metrics, text, verb_row, RowAlign, TextRole},
     screen::drive_wheel_scroll,
     theme::UiColorType,
-    widget::ThemedRadius,
 };
 
 pub use self::{
@@ -98,10 +97,11 @@ pub mod prelude {
 /// The name of the Station pane's scrolling panel.
 pub const STATION_PANEL: &str = "StationPanel";
 
-/// The Station pane's state that outlives its body: the notice line.
+/// The Station pane's state that outlives its body: the result cue and the
+/// armed station buy.
 #[derive(Resource, Default, Debug)]
 pub struct StationRuntime {
-    /// The last Buy, Board or Hire result, shown on the notice line.
+    /// The last Buy, Board or Hire result's cue.
     pub cue: ActionCue,
     /// The first press of the station Buy armed it: the button reads
     /// Confirm and the next press buys. Escape, another button, a pane switch,
@@ -145,8 +145,9 @@ pub(crate) struct StationPanelMarker;
 #[derive(Component)]
 pub(crate) struct StationEmptyLine;
 
-/// Build the Station pane body: the notice line, then one panel with the
-/// station block, the hull list, the escort list and the empty line.
+/// Build the Station pane body: one scrolling column with the station block,
+/// the hull list, the escort list and the empty word. Each list is a block
+/// under its own rule; the cards carry the panel paint.
 pub(crate) fn station_body(body: &mut ChildSpawnerCommands) {
     body.spawn((
         StationPanelMarker,
@@ -156,14 +157,10 @@ pub(crate) fn station_body(body: &mut ChildSpawnerCommands) {
             flex_grow: 1.0,
             min_height: px(0),
             flex_direction: FlexDirection::Column,
-            row_gap: px(10),
-            padding: UiRect::all(px(12)),
-            border: UiRect::all(px(1)),
+            row_gap: px(metrics::GAP_L),
             overflow: Overflow::scroll_y(),
             ..default()
         },
-        panel_paint(),
-        ThemedRadius::control(),
         ScrollPosition::default(),
         Hovered::default(),
     ))
@@ -171,25 +168,30 @@ pub(crate) fn station_body(body: &mut ChildSpawnerCommands) {
         spawn_station_sale_block(panel);
         spawn_station_hull_list(panel);
         spawn_station_escort_list(panel);
-        panel.spawn((
-            StationEmptyLine,
-            text(
-                "This station sells no ships, hires no escorts and is not for sale.",
-                TextRole::Label,
-            ),
-        ));
+        panel.spawn((StationEmptyLine, text("Empty", TextRole::Label)));
     });
 }
 
-/// The row of offer cards inside a list: cards wrap across the wide panel.
+/// The grid of offer cards inside a list: as many [`OFFER_CELL_PX`] columns
+/// as fit, sharing the rest of the width evenly.
 pub(crate) fn offer_rows() -> Node {
     Node {
-        flex_direction: FlexDirection::Row,
-        flex_wrap: FlexWrap::Wrap,
-        column_gap: px(24),
-        row_gap: px(12),
+        display: Display::Grid,
+        grid_template_columns: vec![RepeatedGridTrack::minmax(
+            GridTrackRepetition::AutoFill,
+            MinTrackSizingFunction::Px(OFFER_CELL_PX),
+            MaxTrackSizingFunction::Fraction(1.0),
+        )],
+        grid_auto_rows: vec![GridTrack::auto()],
+        column_gap: px(metrics::GAP_L),
+        row_gap: px(metrics::GAP_L),
         ..default()
     }
+}
+
+/// One offer card in [`offer_rows`]: it fills its grid cell.
+pub(crate) fn offer_cell() -> impl Bundle {
+    card()
 }
 
 /// Spawn the head of a hull card in `cell`: the 3D view of `hull`, the
@@ -201,12 +203,11 @@ pub(crate) fn spawn_hull_card_head(
     length: &str,
 ) {
     // `sync_hull_previews` hands the image its hull's view. The frame takes
-    // the card's width: a fixed width here makes taffy measure the labels at
-    // min-content width and grow the list by hundreds of px. The image is
-    // absolute so its measure cannot size the card either. The height keeps
-    // the render target's aspect at the card's width.
+    // the card's width and the render target's aspect. The image is
+    // absolute so its measure cannot size the card.
     cell.spawn(Node {
-        height: px(OFFER_CELL_PX * HULL_PREVIEW_PX.y as f32 / HULL_PREVIEW_PX.x as f32),
+        width: percent(100),
+        aspect_ratio: Some(HULL_PREVIEW_PX.x as f32 / HULL_PREVIEW_PX.y as f32),
         flex_shrink: 0.0,
         ..default()
     })
@@ -224,80 +225,42 @@ pub(crate) fn spawn_hull_card_head(
     cell.spawn(text(length, TextRole::Body));
 }
 
-/// A card's price block: the figure at 15 px, muted while short, then
-/// `(missing <figure>)` in Danger at the same size.
-pub(crate) fn spawn_card_price(
+/// A card's foot: the price at its start, painted Danger while the balance
+/// is `short` of it, and the verbs `verbs` spawns at its end. `price` `None`
+/// leaves the start blank. The foot sits at the card's bottom, so feet line
+/// up across a grid row.
+pub(crate) fn spawn_card_foot(
     cell: &mut ChildSpawnerCommands,
     icons: &InterfaceIcons,
-    price_cr: u64,
-    short_cr: Option<u64>,
+    price: Option<(u64, bool)>,
+    verbs: impl FnOnce(&mut ChildSpawnerCommands),
 ) {
     cell.spawn(Node {
-        flex_direction: FlexDirection::Row,
+        width: percent(100),
+        margin: UiRect::top(auto()),
         flex_wrap: FlexWrap::Wrap,
-        align_items: AlignItems::Center,
-        column_gap: px(10),
-        ..default()
+        row_gap: px(metrics::GAP_S),
+        ..control_row(JustifyContent::SpaceBetween)
     })
-    .with_children(|line| {
-        let tone = if short_cr.is_some() {
-            UiColorType::TextSecondary
-        } else {
-            UiColorType::Accent
-        };
-        spawn_credit_figure(line, icons, price_cr, TextRole::Value, tone, ());
-        if let Some(short_cr) = short_cr {
-            // The ")" sits flush on the digits; the gap only splits the word
-            // from the figure.
-            line.spawn(Node {
-                align_items: AlignItems::Center,
-                flex_shrink: 0.0,
-                ..default()
-            })
-            .with_children(|missing| {
-                missing
-                    .spawn(Node {
-                        align_items: AlignItems::Center,
-                        column_gap: px(5),
-                        ..default()
-                    })
-                    .with_children(|word| {
-                        word.spawn(text_toned("(missing", TextRole::Value, UiColorType::Danger));
-                        spawn_credit_figure(
-                            word,
-                            icons,
-                            short_cr,
-                            TextRole::Value,
-                            UiColorType::Danger,
-                            (),
-                        );
-                    });
-                missing.spawn(text_toned(")", TextRole::Value, UiColorType::Danger));
-            });
+    .with_children(|foot| {
+        match price {
+            Some((price_cr, short)) => {
+                let tone = if short {
+                    UiColorType::Danger
+                } else {
+                    UiColorType::Accent
+                };
+                spawn_credit_figure(foot, icons, price_cr, TextRole::Value, tone, ());
+            }
+            None => {
+                foot.spawn(Node::default());
+            }
         }
+        foot.spawn(verb_row(RowAlign::End)).with_children(verbs);
     });
 }
 
-/// One offer card in [`offer_rows`].
-pub(crate) fn offer_cell() -> Node {
-    Node {
-        width: px(OFFER_CELL_PX),
-        flex_direction: FlexDirection::Column,
-        row_gap: px(4),
-        ..default()
-    }
-}
-
-/// The row of a card's buttons: Buy, Board or Hire, then Info.
-pub(crate) fn card_actions() -> Node {
-    Node {
-        flex_direction: FlexDirection::Row,
-        column_gap: px(8),
-        ..default()
-    }
-}
-
-/// Width of one offer card, in logical px: three fit a 1024 px window.
+/// Least width of one offer card, in logical px: three fit a 1024 px window.
 const OFFER_CELL_PX: f32 = 280.0;
 
 /// Wheel-scroll the panel while the pointer is over it.

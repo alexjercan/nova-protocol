@@ -290,8 +290,9 @@ pub enum RowAlign {
 }
 
 /// A row of verbs: [`CONTROL_H`] high, [`GAP`] apart, centred on one line,
-/// never shrunk. The primary verb goes last.
-pub fn verb_row(align: RowAlign) -> impl Bundle {
+/// never shrunk. The primary verb goes last. A fixed-width verb cell spreads
+/// it: `Node { width, ..verb_row(RowAlign::End) }`.
+pub fn verb_row(align: RowAlign) -> Node {
     Node {
         flex_direction: FlexDirection::Row,
         align_items: AlignItems::Center,
@@ -376,20 +377,13 @@ pub struct BlockHead;
 #[derive(Component)]
 pub struct BlockTitle;
 
-/// A section block: a column [`GAP`] between rows, under its own top rule and
-/// [`GAP_L`] of space. The rule belongs to the block, so a hidden block takes
-/// its rule with it. The first row is a [`ROW_H`] header: `title` as a
-/// [`TextRole::Heading`] on the left, a [`BlockHead`] slot filling the rest.
-/// `marker` goes on the block; the block is returned, and rows spawned into it
-/// follow the header.
-pub fn spawn_block<'a>(
-    parent: &'a mut ChildSpawnerCommands,
-    title: &str,
-    marker: impl Bundle,
-) -> EntityCommands<'a> {
-    let title = title.to_string();
-    parent.spawn((
-        marker,
+/// The frame of a section block: a column [`GAP`] between rows, under its
+/// own top rule and [`GAP_L`] of space. The rule belongs to the block, so a
+/// hidden block takes its rule with it. A block that rebuilds its rows whole,
+/// header included, wears this and spawns its header with [`block_header`];
+/// a block with a fixed title uses [`spawn_block`].
+pub fn block() -> (Node, BorderColor, ThemedBorder) {
+    (
         Node {
             flex_direction: FlexDirection::Column,
             row_gap: px(GAP),
@@ -400,33 +394,46 @@ pub fn spawn_block<'a>(
         },
         BorderColor::all(Color::NONE),
         ThemedBorder::alpha(UiColorType::TextSecondary, 0.35),
-        Children::spawn(SpawnWith(move |block: &mut RelatedSpawner<ChildOf>| {
-            block
-                .spawn((
-                    Node {
-                        flex_direction: FlexDirection::Row,
-                        align_items: AlignItems::Center,
-                        column_gap: px(GAP_S),
-                        min_height: px(ROW_H),
-                        ..default()
-                    },
-                    Pickable::IGNORE,
-                ))
-                .with_children(|head| {
-                    head.spawn((BlockTitle, text(title, TextRole::Heading)));
-                    head.spawn((
-                        BlockHead,
-                        Node {
-                            flex_grow: 1.0,
-                            justify_content: JustifyContent::FlexEnd,
-                            align_items: AlignItems::Center,
-                            column_gap: px(GAP_S),
-                            ..default()
-                        },
-                    ));
-                });
-        })),
-    ))
+    )
+}
+
+/// A block's [`ROW_H`] header row: `title` as a [`TextRole::Heading`] marked
+/// [`BlockTitle`] on the left, a [`BlockHead`] slot filling the rest.
+pub fn block_header(title: impl Into<String>) -> impl Bundle {
+    (
+        Node {
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            column_gap: px(GAP_S),
+            min_height: px(ROW_H),
+            ..default()
+        },
+        Pickable::IGNORE,
+        children![
+            (BlockTitle, text(title, TextRole::Heading)),
+            (
+                BlockHead,
+                Node {
+                    flex_grow: 1.0,
+                    justify_content: JustifyContent::FlexEnd,
+                    align_items: AlignItems::Center,
+                    column_gap: px(GAP_S),
+                    ..default()
+                },
+            )
+        ],
+    )
+}
+
+/// A section [`block`] whose first row is the [`block_header`] for `title`.
+/// `marker` goes on the block; the block is returned, and rows spawned into
+/// it follow the header.
+pub fn spawn_block<'a>(
+    parent: &'a mut ChildSpawnerCommands,
+    title: &str,
+    marker: impl Bundle,
+) -> EntityCommands<'a> {
+    parent.spawn((marker, block(), children![block_header(title.to_string())]))
 }
 
 // -- tags and chips --------------------------------------------------------------

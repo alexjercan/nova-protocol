@@ -5,10 +5,10 @@
 //! hulls parked at its ports ([`ParkedHulls`]), the pane lists every one as
 //! a card: the hull's own model turning (`hull_preview`), its name, its
 //! length and its price. A ship the player owns ([`ParkedHullType::Owned`])
-//! lists under "Your ships", above the hulls for sale, and says "your ship"
-//! in place of a price. Each list shows only while it has a card. A hull for
-//! sale has a Buy button, greyed with the reason as its tooltip while the
-//! buy is refused; an owned ship has a Board button. A click
+//! lists under "Your ships", above the hulls for sale, with no price. Each
+//! list shows only while it has a card. A hull for sale has a Buy button,
+//! disabled with the price painted Danger while the balance is short; an
+//! owned ship has a Board button. A click
 //! raises a [`HullBuyCommand`]; [`apply_station_hull_buy_commands`] plans a
 //! buy with [`plan_hull_buy`] and moves the price, or boards for free, and
 //! raises the [`HullBuyRequest`] the scenario crate swaps the hulls from.
@@ -21,11 +21,11 @@ use bevy::{prelude::*, ui_widgets::Activate};
 use nova_events::prelude::{CreditChangeCauseType, Meters};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::prelude::{divider, text, TextRole, VerbGate};
+use nova_ui::prelude::{spawn_block, ButtonSpec, VerbGate};
 
 use super::{
-    card_actions, offer_cell, offer_rows, spawn_card_price, spawn_hull_card_head,
-    spawn_hull_info_button, StationRuntime,
+    offer_cell, offer_rows, spawn_card_foot, spawn_hull_card_head, spawn_hull_info_button,
+    StationRuntime,
 };
 use crate::{
     icons::InterfaceIcons,
@@ -41,10 +41,6 @@ pub struct HullBuyCommand {
     /// The parked hull.
     pub hull: Entity,
 }
-
-/// The length line's part after an owned ship's length, in place of a
-/// price.
-const OWNED_DETAIL: &str = "your ship";
 
 /// The hull list container, hidden while the refit gate does not hold or
 /// the docked station has no hull parked for sale or owned.
@@ -83,12 +79,11 @@ struct HullRow {
     index: usize,
     terms: ParkedHullType,
     name: String,
-    /// The length, then "your ship" for an owned ship.
     length: String,
     /// The price of a hull for sale, or `None` for an owned ship.
     price_cr: Option<u64>,
-    /// What the balance lacks of the price, or `None` while it is not short.
-    short_cr: Option<u64>,
+    /// The balance is short of the price.
+    short: bool,
     /// The action button's label: Buy or Board.
     label: &'static str,
     /// How Buy or Board answers the row.
@@ -159,8 +154,8 @@ fn plan_offer(
     plan_hull_buy(price, partner, own_cr.0)
 }
 
-/// Build the hull list: a "Your ships" and a "Ships for sale" section, each a
-/// header and the rows [`update_station_hull_list`] fills.
+/// Build the hull list: a "Your ships" and a "Ships for sale" block, each a
+/// heading and the cards [`update_station_hull_list`] fills.
 pub(crate) fn spawn_station_hull_list(panel: &mut ChildSpawnerCommands) {
     panel
         .spawn((
@@ -168,29 +163,21 @@ pub(crate) fn spawn_station_hull_list(panel: &mut ChildSpawnerCommands) {
             Node {
                 display: Display::None,
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(8.0),
+                row_gap: px(nova_ui::prelude::metrics::GAP_L),
                 flex_shrink: 0.0,
                 ..default()
             },
         ))
         .with_children(|list| {
-            list.spawn(divider());
             for (header, terms) in [
                 ("Your ships", ParkedHullType::Owned),
                 ("Ships for sale", ParkedHullType::Sale),
             ] {
-                list.spawn((
-                    StationHullSection,
-                    Node {
-                        display: Display::None,
-                        flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(8.0),
-                        flex_shrink: 0.0,
-                        ..default()
-                    },
-                ))
-                .with_children(|section| {
-                    section.spawn(text(header, TextRole::Heading));
+                let mut section = spawn_block(list, header, StationHullSection);
+                section
+                    .entry::<Node>()
+                    .and_modify(|mut node| node.display = Display::None);
+                section.with_children(|section| {
                     section.spawn((
                         StationHullRows {
                             terms,
@@ -257,13 +244,10 @@ pub(crate) fn update_station_hull_list(
                                 terms,
                                 length,
                                 price_cr: Some(price_cr),
-                                short_cr: match refusal {
-                                    Some(HullBuyRefusalType::InsufficientCredits {
-                                        need,
-                                        have,
-                                    }) => Some(need - u64::from(have)),
-                                    _ => None,
-                                },
+                                short: matches!(
+                                    refusal,
+                                    Some(HullBuyRefusalType::InsufficientCredits { .. })
+                                ),
                                 label: "Buy",
                                 gate: hull_gate(refusal.as_ref()),
                                 name,
@@ -274,9 +258,9 @@ pub(crate) fn update_station_hull_list(
                             index,
                             terms,
                             name,
-                            length: format!("{length}, {OWNED_DETAIL}"),
+                            length,
                             price_cr: None,
-                            short_cr: None,
+                            short: false,
                             label: "Board",
                             gate: VerbGate::Ready,
                         },
@@ -317,28 +301,26 @@ fn show(node: &mut Node, shown: bool) {
     }
 }
 
-/// One hull card: the head, the price block of a hull for sale, and the Buy
-/// or Board button beside Info, named by the row's index.
+/// One hull card: the head, then the price of a hull for sale and Info
+/// beside Buy or Board, named by the row's index.
 fn spawn_hull_card(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons, row: &HullRow) {
     let index = row.index;
     parent.spawn(offer_cell()).with_children(|cell| {
         spawn_hull_card_head(cell, row.hull, &row.name, &row.length);
         let line = match row.price_cr {
-            Some(price_cr) => {
-                spawn_card_price(cell, icons, price_cr, row.short_cr);
-                format!("{}  {}, {}", row.name, row.length, cr_text(price_cr))
-            }
+            Some(price_cr) => format!("{}  {}, {}", row.name, row.length, cr_text(price_cr)),
             None => format!("{}  {}", row.name, row.length),
         };
-        cell.spawn(card_actions()).with_children(|actions| {
+        let price = row.price_cr.map(|price_cr| (price_cr, row.short));
+        spawn_card_foot(cell, icons, price, |verbs| {
+            spawn_hull_info_button(verbs, format!("HullInfo-{index}"), row.hull, line);
             gated_verb(
-                actions,
+                verbs,
                 format!("Hull{}-{index}", row.label),
-                row.label,
+                ButtonSpec::control(row.label),
                 row.gate.clone(),
             )
             .observe(on_hull_buy_button(row.hull));
-            spawn_hull_info_button(actions, format!("HullInfo-{index}"), row.hull, line);
         });
     });
 }
@@ -358,8 +340,8 @@ fn on_hull_buy_button(hull: Entity) -> impl FnMut(On<Activate>, MessageWriter<Hu
 /// ship the player owns moves nothing. Either raises the [`HullBuyRequest`]
 /// that swaps the hulls, and the old ship parks as the player's own with
 /// its hold. The selection and any pending rebind or repair target clear,
-/// since every section goes. A refusal changes nothing and shows its reason
-/// on the notice line.
+/// since every section goes. A refusal changes nothing and plays the deny
+/// cue.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system reading the parked hulls, the site and both balances"

@@ -23,8 +23,8 @@ use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::*;
 use nova_ui::{
     prelude::{
-        button, control_row, divider, tag, text, ButtonCueType, ButtonSpec, Short, TextRole,
-        Tooltip, VerbGate,
+        button, control_row, metrics, spawn_block, tag, text, ButtonCueType, ButtonSpec, Short,
+        TextRole, VerbGate,
     },
     theme::UiColorType,
 };
@@ -64,12 +64,12 @@ pub(crate) struct MapStanceBuild {
 #[derive(Clone, Debug, PartialEq)]
 enum MapStanceRowView {
     /// A civilization's standing: its name, its table stance and the
-    /// compact detail labels that apply, with explanations on hover.
+    /// compact detail labels that apply.
     Entry {
         name: String,
         advancement: String,
         table: StanceType,
-        details: Vec<(String, Option<&'static str>)>,
+        details: Vec<String>,
     },
     /// An Enemy neighbour of the selected station's civilization: its fine,
     /// whether the balance is short of it, and its Pay fine button's gate.
@@ -143,56 +143,35 @@ fn fine_takers(
 
 /// `civilization`'s table stance and the compact detail labels that apply,
 /// in order: a live provocation, an Enemy's decay or seeded note, an Enemy's
-/// fine and where it is taken, offences, merits. Explanations remain on hover.
+/// fine and where it is taken, offences, merits.
 fn stance_entry(
     chart: &Chart,
     jobs: &Jobs,
     stances: &CivilizationStances,
     civilization: CivilizationId,
     now: f64,
-) -> (StanceType, Vec<(String, Option<&'static str>)>) {
+) -> (StanceType, Vec<String>) {
     let standing = standing(stances, &civilization, now);
     let mut details = Vec::new();
     if let Some(left) = standing.provoked_left {
-        details.push((
-            format!("HOSTILE {}", play_time_text(left)),
-            Some("Hostile after you fired on it."),
-        ));
+        details.push(format!("HOSTILE {}", play_time_text(left)));
     }
     if standing.table == StanceType::Enemy {
-        match standing.decay_left {
-            Some(left) => details.push((
-                format!("CLEAR {}", play_time_text(left)),
-                Some("Clears if no new offence occurs."),
-            )),
-            None => details.push((
-                "SEEDED".to_string(),
-                Some("Enemy from the start; only a fine clears it."),
-            )),
-        }
+        details.push(match standing.decay_left {
+            Some(left) => format!("CLEAR {}", play_time_text(left)),
+            None => "SEEDED".to_string(),
+        });
         let (codes, fine) = fine_takers(chart, jobs, stances, civilization, now);
         details.push(match fine {
-            Some(fine) => (
-                format!("FINE {} @ {}", cr_text(u64::from(fine)), codes.join(", ")),
-                Some("Pay at a listed station to return this civilization to Neutral."),
-            ),
-            None => (
-                "FINE NONE".to_string(),
-                Some("No charted station takes this fine."),
-            ),
+            Some(fine) => format!("FINE {} @ {}", cr_text(u64::from(fine)), codes.join(", ")),
+            None => "FINE NONE".to_string(),
         });
     }
     if standing.offences > 0 {
-        details.push((
-            format!("OFFENCES {}/{OFFENCE_STEP}", standing.offences),
-            Some("Offences in the last hour."),
-        ));
+        details.push(format!("OFFENCES {}/{OFFENCE_STEP}", standing.offences));
     }
     if standing.merits > 0 {
-        details.push((
-            format!("MERITS {}/{MERIT_STEP}", standing.merits),
-            Some("Jobs toward the next step up."),
-        ));
+        details.push(format!("MERITS {}/{MERIT_STEP}", standing.merits));
     }
     (standing.table, details)
 }
@@ -296,29 +275,24 @@ fn station_rows(
 /// [`update_map_stance_block`] fills, hidden off the chart view and with no
 /// row to show.
 pub(crate) fn spawn_map_stance_block(panel: &mut ChildSpawnerCommands) {
-    panel
-        .spawn((
-            MapStanceBlock,
-            Name::new("MapStanceBlock"),
+    let mut block = spawn_block(
+        panel,
+        "Stances",
+        (MapStanceBlock, Name::new("MapStanceBlock")),
+    );
+    block
+        .entry::<Node>()
+        .and_modify(|mut node| node.display = Display::None);
+    block.with_children(|block| {
+        block.spawn((
+            MapStanceRows::default(),
             Node {
-                display: Display::None,
                 flex_direction: FlexDirection::Column,
-                row_gap: px(4),
+                row_gap: px(metrics::GAP_S),
                 ..default()
             },
-        ))
-        .with_children(|block| {
-            block.spawn(divider());
-            block.spawn((text("STANCES", TextRole::Label), Pickable::IGNORE));
-            block.spawn((
-                MapStanceRows::default(),
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: px(4),
-                    ..default()
-                },
-            ));
-        });
+        ));
+    });
 }
 
 /// Raise a [`StanceSettleCommand`] for `civilization` when its Pay fine
@@ -430,7 +404,7 @@ pub(crate) fn update_map_stance_block(
                         details,
                     } => {
                         list.spawn(Node {
-                            column_gap: px(8),
+                            column_gap: px(metrics::GAP),
                             ..control_row(JustifyContent::FlexStart)
                         })
                         .with_children(|row| {
@@ -452,33 +426,14 @@ pub(crate) fn update_map_stance_block(
                             row.spawn((
                                 tag(stance_word(*table), stance_badge_kind(*table)),
                                 Pickable::IGNORE,
-                            ))
-                            .insert(Node {
-                                align_items: AlignItems::Center,
-                                flex_shrink: 0.0,
-                                ..default()
-                            });
+                            ));
                             row.spawn((
                                 tag(advancement, UiColorType::TextSecondary),
-                                Tooltip("Civilization advancement: seeded generation potential, not per-ship technology or progression.".to_string()),
-                            ))
-                            .insert(Node {
-                                align_items: AlignItems::Center,
-                                flex_shrink: 0.0,
-                                ..default()
-                            });
+                                Pickable::IGNORE,
+                            ));
                         });
-                        for (detail, hint) in details {
-                            let label = text(detail, TextRole::Label);
-                            if let Some(hint) = hint {
-                                // A Tooltip spawns its panel as a child, and a
-                                // text node with a child lays out as a container
-                                // with no text height: the hint goes on a wrapper.
-                                list.spawn((Node::default(), Tooltip((*hint).to_string())))
-                                    .with_child(label);
-                            } else {
-                                list.spawn(label);
-                            }
+                        for detail in details {
+                            list.spawn(text(detail, TextRole::Label));
                         }
                     }
                     MapStanceRowView::Settle {
@@ -490,7 +445,7 @@ pub(crate) fn update_map_stance_block(
                         list.spawn((
                             Name::new(format!("MapStanceRow-{index}")),
                             Node {
-                                column_gap: px(8),
+                                column_gap: px(metrics::GAP),
                                 ..control_row(JustifyContent::FlexStart)
                             },
                         ))
@@ -513,7 +468,10 @@ pub(crate) fn update_map_stance_block(
                                 )],
                             ));
                             row.spawn((
-                                tag(stance_word(StanceType::Enemy), stance_badge_kind(StanceType::Enemy)),
+                                tag(
+                                    stance_word(StanceType::Enemy),
+                                    stance_badge_kind(StanceType::Enemy),
+                                ),
                                 Pickable::IGNORE,
                             ));
                             row.spawn((
@@ -524,7 +482,7 @@ pub(crate) fn update_map_stance_block(
                             ));
                             row.spawn((
                                 Name::new(format!("MapStancePayFine-{index}")),
-                                button(ButtonSpec::control("Pay fine").primary()),
+                                button(ButtonSpec::control("Pay fine")),
                                 ButtonCueType::Owned,
                                 gate.clone(),
                             ))

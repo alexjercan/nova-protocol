@@ -3,15 +3,14 @@
 //! Touch this module when changing what the map pane remembers between frames
 //! or how its contact panel is laid out.
 
-use bevy::{
-    input::mouse::MouseWheel, picking::hover::Hovered, prelude::*, ui::InteractionDisabled,
-};
+use bevy::{input::mouse::MouseWheel, picking::hover::Hovered, prelude::*};
 use nova_events::prelude::{GeneratedBodyId, SectorCoord};
 use nova_ui::{
-    prelude::{button, inspector, metrics, preview_frame, text, ButtonSpec, TextRole},
+    prelude::{
+        button, control_row, inspector, metrics, preview_frame, text, verb_row, ButtonSpec,
+        RowAlign, TextRole, VerbGate,
+    },
     screen::drive_wheel_scroll,
-    theme::UiColorType,
-    widget::ThemedFill,
 };
 
 use super::{
@@ -31,7 +30,7 @@ pub(crate) struct MapViewportMarker;
 /// [`update_map_panel`](super::update_map_panel) refreshes them all in place.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum MapPanelField {
-    /// The selected contact's code, or `No contact`.
+    /// The selected contact's code; blank with nothing selected.
     Code,
     /// Its display name.
     Name,
@@ -41,7 +40,8 @@ pub(crate) enum MapPanelField {
     Range,
     /// Its bearing and mark from the player ship.
     Bearing,
-    /// A GOTO result while it shows, else what the contact is.
+    /// A marked contact's objective and the held jobs that send the player
+    /// to it.
     Note,
     /// The player ship's live GOTO destination, read from its autopilot, not
     /// from the selection.
@@ -53,11 +53,10 @@ pub(crate) enum MapPanelField {
 #[derive(Component)]
 pub(crate) struct MapPanelIcon;
 
-/// The Code/Name/Kind, Range/Bearing and Note fields and their rules, as one
-/// node: these header fields read unreliably in the chart overview with
-/// nothing selected (three blank rules stacked with no text between them), so
-/// [`update_map_panel`](super::update_map_panel) hides the whole node there.
-/// It stays shown on local Map and on a selected chart mark.
+/// The icon frame with the Code/Name/Kind fields beside it, then the
+/// Range/Bearing and Note fields, as one node:
+/// [`update_map_panel`](super::update_map_panel) hides it with nothing
+/// selected, on local Map and in the chart overview alike.
 #[derive(Component)]
 pub(crate) struct MapPanelHeaderMarker;
 
@@ -66,14 +65,15 @@ pub(crate) struct MapPanelHeaderMarker;
 #[derive(Component)]
 pub(crate) struct MapPanelMarker;
 
-/// The contact panel's GOTO button. It is disabled with no contact or the own
-/// ship selected; [`update_map_panel`](super::update_map_panel) toggles it.
+/// The contact panel's GOTO button. Its [`VerbGate`] hides it in the chart
+/// and on the docked partner, and disables it with no contact or the own
+/// ship selected; [`update_map_panel`](super::update_map_panel) writes it.
 #[derive(Component)]
 pub(crate) struct MapGotoButton;
 
-/// The contact panel's CANCEL button. It is enabled while the player ship
+/// The contact panel's Cancel button. It is enabled while the player ship
 /// flies a GOTO, even if its target left the local map; hidden in the chart.
-/// [`update_map_panel`](super::update_map_panel) toggles it.
+/// [`update_map_panel`](super::update_map_panel) writes its [`VerbGate`].
 #[derive(Component)]
 pub(crate) struct MapCancelButton;
 
@@ -107,15 +107,15 @@ pub(crate) fn scroll_map_panel(
     drive_wheel_scroll(wheel, q_panel);
 }
 
-/// Build the contact panel beside the map view: the selection's icon, in a
-/// frame the chart view hides, over the [`MapPanelHeaderMarker`] node (its
-/// code, name and kind; a rule; its range and bearing; a rule; its note; a
-/// rule), hidden as one in the chart overview with nothing selected; the
-/// SECTOR block, shown in the chart view with a find selected; the OBJECTIVES
-/// block and the discovery log under it, shown in the chart view with nothing
-/// selected; the STANCES block, shown in the chart view with nothing selected
-/// or a living, unowned Station mark selected; and the live GOTO destination
-/// over the GOTO and CANCEL buttons in the local contact view.
+/// Build the contact panel beside the map view: the
+/// [`MapPanelHeaderMarker`] node (the selection's icon in a frame the chart
+/// view hides, beside its code, name and kind; its range and bearing; its
+/// note), hidden with nothing selected; the SECTOR block, shown in the chart
+/// view with a find selected; the OBJECTIVES block and the discovery log
+/// under it, shown in the chart view with nothing selected; the STANCES
+/// block, shown in the chart view with nothing selected or a living, unowned
+/// Station mark selected; and the live GOTO destination over the GOTO and
+/// Cancel pair in the local contact view.
 /// [`update_map_panel`](super::update_map_panel) fills it.
 pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     parent
@@ -127,49 +127,52 @@ pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &Interfa
             Hovered::default(),
         ))
         .with_children(|panel| {
-            panel.spawn(preview_frame()).with_children(|frame| {
-                frame.spawn((
-                    MapPanelIcon,
-                    icon_node(
-                        icons.body(BodyIconType::Ship),
-                        MapContactKind::OwnShip.color(),
-                        metrics::PREVIEW * 0.75,
-                    ),
-                    Visibility::Hidden,
-                ));
-            });
             panel
                 .spawn((
                     MapPanelHeaderMarker,
                     Node {
+                        display: Display::None,
                         flex_direction: FlexDirection::Column,
-                        row_gap: px(10),
+                        row_gap: px(metrics::GAP),
                         ..default()
                     },
                 ))
                 .with_children(|header| {
                     header
-                        .spawn(Node {
-                            flex_direction: FlexDirection::Column,
-                            row_gap: px(4),
-                            ..default()
-                        })
-                        .with_children(|identity| {
-                            for (field, role) in [
-                                (MapPanelField::Code, TextRole::Title),
-                                (MapPanelField::Name, TextRole::Body),
-                                (MapPanelField::Kind, TextRole::Body),
-                            ] {
-                                identity.spawn((field, text("", role)));
-                            }
+                        .spawn(control_row(JustifyContent::FlexStart))
+                        .with_children(|head| {
+                            head.spawn(preview_frame()).with_children(|frame| {
+                                frame.spawn((
+                                    MapPanelIcon,
+                                    icon_node(
+                                        icons.body(BodyIconType::Ship),
+                                        MapContactKind::OwnShip.color(),
+                                        metrics::PREVIEW * 0.75,
+                                    ),
+                                    Visibility::Hidden,
+                                ));
+                            });
+                            head.spawn(Node {
+                                flex_grow: 1.0,
+                                min_width: px(0),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: px(metrics::GAP_S),
+                                ..default()
+                            })
+                            .with_children(|identity| {
+                                for (field, role) in [
+                                    (MapPanelField::Code, TextRole::Title),
+                                    (MapPanelField::Name, TextRole::Body),
+                                    (MapPanelField::Kind, TextRole::Body),
+                                ] {
+                                    identity.spawn((field, text("", role)));
+                                }
+                            });
                         });
-                    header.spawn(panel_rule());
                     for field in [MapPanelField::Range, MapPanelField::Bearing] {
                         header.spawn((field, text("", TextRole::Value)));
                     }
-                    header.spawn(panel_rule());
                     header.spawn((MapPanelField::Note, text("", TextRole::Label)));
-                    header.spawn(panel_rule());
                 });
             spawn_map_chart_sector(panel);
             spawn_map_chart_objectives(panel);
@@ -178,35 +181,29 @@ pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &Interfa
             panel.spawn((MapPanelField::Destination, text("", TextRole::Label)));
             // Disabled at spawn: the map opens with nothing selected.
             panel
-                .spawn((
-                    MapGotoButton,
-                    button(ButtonSpec::control("GOTO")),
-                    InteractionDisabled,
-                    Name::new("MapGoto"),
-                ))
-                .observe(on_map_goto_button);
-            panel
-                .spawn((
-                    MapCancelButton,
-                    button(ButtonSpec::control("CANCEL")),
-                    InteractionDisabled,
-                    Name::new("MapCancel"),
-                ))
-                .observe(on_map_cancel_button);
+                .spawn(Node {
+                    width: percent(100),
+                    ..verb_row(RowAlign::End)
+                })
+                .with_children(|verbs| {
+                    verbs
+                        .spawn((
+                            MapGotoButton,
+                            button(ButtonSpec::control("GOTO").fill()),
+                            VerbGate::Disabled,
+                            Name::new("MapGoto"),
+                        ))
+                        .observe(on_map_goto_button);
+                    verbs
+                        .spawn((
+                            MapCancelButton,
+                            button(ButtonSpec::control("Cancel").fill()),
+                            VerbGate::Disabled,
+                            Name::new("MapCancel"),
+                        ))
+                        .observe(on_map_cancel_button);
+                });
         });
-}
-
-/// A one-pixel rule between groups of the contact panel.
-fn panel_rule() -> impl Bundle {
-    (
-        Node {
-            height: px(1),
-            flex_shrink: 0.0,
-            ..default()
-        },
-        BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColorType::TextSecondary, 0.35),
-    )
 }
 
 /// The slot [`refresh_map_legend`](super::refresh_map_legend) fills with the
@@ -276,8 +273,6 @@ pub(crate) struct MapRuntime {
     /// The selection the focus last recentered on, so selecting a NEW contact
     /// snaps the map onto it once (without fighting WASD panning after).
     pub(crate) focused_on: Option<Entity>,
-    /// A transient GOTO result shown on the panel note for a short time.
-    pub(crate) goto_note: Option<(String, f32)>,
     /// The GOTO button was activated. [`map_input`](super::map_input) takes it
     /// on its next run and validates it with the `map_goto` key.
     pub(crate) goto_requested: bool,
@@ -307,7 +302,7 @@ pub(crate) struct MapRuntime {
     /// The live facts of every found station standing in the streamed
     /// window, in id order, as the chart view last drew them.
     pub(crate) chart_live: Vec<(GeneratedBodyId, ChartStationLive)>,
-    /// The last action result the pane reports: the STANCES block's Pay
-    /// fine, settled or refused, on the notice line over the side panel.
+    /// The last action result's cue: the STANCES block's Pay fine, settled
+    /// or refused, and a GOTO key press the map refuses.
     pub(crate) cue: ActionCue,
 }

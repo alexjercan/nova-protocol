@@ -190,6 +190,7 @@ impl Plugin for MapPanePlugin {
                 assign_map_contact_codes,
                 manage_map_scene,
                 reconcile_map_target,
+                gate_map_chart_button,
                 toggle_map_chart,
                 scroll_map_panel,
                 map_input,

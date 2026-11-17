@@ -42,12 +42,13 @@
 //! come up in either order between runs, so the sheet is about "a hostile", not
 //! about one named ship. The walk does not read the selection (`MapRuntime` is
 //! crate-private): it asserts on what the pane DRAWS, a `HOSTILE` panel with
-//! range and bearing and then the `GOTO SET:` note, so a walk that landed on the
-//! friendly tender stalls on a named beat instead of shipping the wrong
-//! footage. The note, not the ship's `Autopilot`: on the smoke run the range's
-//! hull handed the computer back within a frame of the order ("maneuver
-//! complete" in the `nova_ship` log), so the component was gone before a beat
-//! could read it.
+//! range and bearing and then the `GOTO <code>` destination line, so a walk
+//! that landed on the friendly tender stalls on a named beat instead of
+//! shipping the wrong footage. On the smoke run the range's hull handed the
+//! computer back within a frame of the order ("maneuver complete" in the
+//! `nova_ship` log), and the destination line follows the `Autopilot`, so the
+//! walk latches the line on every frame from the press ([`GotoShown`]) and
+//! ends on the latch.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - drive the whole session, exit
@@ -209,8 +210,8 @@ fn the_flight_is_back() -> std::sync::Arc<nova_protocol::nova_debug::harness::Pr
 /// Advance once any line of on-screen text satisfies `test`.
 ///
 /// The pane's own panel, read the way a player reads it: the selection and
-/// the GOTO note live in crate-private state, and the text they draw is the
-/// one place both are observable.
+/// the GOTO live in crate-private state, and the text they draw is the one
+/// place both are observable.
 #[cfg(feature = "debug")]
 fn the_screen_reads(
     test: fn(&str) -> bool,
@@ -235,10 +236,30 @@ fn is_a_bearing(line: &str) -> bool {
     line.starts_with("Bearing ") && line != "Bearing ---"
 }
 
-/// The note the pane flashes once GOTO is set on a contact.
+/// The destination line the contact panel draws while a GOTO flies to a
+/// contact on the map: `GOTO <code>  <range>`.
 #[cfg(feature = "debug")]
-fn is_the_goto_note(line: &str) -> bool {
-    line.starts_with("GOTO SET: ")
+fn is_the_goto_destination(line: &str) -> bool {
+    line.starts_with("GOTO ") && line != "GOTO LOST"
+}
+
+/// Whether the contact panel has drawn the GOTO destination line since the
+/// press: the line lasts only as long as the autopilot does.
+#[cfg(feature = "debug")]
+#[derive(Resource, Default)]
+struct GotoShown(bool);
+
+/// Latch [`GotoShown`] on a frame whose screen draws the destination line.
+#[cfg(feature = "debug")]
+fn latch_goto_shown(world: &mut World, _: f32, _: u32) {
+    let shown = world.try_query::<&Text>().is_some_and(|mut texts| {
+        texts
+            .iter(world)
+            .any(|text| is_the_goto_destination(&text.0))
+    });
+    if shown {
+        world.insert_resource(GotoShown(true));
+    }
 }
 
 /// Open the interface over the flight, hold the map, close it, then read the
@@ -350,19 +371,28 @@ fn interface_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
         .deadline(STEP_DEADLINE_SECS)
         .add()
         .step("press GOTO")
-        .on_enter(press_action("map_goto"))
+        .on_enter(|world: &mut World| {
+            world.insert_resource(GotoShown(false));
+            press_action("map_goto")(world);
+        })
+        .each(latch_goto_shown)
         .until(frames(1))
         .add()
-        .step("let the key up and hold the GOTO note")
+        .step("let the key up and hold the GOTO destination")
         .on_enter(release_action("map_goto"))
+        .each(latch_goto_shown)
         .until(sheet_written(MAP_LESSON))
         .deadline(60.0)
         .add()
         // A sheet that closed over a GOTO that never engaged would be twenty
         // cells of a claim it does not make, so the run ends on the pane's own
-        // note.
+        // destination line.
         .step("the pane reports GOTO set")
-        .until(the_screen_reads(is_the_goto_note))
+        .until(std::sync::Arc::new(|world: &World| {
+            world
+                .get_resource::<GotoShown>()
+                .is_some_and(|shown| shown.0)
+        }))
         .deadline(STEP_DEADLINE_SECS)
         .add()
         .step("park the view")

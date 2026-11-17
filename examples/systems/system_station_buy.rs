@@ -30,7 +30,7 @@
 //! | 2 | `outcome: a buy hands the player the parked hull and parks the old one` | the player's design is the parked hull's, every section live, its hold empty and docked with the station through a new connection; the old ship is parked as the player's own (`Owned`, `OwnedShipMarker`), docked, with its design and the hold it had; the player paid the full price and the station took it, both as `ShipBuy`; `OnShipBought` fired once; storage did not change and nothing was stored; the bought hull then undocks |
 //! | 3 | `outcome: the retired record holds the parked hulls` | the cell is not live and the station's record lists every parked hull and escort for hire by name and listing, the old ship with its sections and its hold |
 //! | 4 | `outcome: the thawed station parks the same hulls` | the thawed station lists the same hulls and escorts for hire in the same order, each hull for sale or owned docked with it, only the owned ones the player's, the old ship with its hold |
-//! | 5 | `outcome: a board hands the player the old ship back for free` | the Station pane lists the old ship as "your ship" with Board; after the board the player's design and hold are the old ship's, the hull it flew is parked as the player's own, neither balance moved and no buy was reported |
+//! | 5 | `outcome: a board hands the player the old ship back for free` | the Station pane lists the old ship with Board; after the board the player's design and hold are the old ship's, the hull it flew is parked as the player's own, neither balance moved and no buy was reported |
 //! | 6 | `outcome: the leave save holds the player's hull and the parked hulls` | the saved player carries the old ship's sections and none the bought hull adds; the saved station lists the same parked hulls and escorts for hire |
 //! | 7 | `outcome: a loaded world gives back the player's hull and the parked hulls` | after Load the player's live sections and hold are the old ship's, and the station lists the same parked hulls and escorts for hire |
 //!
@@ -146,8 +146,6 @@ mod walk {
 
     /// The Station pane's panel, which scrolls under the wheel.
     const STATION_PANEL: &str = "StationPanel";
-    /// The end of the card line of a ship the player owns, after its length.
-    const OWNED_DETAIL: &str = ", your ship";
 
     /// The disclosed fixture hold, which stays in the old ship on the buy.
     const HELD_ITEM: &str = "SectionPanel";
@@ -622,15 +620,16 @@ mod walk {
         }
     }
 
-    /// The hull list's card lines that mark a ship the player owns.
+    /// The hull list's Board buttons: a card the player owns carries Board
+    /// where a hull for sale carries Buy.
     fn board_rows(world: &World) -> Vec<String> {
         world
-            .try_query::<&Text>()
-            .map(|mut texts| {
-                texts
+            .try_query::<&Name>()
+            .map(|mut names| {
+                names
                     .iter(world)
-                    .filter(|text| text.0.ends_with(OWNED_DETAIL))
-                    .map(|text| text.0.clone())
+                    .filter(|name| name.as_str().starts_with("HullBoard-"))
+                    .map(|name| name.to_string())
                     .collect()
             })
             .unwrap_or_default()

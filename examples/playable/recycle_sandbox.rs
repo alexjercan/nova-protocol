@@ -616,14 +616,14 @@ mod smoke {
         world.insert_resource(smoke);
     }
 
-    /// The Strip button's disabled state and tooltip text.
-    fn strip_button(world: &World) -> Option<(bool, String)> {
+    /// The Strip button's disabled state and its gate.
+    fn strip_button(world: &World) -> Option<(bool, nova_ui::prelude::VerbGate)> {
         let mut buttons =
-            world.try_query::<(&Name, Has<InteractionDisabled>, &nova_ui::widget::Tooltip)>()?;
+            world.try_query::<(&Name, Has<InteractionDisabled>, &nova_ui::prelude::VerbGate)>()?;
         buttons
             .iter(world)
             .find(|(name, ..)| name.as_str() == INVENTORY_STRIP_BUTTON)
-            .map(|(_, disabled, tooltip)| (disabled, tooltip.0.clone()))
+            .map(|(_, disabled, gate)| (disabled, gate.clone()))
     }
 
     /// Whether the strip block's Hold meter text, used over capacity with
@@ -640,18 +640,19 @@ mod smoke {
             })
     }
 
-    /// With no room: the button is disabled with no tooltip, the Hold meter
+    /// With no room: the button is disabled with no tag, the Hold meter
     /// is red, and a strip command moves nothing at all and starts no strip.
     fn assert_nothing_moved(world: &mut World) {
         let player = player(world);
         let smoke = world.resource::<SmokeLoot>();
         let (wreck, stuffed, own_cr) = (smoke.wreck, smoke.stuffed.clone(), smoke.own_cr);
         let (loot, loot_cr) = (smoke.loot.clone(), smoke.loot_cr);
-        let (disabled, reason) = strip_button(world).expect("recycle sandbox: Strip is up");
+        let (disabled, gate) = strip_button(world).expect("recycle sandbox: Strip is up");
         assert!(disabled, "recycle sandbox: Strip is disabled with no room");
-        assert!(
-            reason.is_empty(),
-            "recycle sandbox: the red Hold meter shows no room, got tooltip {reason:?}"
+        assert_eq!(
+            gate,
+            nova_ui::prelude::VerbGate::Disabled,
+            "recycle sandbox: the red Hold meter shows no room, so Strip carries no tag"
         );
         assert!(
             hold_meter_red(world),

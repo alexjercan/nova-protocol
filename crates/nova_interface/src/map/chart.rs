@@ -24,9 +24,7 @@
 //! rows, when the player entered it, the finds there, the stock last seen at
 //! a station docked there and the jobs held or posted there. With nothing
 //! selected it carries the OBJECTIVES block over the discovery log; the
-//! block's heading carries the focused Y layer, with the layer's visited
-//! count as its tooltip, since the chart's own header fields render
-//! unreliably with nothing selected. The block lists what the player has to
+//! block's heading carries the focused Y layer. The block lists what the player has to
 //! do now ([`open_objectives`]): each held job's code, title, `have / need`
 //! and the code of its hand-in station, then the role's heading and next
 //! unmet milestone, or the time the role met its last one. A held job's row
@@ -47,16 +45,19 @@ use nova_events::prelude::{GeneratedBodyId, SectorCoord};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::DockAdmission;
 use nova_ui::{
-    prelude::{button, control_row, divider, text, text_toned, ButtonSpec, TextRole},
+    prelude::{
+        block, block_header, button, control_row, divider, metrics, spawn_kv, text, text_toned,
+        BlockTitle, ButtonSpec, TextRole, VerbGate,
+    },
     theme::{ActiveUiTheme, UiColorType},
-    widget::{ThemedBorder, ThemedFill, Tooltip},
+    widget::{ThemedBorder, ThemedFill},
 };
 
 use super::{app::*, contacts::*, tiles::ChartTileTextures, *};
 use crate::{
     icons::{icon_node, ChartIconType, InterfaceIcons, JobIconType},
     inventory::category_color,
-    pane::{legend_entry, InterfacePaneType},
+    pane::{legend_entry, ActionOutcomeType, InterfacePaneType},
     terminal::NovaOsAppInput,
     viewer::unlit,
 };
@@ -312,7 +313,9 @@ pub(crate) fn frame_chart(orbit: &mut MapOrbit) {
 
 /// Switch between the local view and the chart view on `map_chart` or the
 /// Chart button, while the map owns the screen. A scene with no streamed
-/// world has no chart: the switch writes a note and stays local. Each switch
+/// world has no chart: its Chart button is hidden
+/// ([`gate_map_chart_button`]), and the key plays the deny cue and stays
+/// local. Each switch
 /// drops the chart selection and reframes the view it enters; a switch into
 /// the chart that a Show on Map asked for selects its mark and focuses the
 /// view on it instead ([`MapRuntime::chart_show`]).
@@ -331,7 +334,7 @@ pub(crate) fn toggle_map_chart(
     }
     let Some(edge) = edge else {
         runtime.chart_show = None;
-        runtime.goto_note = Some(("NO CHART: NO OPEN WORLD".to_string(), 2.5));
+        runtime.cue.raise(ActionOutcomeType::Refused);
         return;
     };
     runtime.chart = !runtime.chart;
@@ -354,6 +357,24 @@ pub(crate) fn toggle_map_chart(
             }
         } else {
             reframe_map(&mut orbit, &contacts, &mut runtime);
+        }
+    }
+}
+
+/// Hide the Chart button in a scene with no streamed world, which has no
+/// chart to switch to.
+pub(crate) fn gate_map_chart_button(
+    edge: Option<Res<ChartSectorEdge>>,
+    mut q_button: Query<&mut VerbGate, With<MapChartButton>>,
+) {
+    let gate = if edge.is_some() {
+        VerbGate::Ready
+    } else {
+        VerbGate::Hidden
+    };
+    for mut current in &mut q_button {
+        if *current != gate {
+            *current = gate.clone();
         }
     }
 }
@@ -890,34 +911,57 @@ fn on_map_chart_log_row_click(
     toggle_chart_mark(&mut runtime, q_camera.single_mut().ok(), &jobs, mark);
 }
 
-/// A section heading of a chart panel block.
+/// A chart panel block's slot: the kit [`block`] frame, hidden until its
+/// update shows it. The update rebuilds every row, header included.
+fn chart_block(marker: impl Bundle, name: &'static str) -> impl Bundle {
+    let (node, border, themed) = block();
+    (
+        marker,
+        Name::new(name),
+        Node {
+            display: Display::None,
+            ..node
+        },
+        border,
+        themed,
+    )
+}
+
+/// A chart panel block's header row: `title` as the kit heading on the left,
+/// `aside` in the Label colour on the right.
+fn chart_block_head(parent: &mut ChildSpawnerCommands, title: &str, aside: &str) {
+    parent
+        .spawn((
+            Node {
+                justify_content: JustifyContent::SpaceBetween,
+                align_items: AlignItems::Center,
+                column_gap: px(metrics::GAP_S),
+                min_height: px(metrics::ROW_H),
+                ..default()
+            },
+            Pickable::IGNORE,
+        ))
+        .with_children(|head| {
+            head.spawn((BlockTitle, text(title, TextRole::Heading)));
+            head.spawn(text(aside, TextRole::Label));
+        });
+}
+
+/// A section heading inside a chart panel block, under a rule: the kit
+/// block header, so every heading on the panel reads one style.
 fn block_heading(parent: &mut ChildSpawnerCommands, value: &str) {
-    parent.spawn((text(value, TextRole::Label), Pickable::IGNORE));
+    parent.spawn(divider());
+    parent.spawn(block_header(value));
 }
 
 /// A `label  value` line of a chart panel block.
 fn block_fact(parent: &mut ChildSpawnerCommands, label: &str, value: &str) {
-    parent
-        .spawn(Node {
-            column_gap: px(8),
-            ..control_row(JustifyContent::FlexStart)
-        })
-        .with_children(|row| {
-            row.spawn((
-                Node {
-                    width: px(72),
-                    flex_shrink: 0.0,
-                    ..default()
-                },
-                children![(text(label, TextRole::Label), Pickable::IGNORE)],
-            ));
-            row.spawn((text(value, TextRole::Value), Pickable::IGNORE));
-        });
+    spawn_kv(parent, label, text(value, TextRole::Value));
 }
 
-/// A note line of a chart panel block.
+/// The one word a chart panel block shows for an empty or unknown list.
 fn block_note(parent: &mut ChildSpawnerCommands, value: &str) {
-    parent.spawn((text(value, TextRole::Body), Pickable::IGNORE));
+    parent.spawn((text(value, TextRole::Label), Pickable::IGNORE));
 }
 
 /// One icon row of a chart panel block: an icon in its tint, a label that
@@ -1007,16 +1051,7 @@ fn select_row(row: &mut EntityCommands, name: String, mark: MapChartMarkType, se
 /// hidden off the chart view and with nothing selected.
 /// [`update_map_chart_sector`] fills it.
 pub(crate) fn spawn_map_chart_sector(panel: &mut ChildSpawnerCommands) {
-    panel.spawn((
-        MapChartSectorMarker,
-        Name::new("MapChartSector"),
-        Node {
-            display: Display::None,
-            flex_direction: FlexDirection::Column,
-            row_gap: px(4),
-            ..default()
-        },
-    ));
+    panel.spawn(chart_block(MapChartSectorMarker, "MapChartSector"));
 }
 
 /// What a chart panel block was last built for, so it rebuilds only on a
@@ -1101,22 +1136,14 @@ pub(crate) fn update_map_chart_sector(
         .entity(block)
         .despawn_related::<Children>()
         .with_children(|block| {
-            block
-                .spawn(control_row(JustifyContent::SpaceBetween))
-                .with_children(|head| {
-                    head.spawn((
-                        text(&format!("SECTOR {coord}"), TextRole::Title),
-                        Pickable::IGNORE,
-                    ));
-                    head.spawn((
-                        text(&route_hint(player_cell, coord), TextRole::Label),
-                        Pickable::IGNORE,
-                    ));
-                });
-            block.spawn(divider());
-            block_heading(block, "CONTENTS");
+            chart_block_head(
+                block,
+                &format!("Sector {coord}"),
+                &route_hint(player_cell, coord),
+            );
+            block_heading(block, "Contents");
             match chart.cell(coord) {
-                Some(cell) if cell.clusters.is_empty() => block_note(block, "Empty space."),
+                Some(cell) if cell.clusters.is_empty() => block_note(block, "Empty"),
                 Some(cell) => {
                     for cluster in &cell.clusters {
                         let icon = ChartIconType::of(*cluster);
@@ -1129,10 +1156,9 @@ pub(crate) fn update_map_chart_sector(
                         );
                     }
                 }
-                None => block_note(block, "Not entered yet: contents unknown."),
+                None => block_note(block, "Unknown"),
             }
             if let Some(cell) = chart.cell(coord) {
-                block.spawn(divider());
                 block_fact(
                     block,
                     "Entered",
@@ -1156,8 +1182,7 @@ pub(crate) fn update_map_chart_sector(
                 .filter(|wreck| wreck.id.origin == coord)
                 .collect();
             if !stations.is_empty() || !wrecks.is_empty() {
-                block.spawn(divider());
-                block_heading(block, "FINDS");
+                block_heading(block, "Finds");
             }
             for station in &stations {
                 let mark = MapChartMarkType::Station(station.id.clone());
@@ -1171,7 +1196,7 @@ pub(crate) fn update_map_chart_sector(
                     facts.push("yours".to_string());
                 }
                 if live.refusing {
-                    facts.push("refuses docking".to_string());
+                    facts.push("refusing".to_string());
                 }
                 if facts.is_empty() {
                     facts.push("living".to_string());
@@ -1218,10 +1243,9 @@ pub(crate) fn update_map_chart_sector(
                 let Some(summary) = &station.summary else {
                     continue;
                 };
-                block.spawn(divider());
-                block_heading(block, &format!("{} LAST SEEN", summary.name.to_uppercase()));
+                block_heading(block, &format!("{} last seen", summary.name));
                 if station.derelict {
-                    block_note(block, "Dead. Nothing trades here.");
+                    block_note(block, "Dead");
                     continue;
                 }
                 let services = if summary.services.is_empty() {
@@ -1235,14 +1259,11 @@ pub(crate) fn update_map_chart_sector(
                         .join(", ")
                 };
                 block_fact(block, "Services", &services);
-                if summary.stock.is_empty() {
-                    block_note(block, "No stock seen.");
-                }
                 for (item, count) in &summary.stock {
                     stock_row(block, &icons, items.as_deref(), item, *count);
                 }
                 if !summary.stored.is_empty() {
-                    block_heading(block, "STORED");
+                    block_heading(block, "Stored");
                     for (item, count) in &summary.stored {
                         stock_row(block, &icons, items.as_deref(), item, *count);
                     }
@@ -1262,8 +1283,7 @@ pub(crate) fn update_map_chart_sector(
                 .filter(|(_, posting)| *posting > 0)
                 .collect();
             if !held.is_empty() || !posting.is_empty() {
-                block.spawn(divider());
-                block_heading(block, "JOBS HERE");
+                block_heading(block, "Jobs here");
             }
             for job in held {
                 let mark = MapChartMarkType::Job(job.id.clone());
@@ -1297,9 +1317,13 @@ pub(crate) fn update_map_chart_sector(
                 spawn_icon_row(
                     block,
                     Some((icons.chart(ChartIconType::Job), MAP_CHART_JOB_COLOR)),
-                    &format!("{code} posts {count} jobs"),
+                    &code,
                     UiColorType::Text,
-                    &[("open", TextRole::Label, UiColorType::TextMuted)],
+                    &[(
+                        &format!("{count} posted"),
+                        TextRole::Label,
+                        UiColorType::TextMuted,
+                    )],
                 );
             }
         });
@@ -1335,25 +1359,15 @@ fn stock_row(
 /// hidden off the chart view and while a find is selected.
 /// [`update_map_chart_objectives`] fills it.
 pub(crate) fn spawn_map_chart_objectives(panel: &mut ChildSpawnerCommands) {
-    panel.spawn((
-        MapChartObjectivesMarker,
-        Name::new("MapChartObjectives"),
-        Node {
-            display: Display::None,
-            flex_direction: FlexDirection::Column,
-            row_gap: px(2),
-            ..default()
-        },
-    ));
+    panel.spawn(chart_block(MapChartObjectivesMarker, "MapChartObjectives"));
 }
 
 /// Show the OBJECTIVES block while the chart view shows with nothing
 /// selected, rebuild its rows whenever what [`open_objectives`] lists, the
 /// goal's met stamp, or the focused chart layer changes, and hide it
-/// otherwise. The heading carries the focused layer (`OBJECTIVES  LAYER {layer}`)
-/// with the layer's visited cell count as its tooltip, since the chart's own
-/// header fields render unreliably with nothing selected. A held job's row
-/// selects its JOB mark; a met goal reads one row with its stamp.
+/// otherwise. The heading carries the focused layer (`OBJECTIVES` over
+/// `Layer {layer}`). A held job's row selects its JOB mark; a met goal reads
+/// one row with its stamp.
 #[expect(
     clippy::too_many_arguments,
     reason = "the records the rows read, the player's hold and the icons the rows draw"
@@ -1402,31 +1416,15 @@ pub(crate) fn update_map_chart_objectives(
         icons.chart(ChartIconType::Milestone),
         ChartIconType::Milestone.color(),
     );
-    let visited_on_layer = chart
-        .visited()
-        .filter(|(cell, _)| cell.y == runtime.chart_layer)
-        .count();
     commands
         .entity(block)
         .despawn_related::<Children>()
         .with_children(|block| {
-            // Tooltip on a themed_label text entity itself renders it blank
-            // here (the same unreliable-header bug this heading works
-            // around); the tooltip sits on a wrapping node instead.
-            block
-                .spawn((
-                    Node::default(),
-                    Tooltip(format!(
-                        "{visited_on_layer} visited cells on layer {}",
-                        runtime.chart_layer
-                    )),
-                ))
-                .with_children(|heading| {
-                    heading.spawn(text(
-                        &format!("OBJECTIVES  LAYER {}", runtime.chart_layer),
-                        TextRole::Label,
-                    ));
-                });
+            chart_block_head(
+                block,
+                "Objectives",
+                &format!("Layer {}", runtime.chart_layer),
+            );
             let (objectives, met_at, _) = &rows;
             for objective in objectives {
                 let OpenObjectiveType::Job {
@@ -1466,7 +1464,7 @@ pub(crate) fn update_map_chart_objectives(
                 select_row(&mut row, format!("MapChartObjective{code}"), mark, false);
             }
             if objectives.is_empty() && met_at.is_none() {
-                block_note(block, "EMPTY");
+                block_note(block, "Empty");
             }
             if objectives
                 .iter()
@@ -1495,13 +1493,12 @@ pub(crate) fn update_map_chart_objectives(
                 spawn_icon_row(
                     block,
                     Some(milestone.clone()),
-                    &format!("Goal reached at {}", play_time_text(*at)),
+                    &play_time_text(*at),
                     UiColorType::Accent,
-                    &[],
+                    &[("done", TextRole::Value, UiColorType::Accent)],
                 )
                 .insert(Name::new("MapChartObjectiveMet"));
             }
-            block.spawn(divider());
         });
     *built = Some(rows);
 }
@@ -1509,16 +1506,7 @@ pub(crate) fn update_map_chart_objectives(
 /// The discovery log's slot in the side panel: a heading over the rows,
 /// hidden off the chart view. [`update_map_chart_log`] fills the rows.
 pub(crate) fn spawn_map_chart_log(panel: &mut ChildSpawnerCommands) {
-    panel.spawn((
-        MapChartLogMarker,
-        Name::new("MapChartLog"),
-        Node {
-            display: Display::None,
-            flex_direction: FlexDirection::Column,
-            row_gap: px(2),
-            ..default()
-        },
-    ));
+    panel.spawn(chart_block(MapChartLogMarker, "MapChartLog"));
 }
 
 /// One discovery log row, as the panel draws it.
@@ -1625,9 +1613,9 @@ pub(crate) fn update_map_chart_log(
             .entity(log)
             .despawn_related::<Children>()
             .with_children(|log| {
-                log.spawn(text("DISCOVERY LOG", TextRole::Label));
+                log.spawn(block_header("Discovery log"));
                 if entries.is_empty() {
-                    log.spawn(text("Nothing found yet.", TextRole::Label));
+                    block_note(log, "Empty");
                 }
                 for (index, entry) in entries.iter().enumerate() {
                     let view = chart_log_row(&chart, &jobs, entry);
@@ -1783,7 +1771,7 @@ pub(crate) fn project_map_chart_labels(
 /// the selected mark's code, its last-seen name, what it is, its cell, and
 /// when the player found it, with a note for a station never docked at; for
 /// a visited cell, what its clusters hold and when the player entered it; for
-/// a held job, its title, reward and where it hands in. The SECTOR block
+/// a held job, its title, reward and its poster > hand-in route. The SECTOR block
 /// lists the cell's finds, services, stock and jobs. With nothing selected it
 /// reads blank; the focused layer and its visited count head the OBJECTIVES
 /// block instead ([`update_map_chart_objectives`]), since these header
@@ -1801,7 +1789,7 @@ pub(crate) fn chart_panel_field(
             .and_then(|station| station.summary.as_ref())
             .map_or_else(|| id.to_string(), |summary| summary.name.clone())
     };
-    let found = |at: f64| format!("Found {}.", play_time_text(at));
+    let found = |at: f64| format!("Found {}", play_time_text(at));
     match (selected, field) {
         (None, _) => (String::new(), UiColorType::TextBody),
         (Some(mark), MapPanelField::Code) => (
@@ -1843,16 +1831,16 @@ pub(crate) fn chart_panel_field(
         ),
         (Some(MapChartMarkType::Job(id)), MapPanelField::Note) => (
             jobs.job(id).map_or_else(String::new, |job| {
-                let state = if jobs.is_done(id) {
-                    "Done.".to_string()
-                } else {
-                    job.task(items.unwrap_or(&GameItems::default()))
-                };
-                format!(
-                    "Posted by {}\n{state}\nHand in at {}",
+                let route = format!(
+                    "{} > {}",
                     station_name(job.posted_by()),
                     station_name(&job.target)
-                )
+                );
+                if jobs.is_done(id) {
+                    format!("{route}\ndone")
+                } else {
+                    route
+                }
             }),
             UiColorType::TextMuted,
         ),
@@ -1909,9 +1897,19 @@ pub(crate) fn spawn_chart_legend(legend: &mut ChildSpawnerCommands, icons: &Inte
     }
 }
 
-/// The footer button that switches the chart view.
+/// Marks the footer button that switches the chart view.
+#[derive(Component)]
+pub(crate) struct MapChartButton;
+
+/// The footer button that switches the chart view, hidden until
+/// [`gate_map_chart_button`] finds a streamed world.
 pub(crate) fn map_chart_button() -> impl Bundle {
-    (button(ButtonSpec::control("Chart")), Name::new("MapChart"))
+    (
+        MapChartButton,
+        button(ButtonSpec::control("Chart")),
+        VerbGate::Hidden,
+        Name::new("MapChart"),
+    )
 }
 
 #[cfg(test)]

@@ -37,6 +37,38 @@ pub fn list_row() -> impl Bundle {
     )
 }
 
+/// A tool-surface list row: [`LIST_ROW_H`] high at least, [`PAD_X`] sides and
+/// no vertical padding, so a [`CONTROL_H`] verb in it sits centred. Cells
+/// [`GAP_L`] apart; cells that do not fit beside a growing cell wrap to a
+/// second line [`GAP_S`] under it. Painted and selected like [`list_row`].
+///
+/// [`LIST_ROW_H`]: crate::widget::metrics::LIST_ROW_H
+/// [`PAD_X`]: crate::widget::metrics::PAD_X
+/// [`CONTROL_H`]: crate::widget::metrics::CONTROL_H
+/// [`GAP_L`]: crate::widget::metrics::GAP_L
+/// [`GAP_S`]: crate::widget::metrics::GAP_S
+pub fn tool_list_row() -> impl Bundle {
+    use crate::widget::metrics::{GAP_L, GAP_S, LIST_ROW_H, PAD_X};
+    (
+        ListRow,
+        Node {
+            width: percent(100),
+            min_height: px(LIST_ROW_H),
+            flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::Wrap,
+            align_items: AlignItems::Center,
+            column_gap: px(GAP_L),
+            row_gap: px(GAP_S),
+            padding: UiRect::axes(px(PAD_X), px(0)),
+            border: UiRect::all(px(BORDER_W)),
+            flex_shrink: 0.0,
+            ..default()
+        },
+        BorderColor::all(Color::NONE),
+        BackgroundColor(Color::NONE),
+    )
+}
+
 /// A row's `(background, border)` in the active theme - the accessor for a
 /// caller that paints its OWN row entity (the editor's stage highlight, its
 /// rail and its menus, which light rows from state the widget layer cannot

@@ -12,8 +12,8 @@
 //! board.
 //!
 //! Try: click a row and read it in the inspector, Accept it, close the
-//! interface with TAB, undock, open TAB > Jobs: the board is gone and the
-//! held row says where it hands in and how far that is; Show on Map opens
+//! interface with TAB, undock, open TAB > Jobs: the board and Hand in are
+//! gone, and selecting the held row reads where it hands in; Show on Map opens
 //! the Map's chart view on the job's mark, `JOB-1` in the cell of the body
 //! it is about. A procurement hands in at once: dock again and Hand in, the
 //! goods leave the hold and the reward lands on the balance. A located job
@@ -975,7 +975,14 @@ mod smoke {
             "job sandbox: open the Jobs pane undocked",
             "InterfaceTabJobs",
             and(
-                and(ui_node_absent(JOBS_BOARD), ui_node_present("JobHandIn-0")),
+                and(
+                    ui_node_absent(JOBS_BOARD),
+                    and(
+                        ui_node_present("JobRowHeld-0"),
+                        // Hidden, not despawned: it holds no laid-out rect.
+                        when(|world| ui_node_rect(world, "JobHandIn-0").is_none()),
+                    ),
+                ),
                 frames(SETTLE_FRAMES),
             ),
             BEAT_SECS,
@@ -990,7 +997,10 @@ mod smoke {
                     no_text_reads(|text| text == "HELD"),
                 ),
             ),
-            and(reads_the_second_reward_only("", ""), frames(SETTLE_FRAMES)),
+            and(
+                reads_the_second_reward_only("", " cr"),
+                frames(SETTLE_FRAMES),
+            ),
         ))
         .deadline(BEAT_SECS)
         .add()
@@ -1038,7 +1048,7 @@ mod smoke {
         .step("job sandbox: the chart returns to its overview")
         .until(and(
             and(
-                a_text_reads(|text| text.starts_with("OBJECTIVES  LAYER ")),
+                a_text_reads(|text| text == "OBJECTIVES"),
                 no_text_reads(|text| text.starts_with("Reward ")),
             ),
             frames(SETTLE_FRAMES),
@@ -1051,7 +1061,7 @@ mod smoke {
             and(
                 and(
                     the_interface_shows(Some(InterfacePaneType::Jobs)),
-                    a_text_reads(|text| text == "Select a job to see its details."),
+                    ui_node_absent(JOB_SHOW_ON_MAP),
                 ),
                 and(no_text_reads(|text| text == "TASK"), frames(SETTLE_FRAMES)),
             ),

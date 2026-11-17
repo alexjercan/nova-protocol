@@ -22,9 +22,9 @@
 //! What to try:
 //!
 //! 1. open the interface (`TAB`), Station tab: **Ships for sale** shows a
-//!    card per parked hull, each with the hull's own model turning and one
-//!    line (name, length, price) over Buy; after a buy, **Your ships** lists
-//!    above it the old ship's card, "your ship" over Board;
+//!    card per parked hull, each with the hull's own model turning, its name
+//!    and length, and its price beside Info and Buy; after a buy, **Your
+//!    ships** lists above it the old ship's card with Board and no price;
 //! 2. Inventory tab: the old ship's hold lists as storage while you are
 //!    docked;
 //! 3. buy another hull at its full price, or Board the old ship for free:
@@ -986,7 +986,7 @@ mod smoke {
         world
             .query::<(&Text, &ComputedNode)>()
             .iter(world)
-            .any(|(text, node)| text.0 == "Ships for sale" && node.size().min_element() > 0.0)
+            .any(|(text, node)| text.0 == "SHIPS FOR SALE" && node.size().min_element() > 0.0)
     }
 
     /// Assert the owned card's Board button is laid out, and what the

@@ -286,11 +286,11 @@ parked hull is inert: nobody flies it, it is Neutral, it does not shoot, and
 it cannot be looted or stripped. Docked to a living station that offers
 `Refit`, the Station pane lists the parked hulls under **Ships for sale**:
 each a card with the real hull turning slowly, its name, length and price,
-and a Buy button, greyed with the reason as its tooltip while refused, beside
-an Info button that shows the hull in the Ship pane, read-only. A ship the
-player owns, parked there, lists above them under **Your ships** and says
-"your ship" in place of the price, over a Board button. Each list shows only
-while it has a card.
+and a Buy button beside an Info button that shows the hull in the Ship pane,
+read-only. Buy is hidden where it cannot work and greyed with the price red
+while the balance is short. A ship the player owns, parked there, lists above
+them under **Your ships** with a Board button and no price. Each list shows
+only while it has a card.
 
 | rule | what happens |
 |---|---|
@@ -345,7 +345,9 @@ and Load.
 
 A living station that a generated world places is for sale to the ship docked
 with it. The Station pane shows it under **This station**: its name, its price
-and a **Buy station** button, greyed with the reason while refused. A station a
+and a **Buy station** button, greyed while refused: behind an `ALLIES ONLY`
+tag for a station that sells to allies only, with the price red while the
+balance is short. A station a
 scenario places and a derelict are not for sale.
 
 | rule | what happens |

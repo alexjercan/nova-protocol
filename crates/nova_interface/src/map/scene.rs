@@ -10,7 +10,6 @@ use bevy::{
     camera::{visibility::RenderLayers, ImageRenderTarget, RenderTarget},
     picking::hover::Hovered,
     prelude::*,
-    ui::InteractionDisabled,
     // The activatable Button (fires `Activate` on click or keyboard
     // activation), matching the terminal's own buttons.
     ui_widgets::{Activate, Button},
@@ -18,7 +17,7 @@ use bevy::{
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
-    prelude::{text, TextRole},
+    prelude::{text, TextRole, VerbGate},
     theme::{ActiveUiTheme, UiColorType},
     widget::{ButtonCueType, ThemedBorder, ThemedFill, ThemedImageTint, ThemedText},
 };
@@ -26,7 +25,7 @@ use nova_ui::{
 use super::{app::*, contacts::*, *};
 use crate::{
     icons::{icon_node, BodyIconType, InterfaceIcons},
-    pane::{interface_shown, legend_entry, InterfacePaneType},
+    pane::{interface_shown, legend_entry, ActionOutcomeType, InterfacePaneType},
     terminal::{NovaOsAppInput, NovaOsCloseTransition},
     // The viewer the Map and Ship panes are two framings of.
     viewer::{cycle_index, orbit_eye, unlit, zoom_radius, OrbitGesture},
@@ -66,7 +65,6 @@ pub(crate) fn manage_map_scene(
         runtime.image = None;
         runtime.selected = None;
         runtime.focused_on = None;
-        runtime.goto_note = None;
         runtime.goto_requested = false;
         runtime.cancel_requested = false;
         // The chart root went with the scene; its labels sit on the viewport.
@@ -321,14 +319,6 @@ pub(crate) fn map_input(
     };
     let dt = input.dt();
 
-    // Decay the transient GOTO note.
-    if let Some((_, remaining)) = runtime.goto_note.as_mut() {
-        *remaining -= dt;
-        if *remaining <= 0.0 {
-            runtime.goto_note = None;
-        }
-    }
-
     if let Ok((mut orbit, transform)) = q_camera.single_mut() {
         // Turn, tilt and RMB-drag are the shared viewer's feel, not the map's.
         let gesture = OrbitGesture::read(&input, motion_delta);
@@ -424,7 +414,6 @@ pub(crate) fn map_input(
         if travel.is_some_and(|travel| travel.0 == Some(target)) {
             ship.insert(TravelLock(None));
         }
-        runtime.goto_note = Some(("GOTO CANCELLED".to_string(), 2.5));
     }
 
     // The chart view selects by its own labels and has nothing to fly to.
@@ -453,8 +442,9 @@ pub(crate) fn map_input(
     // capability check (fine for the PoC nav computer). Docked without the
     // helm, the GOTO waits: `autopilot_system` holds a hull that does not
     // drive its pair, so the trip starts at the undock. The docked partner
-    // moves with the pair, so a trip to it never closes and is refused; a
-    // refusal writes only the note.
+    // moves with the pair, so a trip to it never closes: its GOTO is hidden,
+    // and the key on it is refused with the deny cue. The destination line
+    // and the GOTO tag on the target show a set GOTO.
     if goto_pressed && !toggled {
         if let (Some(sel), Some((player, _, _))) = (runtime.selected, contacts.player_frame()) {
             if let Some(contact) = list.iter().find(|c| c.entity == sel) {
@@ -464,16 +454,14 @@ pub(crate) fn map_input(
                         .ok()
                         .and_then(|docked| q_connections.get(docked.connection).ok())
                         .is_some_and(|connection| connection.joins(sel));
-                    let note = if partner {
-                        "GOTO REFUSED: DOCKED PARTNER".to_string()
+                    if partner {
+                        runtime.cue.raise(ActionOutcomeType::Refused);
                     } else {
                         commands.entity(player).insert((
                             Autopilot::engage(AutopilotAction::Goto { target: sel }),
                             TravelLock(Some(sel)),
                         ));
-                        format!("GOTO SET: {}", contact.name)
-                    };
-                    runtime.goto_note = Some((note, 2.5));
+                    }
                 }
             }
         }
@@ -1117,22 +1105,20 @@ pub(crate) fn on_map_cancel_button(_activate: On<Activate>, mut runtime: ResMut<
     runtime.cancel_requested = true;
 }
 
-/// Fill the contact panel from the selection, with a GOTO result on the note
-/// while it shows, the player's live GOTO destination in the contact view,
-/// the GOTO button enabled only on a contact other than the own ship, the
-/// CANCEL button enabled while a GOTO flies, and both hidden in the chart
-/// along with the icon frame; the [`MapPanelHeaderMarker`] node hides with
-/// them in the chart overview with nothing selected, and returns on local Map
-/// or a selected chart mark. A job selected on the chart hides the Kind and
-/// Range lines.
-/// Rewrites text, colour, the icon, the frame and the button state in place
-/// and only on a difference, so a held selection writes nothing.
+/// Fill the contact panel from the selection: the player's live GOTO
+/// destination in the contact view, GOTO ready on a contact other than the
+/// own ship and hidden on the docked partner, Cancel ready while a GOTO
+/// flies, and both hidden in the chart along with the icon frame. The
+/// [`MapPanelHeaderMarker`] node hides with nothing selected, on local Map
+/// and in the chart overview alike. A job selected on the chart hides the
+/// Kind and Range lines.
+/// Rewrites text, colour, the icon, the frame and the gates in place and
+/// only on a difference, so a held selection writes nothing.
 #[expect(
     clippy::too_many_arguments,
     reason = "the panel's text, icon, frame and button, and the autopilot it reads"
 )]
 pub(crate) fn update_map_panel(
-    mut commands: Commands,
     runtime: Res<MapRuntime>,
     icons: Res<InterfaceIcons>,
     contacts: MapContacts,
@@ -1140,6 +1126,8 @@ pub(crate) fn update_map_panel(
     jobs: Res<Jobs>,
     items: Option<Res<GameItems>>,
     q_autopilot: Query<&Autopilot>,
+    q_docked: Query<&DockedShip>,
+    q_connections: Query<&DockingConnection>,
     mut q_field: Query<
         (&MapPanelField, &mut Text, &mut ThemedText, &mut Node),
         Without<MapPanelHeaderMarker>,
@@ -1162,8 +1150,8 @@ pub(crate) fn update_map_panel(
         ),
     >,
     mut q_header: Query<&mut Node, With<MapPanelHeaderMarker>>,
-    q_goto_button: Query<(Entity, Has<InteractionDisabled>), With<MapGotoButton>>,
-    q_cancel_button: Query<(Entity, Has<InteractionDisabled>), With<MapCancelButton>>,
+    mut q_goto_button: Query<&mut VerbGate, (With<MapGotoButton>, Without<MapCancelButton>)>,
+    mut q_cancel_button: Query<&mut VerbGate, (With<MapCancelButton>, Without<MapGotoButton>)>,
 ) {
     if !runtime.active {
         return;
@@ -1191,13 +1179,12 @@ pub(crate) fn update_map_panel(
                 format!("GOTO {}  {}", contact.code, contact.range_text()),
                 UiColorType::Accent,
             ),
-            None => ("GOTO target lost".to_string(), UiColorType::Accent),
+            None => ("GOTO LOST".to_string(), UiColorType::Accent),
         },
-        None => ("No GOTO set".to_string(), UiColorType::TextMuted),
+        None => (String::new(), UiColorType::TextMuted),
     };
-    let note = match (&runtime.goto_note, &selected) {
-        (Some((goto, _)), _) => (goto.clone(), UiColorType::Accent),
-        (None, Some(contact)) => match &contact.marker {
+    let note = match &selected {
+        Some(contact) => match &contact.marker {
             // The marker label, then each held job that sends the player to
             // this body. A scenario marker names no job and no objective
             // entry, so it reads its label alone.
@@ -1210,7 +1197,7 @@ pub(crate) fn update_map_panel(
                     .map(|job| {
                         let code = jobs.mark_code(&job.id).expect("a held job has a mark code");
                         let state = if jobs.is_done(&job.id) {
-                            "hand in.".to_string()
+                            "done".to_string()
                         } else {
                             job.task(items.as_deref().unwrap_or(&GameItems::default()))
                         };
@@ -1227,8 +1214,8 @@ pub(crate) fn update_map_panel(
             // The Kind line names what an unmarked contact is.
             None => (String::new(), UiColorType::TextMuted),
         },
-        // The Code line reads `No contact`.
-        (None, None) => (String::new(), UiColorType::TextMuted),
+        // The header is hidden.
+        None => (String::new(), UiColorType::TextMuted),
     };
 
     // A held job's `JOB-n` code and SECTOR block already say what it is and
@@ -1247,9 +1234,6 @@ pub(crate) fn update_map_panel(
             node.display = display;
         }
         let (value, color) = match (&selected, field) {
-            (_, MapPanelField::Note) if runtime.goto_note.is_some() && !runtime.chart => {
-                note.clone()
-            }
             (_, MapPanelField::Destination) if runtime.chart => {
                 (String::new(), UiColorType::TextMuted)
             }
@@ -1271,10 +1255,10 @@ pub(crate) fn update_map_panel(
                 (format!("Range {}", contact.range_text()), UiColorType::Text)
             }
             (Some(contact), MapPanelField::Bearing) => (contact.bearing_text(), UiColorType::Text),
-            (None, MapPanelField::Code) => ("No contact".to_string(), UiColorType::TextMuted),
             (
                 None,
-                MapPanelField::Name
+                MapPanelField::Code
+                | MapPanelField::Name
                 | MapPanelField::Kind
                 | MapPanelField::Range
                 | MapPanelField::Bearing,
@@ -1288,10 +1272,13 @@ pub(crate) fn update_map_panel(
         }
     }
 
-    // The Code/Name/Kind, Range/Bearing and Note fields read blank in the
-    // chart overview with nothing selected, leaving their rules as three bare
-    // lines; hide the whole header node there instead.
-    let header_shown = !runtime.chart || runtime.chart_selected.is_some();
+    // With nothing selected the header has nothing to read: hide it whole,
+    // frame included, on local Map and in the chart overview alike.
+    let header_shown = if runtime.chart {
+        runtime.chart_selected.is_some()
+    } else {
+        selected.is_some()
+    };
     for mut node in &mut q_header {
         let display = if header_shown {
             Display::Flex
@@ -1303,30 +1290,34 @@ pub(crate) fn update_map_panel(
         }
     }
 
-    let goto_ready =
-        !runtime.chart && selected.is_some_and(|contact| contact.kind != MapContactKind::OwnShip);
-    for (entity, _) in q_goto_button.iter().chain(q_cancel_button.iter()) {
-        if let Ok(mut node) = q_frame.get_mut(entity) {
-            let display = if runtime.chart {
-                Display::None
-            } else {
-                Display::Flex
-            };
-            if node.display != display {
-                node.display = display;
-            }
+    // The docked partner moves with the pair, so a GOTO to it never closes.
+    let partner = contacts
+        .player_frame()
+        .and_then(|(player, _, _)| q_docked.get(player).ok())
+        .and_then(|docked| q_connections.get(docked.connection).ok());
+    let goto_gate = match selected {
+        _ if runtime.chart => VerbGate::Hidden,
+        Some(contact) if partner.is_some_and(|connection| connection.joins(contact.entity)) => {
+            VerbGate::Hidden
+        }
+        Some(contact) if contact.kind != MapContactKind::OwnShip => VerbGate::Ready,
+        _ => VerbGate::Disabled,
+    };
+    let cancel_gate = if runtime.chart {
+        VerbGate::Hidden
+    } else if goto_target.is_some() {
+        VerbGate::Ready
+    } else {
+        VerbGate::Disabled
+    };
+    for mut gate in &mut q_goto_button {
+        if *gate != goto_gate {
+            *gate = goto_gate.clone();
         }
     }
-    let cancel_ready = goto_target.is_some();
-    for (ready, (button, disabled)) in q_goto_button
-        .iter()
-        .map(|button| (goto_ready, button))
-        .chain(q_cancel_button.iter().map(|button| (cancel_ready, button)))
-    {
-        if ready && disabled {
-            commands.entity(button).remove::<InteractionDisabled>();
-        } else if !ready && !disabled {
-            commands.entity(button).insert(InteractionDisabled);
+    for mut gate in &mut q_cancel_button {
+        if *gate != cancel_gate {
+            *gate = cancel_gate.clone();
         }
     }
 

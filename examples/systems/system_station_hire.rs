@@ -141,7 +141,7 @@ mod walk {
         nova_interface::pane::InterfacePaneType,
         prelude::*,
     };
-    use nova_ui::widget::{TextFieldValue, Tooltip};
+    use nova_ui::{prelude::VerbGate, widget::TextFieldValue};
     use nova_world::prelude::{
         desired_sectors, FrozenBodyType, FrozenSectors, SectorRoot, WorldClock, WorldConfig,
     };
@@ -1126,8 +1126,7 @@ mod walk {
     }
 
     /// With the fleet full, the list's header names each escort in its slot
-    /// box, and every Hire left is greyed with the full-fleet refusal as its
-    /// tooltip.
+    /// box, and every Hire left is disabled with no tag word.
     fn assert_the_full_list(world: &mut World) {
         let player = player(world);
         let held: Vec<(&str, String)> = world
@@ -1160,33 +1159,29 @@ mod walk {
                 "station hire: the {label} slot box names its escort"
             );
         }
-        let refusal = format!("hire: the fleet holds its {} escorts", FLEET_SIDES.len());
-        let hires: Vec<(String, bool, Option<String>)> = world
-            .query::<(&Name, Has<InteractionDisabled>, Option<&Tooltip>)>()
+        let hires: Vec<(String, bool, Option<VerbGate>)> = world
+            .query::<(&Name, Has<InteractionDisabled>, Option<&VerbGate>)>()
             .iter(world)
             .filter(|(name, ..)| name.as_str().starts_with("EscortHire-"))
-            .map(|(name, disabled, tooltip)| {
-                (name.to_string(), disabled, tooltip.map(|tip| tip.0.clone()))
-            })
+            .map(|(name, disabled, gate)| (name.to_string(), disabled, gate.cloned()))
             .collect();
         assert!(
             !hires.is_empty(),
             "station hire: the station still lists an escort for hire after both hires"
         );
-        for (name, disabled, tooltip) in &hires {
+        for (name, disabled, gate) in &hires {
             assert!(
                 *disabled,
                 "station hire: {name} is greyed with the fleet full"
             );
             assert_eq!(
-                tooltip.as_deref(),
-                Some(refusal.as_str()),
-                "station hire: {name} says why in its tooltip"
+                gate.as_ref(),
+                Some(&VerbGate::Disabled),
+                "station hire: {name} is disabled, with no tag word"
             );
         }
         info!(
-            "station hire: PASS the fleet row names {held:?}, and {} Hire button(s) are greyed \
-             with '{refusal}'",
+            "station hire: PASS the fleet row names {held:?}, and {} Hire button(s) are greyed",
             hires.len()
         );
     }

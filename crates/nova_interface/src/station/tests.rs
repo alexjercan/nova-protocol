@@ -152,8 +152,7 @@ fn texts_under(world: &mut World, name: &str) -> Vec<String> {
 }
 
 /// The first press on Buy station arms it and spends nothing: the button
-/// reads Confirm and a line asks `Buy STATION for 100 cr?`. The second press
-/// buys.
+/// reads Confirm and a line asks `Buy station?`. The second press buys.
 #[test]
 fn buying_a_station_needs_a_second_press() {
     use bevy::ui_widgets::Activate;
@@ -198,8 +197,8 @@ fn buying_a_station_needs_a_second_press() {
         .world_mut()
         .query::<&Text>()
         .iter(app.world())
-        .any(|text| text.0 == "Buy STATION for 100 cr?");
-    assert!(asked, "the line names the station and the price");
+        .any(|text| text.0 == "Buy station?");
+    assert!(asked, "the line asks to confirm the buy");
 
     press(&mut app);
     assert_eq!(
@@ -207,4 +206,84 @@ fn buying_a_station_needs_a_second_press() {
         Some(&ShipCredits(0)),
         "the second press buys"
     );
+}
+
+/// Offer cards fill their grid row evenly: at 1000 px three 280 px cards fit,
+/// so each takes a third of the width less the gaps, and every verb on a
+/// card's foot is one control high.
+#[test]
+fn offer_cards_share_the_width_evenly_with_control_high_verbs() {
+    use nova_ui::prelude::{metrics, ButtonSpec, ThemedButton};
+
+    use crate::pointer_rig::{pane_pointer_rig, settle};
+
+    let mut rig = pane_pointer_rig();
+    rig.app.add_plugins(nova_ui::NovaUiPlugin);
+    let icons = crate::icons::InterfaceIcons::blank();
+    let content = rig.content_root;
+    let width = 1000.0;
+    rig.app
+        .world_mut()
+        .commands()
+        .entity(content)
+        .with_children(|content| {
+            content
+                .spawn(Node {
+                    width: px(width),
+                    ..offer_rows()
+                })
+                .with_children(|grid| {
+                    for (index, price) in [Some((120, false)), Some((90_000, true)), None]
+                        .into_iter()
+                        .enumerate()
+                    {
+                        grid.spawn((Name::new(format!("Card-{index}")), offer_cell()))
+                            .with_children(|cell| {
+                                cell.spawn(text("A hull", TextRole::Value));
+                                spawn_card_foot(cell, &icons, price, |verbs| {
+                                    verbs.spawn(nova_ui::prelude::button(ButtonSpec::control(
+                                        "Info",
+                                    )));
+                                    verbs.spawn(nova_ui::prelude::button(ButtonSpec::control(
+                                        "Buy",
+                                    )));
+                                });
+                            });
+                    }
+                });
+        });
+    settle(&mut rig.app);
+    settle(&mut rig.app);
+
+    let world = rig.app.world_mut();
+    let widths: Vec<f32> = (0..3)
+        .map(|index| {
+            let name = format!("Card-{index}");
+            world
+                .query::<(&Name, &ComputedNode)>()
+                .iter(world)
+                .find(|(each, _)| each.as_str() == name)
+                .map(|(_, node)| node.size().x)
+                .unwrap_or_else(|| panic!("a laid-out {name}"))
+        })
+        .collect();
+    let even = (width - 2.0 * metrics::GAP_L) / 3.0;
+    for card in &widths {
+        assert!(
+            (card - even).abs() < 1.0,
+            "every card takes an even share {even}: {widths:?}"
+        );
+    }
+    let heights: Vec<f32> = world
+        .query_filtered::<&ComputedNode, With<ThemedButton>>()
+        .iter(world)
+        .map(|node| node.size().y)
+        .collect();
+    assert_eq!(heights.len(), 6, "two verbs per card: {heights:?}");
+    for height in &heights {
+        assert!(
+            (height - metrics::CONTROL_H).abs() < 0.5,
+            "a card verb is one control high: {heights:?}"
+        );
+    }
 }

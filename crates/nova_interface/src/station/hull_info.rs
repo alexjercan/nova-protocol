@@ -15,7 +15,7 @@
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_gameplay::prelude::*;
 use nova_ui::{
-    prelude::{button, text, TextRole},
+    prelude::{button, control_row, text, TextRole},
     widget::{ButtonCueType, ButtonSpec},
 };
 
@@ -107,10 +107,8 @@ pub(crate) fn sync_hull_info_header(
             HullInfoHeader,
             Name::new("HullInfoHeader"),
             Node {
-                flex_direction: FlexDirection::Column,
-                row_gap: px(8),
-                flex_shrink: 0.0,
-                ..default()
+                flex_wrap: FlexWrap::Wrap,
+                ..control_row(JustifyContent::SpaceBetween)
             },
         ))
         .with_children(|header| {

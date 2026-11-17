@@ -2,18 +2,19 @@
 //!
 //! While the player ship is docked at a living station a civilization keeps
 //! (generated with the world, so it wears a [`GeneratedBodyId`]), the pane
-//! shows the station's name, its price ([`station_price_cr`]) and a Buy
-//! button, greyed with the reason as its tooltip while the buy is refused.
-//! A station a civilization sells to its allies only wears an `ALLIES ONLY`
-//! badge beside its name, with its Buy greyed. A click raises a
-//! [`StationBuyCommand`] on the second press: the first arms the buy, the
-//! button reads `Confirm` in the danger variant and a line under it asks
-//! `Buy <station> for <price>?` (see [`StationRuntime::confirm_buy`]).
+//! shows a card with the station's name, its price ([`station_price_cr`])
+//! and a Buy button, disabled with the price painted Danger while the
+//! balance is short. A station a civilization sells to its allies only
+//! shows no price and a disabled Buy beside an `ALLIES ONLY` tag. A click
+//! raises a [`StationBuyCommand`] on the second press: the first arms the
+//! buy, the button reads `Confirm` in the danger variant beside Cancel, and
+//! a line under them reads `Buy station?` (see
+//! [`StationRuntime::confirm_buy`]).
 //! [`apply_station_buy_commands`] plans it with
 //! [`plan_station_buy`], charges the price as a `StationBuy` credit change,
 //! queues one `StationBought` report and makes the station the player's
 //! ([`owned_station`]). Docked at a station the player owns, the name wears
-//! an `OWNED` badge whose tooltip names the owned policy. A ship, a dead
+//! an `OWNED` tag. A ship, a dead
 //! station and a station a scenario placed by hand show no block: no
 //! civilization sells them.
 //!
@@ -26,7 +27,7 @@ use nova_ship::prelude::*;
 use nova_sound::prelude::*;
 use nova_ui::{prelude::*, theme::UiColorType};
 
-use super::{card_actions, offer_cell, spawn_card_price, StationRuntime};
+use super::{offer_cell, offer_rows, spawn_card_foot, StationRuntime};
 use crate::{
     icons::InterfaceIcons,
     pane::{gated_verb, ActionOutcomeType, InterfacePaneType},
@@ -39,7 +40,7 @@ pub const STATION_BUY_BUTTON: &str = "StationBuy";
 const STATION_BUY_CANCEL_BUTTON: &str = "StationBuyCancel";
 
 /// Width of that Cancel button, in logical px. The `Buy station` button is
-/// 92 px wide; Cancel must cover all of it.
+/// about 90 px wide; Cancel must cover all of it.
 const BUY_BOX_PX: f32 = 96.0;
 
 /// The name of the question line the armed Buy button draws under it.
@@ -64,12 +65,12 @@ pub(crate) struct StationSaleRows(Option<StationRow>);
 #[derive(Clone, Debug, PartialEq)]
 struct StationRow {
     name: String,
-    /// Which badge, if any, the name wears and whether Buy shows.
+    /// Which tag, if any, the name wears and whether Buy shows.
     sale: StationSaleType,
     /// The price of a station for sale, or `None` while it is not for sale.
     price_cr: Option<u64>,
-    /// What the balance lacks of the price, or `None` while it is not short.
-    short_cr: Option<u64>,
+    /// The balance is short of the price.
+    short: bool,
     /// How Buy station answers the row.
     gate: VerbGate,
     /// Whether the first press armed the buy and the button asks to confirm.
@@ -155,8 +156,8 @@ impl StationSale<'_, '_> {
 }
 
 /// How Buy station answers a refused buy: hidden where no buy can happen,
-/// disabled when the civilization sells to allies only (the head tags it) or
-/// the balance is short (the price shows red).
+/// tagged when the civilization sells to allies only, disabled while the
+/// balance is short (the price shows red).
 fn station_gate(refusal: Option<&StationBuyRefusalType>) -> VerbGate {
     match refusal {
         None => VerbGate::Ready,
@@ -165,32 +166,27 @@ fn station_gate(refusal: Option<&StationBuyRefusalType>) -> VerbGate {
             | StationBuyRefusalType::NotForSale
             | StationBuyRefusalType::AlreadyOwned,
         ) => VerbGate::Hidden,
-        Some(
-            StationBuyRefusalType::NotAllied | StationBuyRefusalType::InsufficientCredits { .. },
-        ) => VerbGate::Disabled,
+        Some(StationBuyRefusalType::NotAllied) => VerbGate::Tagged("ALLIES ONLY"),
+        Some(StationBuyRefusalType::InsufficientCredits { .. }) => VerbGate::Disabled,
     }
 }
 
-/// Build the block: a header and the rows
-/// [`update_station_sale_block`] fills.
+/// Build the block: a heading and the card [`update_station_sale_block`]
+/// fills, in a card grid so it takes an offer card's width.
 pub(crate) fn spawn_station_sale_block(panel: &mut ChildSpawnerCommands) {
-    panel
-        .spawn((
-            StationSaleBlock,
-            Name::new("StationSaleBlock"),
-            Node {
-                display: Display::None,
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(8.0),
-                flex_shrink: 0.0,
-                ..default()
-            },
-        ))
-        .with_children(|list| {
-            list.spawn(divider());
-            list.spawn(text("This station", TextRole::Heading));
-            list.spawn((StationSaleRows::default(), offer_cell()));
+    let mut block = spawn_block(
+        panel,
+        "This station",
+        (StationSaleBlock, Name::new("StationSaleBlock")),
+    );
+    block
+        .entry::<Node>()
+        .and_modify(|mut node| node.display = Display::None);
+    block.with_children(|block| {
+        block.spawn(offer_rows()).with_children(|grid| {
+            grid.spawn((StationSaleRows::default(), offer_cell()));
         });
+    });
 }
 
 /// Show the block while the player is docked at a station for sale or owned,
@@ -215,7 +211,7 @@ pub(crate) fn update_station_sale_block(
         StationSaleType::NotAllied => Some(StationRow {
             sale: docked.sale,
             price_cr: None,
-            short_cr: None,
+            short: false,
             gate: station_gate(Some(&StationBuyRefusalType::NotAllied)),
             confirming: false,
             name: docked.name,
@@ -223,7 +219,7 @@ pub(crate) fn update_station_sale_block(
         StationSaleType::Owned => Some(StationRow {
             sale: docked.sale,
             price_cr: None,
-            short_cr: None,
+            short: false,
             name: docked.name,
             gate: VerbGate::Ready,
             confirming: false,
@@ -234,12 +230,10 @@ pub(crate) fn update_station_sale_block(
             Some(StationRow {
                 sale: docked.sale,
                 price_cr: Some(docked.price_cr),
-                short_cr: match refusal {
-                    Some(StationBuyRefusalType::InsufficientCredits { need, have }) => {
-                        Some(need - u64::from(have))
-                    }
-                    _ => None,
-                },
+                short: matches!(
+                    refusal,
+                    Some(StationBuyRefusalType::InsufficientCredits { .. })
+                ),
                 confirming: runtime.confirm_buy && refusal.is_none(),
                 gate: station_gate(refusal.as_ref()),
                 name: docked.name,
@@ -260,72 +254,58 @@ pub(crate) fn update_station_sale_block(
     commands.entity(rows_entity).despawn_children();
     if let Some(row) = &row {
         commands.entity(rows_entity).with_children(|cell| {
-            cell.spawn(Node {
-                column_gap: px(8),
-                flex_wrap: FlexWrap::Wrap,
-                ..control_row(JustifyContent::FlexStart)
-            })
-            .with_children(|head| {
-                head.spawn(text(&row.name, TextRole::Value));
-                match row.sale {
-                    StationSaleType::Owned => {
+            cell.spawn(control_row(JustifyContent::FlexStart))
+                .with_children(|head| {
+                    head.spawn(text(&row.name, TextRole::Value));
+                    if row.sale == StationSaleType::Owned {
                         head.spawn(tag("OWNED", UiColorType::Nominal));
                     }
-                    StationSaleType::NotAllied => {
-                        head.spawn(tag("ALLIES ONLY", UiColorType::TextSecondary));
-                    }
-                    StationSaleType::ForSale | StationSaleType::NotForSale => {}
+                });
+            if row.sale == StationSaleType::Owned {
+                return;
+            }
+            let price = row.price_cr.map(|price_cr| (price_cr, row.short));
+            spawn_card_foot(cell, &icons, price, |verbs| {
+                if row.confirming {
+                    // Cancel takes the whole box Buy had, so the second
+                    // press of a double click lands on it, not on Confirm.
+                    // Any button but Buy disarms, so it needs no handler of
+                    // its own.
+                    verbs
+                        .spawn(Node {
+                            width: px(BUY_BOX_PX),
+                            flex_shrink: 0.0,
+                            ..default()
+                        })
+                        .with_children(|slot| {
+                            slot.spawn((
+                                Name::new(STATION_BUY_CANCEL_BUTTON),
+                                button(ButtonSpec::control("Cancel").fill()),
+                                ButtonCueType::Back,
+                            ));
+                        });
+                    verbs
+                        .spawn((
+                            Name::new(STATION_BUY_BUTTON),
+                            button(ButtonSpec::control("Confirm").danger()),
+                            ButtonCueType::Owned,
+                        ))
+                        .observe(on_station_buy_button);
+                } else {
+                    gated_verb(
+                        verbs,
+                        STATION_BUY_BUTTON.to_string(),
+                        ButtonSpec::control("Buy station"),
+                        row.gate.clone(),
+                    )
+                    .observe(on_station_buy_button);
                 }
             });
-            if let Some(price_cr) = row.price_cr {
-                spawn_card_price(cell, &icons, price_cr, row.short_cr);
-            }
-            if row.sale != StationSaleType::Owned {
-                cell.spawn(card_actions()).with_children(|actions| {
-                    if row.confirming {
-                        // Cancel takes the whole box Buy had, so the second
-                        // press of a double click lands on it, not on
-                        // Confirm. Any button but Buy disarms, so it needs
-                        // no handler of its own.
-                        actions
-                            .spawn(Node {
-                                width: px(BUY_BOX_PX),
-                                flex_shrink: 0.0,
-                                ..default()
-                            })
-                            .with_children(|slot| {
-                                slot.spawn((
-                                    Name::new(STATION_BUY_CANCEL_BUTTON),
-                                    button(ButtonSpec::control("Cancel")),
-                                    ButtonCueType::Back,
-                                ));
-                            });
-                        actions
-                            .spawn((
-                                Name::new(STATION_BUY_BUTTON),
-                                button(ButtonSpec::control("Confirm").danger()),
-                                ButtonCueType::Owned,
-                            ))
-                            .observe(on_station_buy_button);
-                    } else {
-                        gated_verb(
-                            actions,
-                            STATION_BUY_BUTTON.to_string(),
-                            "Buy station",
-                            row.gate.clone(),
-                        )
-                        .observe(on_station_buy_button);
-                    }
-                });
-                if let (true, Some(price_cr)) = (row.confirming, row.price_cr) {
-                    cell.spawn((
-                        Name::new(STATION_BUY_ASK),
-                        text(
-                            &format!("Buy {} for {}?", row.name, cr_text(price_cr)),
-                            TextRole::Body,
-                        ),
-                    ));
-                }
+            if row.confirming {
+                cell.spawn((
+                    Name::new(STATION_BUY_ASK),
+                    text("Buy station?", TextRole::Body),
+                ));
             }
         });
     }
@@ -396,7 +376,7 @@ pub(crate) fn disarm_station_buy(
 /// ([`owned_station`]: owned, on the Player side, no longer named for its
 /// civilization). The price goes to the civilization, so the station's
 /// balance does not move.
-/// A refusal changes nothing and shows its reason on the notice line.
+/// A refusal changes nothing and plays the deny cue.
 ///
 /// # Panics
 ///

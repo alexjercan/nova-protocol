@@ -923,21 +923,16 @@ impl ActionCue {
     }
 }
 
-/// A primary verb named `name` under `gate`. The caller observes
+/// A verb named `name` built from `spec`, under `gate`. The caller observes
 /// `On<Activate>` on the result. Its action can be refused, so the action's
 /// result plays the cue, not the press.
 pub(crate) fn gated_verb<'a>(
     parent: &'a mut ChildSpawnerCommands,
     name: String,
-    label: &str,
+    spec: ButtonSpec,
     gate: VerbGate,
 ) -> EntityCommands<'a> {
-    parent.spawn((
-        Name::new(name),
-        button(ButtonSpec::control(label).primary()),
-        ButtonCueType::Owned,
-        gate,
-    ))
+    parent.spawn((Name::new(name), button(spec), ButtonCueType::Owned, gate))
 }
 
 /// A pane's 3D view: the node its scene image fills and its blips ride on.

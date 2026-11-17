@@ -15,8 +15,9 @@ use nova_gameplay::{prelude::*, PauseStates};
 use nova_input::prelude::{BindingSpec, InputBindings, InputSource, RegisterInputActions};
 use nova_ship::prelude::*;
 use nova_ui::{
+    prelude::{metrics, VerbGate},
     theme::{ActiveUiTheme, UiColorType},
-    widget::{ThemedFill, ThemedText, Tooltip},
+    widget::{ThemedFill, ThemedText},
 };
 use nova_world_base::prelude::{
     enemy_neighbours, seeded_stance, standing, CivilizationField, CivilizationStatusType,
@@ -25,7 +26,7 @@ use nova_world_base::prelude::{
 use super::{app::*, contacts::*, scene::*, *};
 use crate::{
     icons::{BodyIconType, InterfaceIcons},
-    pane::InterfacePaneType,
+    pane::{ActionOutcomeType, InterfacePaneType},
     pointer_rig::{
         click_at, hear_ui_cues, move_cursor_to, pane_pointer_rig, settle, take_churn, take_cues,
         track_node_churn, NodeChurn, PanePointerRig, RIG_PANEL_MIN,
@@ -824,8 +825,8 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
         );
     };
 
-    // Docked to the selected contact in neutral: refused, and the note says
-    // why instead of claiming a GOTO the helm would fly later.
+    // Docked to the selected contact in neutral: refused with the deny cue
+    // instead of claiming a GOTO the helm would fly later.
     let connection = app
         .world_mut()
         .spawn(DockingConnection {
@@ -842,12 +843,9 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
         helm: Quat::IDENTITY,
         drives: false,
     });
-    let note = |app: &App| {
-        app.world()
-            .resource::<MapRuntime>()
-            .goto_note
-            .as_ref()
-            .map(|(note, _)| note.clone())
+    // The cue the last press owes, taken so the next press starts clean.
+    let take_cue = |app: &mut App| {
+        std::mem::take(&mut app.world_mut().resource_mut::<MapRuntime>().cue).pending()
     };
     // A fresh GOTO edge in `state`: the frame clears the last edge.
     let press_goto_in = |app: &mut App, state: PauseStates| {
@@ -883,7 +881,11 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
     press_goto_in(&mut app, PauseStates::Commands);
     app.world_mut().run_system_once(map_input).unwrap();
     kept(&app);
-    assert_eq!(note(&app), None, "the modal over the pane takes no GOTO");
+    assert_eq!(
+        take_cue(&mut app),
+        None,
+        "the modal over the pane takes no GOTO"
+    );
 
     // Docked to the selected contact: refused, whatever holds the pair's
     // helm or whether it can be measured - a trip to the partner never
@@ -891,7 +893,7 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
     press_goto(&mut app);
     app.world_mut().run_system_once(map_input).unwrap();
     kept(&app);
-    assert_eq!(note(&app).as_deref(), Some("GOTO REFUSED: DOCKED PARTNER"));
+    assert_eq!(take_cue(&mut app), Some(ActionOutcomeType::Refused));
 
     app.world_mut()
         .get_mut::<DockedShip>(player)
@@ -900,7 +902,7 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
     press_goto(&mut app);
     app.world_mut().run_system_once(map_input).unwrap();
     kept(&app);
-    assert_eq!(note(&app).as_deref(), Some("GOTO REFUSED: DOCKED PARTNER"));
+    assert_eq!(take_cue(&mut app), Some(ActionOutcomeType::Refused));
 
     app.world_mut()
         .get_mut::<DockingConnection>(connection)
@@ -909,7 +911,7 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
     press_goto(&mut app);
     app.world_mut().run_system_once(map_input).unwrap();
     kept(&app);
-    assert_eq!(note(&app).as_deref(), Some("GOTO REFUSED: DOCKED PARTNER"));
+    assert_eq!(take_cue(&mut app), Some(ActionOutcomeType::Refused));
 
     // Docked to another body, without the helm: the GOTO is accepted and
     // waits for the undock (whoever, or nothing, holds that pair's helm).
@@ -942,14 +944,17 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
         reset_order(&mut app);
         press_goto(&mut app);
         app.world_mut().run_system_once(map_input).unwrap();
-        assert_eq!(note(&app).as_deref(), Some("GOTO SET: RAIDER"));
+        assert_eq!(
+            take_cue(&mut app),
+            None,
+            "an accepted GOTO owes no deny cue"
+        );
         flying_to(&app, target);
     }
 
     // Pressing GOTO again on the same selection cancels the queued order.
     press_goto(&mut app);
     app.world_mut().run_system_once(map_input).unwrap();
-    assert_eq!(note(&app).as_deref(), Some("GOTO CANCELLED"));
     assert_eq!(
         app.world().get::<Autopilot>(player),
         None,
@@ -969,7 +974,6 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
     ));
     press_goto(&mut app);
     app.world_mut().run_system_once(map_input).unwrap();
-    assert_eq!(note(&app).as_deref(), Some("GOTO CANCELLED"));
     assert_eq!(app.world().get::<Autopilot>(player), None);
     assert_eq!(
         app.world().get::<TravelLock>(player),
@@ -986,7 +990,7 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
     app.world_mut().resource_mut::<MapRuntime>().selected = Some(alt_target);
     press_goto(&mut app);
     app.world_mut().run_system_once(map_input).unwrap();
-    assert_eq!(note(&app).as_deref(), Some("GOTO SET: RAIDER2"));
+    assert_eq!(take_cue(&mut app), None);
     flying_to(&app, alt_target);
 }
 
@@ -1084,7 +1088,7 @@ fn a_wheel_over_the_map_panel_scrolls_it_and_leaves_the_chart_zoom() {
 fn the_goto_button_sets_the_goto_the_key_sets() {
     let mut rig = pane_pointer_rig();
     let app = &mut rig.app;
-    app.add_plugins(StatesPlugin);
+    app.add_plugins((StatesPlugin, nova_ui::NovaUiPlugin));
     app.insert_state(PauseStates::Interface);
     app.register_input_actions(crate::bindings::interface_bindings());
     app.insert_resource(InterfaceIcons::blank());
@@ -1124,7 +1128,8 @@ fn the_goto_button_sets_the_goto_the_key_sets() {
     settle(app);
     assert_eq!(
         panel_text(app.world_mut(), MapPanelField::Destination),
-        "No GOTO set"
+        "",
+        "no GOTO set: the destination line reads nothing"
     );
 
     let button = app
@@ -1137,13 +1142,17 @@ fn the_goto_button_sets_the_goto_the_key_sets() {
         .query_filtered::<Entity, With<MapCancelButton>>()
         .single(app.world())
         .unwrap();
-    let disabled =
-        |rig: &PanePointerRig| rig.app.world().get::<InteractionDisabled>(button).is_some();
+    let disabled = |rig: &PanePointerRig| {
+        rig.app.world().get::<VerbGate>(button) == Some(&VerbGate::Disabled)
+            && rig.app.world().get::<InteractionDisabled>(button).is_some()
+    };
     let cancel_disabled = |rig: &PanePointerRig| {
-        rig.app
-            .world()
-            .get::<InteractionDisabled>(cancel_button)
-            .is_some()
+        rig.app.world().get::<VerbGate>(cancel_button) == Some(&VerbGate::Disabled)
+            && rig
+                .app
+                .world()
+                .get::<InteractionDisabled>(cancel_button)
+                .is_some()
     };
     let goto = |rig: &PanePointerRig| {
         (
@@ -1192,7 +1201,7 @@ fn the_goto_button_sets_the_goto_the_key_sets() {
     settle(&mut rig.app);
     assert_eq!(
         panel_text(rig.app.world_mut(), MapPanelField::Destination),
-        "GOTO target lost"
+        "GOTO LOST"
     );
     assert!(!cancel_disabled(&rig), "CANCEL still ends the lost GOTO");
 
@@ -1205,7 +1214,7 @@ fn the_goto_button_sets_the_goto_the_key_sets() {
     );
     assert_eq!(
         panel_text(rig.app.world_mut(), MapPanelField::Destination),
-        "No GOTO set"
+        ""
     );
     assert!(cancel_disabled(&rig), "nothing left to cancel");
 }
@@ -1250,22 +1259,19 @@ fn chart_stances_show_seeded_advancement_in_overview_and_selected_station() {
 
     let assert_chip = |app: &mut App| {
         let world = app.world_mut();
-        let mut q = world.query::<(&Tooltip, &Children)>();
-        let chips: Vec<String> = q
+        let mut q = world.query::<(&Text, &ChildOf)>();
+        let chips: Vec<(String, Entity)> = q
             .iter(world)
-            .filter(|(hint, _)| hint.0.starts_with("Civilization advancement:"))
-            .map(|(hint, children)| {
-                assert!(hint.0.contains("not per-ship technology or progression"));
-                children
-                    .iter()
-                    .filter_map(|child| world.get::<Text>(child))
-                    .map(|text| text.0.clone())
-                    .find(|text| text.contains("ADV "))
-                    .expect("the advancement badge has a text label")
-            })
+            .filter(|(text, _)| text.0.starts_with("ADV "))
+            .map(|(text, parent)| (text.0.clone(), parent.parent()))
             .collect();
-        assert_eq!(chips.len(), 1, "one advancement chip per entry");
-        assert_eq!(chips[0].trim_matches(['[', ']']), "ADV 13%");
+        assert_eq!(chips.len(), 1, "one advancement tag per entry");
+        assert_eq!(chips[0].0, "ADV 13%");
+        assert_eq!(
+            world.get::<Node>(chips[0].1).map(|node| node.height),
+            Some(Val::Px(metrics::TAG_H)),
+            "the advancement tag keeps its tag node"
+        );
     };
     assert_chip(app);
 
@@ -1276,8 +1282,7 @@ fn chart_stances_show_seeded_advancement_in_overview_and_selected_station() {
 }
 
 /// A STANCES detail line lays out at its text height in the overview, so it
-/// draws: its hover hint does not make the text a container with no content
-/// height.
+/// draws.
 #[test]
 fn chart_stance_details_lay_out_at_their_text_height() {
     let mut rig = pane_pointer_rig();
@@ -1461,15 +1466,24 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station() {
 
     // The rows are rebuilt whenever what they show changes, so the button
     // is looked up again after each change.
+    // A station can neighbour several Enemy civilizations; the button is the
+    // one on the row that names `enemy`.
     let find_button = |rig: &mut PanePointerRig| {
-        rig.app
-            .world_mut()
-            .query::<(Entity, &Name)>()
-            .iter(rig.app.world())
-            .find_map(|(entity, name)| {
-                name.as_str()
-                    .starts_with("MapStancePayFine")
-                    .then_some(entity)
+        let world = rig.app.world_mut();
+        let cell = world
+            .query::<(&Text, &ChildOf)>()
+            .iter(world)
+            .find_map(|(text, parent)| (text.0 == enemy.name()).then_some(parent.parent()))
+            .expect("the enemy's Settle row names it");
+        let row = world.get::<ChildOf>(cell).unwrap().parent();
+        world
+            .get::<Children>(row)
+            .unwrap()
+            .iter()
+            .find(|child| {
+                world
+                    .get::<Name>(*child)
+                    .is_some_and(|name| name.as_str().starts_with("MapStancePayFine"))
             })
             .expect("the Pay fine button spawned")
     };
@@ -2899,7 +2913,7 @@ fn a_selected_contact_fills_the_panel_in_place() {
     app.world_mut().resource_mut::<MapRuntime>().active = true;
     settle(app);
     let world = app.world_mut();
-    assert_eq!(panel_text(world, MapPanelField::Code), "No contact");
+    assert_eq!(panel_text(world, MapPanelField::Code), "");
     assert_eq!(panel_text(world, MapPanelField::Range), "");
     take_churn(app);
 
@@ -2986,12 +3000,11 @@ fn chart_selection_fills_code_and_range_in_place() {
     }
 }
 
-/// The header node (Code/Name/Kind, Range/Bearing, Note and their rules)
-/// hides as one in the chart overview with nothing selected, where those
-/// fields read blank and leave three bare rules; it stays shown on local Map
-/// and returns on a selected chart mark.
+/// The header node (icon frame, Code/Name/Kind, Range/Bearing and Note)
+/// hides as one with nothing selected, on local Map and in the chart
+/// overview alike, and shows on a selected contact or chart mark.
 #[test]
-fn chart_header_hides_only_with_nothing_selected() {
+fn map_header_hides_only_with_nothing_selected() {
     let mut rig = pane_pointer_rig();
     let app = &mut rig.app;
     app.insert_resource(InterfaceIcons::blank());
@@ -3004,12 +3017,15 @@ fn chart_header_hides_only_with_nothing_selected() {
         .commands()
         .entity(content)
         .with_children(|content| spawn_map_panel(content, &InterfaceIcons::blank()));
-    app.world_mut().spawn((
-        SpaceshipRootMarker,
-        PlayerSpaceshipMarker,
-        GlobalTransform::default(),
-        Name::new("NOVA"),
-    ));
+    let player = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            GlobalTransform::default(),
+            Name::new("NOVA"),
+        ))
+        .id();
     app.world_mut().resource_mut::<MapRuntime>().active = true;
     settle(app);
 
@@ -3022,8 +3038,15 @@ fn chart_header_hides_only_with_nothing_selected() {
     }
     assert_eq!(
         header_display(app.world_mut()),
+        Display::None,
+        "hidden on local Map with nothing selected"
+    );
+    app.world_mut().resource_mut::<MapRuntime>().selected = Some(player);
+    settle(app);
+    assert_eq!(
+        header_display(app.world_mut()),
         Display::Flex,
-        "shown on local Map"
+        "shown on local Map with a contact selected"
     );
 
     app.world_mut().resource_mut::<MapRuntime>().chart = true;
@@ -3048,10 +3071,9 @@ fn chart_header_hides_only_with_nothing_selected() {
     );
 }
 
-/// The OBJECTIVES heading carries the focused chart layer and a visited-cell
-/// tooltip, since the chart overview's own header fields render unreliably
-/// with nothing selected; stepping the layer alone, with no objective or
-/// goal change, still rebuilds the heading off the cached rows.
+/// The OBJECTIVES heading carries the focused chart layer; stepping the
+/// layer alone, with no objective or goal change, still rebuilds the heading
+/// off the cached rows.
 #[test]
 fn chart_objectives_heading_follows_the_focused_layer() {
     let mut rig = pane_pointer_rig();
@@ -3079,32 +3101,36 @@ fn chart_objectives_heading_follows_the_focused_layer() {
     }
     settle(app);
 
+    /// The heading's title and the aside beside it in the head row.
     fn heading(world: &mut World) -> (String, String) {
-        let (text, parent) = world
+        let (text, row) = world
             .query::<(&Text, &ChildOf)>()
             .iter(world)
             .find_map(|(text, child_of)| {
-                text.0
-                    .starts_with("OBJECTIVES")
-                    .then(|| (text.0.clone(), child_of.parent()))
+                (text.0 == "OBJECTIVES").then(|| (text.0.clone(), child_of.parent()))
             })
             .expect("the OBJECTIVES heading spawned");
-        let tooltip = world
-            .get::<Tooltip>(parent)
-            .expect("the heading's wrapper carries the layer tooltip")
-            .0
-            .clone();
-        (text, tooltip)
+        let aside = world
+            .get::<Children>(row)
+            .expect("the heading sits in its head row")
+            .iter()
+            .filter_map(|child| world.get::<Text>(child))
+            .map(|text| text.0.clone())
+            .find(|aside| *aside != text)
+            .expect("the head row carries the layer");
+        (text, aside)
     }
-    let (text, tooltip) = heading(app.world_mut());
-    assert_eq!(text, "OBJECTIVES  LAYER 2");
-    assert_eq!(tooltip, "1 visited cells on layer 2");
+    assert_eq!(
+        heading(app.world_mut()),
+        ("OBJECTIVES".to_string(), "Layer 2".to_string())
+    );
 
     app.world_mut().resource_mut::<MapRuntime>().chart_layer = 3;
     settle(app);
-    let (text, tooltip) = heading(app.world_mut());
-    assert_eq!(text, "OBJECTIVES  LAYER 3");
-    assert_eq!(tooltip, "0 visited cells on layer 3");
+    assert_eq!(
+        heading(app.world_mut()),
+        ("OBJECTIVES".to_string(), "Layer 3".to_string())
+    );
 }
 
 /// A marked contact's Note is its marker label, then one line per held job
@@ -3212,8 +3238,8 @@ fn a_marked_job_body_lists_every_matching_job() {
             "STN",
             "KESTREL",
             "Objective: JOB-1, JOB-3 Hand in\n\
-             JOB-1 Bring 4 CarbonOre: hand in.\n\
-             JOB-3 Bring 2 CarbonOre: hand in."
+             JOB-1 Bring 4 CarbonOre: done\n\
+             JOB-3 Bring 2 CarbonOre: done"
                 .to_string(),
         ),
         (

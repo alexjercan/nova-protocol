@@ -2,13 +2,14 @@
 //!
 //! While the ship is docked at a living station that offers Refit and hires
 //! out escorts (hulls it holds listed [`ParkedHullType::Hire`], coasting
-//! beside it), the pane lists them under the hulls for sale. The header
-//! shows the fleet's slots, one box per [`FLEET_SIDES`] entry with the
-//! escort that holds it. Each escort is a card: its own model turning
+//! beside it), the pane lists them under the hulls for sale. The block's
+//! first row shows the fleet's slots, one box per [`FLEET_SIDES`] entry with
+//! the escort that holds it. Each escort is a card: its own model turning
 //! (`hull_preview`), its name, its length, its price and a Hire button,
-//! greyed with the reason as its tooltip while the hire is refused; a
-//! station whose side is not the player's (its civilization no Ally) refuses
-//! every escort. A click raises an [`EscortHireCommand`];
+//! disabled while the fleet is full or the balance is short (the price
+//! paints Danger). A station whose side is not the player's (its
+//! civilization no Ally) refuses every escort: Hire is disabled beside an
+//! `ALLIES ONLY` tag. A click raises an [`EscortHireCommand`];
 //! [`apply_station_escort_hire_commands`] plans it with [`plan_escort_hire`],
 //! moves the credits, and raises the [`EscortHireRequest`] the scenario
 //! crate makes the escort from.
@@ -20,14 +21,14 @@ use nova_events::prelude::{CreditChangeCauseType, GeneratedBodyId};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
-    prelude::{divider, text, TextRole, VerbGate},
-    theme::UiColorType,
+    prelude::{control_row, metrics, spawn_block, text, ButtonSpec, TextRole, VerbGate},
+    theme::{UiColorType, BORDER_W},
     widget::ThemedBorder,
 };
 
 use super::{
-    card_actions, offer_cell, offer_rows, shipyard::hull_length_text, spawn_card_price,
-    spawn_hull_card_head, spawn_hull_info_button, StationRuntime,
+    offer_cell, offer_rows, shipyard::hull_length_text, spawn_card_foot, spawn_hull_card_head,
+    spawn_hull_info_button, StationRuntime,
 };
 use crate::{
     icons::InterfaceIcons,
@@ -49,7 +50,7 @@ pub struct EscortHireCommand {
 #[derive(Component)]
 pub(crate) struct StationEscortList;
 
-/// The header and rows inside [`StationEscortList`], and what they were
+/// The fleet row and cards inside [`StationEscortList`], and what they were
 /// built from, so they respawn only when one changes.
 #[derive(Component, Default)]
 pub(crate) struct StationEscortRows {
@@ -72,8 +73,8 @@ struct EscortRow {
     name: String,
     length: String,
     price_cr: u64,
-    /// What the balance lacks of the price, or `None` while it is not short.
-    short_cr: Option<u64>,
+    /// The balance is short of the price.
+    short: bool,
     /// How Hire answers the row.
     gate: VerbGate,
 }
@@ -169,43 +170,31 @@ fn plan_offer(
     plan_escort_hire(price, partner, held, own_cr)
 }
 
-/// Build the escort list under the hull list: the header and rows
-/// [`update_station_escort_list`] fills.
+/// Build the escort block under the hull list: its heading and the fleet
+/// row and cards [`update_station_escort_list`] fills.
 pub(crate) fn spawn_station_escort_list(panel: &mut ChildSpawnerCommands) {
-    panel
-        .spawn((
-            StationEscortList,
+    let mut list = spawn_block(panel, "Escorts", StationEscortList);
+    list.entry::<Node>()
+        .and_modify(|mut node| node.display = Display::None);
+    list.with_children(|list| {
+        list.spawn((
+            StationEscortRows::default(),
             Node {
-                display: Display::None,
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(8.0),
-                flex_shrink: 0.0,
+                row_gap: px(metrics::GAP),
                 ..default()
             },
-        ))
-        .with_children(|list| {
-            list.spawn(divider());
-            list.spawn((
-                StationEscortRows::default(),
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(8.0),
-                    ..default()
-                },
-            ));
-        });
+        ));
+    });
 }
 
 /// `FLEET  [STBD name] [PORT --]`: one bordered box per [`FLEET_SIDES`]
 /// entry.
 fn spawn_fleet_row(list: &mut ChildSpawnerCommands, slots: &[Option<String>]) {
     list.spawn(Node {
-        flex_direction: FlexDirection::Row,
         flex_wrap: FlexWrap::Wrap,
-        align_items: AlignItems::Center,
-        column_gap: px(8),
-        row_gap: px(4),
-        ..default()
+        row_gap: px(metrics::GAP_S),
+        ..control_row(JustifyContent::FlexStart)
     })
     .with_children(|row| {
         row.spawn(text("FLEET", TextRole::Label));
@@ -218,10 +207,11 @@ fn spawn_fleet_row(list: &mut ChildSpawnerCommands, slots: &[Option<String>]) {
             row.spawn((
                 Node {
                     flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Baseline,
-                    column_gap: px(8),
-                    padding: UiRect::axes(px(8), px(3)),
-                    border: UiRect::all(px(1)),
+                    align_items: AlignItems::Center,
+                    column_gap: px(metrics::GAP),
+                    min_height: px(metrics::CONTROL_H),
+                    padding: UiRect::axes(px(metrics::PAD_X), px(0)),
+                    border: UiRect::all(px(BORDER_W)),
                     ..default()
                 },
                 BorderColor::all(Color::NONE),
@@ -293,12 +283,10 @@ pub(crate) fn update_station_escort_list(
                         name: name.to_string(),
                         length: hull_length_text(&design.0),
                         price_cr,
-                        short_cr: match refusal {
-                            Some(EscortHireRefusalType::InsufficientCredits { need, have }) => {
-                                Some(need - u64::from(have))
-                            }
-                            _ => None,
-                        },
+                        short: matches!(
+                            refusal,
+                            Some(EscortHireRefusalType::InsufficientCredits { .. })
+                        ),
                         gate: escort_gate(refusal.as_ref()),
                     })
                 })
@@ -318,38 +306,25 @@ pub(crate) fn update_station_escort_list(
     }
     commands.entity(rows_entity).despawn_children();
     commands.entity(rows_entity).with_children(|parent| {
-        parent
-            .spawn(Node {
-                flex_direction: FlexDirection::Row,
-                flex_wrap: FlexWrap::Wrap,
-                align_items: AlignItems::Center,
-                column_gap: px(24),
-                row_gap: px(4),
-                ..default()
-            })
-            .with_children(|header| {
-                header.spawn(text("Escorts for hire", TextRole::Heading));
-                spawn_fleet_row(header, &slots);
-            });
+        spawn_fleet_row(parent, &slots);
         parent.spawn(offer_rows()).with_children(|cards| {
             for (index, row) in rows.iter().enumerate() {
                 cards.spawn(offer_cell()).with_children(|cell| {
                     spawn_hull_card_head(cell, row.hull, &row.name, &row.length);
-                    spawn_card_price(cell, &icons, row.price_cr, row.short_cr);
-                    cell.spawn(card_actions()).with_children(|actions| {
-                        gated_verb(
-                            actions,
-                            format!("EscortHire-{index}"),
-                            "Hire",
-                            row.gate.clone(),
-                        )
-                        .observe(on_escort_hire_button(row.hull));
+                    spawn_card_foot(cell, &icons, Some((row.price_cr, row.short)), |verbs| {
                         spawn_hull_info_button(
-                            actions,
+                            verbs,
                             format!("EscortInfo-{index}"),
                             row.hull,
                             format!("{}  {}, {}", row.name, row.length, cr_text(row.price_cr)),
                         );
+                        gated_verb(
+                            verbs,
+                            format!("EscortHire-{index}"),
+                            ButtonSpec::control("Hire"),
+                            row.gate.clone(),
+                        )
+                        .observe(on_escort_hire_button(row.hull));
                     });
                 });
             }
@@ -373,8 +348,7 @@ fn on_escort_hire_button(
 /// Apply [`EscortHireCommand`]s by the [`plan_escort_hire`] rule: charge the
 /// price with `EscortHire` credit changes on both sides, queue one
 /// `EscortHired` report, and raise the [`EscortHireRequest`] that spawns the
-/// escort. A refusal changes nothing and shows its reason on the notice
-/// line.
+/// escort. A refusal changes nothing and plays the deny cue.
 ///
 /// # Panics
 ///

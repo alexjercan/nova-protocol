@@ -3,24 +3,25 @@
 //!
 //! The pane is one row: a column of panels and an inspector beside it.
 //! Docked at a living station that offers Jobs, the column starts with the
-//! station's board ("Jobs posted here"): one line per offer the player
-//! neither holds nor completed and whose window has not passed, as kind
-//! icon | title | reward | time-left meter with its minutes | Accept. Every
-//! offer asks something of the hull ([`plan_job_hull_fit`]): the starting
-//! station's board ([`StarterBoardMarker`]) leaves out what the
-//! hull cannot do, and says so when nothing else is left to list; every
-//! other board lists it with a greyed Accept and the
-//! reason in a tooltip, as it does for an offer whose target is gone. Under
-//! it, docked or not, "Your jobs" lists every held job as kind icon | title
-//! | `have / need` meter | hand-in | Hand in | `X`. The hand-in column reads
-//! HAND IN HERE docked at the job's target, else blank; a refused Hand in is
-//! greyed with the reason in a tooltip. Over the held rows, one row reads the start role's goal: its
-//! title, its next unmet line ([`open_objectives`]) and a `have / need`
+//! station's Board: one row per offer the player neither holds nor completed
+//! and whose window has not passed, as kind icon | title | reward | time-left
+//! meter with its minutes | Accept `X`. Away from such a station the board is
+//! not drawn; the pane head's mode tags say where the player is. Every offer
+//! asks something of the hull ([`plan_job_hull_fit`]): the starting station's
+//! board ([`StarterBoardMarker`]) leaves out what the hull cannot do; every
+//! other board lists it with Accept disabled and one tag word for the part
+//! the hull lacks, as it tags an offer whose target is gone. Under it, docked
+//! or not, "Your jobs" lists every held job as kind icon | title | `have /
+//! need` meter | hand-in | Hand in `X`. The hand-in column reads HAND IN HERE
+//! docked at the job's target, else blank; Hand in is hidden elsewhere, and
+//! disabled with the short count painted Danger while the work or the hold
+//! is short. Under the held table head, one row reads the start role's goal:
+//! its title, its next unmet line ([`open_objectives`]) and a `have / need`
 //! meter, or the play time the goal was met; a role with no goal has no row.
-//! Clicking a job row selects it and the inspector reads its task, its
-//! target, its hand-in station, its reward, its time left or progress and a
-//! Show on Map button, which opens the Map's chart view on the job's mark
-//! ([`MapRuntime::chart_show`]).
+//! An empty list draws nothing. Clicking a job row selects it and the
+//! inspector reads its task, its target, its hand-in station, its reward, its
+//! time left or progress and a Show on Map button, which opens the Map's
+//! chart view on the job's mark ([`MapRuntime::chart_show`]).
 //!
 //! A click on Accept or Hand in raises a [`JobAcceptCommand`] or a
 //! [`JobHandInCommand`]; [`apply_job_commands`] plans it with
@@ -30,8 +31,8 @@
 //! changed balance and lists show it; the buttons are silent on press. A
 //! verb that cannot work is hidden or disabled by its [`VerbGate`].
 //!
-//! A held row's `X` drops nothing: it asks. The row then reads `Drop
-//! <title>?` and swaps Hand in and `X` for Drop and Back. Back leaves the
+//! A held row's `X` drops nothing: it asks. The row then reads `Drop?
+//! <title>` and swaps Hand in and `X` for Back and Drop. Back leaves the
 //! job held either way; Drop raises a [`JobDropCommand`], and
 //! [`apply_job_commands`] drops the job ([`Jobs::drop`]) with no payout,
 //! whatever station it is docked at, and takes out the bodies its accept
@@ -40,8 +41,9 @@
 //!
 //! A board row's offer is not held: docked at its issuing station, it
 //! carries a compact `X` of its own. Pressing it asks a paid delete instead
-//! of a drop: the row reads `<title>` with the fee beside the credit glyph
-//! and swaps Accept and `X` for Delete and Back. Delete raises a
+//! of a drop: the row reads `Delete? <title>` with the fee beside the
+//! credit glyph, Danger while the balance is short, and swaps Accept and `X`
+//! for Back and Delete. Delete raises a
 //! [`JobOfferRefreshCommand`]; [`apply_job_commands`] revalidates the slot
 //! is still current, unheld, unexpired and docked before it moves the fee
 //! ([`JOB_OFFER_REFRESH_FEE_CR`], [`plan_job_offer_refresh`]) and marks the
@@ -65,7 +67,11 @@ use nova_events::prelude::{
 };
 use nova_gameplay::prelude::*;
 use nova_sound::prelude::*;
-use nova_ui::{prelude::*, theme::UiColorType, widget::ThemedBorder};
+use nova_ui::{
+    prelude::*,
+    theme::{UiColorType, BORDER_W},
+    widget::ThemedBorder,
+};
 use nova_world_base::prelude::{record_merit, PlayerHull};
 
 use crate::{
@@ -81,8 +87,8 @@ use crate::{
 /// Glob-import surface: `use nova_interface::jobs::prelude::*`.
 pub mod prelude {
     pub use super::{
-        JobAcceptCommand, JobHandInCommand, JobsRuntime, JOBS_BOARD, JOBS_BOARD_CLOSED, JOBS_HELD,
-        JOBS_MILESTONE, JOBS_PANE, JOB_ACCEPT_PREFIX, JOB_HAND_IN_PREFIX, JOB_SHOW_ON_MAP,
+        JobAcceptCommand, JobHandInCommand, JobsRuntime, JOBS_BOARD, JOBS_HELD, JOBS_MILESTONE,
+        JOBS_PANE, JOB_ACCEPT_PREFIX, JOB_HAND_IN_PREFIX, JOB_SHOW_ON_MAP,
     };
 }
 
@@ -91,9 +97,6 @@ pub const JOBS_PANE: &str = "JobsPane";
 /// The `Name` of the board panel, present only while docked at a station
 /// that posts jobs.
 pub const JOBS_BOARD: &str = "JobsBoard";
-/// The `Name` of the board panel's stand-in while the player is not docked at
-/// a station that posts jobs: its header and the line that says to dock.
-pub const JOBS_BOARD_CLOSED: &str = "JobsBoardClosed";
 /// The `Name` of the held jobs panel.
 pub const JOBS_HELD: &str = "JobsHeld";
 /// The `Name` of the held panel's milestone row, present while the start
@@ -457,10 +460,7 @@ struct HeldRow {
 /// The docked station's board as the pane shows it.
 #[derive(Clone, Debug, PartialEq)]
 struct BoardView {
-    station: String,
     rows: Vec<PostedRow>,
-    /// `rows` is empty and the hull gate left an offer out of it.
-    hidden: bool,
 }
 
 /// The selected job as the inspector reads it.
@@ -634,7 +634,6 @@ fn update_jobs_pane(
 
     let board = partner.as_ref().and_then(|(_, station, station_id)| {
         let (board, starter) = q_boards.get(*station).ok()?;
-        let mut hidden = false;
         let rows: Vec<PostedRow> = board
             .0
             .iter()
@@ -661,7 +660,6 @@ fn update_jobs_pane(
                         target_standing(job, &q_targets),
                     ),
                 ) else {
-                    hidden = true;
                     return None;
                 };
                 let confirming = runtime.confirm_refresh.as_ref() == Some(&job.id);
@@ -683,11 +681,7 @@ fn update_jobs_pane(
                 })
             })
             .collect();
-        Some(BoardView {
-            station: station_name(&chart, station_id),
-            hidden: hidden && rows.is_empty(),
-            rows,
-        })
+        Some(BoardView { rows })
     });
 
     let held: Vec<HeldRow> = jobs
@@ -790,11 +784,10 @@ fn update_jobs_pane(
     commands.entity(pane).despawn_children();
     commands.entity(pane).with_children(|split| {
         split.spawn(column()).with_children(|col| {
-            match &view.board {
-                Some(board) => {
-                    board_panel(col, &icons, board, runtime.selected.as_ref(), board_offset);
-                }
-                None => closed_board_panel(col),
+            // Away from a station that posts jobs the board is hidden: the
+            // pane head's mode tags say where the player is.
+            if let Some(board) = &view.board {
+                board_panel(col, &icons, board, runtime.selected.as_ref(), board_offset);
             }
             held_panel(col, &icons, &view, runtime.selected.as_ref(), held_offset);
         });
@@ -818,10 +811,9 @@ const TIME_PX: f32 = 120.0;
 const ROW_METER_PX: f32 = 72.0;
 /// Width of the progress column: a row meter and the widest `nn / nn`.
 const PROGRESS_PX: f32 = 130.0;
-/// Width of a row's action button column.
-const ACTION_PX: f32 = 78.0;
-/// Width of a held row's `X` column.
-const DROP_PX: f32 = 28.0;
+/// Width of a row's verb column: the widest tag (`NO WEAPON`), Accept and
+/// the `X`, [`metrics::GAP`] apart, or Back and Delete.
+const VERBS_PX: f32 = 172.0;
 /// Width of a row's icon column.
 const ICON_PX: f32 = 28.0;
 /// Least width of a row's title cell. A row whose fixed cells leave the title
@@ -830,12 +822,8 @@ const TITLE_MIN_PX: f32 = 160.0;
 /// The scrollbar's track and its margin, which narrow a list's rows. A table
 /// head pads its right side by this much to stay over the same columns.
 const SCROLL_GUTTER_PX: f32 = 12.0;
-/// A list row's side padding plus its 1 px border: where a row's cells start.
-const ROW_INSET_PX: f32 = 14.0;
-/// Width of a meter in the inspector.
-const METER_PX: f32 = 110.0;
-/// Width of an inspector's label column.
-const LABEL_PX: f32 = 84.0;
+/// A list row's side padding plus its border: where a row's cells start.
+const ROW_INSET_PX: f32 = metrics::PAD_X + BORDER_W;
 
 /// The column of panels: it takes what the inspector leaves of the row.
 fn column() -> Node {
@@ -896,13 +884,6 @@ fn scroll_rows(
         .with_children(rows);
         row.spawn(scroll_bar());
     });
-}
-
-/// One sentence of a list that has nothing to list. It tells the player
-/// what to do next, so it takes the secondary ink: at 12 px the label ink is
-/// under 3:1 on a panel.
-fn empty_line(panel: &mut ChildSpawnerCommands, sentence: &str) {
-    panel.spawn(text(sentence, TextRole::Label));
 }
 
 /// A themed text that never wraps and takes no clicks, so a row's click
@@ -1029,8 +1010,8 @@ fn bare_meter(width: f32, fraction: f32) -> impl Bundle {
 }
 
 /// A `have / need` meter: a display meter `width` wide with the counts beside
-/// it.
-fn meter(width: f32, have: u64, need: u64) -> impl Bundle {
+/// it, painted Danger while `short` blocks a verb.
+fn meter(width: f32, have: u64, need: u64, short: bool) -> impl Bundle {
     let fraction = if need == 0 {
         0.0
     } else {
@@ -1047,10 +1028,13 @@ fn meter(width: f32, have: u64, need: u64) -> impl Bundle {
         Pickable::IGNORE,
         children![
             bare_meter(width, fraction),
-            text_nowrap(
-                &format!("{have} / {need}"),
-                TextRole::Body,
-                UiColorType::TextBody
+            (
+                text_nowrap(
+                    &format!("{have} / {need}"),
+                    TextRole::Body,
+                    UiColorType::TextBody
+                ),
+                Short(short),
             ),
         ],
     )
@@ -1070,7 +1054,8 @@ fn table_head(panel: &mut ChildSpawnerCommands, columns: &[(f32, &str)]) {
                 bottom: px(2),
             },
             flex_wrap: FlexWrap::Wrap,
-            row_gap: px(4),
+            column_gap: px(metrics::GAP_L),
+            row_gap: px(metrics::GAP_S),
             overflow: Overflow::clip(),
             ..control_row(JustifyContent::FlexEnd)
         })
@@ -1094,8 +1079,7 @@ fn table_head(panel: &mut ChildSpawnerCommands, columns: &[(f32, &str)]) {
         });
 }
 
-/// A clickable row of a list, tighter than a plain `list_row` so a board
-/// fits beside its inspector, lit while it is the selection.
+/// A clickable row of a list, lit while it is the selection.
 fn spawn_row<'a>(
     panel: &'a mut ChildSpawnerCommands,
     id: &JobId,
@@ -1105,27 +1089,12 @@ fn spawn_row<'a>(
     let mut row = panel.spawn((
         Name::new(name),
         JobRow(id.clone()),
-        list_row(),
+        tool_list_row(),
         Button,
         Hovered::default(),
         // The selected row again changes nothing, so the handler cues.
         ButtonCueType::Owned,
     ));
-    row.insert(Node {
-        width: percent(100),
-        flex_direction: FlexDirection::Row,
-        // The fixed cells that do not fit beside the title move to a second
-        // line, right-aligned, so no button leaves the panel.
-        flex_wrap: FlexWrap::Wrap,
-        justify_content: JustifyContent::FlexEnd,
-        align_items: AlignItems::Center,
-        column_gap: px(12),
-        row_gap: px(4),
-        flex_shrink: 0.0,
-        padding: UiRect::axes(px(ROW_INSET_PX - 1.0), px(3)),
-        border: UiRect::all(px(1)),
-        ..default()
-    });
     row.observe(on_job_row);
     if selected {
         row.insert(Selected);
@@ -1133,89 +1102,94 @@ fn spawn_row<'a>(
     row
 }
 
-/// A row's action button under `gate`.
+/// A row's verbs: [`VERBS_PX`] wide, gathered at its end, so every row's
+/// columns line up under the table head.
+fn verbs_cell() -> impl Bundle {
+    (
+        Node {
+            width: px(VERBS_PX),
+            ..verb_row(RowAlign::End)
+        },
+        Pickable::IGNORE,
+    )
+}
+
+/// A row's action verb under `gate`: Accept on the board, Hand in on a held
+/// job. Plain, since every row has one.
 fn action_button(
-    row: &mut ChildSpawnerCommands,
+    verbs: &mut ChildSpawnerCommands,
     name: String,
     label: &str,
     button: JobActionButton,
     gate: VerbGate,
 ) {
-    // The button sits in a column as wide as the header's blank last column,
-    // so the row's growing title cell matches the header's.
-    row.spawn((
-        Node {
-            width: px(ACTION_PX),
-            flex_shrink: 0.0,
-            flex_direction: FlexDirection::Row,
-            justify_content: JustifyContent::FlexEnd,
-            align_items: AlignItems::Center,
-            ..default()
-        },
-        Pickable::IGNORE,
-    ))
-    .with_children(|column| {
-        gated_verb(column, name, label, gate)
-            .insert(button)
-            .observe(on_job_button);
-    });
+    gated_verb(verbs, name, ButtonSpec::control(label), gate)
+        .insert(button)
+        .observe(on_job_button);
 }
 
-/// A held row's drop step button, right-aligned in a column `width` wide.
+/// A row's `X`: a square ghost verb with the job-drop-cancel mark. Bevy UI
+/// cannot draw the authored SVG directly, so the mark is an
+/// AssetServer-loaded raster child tinted in the text ink.
+fn ask_button<'a>(
+    verbs: &'a mut ChildSpawnerCommands,
+    icons: &InterfaceIcons,
+    name: String,
+    marker: impl Bundle,
+) -> EntityCommands<'a> {
+    let mut ask = verbs.spawn((
+        Name::new(name),
+        button(ButtonSpec::control("").ghost()),
+        marker,
+        ButtonCueType::Owned,
+    ));
+    ask.with_children(|b| {
+        b.spawn(icon_node(icons.job_drop_cancel(), UiColorType::Text, 14.0));
+    });
+    ask
+}
+
+/// A held row's Drop or Back step.
 fn drop_step_button(
-    row: &mut ChildSpawnerCommands,
-    width: f32,
+    verbs: &mut ChildSpawnerCommands,
     name: String,
     spec: ButtonSpec,
     marker: JobDropButton,
 ) {
-    row.spawn((
-        Node {
-            width: px(width),
-            flex_shrink: 0.0,
-            flex_direction: FlexDirection::Row,
-            justify_content: JustifyContent::FlexEnd,
-            align_items: AlignItems::Center,
-            ..default()
-        },
-        Pickable::IGNORE,
-    ))
-    .with_children(|column| {
-        let mut button =
-            column.spawn((Name::new(name), button(spec), ButtonCueType::Owned, marker));
-        button.observe(on_job_drop_button);
-    });
+    verbs
+        .spawn((Name::new(name), button(spec), ButtonCueType::Owned, marker))
+        .observe(on_job_drop_button);
 }
 
-/// A board row's refresh step button under `gate`, right-aligned in a
-/// column `width` wide.
+/// A board row's Delete or Back step under `gate`.
 fn refresh_step_button(
-    row: &mut ChildSpawnerCommands,
-    width: f32,
+    verbs: &mut ChildSpawnerCommands,
     name: String,
     spec: ButtonSpec,
     marker: JobRefreshButton,
     gate: VerbGate,
 ) {
-    row.spawn((
-        Node {
-            width: px(width),
-            flex_shrink: 0.0,
-            flex_direction: FlexDirection::Row,
-            justify_content: JustifyContent::FlexEnd,
-            align_items: AlignItems::Center,
-            ..default()
-        },
-        Pickable::IGNORE,
-    ))
-    .with_children(|column| {
-        let mut button =
-            column.spawn((Name::new(name), button(spec), ButtonCueType::Owned, marker));
-        button.insert(gate).observe(on_job_refresh_button);
-    });
+    verbs
+        .spawn((
+            Name::new(name),
+            button(spec),
+            ButtonCueType::Owned,
+            marker,
+            gate,
+        ))
+        .observe(on_job_refresh_button);
 }
 
-/// The docked station's board.
+/// A panel's title row.
+fn panel_title(panel: &mut ChildSpawnerCommands, title: &str) {
+    panel
+        .spawn(control_row(JustifyContent::FlexStart))
+        .with_children(|head| {
+            head.spawn(text(title, TextRole::Title));
+        });
+}
+
+/// The docked station's board. The pane head's mode tag names the station.
 fn board_panel(
     col: &mut ChildSpawnerCommands,
     icons: &InterfaceIcons,
@@ -1225,17 +1199,10 @@ fn board_panel(
 ) {
     col.spawn((Name::new(JOBS_BOARD), column_panel()))
         .with_children(|panel| {
-            panel
-                .spawn(Node {
-                    column_gap: px(10),
-                    ..control_row(JustifyContent::FlexStart)
-                })
-                .with_children(|head| {
-                    head.spawn(text(
-                        &format!("Jobs posted here: {}", board.station),
-                        TextRole::Title,
-                    ));
-                });
+            panel_title(panel, "Board");
+            if board.rows.is_empty() {
+                return;
+            }
             table_head(
                 panel,
                 &[
@@ -1243,19 +1210,10 @@ fn board_panel(
                     (0.0, "Job"),
                     (REWARD_PX, "Reward"),
                     (TIME_PX, "Time left"),
-                    (ACTION_PX, ""),
-                    (DROP_PX, ""),
+                    (VERBS_PX, ""),
                 ],
             );
             scroll_rows(panel, JobsScrollType::Board, offset, |panel| {
-                if board.rows.is_empty() {
-                    let empty = if board.hidden {
-                        "No suitable jobs here."
-                    } else {
-                        "No jobs posted here."
-                    };
-                    empty_line(panel, empty);
-                }
                 for (index, row) in board.rows.iter().enumerate() {
                     spawn_row(
                         panel,
@@ -1263,166 +1221,170 @@ fn board_panel(
                         format!("JobRowPosted-{index}"),
                         selected == Some(&row.id),
                     )
-                    .with_children(|r| {
-                        r.spawn(fixed(
-                            ICON_PX,
-                            icon_node(icons.job(row.icon), row.icon.color(), 18.0),
-                        ));
-                        if row.confirming {
-                            r.spawn(ask_title_cell("Delete offer?", &row.title, TextRole::Value));
-                        } else {
-                            r.spawn(title_cell(&row.title, TextRole::Value, UiColorType::Text));
-                        }
-                        if row.confirming {
-                            // A short balance paints the fee it cannot pay.
-                            let tone = if row.refresh_gate == VerbGate::Disabled {
-                                UiColorType::Danger
-                            } else {
-                                UiColorType::Accent
-                            };
-                            r.spawn(Node {
-                                width: px(REWARD_PX),
-                                flex_shrink: 0.0,
-                                flex_direction: FlexDirection::Row,
-                                align_items: AlignItems::Center,
-                                ..default()
-                            })
-                            .with_children(|fee| {
-                                spawn_credit_figure(
-                                    fee,
-                                    icons,
-                                    u64::from(JOB_OFFER_REFRESH_FEE_CR),
-                                    TextRole::Value,
-                                    tone,
-                                    (),
-                                );
-                            });
-                        } else {
-                            r.spawn((
-                                Node {
-                                    width: px(REWARD_PX),
-                                    flex_shrink: 0.0,
-                                    ..default()
-                                },
-                                Pickable::IGNORE,
-                            ))
-                            .with_children(|reward| {
-                                spawn_credit_figure(
-                                    reward,
-                                    icons,
-                                    row.reward_cr,
-                                    TextRole::Value,
-                                    UiColorType::Accent,
-                                    (),
-                                );
-                            });
-                        }
-                        if row.confirming {
-                            let refresh_button = |step| JobRefreshButton {
-                                step,
-                                id: row.id.clone(),
-                            };
-                            refresh_step_button(
-                                r,
-                                TIME_PX,
-                                format!("{JOB_REFRESH_CONFIRM_PREFIX}{index}"),
-                                ButtonSpec::control("Delete").danger(),
-                                refresh_button(JobAskStepType::Confirm),
-                                row.refresh_gate.clone(),
-                            );
-                            refresh_step_button(
-                                r,
-                                ACTION_PX,
-                                format!("{JOB_REFRESH_BACK_PREFIX}{index}"),
-                                ButtonSpec::control("Back"),
-                                refresh_button(JobAskStepType::Back),
-                                VerbGate::Ready,
-                            );
-                            r.spawn(fixed(DROP_PX, ()));
-                            return;
-                        }
-                        r.spawn(fixed(
-                            TIME_PX,
-                            (
-                                Node {
-                                    align_items: AlignItems::Center,
-                                    column_gap: px(8),
-                                    ..default()
-                                },
-                                Pickable::IGNORE,
-                                children![
-                                    bare_meter(ROW_METER_PX, row.time_left.0),
-                                    text_nowrap(
-                                        &row.time_left.1,
-                                        TextRole::Body,
-                                        UiColorType::TextBody
-                                    ),
-                                ],
-                            ),
-                        ));
-                        action_button(
-                            r,
-                            format!("{JOB_ACCEPT_PREFIX}{index}"),
-                            "Accept",
-                            JobActionButton {
-                                list: JobListType::Posted,
-                                id: row.id.clone(),
-                            },
-                            row.gate.clone(),
-                        );
-                        // The ask step swaps the `X` label for the job-drop-cancel
-                        // mark, the same asset the held row's `X` uses.
-                        r.spawn((
-                            Node {
-                                width: px(DROP_PX),
-                                flex_shrink: 0.0,
-                                flex_direction: FlexDirection::Row,
-                                justify_content: JustifyContent::FlexEnd,
-                                align_items: AlignItems::Center,
-                                ..default()
-                            },
-                            Pickable::IGNORE,
-                        ))
-                        .with_children(|column| {
-                            if !row.refreshable {
-                                return;
-                            }
-                            let mut ask = column.spawn((
-                                Name::new(format!("{JOB_REFRESH_PREFIX}{index}")),
-                                button(ButtonSpec::control("").ghost()),
-                                JobRefreshButton {
-                                    step: JobAskStepType::Ask,
-                                    id: row.id.clone(),
-                                },
-                                Tooltip("Delete offer".to_string()),
-                                ButtonCueType::Owned,
-                            ));
-                            ask.observe(on_job_refresh_button);
-                            ask.with_children(|b| {
-                                b.spawn(icon_node(
-                                    icons.job_drop_cancel(),
-                                    UiColorType::Text,
-                                    14.0,
-                                ));
-                            });
-                        });
-                    });
+                    .with_children(|r| posted_row(r, icons, index, row));
                 }
             });
         });
 }
 
-/// The board panel's stand-in while the player is not docked at a station
-/// that posts jobs.
-fn closed_board_panel(col: &mut ChildSpawnerCommands) {
-    col.spawn((Name::new(JOBS_BOARD_CLOSED), column_panel()))
-        .with_children(|panel| {
-            panel.spawn(text("Station board", TextRole::Title));
-            empty_line(panel, "Dock at a station to see its job board.");
+/// One board row's cells: icon | title | reward | time left | Accept `X`,
+/// or, asking, icon | `Delete?` title | fee | blank | Back Delete.
+fn posted_row(r: &mut ChildSpawnerCommands, icons: &InterfaceIcons, index: usize, row: &PostedRow) {
+    r.spawn(fixed(
+        ICON_PX,
+        icon_node(icons.job(row.icon), row.icon.color(), 18.0),
+    ));
+    if row.confirming {
+        r.spawn(ask_title_cell("Delete?", &row.title, TextRole::Value));
+        // A short balance paints the fee it cannot pay.
+        let tone = if row.refresh_gate == VerbGate::Disabled {
+            UiColorType::Danger
+        } else {
+            UiColorType::Accent
+        };
+        r.spawn(fixed(REWARD_PX, ())).with_children(|fee| {
+            spawn_credit_figure(
+                fee,
+                icons,
+                u64::from(JOB_OFFER_REFRESH_FEE_CR),
+                TextRole::Value,
+                tone,
+                (),
+            );
+        });
+        r.spawn(fixed(TIME_PX, ()));
+        let refresh_button = |step| JobRefreshButton {
+            step,
+            id: row.id.clone(),
+        };
+        r.spawn(verbs_cell()).with_children(|verbs| {
+            refresh_step_button(
+                verbs,
+                format!("{JOB_REFRESH_BACK_PREFIX}{index}"),
+                ButtonSpec::control("Back"),
+                refresh_button(JobAskStepType::Back),
+                VerbGate::Ready,
+            );
+            refresh_step_button(
+                verbs,
+                format!("{JOB_REFRESH_CONFIRM_PREFIX}{index}"),
+                ButtonSpec::control("Delete").danger(),
+                refresh_button(JobAskStepType::Confirm),
+                row.refresh_gate.clone(),
+            );
+        });
+        return;
+    }
+    r.spawn(title_cell(&row.title, TextRole::Value, UiColorType::Text));
+    r.spawn(fixed(REWARD_PX, ())).with_children(|reward| {
+        spawn_credit_figure(
+            reward,
+            icons,
+            row.reward_cr,
+            TextRole::Value,
+            UiColorType::Accent,
+            (),
+        );
+    });
+    r.spawn(fixed(
+        TIME_PX,
+        (
+            Node {
+                align_items: AlignItems::Center,
+                column_gap: px(metrics::GAP),
+                ..default()
+            },
+            Pickable::IGNORE,
+            children![
+                bare_meter(ROW_METER_PX, row.time_left.0),
+                text_nowrap(&row.time_left.1, TextRole::Body, UiColorType::TextBody),
+            ],
+        ),
+    ));
+    r.spawn(verbs_cell()).with_children(|verbs| {
+        action_button(
+            verbs,
+            format!("{JOB_ACCEPT_PREFIX}{index}"),
+            "Accept",
+            JobActionButton {
+                list: JobListType::Posted,
+                id: row.id.clone(),
+            },
+            row.gate.clone(),
+        );
+        if row.refreshable {
+            ask_button(
+                verbs,
+                icons,
+                format!("{JOB_REFRESH_PREFIX}{index}"),
+                JobRefreshButton {
+                    step: JobAskStepType::Ask,
+                    id: row.id.clone(),
+                },
+            )
+            .observe(on_job_refresh_button);
+        }
+    });
+}
+
+/// The start role's goal line under the held table head: its title and next
+/// unmet line with a `have / need` meter, or the play time it was met.
+fn goal_row(panel: &mut ChildSpawnerCommands, icons: &InterfaceIcons, view: &JobsView) {
+    let (line, color, progress) = match (&view.milestone, view.goal_met_at) {
+        (Some(line), _) => (
+            format!("{}: {}", view.goal_title, line.label),
+            UiColorType::Text,
+            Some((line.have, line.need)),
+        ),
+        (None, Some(at)) => (
+            format!("{}: {}", view.goal_title, play_time_text(at)),
+            UiColorType::Accent,
+            None,
+        ),
+        (None, None) => return,
+    };
+    panel
+        .spawn((
+            Name::new(JOBS_MILESTONE),
+            Node {
+                // The cells line up with the held rows under it.
+                width: percent(100),
+                min_height: px(metrics::LIST_ROW_H),
+                padding: UiRect {
+                    left: px(ROW_INSET_PX),
+                    right: px(ROW_INSET_PX + SCROLL_GUTTER_PX),
+                    ..default()
+                },
+                column_gap: px(metrics::GAP_L),
+                row_gap: px(metrics::GAP_S),
+                flex_wrap: FlexWrap::Wrap,
+                ..control_row(JustifyContent::FlexStart)
+            },
+        ))
+        .with_children(|row| {
+            row.spawn(fixed(
+                ICON_PX,
+                icon_node(
+                    icons.chart(ChartIconType::Milestone),
+                    ChartIconType::Milestone.color(),
+                    18.0,
+                ),
+            ));
+            row.spawn(title_cell(&line, TextRole::Value, color));
+            match progress {
+                Some((have, need)) => {
+                    row.spawn(fixed(PROGRESS_PX, meter(ROW_METER_PX, have, need, false)))
+                }
+                None => row.spawn(fixed(PROGRESS_PX, ())),
+            };
+            // One blank for the hand-in and verb columns, so a wrapped row
+            // spends one empty line, not two cells.
+            row.spawn(fixed(HAND_IN_PX + VERBS_PX + metrics::GAP_L, ()));
         });
 }
 
-/// The jobs the player holds.
+/// The jobs the player holds: the title, the table head, the role goal's
+/// line and the held rows.
 fn held_panel(
     col: &mut ChildSpawnerCommands,
     icons: &InterfaceIcons,
@@ -1432,72 +1394,10 @@ fn held_panel(
 ) {
     col.spawn((Name::new(JOBS_HELD), column_panel()))
         .with_children(|panel| {
-            panel.spawn(text("Your jobs", TextRole::Title));
-            let goal = match (&view.milestone, view.goal_met_at) {
-                (Some(line), _) => Some((
-                    format!("{}: {}", view.goal_title, line.label),
-                    UiColorType::Text,
-                    Some((line.have, line.need)),
-                )),
-                (None, Some(at)) => Some((
-                    format!(
-                        "{}: Goal reached at {}",
-                        view.goal_title,
-                        play_time_text(at)
-                    ),
-                    UiColorType::Accent,
-                    None,
-                )),
-                (None, None) => None,
-            };
-            if let Some((text, color, progress)) = goal {
-                panel
-                    .spawn((
-                        Name::new(JOBS_MILESTONE),
-                        Node {
-                            // The cells line up with the held rows under it.
-                            padding: UiRect {
-                                left: px(ROW_INSET_PX),
-                                right: px(ROW_INSET_PX + SCROLL_GUTTER_PX),
-                                top: px(3),
-                                bottom: px(3),
-                            },
-                            column_gap: px(12),
-                            row_gap: px(4),
-                            flex_wrap: FlexWrap::Wrap,
-                            flex_shrink: 0.0,
-                            ..control_row(JustifyContent::FlexStart)
-                        },
-                    ))
-                    .with_children(|row| {
-                        row.spawn(fixed(
-                            ICON_PX,
-                            icon_node(
-                                icons.chart(ChartIconType::Milestone),
-                                ChartIconType::Milestone.color(),
-                                18.0,
-                            ),
-                        ));
-                        row.spawn((
-                            Node {
-                                flex_grow: 1.0,
-                                flex_basis: px(TITLE_MIN_PX),
-                                min_width: px(TITLE_MIN_PX),
-                                ..default()
-                            },
-                            Pickable::IGNORE,
-                            children![text_toned(&text, TextRole::Value, color)],
-                        ));
-                        match progress {
-                            Some((have, need)) => {
-                                row.spawn(fixed(PROGRESS_PX, meter(ROW_METER_PX, have, need)))
-                            }
-                            None => row.spawn(fixed(PROGRESS_PX, ())),
-                        };
-                        // One blank for the three columns, so a wrapped row
-                        // spends one empty line, not three cells.
-                        row.spawn(fixed(HAND_IN_PX + ACTION_PX + DROP_PX + 24.0, ()));
-                    });
+            panel_title(panel, "Your jobs");
+            let goal = view.milestone.is_some() || view.goal_met_at.is_some();
+            if view.held.is_empty() && !goal {
+                return;
             }
             table_head(
                 panel,
@@ -1506,14 +1406,11 @@ fn held_panel(
                     (0.0, "Job"),
                     (PROGRESS_PX, "Progress"),
                     (HAND_IN_PX, "Hand-in"),
-                    (ACTION_PX, ""),
-                    (DROP_PX, ""),
+                    (VERBS_PX, ""),
                 ],
             );
+            goal_row(panel, icons, view);
             scroll_rows(panel, JobsScrollType::Held, offset, |panel| {
-                if view.held.is_empty() {
-                    empty_line(panel, "No jobs taken. Accept one at a station board.");
-                }
                 for (index, row) in view.held.iter().enumerate() {
                     spawn_row(
                         panel,
@@ -1521,211 +1418,123 @@ fn held_panel(
                         format!("JobRowHeld-{index}"),
                         selected == Some(&row.id),
                     )
-                    .with_children(|r| {
-                        r.spawn(fixed(
-                            ICON_PX,
-                            icon_node(icons.job(row.icon), row.icon.color(), 18.0),
-                        ));
-                        if row.confirming {
-                            r.spawn(ask_title_cell("Drop job?", &row.title, TextRole::Value));
-                        } else {
-                            r.spawn(title_cell(&row.title, TextRole::Value, UiColorType::Text));
-                        }
-                        r.spawn(fixed(
-                            PROGRESS_PX,
-                            meter(ROW_METER_PX, row.have.into(), row.need.into()),
-                        ));
-                        let drop_button = |step| JobDropButton {
-                            step,
-                            id: row.id.clone(),
-                        };
-                        if row.confirming {
-                            drop_step_button(
-                                r,
-                                HAND_IN_PX,
-                                format!("{JOB_DROP_CONFIRM_PREFIX}{index}"),
-                                ButtonSpec::control("Drop").danger(),
-                                drop_button(JobAskStepType::Confirm),
-                            );
-                            drop_step_button(
-                                r,
-                                ACTION_PX,
-                                format!("{JOB_DROP_BACK_PREFIX}{index}"),
-                                ButtonSpec::control("Back"),
-                                drop_button(JobAskStepType::Back),
-                            );
-                            r.spawn(fixed(DROP_PX, ()));
-                            return;
-                        }
-                        if row.hand_in_here {
-                            r.spawn(fixed(HAND_IN_PX, tag("HAND IN HERE", UiColorType::Nominal)));
-                        } else {
-                            r.spawn(fixed(HAND_IN_PX, ()));
-                        }
-                        action_button(
-                            r,
-                            format!("{JOB_HAND_IN_PREFIX}{index}"),
-                            "Hand in",
-                            JobActionButton {
-                                list: JobListType::Held,
-                                id: row.id.clone(),
-                            },
-                            row.gate.clone(),
-                        );
-                        // The ask step swaps the `X` label for the job-drop-cancel
-                        // mark: Bevy UI cannot draw the authored SVG directly, so
-                        // the icon is an AssetServer-loaded raster child instead
-                        // of the button's own label span.
-                        r.spawn((
-                            Node {
-                                width: px(DROP_PX),
-                                flex_shrink: 0.0,
-                                flex_direction: FlexDirection::Row,
-                                justify_content: JustifyContent::FlexEnd,
-                                align_items: AlignItems::Center,
-                                ..default()
-                            },
-                            Pickable::IGNORE,
-                        ))
-                        .with_children(|column| {
-                            let mut ask = column.spawn((
-                                Name::new(format!("{JOB_DROP_PREFIX}{index}")),
-                                button(ButtonSpec::control("").ghost()),
-                                drop_button(JobAskStepType::Ask),
-                                Tooltip("Drop job".to_string()),
-                                ButtonCueType::Owned,
-                            ));
-                            ask.observe(on_job_drop_button);
-                            ask.with_children(|b| {
-                                b.spawn(icon_node(
-                                    icons.job_drop_cancel(),
-                                    UiColorType::Text,
-                                    14.0,
-                                ));
-                            });
-                        });
-                    });
+                    .with_children(|r| held_row(r, icons, index, row));
                 }
             });
         });
 }
 
-/// A `label  value` line of the inspector. The value wraps under itself, and
-/// the label stays level with its first line.
-fn kv(side: &mut ChildSpawnerCommands, label: &str, value: &str) {
-    side.spawn(Node {
-        column_gap: px(8),
-        align_items: AlignItems::FlexStart,
-        ..control_row(JustifyContent::FlexStart)
-    })
-    .with_children(|row| {
-        row.spawn(text_cell(
-            LABEL_PX,
-            label,
-            TextRole::Label,
-            UiColorType::TextMuted,
-        ));
-        row.spawn((
-            Node {
-                flex_grow: 1.0,
-                flex_basis: px(0),
-                min_width: px(0),
-                ..default()
+/// One held row's cells: icon | title | progress | HAND IN HERE | Hand in
+/// `X`, or, asking, icon | `Drop?` title | progress | blank | Back Drop. A
+/// short count that blocks Hand in is painted Danger.
+fn held_row(r: &mut ChildSpawnerCommands, icons: &InterfaceIcons, index: usize, row: &HeldRow) {
+    r.spawn(fixed(
+        ICON_PX,
+        icon_node(icons.job(row.icon), row.icon.color(), 18.0),
+    ));
+    if row.confirming {
+        r.spawn(ask_title_cell("Drop?", &row.title, TextRole::Value));
+    } else {
+        r.spawn(title_cell(&row.title, TextRole::Value, UiColorType::Text));
+    }
+    let short = row.gate == VerbGate::Disabled && row.have < row.need;
+    r.spawn(fixed(
+        PROGRESS_PX,
+        meter(ROW_METER_PX, row.have.into(), row.need.into(), short),
+    ));
+    let drop_button = |step| JobDropButton {
+        step,
+        id: row.id.clone(),
+    };
+    if row.confirming {
+        r.spawn(fixed(HAND_IN_PX, ()));
+        r.spawn(verbs_cell()).with_children(|verbs| {
+            drop_step_button(
+                verbs,
+                format!("{JOB_DROP_BACK_PREFIX}{index}"),
+                ButtonSpec::control("Back"),
+                drop_button(JobAskStepType::Back),
+            );
+            drop_step_button(
+                verbs,
+                format!("{JOB_DROP_CONFIRM_PREFIX}{index}"),
+                ButtonSpec::control("Drop").danger(),
+                drop_button(JobAskStepType::Confirm),
+            );
+        });
+        return;
+    }
+    if row.hand_in_here {
+        r.spawn(fixed(HAND_IN_PX, tag("HAND IN HERE", UiColorType::Nominal)));
+    } else {
+        r.spawn(fixed(HAND_IN_PX, ()));
+    }
+    r.spawn(verbs_cell()).with_children(|verbs| {
+        action_button(
+            verbs,
+            format!("{JOB_HAND_IN_PREFIX}{index}"),
+            "Hand in",
+            JobActionButton {
+                list: JobListType::Held,
+                id: row.id.clone(),
             },
-            children![text(value, TextRole::Value)],
-        ));
+            row.gate.clone(),
+        );
+        ask_button(
+            verbs,
+            icons,
+            format!("{JOB_DROP_PREFIX}{index}"),
+            drop_button(JobAskStepType::Ask),
+        )
+        .observe(on_job_drop_button);
     });
 }
 
-/// The inspector: the selected job, or only its heading.
+/// The inspector: the selected job, or nothing.
 fn inspector_panel(
     side: &mut ChildSpawnerCommands,
     icons: &InterfaceIcons,
     inspector: Option<&InspectorView>,
 ) {
     let Some(job) = inspector else {
-        empty_line(side, "Select a job to see its details.");
         return;
     };
-    side.spawn(Node {
-        column_gap: px(8),
-        ..control_row(JustifyContent::FlexStart)
-    })
-    .with_children(|head| {
-        head.spawn(icon_node(icons.job(job.icon), job.icon.color(), 24.0));
-        head.spawn((
-            Node {
-                flex_grow: 1.0,
-                flex_basis: px(0),
-                min_width: px(0),
-                ..default()
-            },
-            children![text(&job.title, TextRole::Title)],
-        ));
-        if job.done {
-            head.spawn(tag("DONE", UiColorType::Nominal));
-        }
-    });
-    side.spawn(divider());
-    side.spawn(text("TASK", TextRole::Label));
-    side.spawn(text(&job.task, TextRole::Body));
-    side.spawn(divider());
-    kv(side, "Target", &job.target);
-    kv(side, "Hand in", &job.hand_in);
-    side.spawn(Node {
-        column_gap: px(8),
-        ..control_row(JustifyContent::FlexStart)
-    })
-    .with_children(|row| {
-        row.spawn(text_cell(
-            LABEL_PX,
-            "Reward",
-            TextRole::Label,
-            UiColorType::TextMuted,
-        ));
-        spawn_credit_figure(
-            row,
-            icons,
-            job.reward_cr,
-            TextRole::Value,
-            UiColorType::Accent,
-            (),
-        );
-    });
-    if let Some((fraction, minutes)) = &job.time_left {
-        side.spawn(Node {
-            column_gap: px(8),
-            ..control_row(JustifyContent::FlexStart)
-        })
-        .with_children(|row| {
-            row.spawn(text_cell(
-                LABEL_PX,
-                "Time left",
-                TextRole::Label,
-                UiColorType::TextMuted,
-            ));
-            row.spawn(bare_meter(METER_PX, *fraction));
-            row.spawn(text_nowrap(minutes, TextRole::Body, UiColorType::TextBody));
-        });
-    }
-    if let Some((have, need)) = job.progress {
-        side.spawn(Node {
-            column_gap: px(8),
-            ..control_row(JustifyContent::FlexStart)
-        })
-        .with_children(|row| {
-            row.spawn(text_cell(
-                LABEL_PX,
-                "Progress",
-                TextRole::Label,
-                UiColorType::TextMuted,
-            ));
-            row.spawn(meter(METER_PX, have.into(), need.into()));
-        });
-    }
-    side.spawn(divider());
     side.spawn(control_row(JustifyContent::FlexStart))
-        .with_children(|row| {
+        .with_children(|head| {
+            head.spawn(icon_node(icons.job(job.icon), job.icon.color(), 24.0));
+            head.spawn((
+                Node {
+                    flex_grow: 1.0,
+                    flex_basis: px(0),
+                    min_width: px(0),
+                    ..default()
+                },
+                children![text(&job.title, TextRole::Title)],
+            ));
+            if job.done {
+                head.spawn(tag("DONE", UiColorType::Nominal));
+            }
+        });
+    spawn_block(side, "Task", ()).with_children(|block| {
+        block.spawn(text(&job.task, TextRole::Body));
+        spawn_kv(block, "Target", text(&job.target, TextRole::Value));
+        spawn_kv(block, "Hand in", text(&job.hand_in, TextRole::Value));
+        spawn_kv(
+            block,
+            "Reward",
+            text_toned(cr_text(job.reward_cr), TextRole::Value, UiColorType::Accent),
+        );
+        if let Some((_, minutes)) = &job.time_left {
+            spawn_kv(block, "Time left", text(minutes, TextRole::Value));
+        }
+        if let Some((have, need)) = job.progress {
+            spawn_kv(
+                block,
+                "Progress",
+                text(format!("{have} / {need}"), TextRole::Value),
+            );
+        }
+        block.spawn(verb_row(RowAlign::End)).with_children(|row| {
             row.spawn((
                 Name::new(JOB_SHOW_ON_MAP),
                 JobShowOnMap(job.show.clone()),
@@ -1733,6 +1542,7 @@ fn inspector_panel(
             ))
             .observe(on_show_on_map);
         });
+    });
 }
 
 /// Select a row's job when it is activated, with one click if the
@@ -2455,7 +2265,6 @@ mod tests {
                     for (name, label, step) in steps {
                         drop_step_button(
                             panel,
-                            ACTION_PX,
                             name.to_string(),
                             ButtonSpec::control(label),
                             JobDropButton {
@@ -3001,7 +2810,6 @@ mod tests {
                     for (name, label, step) in steps {
                         refresh_step_button(
                             panel,
-                            ACTION_PX,
                             name.to_string(),
                             ButtonSpec::control(label),
                             JobRefreshButton {
@@ -3135,8 +2943,9 @@ mod tests {
     }
 
     /// At 853 logical px (1280 at 150%) a held row with a long title wraps its
-    /// fixed cells under the title: every button stays in the panel and the
-    /// title keeps room to read.
+    /// fixed cells under the title: every button stays in the panel, the
+    /// title keeps room to read, and Hand in and the `X` are one control
+    /// high, side by side with a gap.
     #[test]
     fn jobs_rows_keep_their_buttons_inside_the_panel_at_a_narrow_width() {
         use crate::pointer_rig::{pane_pointer_rig, settle};
@@ -3224,6 +3033,22 @@ mod tests {
             .map(|button| rect(world, button))
             .collect();
         assert_eq!(buttons.len(), 2, "Hand in and the X ask: {buttons:?}");
+        let (hand_in, ask) = if buttons[0].min.x < buttons[1].min.x {
+            (buttons[0], buttons[1])
+        } else {
+            (buttons[1], buttons[0])
+        };
+        for button in &buttons {
+            assert!(
+                (button.height() - metrics::CONTROL_H).abs() < 0.5,
+                "a row verb is one control high: {button:?}"
+            );
+        }
+        assert!(
+            (hand_in.center().y - ask.center().y).abs() < 0.5
+                && ask.min.x - hand_in.max.x >= metrics::GAP - 0.5,
+            "Hand in and the X share a line with a gap: {hand_in:?} {ask:?}"
+        );
         for button in &buttons {
             assert!(
                 button.min.x >= panel.min.x - 0.5

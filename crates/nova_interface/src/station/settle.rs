@@ -10,8 +10,8 @@
 //! balance to pay, so a fine is never paid undocked. A station the player
 //! owns keeps no civilization's book, and the docked station's own
 //! civilization cannot be Enemy, or it would not have admitted the ship.
-//! Every result, settled or refused, goes to the Map pane's notice line
-//! ([`MapRuntime::notice`]), where the button is, not the Station pane's.
+//! Every result, settled or refused, plays its one cue through the Map
+//! pane's [`MapRuntime`], where the button is, not the Station pane's.
 //!
 //! Touch this module when changing what Settle moves.
 
@@ -77,7 +77,7 @@ impl SettleDock<'_, '_> {
 /// neighbour of the docked station's and whose fine the ship holds is
 /// settled to Neutral, the fine moving with `Settle` credit changes on both
 /// sides and the step raising one [`StanceChanged`]. A refusal changes
-/// nothing and shows its reason on the Map's notice line.
+/// nothing and plays the deny cue.
 pub(crate) fn apply_station_settle_commands(
     mut messages: MessageReader<StanceSettleCommand>,
     mut map: ResMut<MapRuntime>,

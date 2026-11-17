@@ -17,8 +17,8 @@
 //! is parked at the partner, the strip does not start and nothing moves: the
 //! button is disabled by the same rule. A hold short of room paints the Hold
 //! meter in the danger tone; the other two causes have no sign in the pane,
-//! so the button's tooltip carries a short tag (`OWN STATION`,
-//! `OWN SHIP PARKED`). The block writes no result line: the meters, the part
+//! so the disabled button carries a tag word (`OWN STATION`,
+//! `OWN SHIP PARKED`) through its [`VerbGate`]. The block writes no result line: the meters, the part
 //! tiles and the hold show a strip start, run and end.
 //! [`advance_hull_strip`] runs the job on the game clock, with the pane open
 //! or shut, so the player starts it and flies on; the TAB interface's pause
@@ -45,17 +45,15 @@ mod tests;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use bevy::{ecs::system::SystemParam, prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
+use bevy::{ecs::system::SystemParam, prelude::*, ui_widgets::Activate};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_sound::prelude::*;
 use nova_ui::{
-    prelude::{button, text, TextRole},
+    prelude::{button, text, TextRole, VerbGate},
     theme::UiColorType,
-    widget::{
-        ButtonCueType, ButtonSpec, ThemedBorder, ThemedFill, ThemedRadius, ThemedText, Tooltip,
-    },
+    widget::{ButtonCueType, ButtonSpec, ThemedBorder, ThemedFill, ThemedRadius, ThemedText},
 };
 
 use super::{loot_text, take_loot, InventoryShips};
@@ -361,18 +359,18 @@ pub(crate) fn plan_strip_press<'a>(
     (hull, verdict)
 }
 
-/// The tooltip tag of a Strip button `refusal` disables, for a cause with
-/// no sign in the pane; `None` for a hold short of room, which the Hold meter
-/// shows.
-fn strip_refusal_tag(refusal: HullStripRefusalType) -> Option<&'static str> {
+/// How Strip answers a `refusal`: hidden where no strip can happen,
+/// disabled for a hold short of room (the Hold meter shows it), and tagged
+/// for a cause with no sign in the pane.
+fn strip_gate(refusal: HullStripRefusalType) -> VerbGate {
     match refusal {
-        HullStripRefusalType::OwnedStation => Some("OWN STATION"),
-        HullStripRefusalType::OwnedHullsParked { .. } => Some("OWN SHIP PARKED"),
+        HullStripRefusalType::OwnedStation => VerbGate::Tagged("OWN STATION"),
+        HullStripRefusalType::OwnedHullsParked { .. } => VerbGate::Tagged("OWN SHIP PARKED"),
+        HullStripRefusalType::NoRoom => VerbGate::Disabled,
         HullStripRefusalType::NotDocked
         | HullStripRefusalType::Busy
         | HullStripRefusalType::LivingStation
-        | HullStripRefusalType::NotLootable
-        | HullStripRefusalType::NoRoom => None,
+        | HullStripRefusalType::NotLootable => VerbGate::Hidden,
     }
 }
 
@@ -466,7 +464,7 @@ pub(crate) fn spawn_strip_block(panel: &mut ChildSpawnerCommands) {
                         StripBlockButton,
                         Name::new(INVENTORY_STRIP_BUTTON),
                         button(ButtonSpec::control("Strip").primary()),
-                        Tooltip::default(),
+                        VerbGate::Hidden,
                         ButtonCueType::Owned,
                     ))
                     .observe(on_strip_button);
@@ -569,7 +567,7 @@ fn spawn_meter_row(
 /// [`plan_strip_press`] refuses for room, at the player's own station or for
 /// a parked hull the player owns, the four meters, and the part tiles. A hold
 /// short of room for the take paints the Hold meter in Danger; the other two
-/// refusals tag the button's tooltip. A held strip reads `Held` on the Total
+/// refusals tag the button through its [`VerbGate`]. A held strip reads `Held` on the Total
 /// row and shows the mass its section needs as the Hold row's `+`, both in
 /// Danger.
 #[expect(
@@ -586,15 +584,16 @@ pub(crate) fn update_strip_block(
     site: StripSite,
     ships: InventoryShips,
     mut commands: Commands,
-    mut q_button: Query<(Entity, &mut Tooltip, Has<InteractionDisabled>), With<StripBlockButton>>,
+    mut q_button: Query<&mut VerbGate, With<StripBlockButton>>,
     q_job: Query<&HullStripJob, With<PlayerSpaceshipMarker>>,
     mut q_field: Query<(&StripBlockField, &mut Text, &mut ThemedText)>,
     mut q_fill: Query<(&StripBlockFill, &mut Node, &mut ThemedFill)>,
     mut q_shown: Query<
-        (&mut Node, Has<StripBlock>, Has<StripBlockButton>),
+        (&mut Node, Has<StripBlock>),
         (
-            Or<(With<StripBlock>, With<StripBlockButton>, With<StripStepRow>)>,
+            Or<(With<StripBlock>, With<StripStepRow>)>,
             Without<StripBlockFill>,
+            Without<StripBlockButton>,
         ),
     >,
     mut q_tiles: Query<(Entity, &mut StripYieldTiles)>,
@@ -606,28 +605,14 @@ pub(crate) fn update_strip_block(
     let job = player.and_then(|player| q_job.get(player).ok());
     let partner = site.partner().filter(StripPartner::recyclable);
     let (hull, verdict) = plan_strip_press(&items, &ships, partner.as_ref(), job.is_some());
-    let blocked = match verdict {
-        Err(
-            refusal @ (HullStripRefusalType::NoRoom
-            | HullStripRefusalType::OwnedStation
-            | HullStripRefusalType::OwnedHullsParked { .. }),
-        ) => Some(refusal),
-        _ => None,
-    };
-    let button_shown = verdict.is_ok() || blocked.is_some();
-    let no_room = blocked == Some(HullStripRefusalType::NoRoom);
-    let reason = blocked
-        .and_then(strip_refusal_tag)
-        .unwrap_or_default()
-        .to_string();
-    for (button, mut tooltip, disabled) in &mut q_button {
-        if tooltip.0 != reason {
-            tooltip.0.clone_from(&reason);
-        }
-        if blocked.is_some() && !disabled {
-            commands.entity(button).insert(InteractionDisabled);
-        } else if blocked.is_none() && disabled {
-            commands.entity(button).remove::<InteractionDisabled>();
+    let no_room = matches!(verdict, Err(HullStripRefusalType::NoRoom));
+    let gate = verdict
+        .as_ref()
+        .err()
+        .map_or(VerbGate::Ready, |refusal| strip_gate(*refusal));
+    for mut button in &mut q_button {
+        if *button != gate {
+            *button = gate.clone();
         }
     }
     // Each meter as (fill share, fill colour, text, text colour).
@@ -762,11 +747,9 @@ pub(crate) fn update_strip_block(
         }
     }
     let flex = |shown: bool| if shown { Display::Flex } else { Display::None };
-    for (mut node, block, button) in &mut q_shown {
+    for (mut node, block) in &mut q_shown {
         let display = if block {
             flex(partner.is_some())
-        } else if button {
-            flex(button_shown)
         } else {
             flex(partner.is_some() && job.is_some())
         };
