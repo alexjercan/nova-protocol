@@ -4,16 +4,16 @@
 //! The block shows while the player ship flies undocked in the open world,
 //! with no station berth under way, and is stranded ([`rescue_quote`]): no
 //! working thruster, flight computer or free docking port. A ship that lost
-//! only its guns flies and docks, so it is not stranded. The block tags
-//! why, such as `NO DRIVE  NO PORT`, and beside its button shows what the
-//! rescue would charge now. A click asks
+//! only its guns flies and docks, so it is not stranded. The block tags why
+//! (`NO DRIVE`, `NO CTL`, `NO PORT`), gives what the rescue would charge now,
+//! the rebuilds it carries and its time, and Call SOS. A click asks
 //! [`find_rescue_station`] for the nearest station that answers and places
-//! the [`ShipRescueCall`]; no station answering refuses on the note line. A
+//! the [`ShipRescueCall`]; no station answering tags Call SOS `NO STATION`. A
 //! ship whose only thruster, flight computer or port is live but not working,
-//! with no lost one to rebuild, is refused at the click too: the rescue
+//! with no lost one to rebuild, has Call SOS tagged `NO FIX`: the rescue
 //! rebuilds lost sections only, and would dock a ship that still cannot fly.
-//! While the call runs the block shows its bar, its time left and Cancel;
-//! the running row is the only sign of a placed or cancelled call. The call
+//! While the call runs the block shows its time left, its bar and Cancel;
+//! the running part is the only sign of a placed or cancelled call. The call
 //! runs on the game clock, which this pane stops.
 //!
 //! Touch this module when changing how the pane offers, shows or cancels a
@@ -26,9 +26,12 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::{OpenWorldSession, StationBerth};
 use nova_ship::prelude::*;
 use nova_ui::{
-    prelude::{button, control_row, divider, text, TextRole},
+    prelude::{
+        bar, button, control_row, metrics, spawn_block, spawn_kv, tag, text, verb_row, Bar,
+        RowAlign, TextRole, VerbGate,
+    },
     theme::UiColorType,
-    widget::{ButtonSpec, ThemedFill, ThemedRadius},
+    widget::ButtonSpec,
 };
 use nova_world_base::prelude::find_rescue_station;
 
@@ -42,205 +45,121 @@ pub(crate) struct ShipRescueBlock;
 /// A part of [`ShipRescueBlock`] that shows only in one state.
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ShipRescuePart {
-    /// The SOS offer: why the ship is stranded and the call button.
+    /// The SOS offer: why the ship is stranded, the bill and Call SOS.
     Offer,
-    /// The running call: its line, bar and Cancel.
+    /// The running call: its time, bar and Cancel.
     Running,
 }
 
 /// A live text of [`ShipRescueBlock`].
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ShipRescueField {
-    /// Why the ship is stranded.
-    Reasons,
-    /// The bill the call would take now.
-    Bill,
+    /// The credits the call would take now.
+    Fee,
+    /// The lost sections the call would rebuild.
+    Rebuilds,
     /// The game seconds the running call has left.
     Time,
 }
 
-/// The running call's progress bar fill.
+/// The tag of one reason the ship is stranded, shown while it holds.
 #[derive(Component)]
-pub(crate) struct ShipRescueFill;
+pub(crate) struct ShipRescueReason(StrandedType);
 
-/// The pane note when no station answers a call.
-pub(crate) const SHIP_RESCUE_NO_STATION: &str = "no station answers the call";
+/// The Call SOS button.
+#[derive(Component)]
+pub(crate) struct ShipSosCall;
 
-/// The pane note when the ship is docked or berthing: it is not stranded.
-pub(crate) const SHIP_RESCUE_DOCKED: &str = "the ship is docked: no SOS";
+/// The running call's progress bar.
+#[derive(Component)]
+pub(crate) struct ShipRescueBar;
 
-/// Build the Distress block: a title, the offer and the running call,
-/// filled by [`update_ship_rescue`].
+/// Call SOS's tag when no station answers.
+const RESCUE_NO_STATION: &str = "NO STATION";
+
+/// Build the Distress block: the offer and the running call, filled by
+/// [`update_ship_rescue`].
 pub(crate) fn spawn_ship_rescue(panel: &mut ChildSpawnerCommands) {
-    panel
-        .spawn((
-            ShipRescueBlock,
-            Name::new("ShipRescue"),
-            Node {
-                display: Display::None,
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(6.0),
-                flex_shrink: 0.0,
-                ..default()
-            },
-        ))
-        .with_children(|block| {
-            block.spawn(divider());
-            block.spawn(text("Distress", TextRole::Heading));
-            block
-                .spawn((
-                    ShipRescuePart::Offer,
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(6.0),
-                        ..default()
-                    },
-                ))
-                .with_children(|offer| {
-                    offer.spawn((ShipRescueField::Reasons, text("", TextRole::Label)));
-                    offer
-                        .spawn(control_row(JustifyContent::FlexStart))
-                        .with_children(|line| {
-                            line.spawn((
-                                ShipRescueField::Bill,
-                                text("", TextRole::Body),
-                                TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                                Node {
-                                    flex_grow: 1.0,
-                                    flex_basis: Val::Px(0.0),
-                                    min_width: Val::Px(0.0),
-                                    overflow: Overflow::clip(),
-                                    ..default()
-                                },
-                            ));
-                            line.spawn((
-                                Name::new("ShipSosCall"),
-                                button(ButtonSpec::control("Call SOS")),
-                            ))
-                            .observe(on_sos_button);
-                        });
+    let mut block = spawn_block(
+        panel,
+        "Distress",
+        (ShipRescueBlock, Name::new("ShipRescue")),
+    );
+    block
+        .entry::<Node>()
+        .and_modify(|mut node| node.display = Display::None);
+    block.with_children(|block| {
+        block
+            .spawn((
+                ShipRescuePart::Offer,
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(metrics::GAP),
+                    ..default()
+                },
+            ))
+            .with_children(|offer| {
+                offer
+                    .spawn(control_row(JustifyContent::FlexStart))
+                    .with_children(|tags| {
+                        for (reason, word) in [
+                            (StrandedType::NoThruster, "NO DRIVE"),
+                            (StrandedType::NoFlightComputer, "NO CTL"),
+                            (StrandedType::NoDockingPort, "NO PORT"),
+                        ] {
+                            tags.spawn((ShipRescueReason(reason), tag(word, UiColorType::Danger)));
+                        }
+                    });
+                spawn_kv(
+                    offer,
+                    "Fee",
+                    (ShipRescueField::Fee, text("", TextRole::Value)),
+                );
+                spawn_kv(
+                    offer,
+                    "Rebuilds",
+                    (ShipRescueField::Rebuilds, text("", TextRole::Value)),
+                );
+                spawn_kv(
+                    offer,
+                    "Time",
+                    text(format!("{RESCUE_SECS:.0} s"), TextRole::Value),
+                );
+                offer.spawn(verb_row(RowAlign::End)).with_children(|row| {
+                    row.spawn((
+                        ShipSosCall,
+                        Name::new("ShipSosCall"),
+                        button(ButtonSpec::control("Call SOS")),
+                        VerbGate::Ready,
+                    ))
+                    .observe(on_sos_button);
                 });
-            block
-                .spawn((
-                    ShipRescuePart::Running,
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(3.0),
-                        ..default()
-                    },
-                ))
-                .with_children(|running| {
-                    running
-                        .spawn(control_row(JustifyContent::FlexStart))
-                        .with_children(|line| {
-                            line.spawn((
-                                text("SOS", TextRole::Value),
-                                TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                                Node {
-                                    flex_grow: 1.0,
-                                    flex_basis: Val::Px(0.0),
-                                    min_width: Val::Px(0.0),
-                                    ..default()
-                                },
-                            ));
-                            line.spawn((
-                                ShipRescueField::Time,
-                                text("", TextRole::Body),
-                                TextLayout::new(Justify::Right, LineBreak::NoWrap),
-                                Node {
-                                    flex_shrink: 0.0,
-                                    ..default()
-                                },
-                            ));
-                            line.spawn((
-                                Name::new("ShipSosCancel"),
-                                button(ButtonSpec::control("Cancel").ghost()),
-                            ))
-                            .observe(on_sos_cancel_button);
-                        });
-                    running
-                        .spawn((
-                            Node {
-                                height: Val::Px(6.0),
-                                flex_shrink: 0.0,
-                                overflow: Overflow::clip(),
-                                ..default()
-                            },
-                            BackgroundColor(Color::NONE),
-                            ThemedFill::alpha(UiColorType::TextSecondary, 0.25),
-                            ThemedRadius::control(),
-                        ))
-                        .with_children(|track| {
-                            track.spawn((
-                                ShipRescueFill,
-                                Node {
-                                    width: Val::Percent(0.0),
-                                    height: Val::Percent(100.0),
-                                    ..default()
-                                },
-                                BackgroundColor(Color::NONE),
-                                ThemedFill::new(UiColorType::Accent),
-                            ));
-                        });
+            });
+        block
+            .spawn((
+                ShipRescuePart::Running,
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(metrics::GAP),
+                    ..default()
+                },
+            ))
+            .with_children(|running| {
+                spawn_kv(
+                    running,
+                    "SOS",
+                    (ShipRescueField::Time, text("", TextRole::Value)),
+                );
+                running.spawn((ShipRescueBar, bar(0.0, UiColorType::Accent)));
+                running.spawn(verb_row(RowAlign::End)).with_children(|row| {
+                    row.spawn((
+                        Name::new("ShipSosCancel"),
+                        button(ButtonSpec::control("Cancel").ghost()),
+                    ))
+                    .observe(on_sos_cancel_button);
                 });
-        });
-}
-
-/// The pane word for each reason, such as `no drive, no free port`.
-fn reason_words(reasons: &[StrandedType]) -> String {
-    reasons
-        .iter()
-        .map(|reason| match reason {
-            StrandedType::NoThruster => "no drive",
-            StrandedType::NoFlightComputer => "no flight computer",
-            StrandedType::NoDockingPort => "no free port",
-        })
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
-/// The reason tags of a stranded ship, such as `NO DRIVE  NO PORT`.
-pub(crate) fn stranded_tags(reasons: &[StrandedType]) -> String {
-    reasons
-        .iter()
-        .map(|reason| match reason {
-            StrandedType::NoThruster => "NO DRIVE",
-            StrandedType::NoFlightComputer => "NO FLIGHT COMPUTER",
-            StrandedType::NoDockingPort => "NO PORT",
-        })
-        .collect::<Vec<_>>()
-        .join("  ")
-}
-
-/// The bill line, or the note that the rescue cannot fix the ship: a
-/// reason with no lost section to rebuild.
-fn offer_line(quote: &RescueQuote) -> String {
-    if quote.unfixed.is_empty() {
-        rescue_bill_line(quote)
-    } else {
-        unfixed_note(quote)
-    }
-}
-
-/// Why a rescue cannot fix the ship, such as `SOS cannot fix: no drive`.
-fn unfixed_note(quote: &RescueQuote) -> String {
-    format!("SOS cannot fix: {}", reason_words(&quote.unfixed))
-}
-
-/// The bill line of a quote: what the call takes now, the rebuilds it
-/// carries and its seconds. A balance short of the bill pays all of it; the
-/// pane's balance shows that.
-pub(crate) fn rescue_bill_line(quote: &RescueQuote) -> String {
-    let rebuilds = match quote.chain.len() {
-        0 => String::new(),
-        1 => ", 1 rebuild".to_string(),
-        count => format!(", {count} rebuilds"),
-    };
-    format!(
-        "{}{rebuilds}, {:.0} s",
-        cr_text(quote.bill.charged_cr),
-        RESCUE_SECS
-    )
+            });
+    });
 }
 
 /// The player ship the block reads, when it flies a designed hull.
@@ -252,58 +171,70 @@ fn player_ship(world: &mut World) -> Option<Entity> {
 }
 
 /// Show the offer while the open-world player ship is stranded, the running
-/// call while it runs, and nothing otherwise; fill the texts and the bar.
+/// call while it runs, and nothing otherwise; fill the tags, the texts, Call
+/// SOS's gate and the bar. A `NO STATION` tag lasts while the offer shows.
 pub(crate) fn update_ship_rescue(world: &mut World) {
     let player = player_ship(world);
     let open_world = world.contains_resource::<OpenWorldSession>();
-    let (state, texts, progress) = match player {
+    let mut texts = Vec::new();
+    let mut reasons = Vec::new();
+    let mut progress = 0.0;
+    let mut call_gate = VerbGate::Ready;
+    let state = match player {
         Some(player) => match world.get::<ShipRescueCall>(player) {
-            Some(call) => (
-                Some(ShipRescuePart::Running),
-                vec![(
+            Some(call) => {
+                texts.push((
                     ShipRescueField::Time,
                     format!("{:.0} s", call.remaining_secs().ceil()),
-                )],
-                call.progress(),
-            ),
+                ));
+                progress = call.progress();
+                Some(ShipRescuePart::Running)
+            }
             None => match (open_world && world.get::<StationBerth>(player).is_none())
                 .then(|| rescue_quote(world, player))
                 .flatten()
             {
-                Some(quote) => (
-                    Some(ShipRescuePart::Offer),
-                    vec![
-                        (ShipRescueField::Reasons, stranded_tags(&quote.reasons)),
-                        (ShipRescueField::Bill, offer_line(&quote)),
-                    ],
-                    0.0,
-                ),
-                None => (None, Vec::new(), 0.0),
+                Some(quote) => {
+                    texts.push((ShipRescueField::Fee, cr_text(quote.bill.charged_cr)));
+                    texts.push((ShipRescueField::Rebuilds, quote.chain.len().to_string()));
+                    reasons.clone_from(&quote.reasons);
+                    call_gate = if !quote.unfixed.is_empty() {
+                        VerbGate::Tagged("NO FIX")
+                    } else {
+                        world
+                            .resource::<ShipRuntime>()
+                            .rescue_refused
+                            .map_or(VerbGate::Ready, VerbGate::Tagged)
+                    };
+                    Some(ShipRescuePart::Offer)
+                }
+                None => None,
             },
         },
-        None => (None, Vec::new(), 0.0),
+        None => None,
+    };
+    if state != Some(ShipRescuePart::Offer)
+        && world.resource::<ShipRuntime>().rescue_refused.is_some()
+    {
+        world.resource_mut::<ShipRuntime>().rescue_refused = None;
+    }
+    let show = |node: &mut Node, shown: bool| {
+        let display = if shown { Display::Flex } else { Display::None };
+        if node.display != display {
+            node.display = display;
+        }
     };
     let mut q_block = world.query_filtered::<&mut Node, With<ShipRescueBlock>>();
     for mut node in q_block.iter_mut(world) {
-        let display = if state.is_some() {
-            Display::Flex
-        } else {
-            Display::None
-        };
-        if node.display != display {
-            node.display = display;
-        }
+        show(&mut node, state.is_some());
     }
     let mut q_part = world.query::<(&ShipRescuePart, &mut Node)>();
     for (part, mut node) in q_part.iter_mut(world) {
-        let display = if state == Some(*part) {
-            Display::Flex
-        } else {
-            Display::None
-        };
-        if node.display != display {
-            node.display = display;
-        }
+        show(&mut node, state == Some(*part));
+    }
+    let mut q_reason = world.query::<(&ShipRescueReason, &mut Node)>();
+    for (reason, mut node) in q_reason.iter_mut(world) {
+        show(&mut node, reasons.contains(&reason.0));
     }
     let mut q_text = world.query::<(&ShipRescueField, &mut Text)>();
     for (field, mut text) in q_text.iter_mut(world) {
@@ -313,32 +244,31 @@ pub(crate) fn update_ship_rescue(world: &mut World) {
             }
         }
     }
-    let mut q_fill = world.query_filtered::<&mut Node, With<ShipRescueFill>>();
-    for mut node in q_fill.iter_mut(world) {
-        let width = Val::Percent(progress * 100.0);
-        if node.width != width {
-            node.width = width;
+    let mut q_gate = world.query_filtered::<&mut VerbGate, With<ShipSosCall>>();
+    for mut gate in q_gate.iter_mut(world) {
+        gate.set_if_neq(call_gate.clone());
+    }
+    let mut q_bar = world.query_filtered::<&mut Bar, With<ShipRescueBar>>();
+    for mut bar in q_bar.iter_mut(world) {
+        if bar.0 != progress {
+            bar.0 = progress;
         }
     }
 }
 
 /// Place the rescue call of `player`: the nearest station that answers and
-/// the chain [`rescue_quote`] plans now. The running row shows the call. A ship
-/// docked or berthing, no longer stranded, one the chain cannot fix, or no
-/// station answering, places nothing.
+/// the chain [`rescue_quote`] plans now. The running part shows the call. A
+/// ship docked or berthing, no longer stranded, or one the chain cannot fix
+/// places nothing: the block hides or tags Call SOS already. No station
+/// answering tags Call SOS `NO STATION`.
 pub(crate) fn place_rescue_call(world: &mut World, player: Entity) {
-    let note = |world: &mut World, text: String| {
-        world.resource_mut::<ShipRuntime>().note = Some((text, 2.5));
-    };
-    if world.get::<ShipRescueCall>(player).is_some() {
-        return;
-    }
-    if world.get::<DockedShip>(player).is_some() || world.get::<StationBerth>(player).is_some() {
-        note(world, SHIP_RESCUE_DOCKED.to_string());
+    if world.get::<ShipRescueCall>(player).is_some()
+        || world.get::<DockedShip>(player).is_some()
+        || world.get::<StationBerth>(player).is_some()
+    {
         return;
     }
     let Some(quote) = rescue_quote(world, player) else {
-        note(world, "the ship is no longer stranded".to_string());
         return;
     };
     if !quote.unfixed.is_empty() {
@@ -346,7 +276,6 @@ pub(crate) fn place_rescue_call(world: &mut World, player: Entity) {
             "place_rescue_call: refused; nothing lost to rebuild for {:?}",
             quote.unfixed
         );
-        note(world, unfixed_note(&quote));
         return;
     }
     let Some(from) = world
@@ -358,12 +287,12 @@ pub(crate) fn place_rescue_call(world: &mut World, player: Entity) {
     let station = match find_rescue_station(world, from) {
         Ok(Some(station)) => station,
         Ok(None) => {
-            note(world, SHIP_RESCUE_NO_STATION.to_string());
+            world.resource_mut::<ShipRuntime>().rescue_refused = Some(RESCUE_NO_STATION);
             return;
         }
         Err(fault) => {
             error!("place_rescue_call: the station search failed: {fault}");
-            note(world, SHIP_RESCUE_NO_STATION.to_string());
+            world.resource_mut::<ShipRuntime>().rescue_refused = Some(RESCUE_NO_STATION);
             return;
         }
     };

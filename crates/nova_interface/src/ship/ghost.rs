@@ -11,12 +11,12 @@
 //! ghost. [`section_add_pose`] at the player's [`MountPose`] (R rolls the
 //! part, F cycles its mating socket) gives the ghost's pose, and
 //! [`section_add_fit`] at that pose with the payment and binding plan gives
-//! the verdict. A valid verdict names the price and how many parts come from
-//! the hold and how many the click buys from the station at ask, so a part
-//! whose recipe the hold cannot cover is bought and placed in one click. A click on a valid
-//! ghost raises the [`SectionAddCommand`] the add handler applies by the same
-//! rule; a click on a refused one changes nothing and shows the refusal on
-//! the note line. With no part in hand, a click on a block selects its
+//! the verdict: a valid one is the price, a refused one its tag word. The
+//! Placing block gives how many parts come from the hold and how many the
+//! click buys from the station at ask, so a part whose recipe the hold
+//! cannot cover is bought and placed in one click. A click on a valid ghost
+//! raises the [`SectionAddCommand`] the add handler applies by the same
+//! rule; a click on a refused one changes nothing and buzzes. With no part in hand, a click on a block selects its
 //! section.
 //!
 //! Touch this module when changing how the ghost is aimed, drawn or
@@ -41,13 +41,13 @@ use nova_ui::{
 };
 
 use super::{
-    rebuild::{rebuild_price_text, StationSite},
-    refit::{add_refusal_text, live_bindings, SectionAddCommand, SectionBindingRow},
+    rebuild::StationSite,
+    refit::{add_refusal_tag, live_bindings, SectionAddCommand, SectionBindingRow},
     scene::{
         ShipBlock, ShipCameraMarker, ShipRuntime, ShipTargetFace, ShipViewportMarker,
         SHIP_BLOCK_FILL_SCALE,
     },
-    sections::{design_section_code, ShipSectionView, ShipSections},
+    sections::{ShipSectionView, ShipSections},
     SHIP_LAYER,
 };
 use crate::{icons::SectionIconType, pane::InterfacePaneType};
@@ -71,7 +71,7 @@ pub struct ShipPlacement {
     pub anchor: Vec3,
     /// The target socket's outward normal, in ship-local space.
     pub normal: Vec3,
-    /// The price line of a valid add, or the refusal line.
+    /// The price of a valid add, or the refusal's tag word.
     pub verdict: Result<String, String>,
     /// The payment a click makes: the hold's parts, the parts bought from
     /// the station at ask, and the price. `None` for a refused add.
@@ -159,13 +159,7 @@ pub(crate) fn on_ship_viewport_click(
         return;
     }
     if held.0.is_some() {
-        commit_placement(
-            &preview,
-            &mut runtime,
-            &mut adds,
-            bank.as_deref(),
-            &mut commands,
-        );
+        commit_placement(&preview, &mut adds, bank.as_deref(), &mut commands);
         return;
     }
     if click.original_event_target() != click.entity {
@@ -181,12 +175,11 @@ pub(crate) fn on_ship_viewport_click(
 
 /// Commit the solved placement on a click with a part in hand: a valid one
 /// raises its [`SectionAddCommand`], whose apply plays the cue, a refused one
-/// shows its refusal on the note line and buzzes, and no placement changes
+/// buzzes (the callout shows its tag), and no placement changes
 /// nothing. A click on the view and a click on a section badge, which stops
 /// the click there, both commit here.
 pub(crate) fn commit_placement(
     preview: &ShipPlacementPreview,
-    runtime: &mut ShipRuntime,
     adds: &mut MessageWriter<SectionAddCommand>,
     bank: Option<&SoundBank<UiSfx>>,
     commands: &mut Commands,
@@ -203,10 +196,7 @@ pub(crate) fn commit_placement(
                 mount: placement.mount,
             });
         }
-        Err(refusal) => {
-            runtime.note = Some((refusal.clone(), 2.5));
-            play_menu_deny(commands, bank);
-        }
+        Err(_) => play_menu_deny(commands, bank),
     }
 }
 
@@ -400,8 +390,6 @@ pub(crate) fn update_ship_placement(
                     hit,
                 );
                 if let Some(free) = free {
-                    let code = design_section_code(resolved.design, &section.id)
-                        .expect("a live design section has a code");
                     let partner = resolved
                         .partner
                         .and_then(|(partner, ..)| q_holds.get(partner).ok())
@@ -433,20 +421,11 @@ pub(crate) fn update_ship_placement(
                         .get(resolved.player)
                         .expect("the player ship carries a ShipInventory and ShipCredits");
                     let bound = live_bindings(&resolved, &q_bindings);
-                    let name = &offered.base.name;
                     let (verdict, payment) = match resolved
                         .plan_add(&items, offered, fit, &bound, own, own_cr.0, partner)
                     {
-                        Ok(plan) => (
-                            Ok(format!(
-                                "{name} on {code}, {}",
-                                rebuild_price_text(&plan.payment)
-                            )),
-                            Some(plan.payment),
-                        ),
-                        Err(refusal) => {
-                            (Err(add_refusal_text(&items, &code, name, &refusal)), None)
-                        }
+                        Ok(plan) => (Ok(cr_text(plan.payment.price_cr)), Some(plan.payment)),
+                        Err(refusal) => (Err(add_refusal_tag(&refusal)), None),
                     };
                     placement = Some(ShipPlacement {
                         section: section.id.clone(),
@@ -483,7 +462,7 @@ pub(crate) fn reset_mount_for_new_part(held: Res<HeldPart>, mut runtime: ResMut<
 /// Put the part the section under the pointer was built from in hand on
 /// `ship_pick` (Q), as the editor's pipette does, at the default
 /// [`MountPose`]. Only at a Refit station, where a part in hand can be
-/// placed; elsewhere the note line says so. Over no section it puts the part
+/// placed; elsewhere it buzzes. Over no section it puts the part
 /// in hand away. Read off the desk only: the pad has no pointer, and its half
 /// of the key turns the view.
 #[expect(
@@ -497,7 +476,7 @@ pub(crate) fn pick_ship_part(
     sources: InputSources,
     preview: Res<ShipPlacementPreview>,
     site: StationSite,
-    mut runtime: ResMut<ShipRuntime>,
+    runtime: Res<ShipRuntime>,
     mut held: ResMut<HeldPart>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
@@ -524,10 +503,7 @@ pub(crate) fn pick_ship_part(
         None
     };
     let Some(resolved) = resolved else {
-        runtime.note = Some((
-            "Pick: dock at a Refit station to place parts".to_string(),
-            2.5,
-        ));
+        play_menu_deny(&mut commands, bank.as_deref());
         return;
     };
     let Some(section) = resolved.selected_section(Some(hovered)) else {
@@ -535,7 +511,7 @@ pub(crate) fn pick_ship_part(
     };
     let part = &section.config.base;
     if part.hide_in_editor {
-        runtime.note = Some((format!("Pick: {} is not in the catalogue", part.name), 2.5));
+        play_menu_deny(&mut commands, bank.as_deref());
         return;
     }
     if held.id() != Some(part.id.as_str()) {

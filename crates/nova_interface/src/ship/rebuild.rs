@@ -1,11 +1,15 @@
 //! The Ship pane's lost-section list and the Rebuild action.
 //!
 //! A lost section is a section of the player ship's design with no live
-//! section of that id. The panel lists each lost section with its design
-//! code, what a rebuild takes, a short part or balance as have / need, or
-//! the cause of another refusal, and a Rebuild button. A
-//! click raises a [`SectionRebuildCommand`]; [`apply_ship_rebuild_commands`]
-//! plans it with [`plan_section_rebuild`] at the site the ship is at:
+//! section of that id. The panel's Lost block lists each lost section on one
+//! line: its design code, what a rebuild takes (the price docked, the seconds
+//! in the field) and Rebuild. A short part reads as have / need and a short
+//! balance as the price, both in Danger over a disabled Rebuild; a section
+//! with nothing to mount on tags Rebuild `NO MOUNT`; a part the station does
+//! not build has no Rebuild. At a dock that offers no rebuild the block
+//! hides. A click raises a [`SectionRebuildCommand`];
+//! [`apply_ship_rebuild_commands`] plans it with [`plan_section_rebuild`] at
+//! the site the ship is at:
 //!
 //! - Docked: the station rebuilds at once. The handler takes the parts and
 //!   the credits and raises the [`SectionRebuildRequest`] the scenario crate
@@ -25,12 +29,11 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_sound::prelude::*;
 use nova_ui::{
-    prelude::{button, divider, text, text_toned, TextRole},
-    theme::UiColorType,
+    prelude::{button, control_row, metrics, spawn_block, text, Short, TextRole, VerbGate},
     widget::{ButtonCueType, ButtonSpec},
 };
 
-use super::{scene::ShipRuntime, sections::design_section_code};
+use super::sections::design_section_code;
 
 /// A request to rebuild one lost section of the player ship, raised by a
 /// lost-list Rebuild button.
@@ -54,13 +57,12 @@ pub(crate) struct ShipRebuildRows(Vec<RebuildRow>);
 struct RebuildRow {
     section: String,
     code: String,
-    /// What a rebuild takes, the short count, or why there is none.
-    line: String,
-    /// Whether the row offers Rebuild: the plan holds and no field rebuild
-    /// runs on the section.
-    offered: bool,
-    /// The line is a short count, painted in the danger tone.
+    /// What a rebuild takes, or the short count; empty when there is none.
+    value: String,
+    /// The value is a short count or price, painted in the danger tone.
     short: bool,
+    /// The row's Rebuild.
+    gate: VerbGate,
 }
 
 /// A live section of the player ship, placed in ship-root space.
@@ -367,49 +369,16 @@ impl ResolvedSite<'_> {
     }
 }
 
-/// The note line for a refused rebuild; the list and the handler share it.
-/// `field` is true for a field rebuild, whose parts come from the hold alone.
-fn rebuild_refusal_text(
-    items: &GameItems,
-    code: &str,
-    field: bool,
-    refusal: &SectionRebuildRefusalType,
-) -> String {
-    match refusal {
-        SectionRebuildRefusalType::NoRebuildService => {
-            "rebuild: this dock offers no rebuild; undock to rebuild in the field".to_string()
-        }
-        SectionRebuildRefusalType::NotBuilt => {
-            format!("rebuild: this station does not build {code}")
-        }
-        SectionRebuildRefusalType::SectionNotLost => format!("rebuild: {code} is not lost"),
-        SectionRebuildRefusalType::Unanchored => {
-            format!("rebuild: {code} has no live section to mount on")
-        }
-        SectionRebuildRefusalType::Payment(RecipePaymentRefusalType::MissingParts {
-            item,
-            short,
-        }) if field => format!(
-            "rebuild: {code} needs {short} more {} free in the hold",
-            items.design(item).name
-        ),
-        SectionRebuildRefusalType::Payment(refusal) => {
-            format!("rebuild: {}", payment_refusal_text(items, code, refusal))
-        }
-    }
-}
-
-/// The lost row's line for a refused rebuild. A short part or a short
-/// balance reads as a have / need count under the row's code; the other
-/// refusals name their cause. Returns the line and whether it is a short
-/// count.
+/// The lost row for a refused rebuild: its value, whether it is short, and
+/// Rebuild's gate. A short part reads as have / need and a short balance as
+/// the price, both short over a disabled Rebuild. `field` is true for a field
+/// rebuild, whose parts come from the hold alone.
 fn rebuild_row_refusal(
     items: &GameItems,
-    code: &str,
     field: bool,
     holds: (&ShipInventory, Option<&ShipInventory>),
     refusal: &SectionRebuildRefusalType,
-) -> (String, bool) {
+) -> (String, bool, VerbGate) {
     match refusal {
         SectionRebuildRefusalType::Payment(RecipePaymentRefusalType::MissingParts {
             item,
@@ -427,96 +396,43 @@ fn rebuild_row_refusal(
                     have.saturating_add(*short)
                 ),
                 true,
+                VerbGate::Disabled,
             )
         }
         SectionRebuildRefusalType::Payment(RecipePaymentRefusalType::InsufficientCredits {
             need,
-            have,
-        }) => (
-            format!("{} / {}", cr_digits(u64::from(*have)), cr_text(*need)),
-            true,
-        ),
-        refusal => (rebuild_refusal_text(items, code, field, refusal), false),
+            ..
+        }) => (cr_text(*need), true, VerbGate::Disabled),
+        SectionRebuildRefusalType::Payment(RecipePaymentRefusalType::CreditOverflow) => {
+            (String::new(), false, VerbGate::Disabled)
+        }
+        SectionRebuildRefusalType::Unanchored => {
+            (String::new(), false, VerbGate::Tagged("NO MOUNT"))
+        }
+        SectionRebuildRefusalType::NoRebuildService
+        | SectionRebuildRefusalType::NotBuilt
+        | SectionRebuildRefusalType::SectionNotLost => (String::new(), false, VerbGate::Hidden),
     }
 }
 
-/// Why a recipe cannot be paid, after the action's prefix; a rebuild and a
-/// swap share it.
-pub(crate) fn payment_refusal_text(
-    items: &GameItems,
-    code: &str,
-    refusal: &RecipePaymentRefusalType,
-) -> String {
-    match refusal {
-        RecipePaymentRefusalType::MissingParts { item, short } => format!(
-            "{code} needs {short} more {} than both holds carry",
-            items.design(item).name
-        ),
-        RecipePaymentRefusalType::InsufficientCredits { need, have } => {
-            format!(
-                "{code} costs {}, the ship holds {}",
-                cr_text(*need),
-                cr_text(*have)
-            )
-        }
-        RecipePaymentRefusalType::CreditOverflow => {
-            format!("the station cannot take the price of {code}")
-        }
-    }
-}
-
-/// The price line for a rebuild or swap the list can offer.
-pub(crate) fn rebuild_price_text(rebuild: &RecipePayment) -> String {
-    let held: u32 = rebuild.from_hold.values().sum();
-    let bought: u32 = rebuild.bought.values().sum();
-    format!(
-        "{}: {held} parts from the hold, {bought} bought",
-        cr_text(rebuild.price_cr)
-    )
-}
-
-/// The line for a field rebuild the list can offer: its time and the parts
-/// it takes from the hold, such as `field: 20 s, 4 parts from the hold`.
-fn field_rebuild_text(section: &DesignSection) -> String {
-    let recipe = &section.config.base.build;
-    format!(
-        "field: {:.0} s, {} parts from the hold",
-        field_rebuild_duration_secs(recipe),
-        recipe.part_count()
-    )
-}
-
-/// Build the lost list under the repair form: a header and the rows
-/// [`update_ship_rebuild_list`] fills.
+/// Build the Lost block: its rows [`update_ship_rebuild_list`] fills.
 pub(crate) fn spawn_ship_rebuild_list(panel: &mut ChildSpawnerCommands) {
-    panel
-        .spawn((
-            ShipRebuildList,
+    spawn_block(panel, "Lost", ShipRebuildList).with_children(|block| {
+        block.spawn((
+            ShipRebuildRows::default(),
             Node {
-                display: Display::None,
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(8.0),
-                flex_shrink: 0.0,
+                row_gap: Val::Px(metrics::GAP_S),
                 ..default()
             },
-        ))
-        .with_children(|list| {
-            list.spawn(divider());
-            list.spawn(text("Lost sections", TextRole::Heading));
-            list.spawn((
-                ShipRebuildRows::default(),
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(6.0),
-                    ..default()
-                },
-            ));
-        });
+        ));
+    });
 }
 
-/// Show the lost list while a section is lost, and respawn its rows when a
+/// Show the Lost block while a section is lost, and respawn its rows when a
 /// code, a price, a refusal or a running field rebuild changes. A section a
-/// field rebuild job works on shows no button: the job row has its progress.
+/// field rebuild job works on has no row: its Repairs row has its progress.
+/// At a dock that offers no rebuild the block hides.
 pub(crate) fn update_ship_rebuild_list(
     mut commands: Commands,
     items: Option<Res<GameItems>>,
@@ -532,6 +448,7 @@ pub(crate) fn update_ship_rebuild_list(
         return;
     };
     let rows = match (site.resolve(StationServiceType::Rebuild), items) {
+        (Some(resolved), _) if matches!(resolved.partner, Some((_, false, _))) => Vec::new(),
         (Some(resolved), Some(items)) => {
             let (own, own_cr, jobs) = q_holds
                 .get(resolved.player)
@@ -544,37 +461,35 @@ pub(crate) fn update_ship_rebuild_list(
                 .map(|(stock, credits, _)| (stock, credits.0));
             resolved
                 .lost()
+                // A running field rebuild shows on its Repairs row only.
+                .filter(|section| jobs.get(&RepairJobKey::Lost(section.id.clone())).is_none())
                 .map(|section| {
                     let code = design_section_code(resolved.design, &section.id)
                         .expect("a lost section is a design section");
-                    let running = jobs.get(&RepairJobKey::Lost(section.id.clone())).is_some();
-                    // A running field rebuild shows on its Repairs row; its
-                    // lost row keeps only the code.
-                    let line = if running {
-                        Err((String::new(), false))
-                    } else {
+                    let (value, short, gate) =
                         match resolved.plan(&items, section, &free, own_cr.0, partner) {
-                            Ok(_) if resolved.in_field() => Ok(field_rebuild_text(section)),
-                            Ok(rebuild) => Ok(rebuild_price_text(&rebuild)),
-                            Err(refusal) => Err(rebuild_row_refusal(
+                            Ok(_) if resolved.in_field() => (
+                                format!(
+                                    "{:.0} s",
+                                    field_rebuild_duration_secs(&section.config.base.build)
+                                ),
+                                false,
+                                VerbGate::Ready,
+                            ),
+                            Ok(rebuild) => (cr_text(rebuild.price_cr), false, VerbGate::Ready),
+                            Err(refusal) => rebuild_row_refusal(
                                 &items,
-                                &code,
                                 resolved.in_field(),
                                 (&free, partner.map(|(stock, _)| stock)),
                                 &refusal,
-                            )),
-                        }
-                    };
-                    let (line, short) = match line {
-                        Ok(line) => (Ok(line), false),
-                        Err((line, short)) => (Err(line), short),
-                    };
+                            ),
+                        };
                     RebuildRow {
                         section: section.id.clone(),
                         code,
-                        offered: line.is_ok(),
-                        line: line.unwrap_or_else(|line| line),
+                        value,
                         short,
+                        gate,
                     }
                 })
                 .collect()
@@ -593,32 +508,45 @@ pub(crate) fn update_ship_rebuild_list(
         return;
     }
     commands.entity(rows_entity).despawn_children();
+    // One line a row: the code, what a rebuild takes, then Rebuild at the
+    // row's end, or the tag before a refused one.
     commands.entity(rows_entity).with_children(|parent| {
         for row in &rows {
             parent
                 .spawn(Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(4.0),
-                    ..default()
+                    min_height: Val::Px(metrics::CONTROL_H),
+                    ..control_row(JustifyContent::FlexStart)
                 })
-                .with_children(|cell| {
-                    cell.spawn(text(&row.code, TextRole::Value));
-                    if !row.line.is_empty() {
-                        let tone = if row.short {
-                            UiColorType::Danger
-                        } else {
-                            UiColorType::TextBody
-                        };
-                        cell.spawn(text_toned(&row.line, TextRole::Value, tone));
-                    }
-                    if row.offered {
-                        cell.spawn((
-                            Name::new(format!("ShipRebuild-{}", row.code)),
-                            button(ButtonSpec::control("Rebuild").primary()),
-                            ButtonCueType::Owned,
-                        ))
-                        .observe(on_ship_rebuild_button(row.section.clone()));
-                    }
+                .with_children(|line| {
+                    // The code takes the slack, so the value sits against
+                    // Rebuild at the row's end.
+                    line.spawn((
+                        text(&row.code, TextRole::Value),
+                        TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                        Node {
+                            flex_grow: 1.0,
+                            flex_basis: Val::Px(0.0),
+                            min_width: Val::Px(0.0),
+                            overflow: Overflow::clip(),
+                            ..default()
+                        },
+                    ));
+                    line.spawn((
+                        text(&row.value, TextRole::Value),
+                        Short(row.short),
+                        TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                        Node {
+                            flex_shrink: 0.0,
+                            ..default()
+                        },
+                    ));
+                    line.spawn((
+                        Name::new(format!("ShipRebuild-{}", row.code)),
+                        button(ButtonSpec::control("Rebuild")),
+                        row.gate.clone(),
+                        ButtonCueType::Owned,
+                    ))
+                    .observe(on_ship_rebuild_button(row.section.clone()));
                 });
         }
     });
@@ -642,14 +570,13 @@ fn on_ship_rebuild_button(
 /// the price to the station, queue one `Rebuilt` report, and raise the
 /// [`SectionRebuildRequest`] that spawns the section at full health.
 /// Undocked: start a field rebuild [`RepairJob`] on the parts free in the
-/// hold. A refusal changes nothing and shows its reason on the note line.
+/// hold. A refusal changes nothing and buzzes: the row already shows why.
 #[expect(
     clippy::too_many_arguments,
     reason = "the site, both holds, the jobs and the cue bank"
 )]
 pub(crate) fn apply_ship_rebuild_commands(
     mut messages: MessageReader<SectionRebuildCommand>,
-    mut runtime: ResMut<ShipRuntime>,
     mut commands: Commands,
     items: Option<Res<GameItems>>,
     site: StationSite,
@@ -687,7 +614,6 @@ pub(crate) fn apply_ship_rebuild_commands(
         if resolved.in_field()
             && jobs.is_some_and(|jobs| jobs.get(&RepairJobKey::Lost(section.id.clone())).is_some())
         {
-            runtime.note = Some((format!("rebuild: {code} is already rebuilding"), 2.5));
             play_menu_deny(&mut commands, bank.as_deref());
             continue;
         }
@@ -704,11 +630,7 @@ pub(crate) fn apply_ship_rebuild_commands(
         };
         let rebuild = match planned {
             Ok(rebuild) => rebuild,
-            Err(refusal) => {
-                runtime.note = Some((
-                    rebuild_refusal_text(&items, &code, resolved.in_field(), &refusal),
-                    2.5,
-                ));
+            Err(_) => {
                 play_menu_deny(&mut commands, bank.as_deref());
                 continue;
             }
@@ -721,9 +643,7 @@ pub(crate) fn apply_ship_rebuild_commands(
                 code.clone(),
                 &section.config.base.build,
             );
-            // The job row in the Repairs block shows the job; an earlier
-            // refusal's note goes.
-            runtime.note = None;
+            // The job row in the Repairs block shows the job.
             match q_jobs.get_mut(resolved.player) {
                 Ok(mut jobs) => jobs.push(job),
                 Err(_) => {
@@ -760,9 +680,5 @@ pub(crate) fn apply_ship_rebuild_commands(
             entity: resolved.player,
             section: section.id.clone(),
         });
-        runtime.note = Some((
-            format!("rebuilt {code}: {}", rebuild_price_text(&rebuild)),
-            2.5,
-        ));
     }
 }

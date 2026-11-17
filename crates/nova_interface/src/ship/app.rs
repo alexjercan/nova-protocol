@@ -8,28 +8,24 @@ use bevy::{
     picking::hover::Hovered,
     prelude::{
         default, BackgroundColor, ChildOf, ChildSpawnerCommands, Color, Commands, Component,
-        ComputedNode, DetectChangesMut, Display, Entity, FlexDirection, FlexWrap, Has, Justify,
-        JustifyContent, LineBreak, MessageReader, Name, Node, Overflow, Pickable, PositionType,
-        Query, Res, ResMut, ScrollPosition, TextLayout, UiRect, Val, Visibility, With, ZIndex,
+        ComputedNode, DetectChangesMut, Display, Entity, FlexDirection, Has, JustifyContent,
+        MessageReader, Name, Node, Overflow, Pickable, PositionType, Query, Res, ScrollPosition,
+        UiRect, Val, Visibility, With, ZIndex,
     },
     ui::Pressed,
-    ui_widgets::{
-        Button, Slider, SliderPrecision, SliderRange, SliderStep, SliderValue, TrackClick,
-    },
+    ui_widgets::Button,
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::{RepairJobKey, ShipRepairJobs};
 use nova_sound::prelude::*;
 use nova_ui::{
     prelude::{
-        control_row, divider, inspector, metrics, preview_frame, text, text_toned, TextRole,
+        amount_row, bar, inspector, key_chip, metrics, preview_frame, spawn_block, tag, text,
+        text_toned, verb_row, AmountSpec, RowAlign, TextRole, VerbGate,
     },
     screen::drive_wheel_scroll,
     theme::UiColorType,
-    widget::{
-        button, slider_track, text_field, ButtonCueType, ButtonSpec, TextFieldSpec, ThemedFill,
-        ThemedRadius, Tooltip,
-    },
+    widget::{button, ButtonCueType, ButtonSpec, ThemedFill},
 };
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -42,10 +38,7 @@ use super::{
     scene::*,
     sections::*,
 };
-use crate::{
-    icons::{icon_node, InterfaceIcons, SectionIconType},
-    pane::SUMMARY_LINES,
-};
+use crate::icons::{icon_node, InterfaceIcons, SectionIconType};
 
 /// Wheel-scroll the section panel while the pointer is over it, through the
 /// shared driver; `ship_input` leaves the camera zoom alone then. A wheel
@@ -67,18 +60,18 @@ pub(crate) fn scroll_ship_panel(
     drive_wheel_scroll(wheel, q_panel);
 }
 
-/// Build the section panel: the selected section's icon over its code, name
-/// and condition bar; its binding; Rebind; the Salvage block with what Delete
-/// gives back over the Delete button, muted with the reason as its tooltip
-/// while it is refused; the note line; the repair form; the Repairs block
-/// with the running jobs; and the lost-section list, beside the view. While a part is in hand the
-/// Placing block (`super::held`) stands in place of all of it. The parts a station builds are
-/// in the gallery the footer's Catalogue button opens (`super::catalogue`).
-/// [`update_ship_panel`] fills it. The texts carry a [`ShipPanelField`] so one
-/// system refreshes them, and the binding row or the form carries the field
-/// it holds so the same system hides it. The buttons carry a
-/// [`ShipPanelButton`] and route through their command seams via `Activate`
-/// observers.
+/// Build the section panel beside the view: the selected section's icon over
+/// its code, name and condition bar, then one kit block per thing the
+/// selection can do, each with its verbs at its bottom right. Control holds
+/// the binding and Rebind; Repair the amount row, the summary and Repair;
+/// then the Repairs block with the running jobs, the Distress block, the
+/// lost sections, and Salvage with what Delete gives back over Delete. While
+/// a part is in hand the Placing block (`super::held`) stands in place of all
+/// of it. The parts a station builds are in the gallery the footer's
+/// Catalogue button opens (`super::catalogue`). [`update_ship_panel`] fills
+/// it: a block that cannot work here hides and takes no space, and each verb
+/// carries a [`VerbGate`]. The buttons carry a [`ShipPanelButton`] and route
+/// through their command seams via `Activate` observers.
 pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     parent
         // Scrolls: a ship with many lost sections runs past a 1080p panel.
@@ -95,7 +88,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                 ShipSelectionBlock,
                 Node {
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(10.0),
+                    row_gap: Val::Px(metrics::GAP_L),
                     flex_shrink: 0.0,
                     ..default()
                 },
@@ -104,7 +97,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                 panel
                     .spawn(Node {
                         flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(10.0),
+                        row_gap: Val::Px(metrics::GAP),
                         flex_shrink: 0.0,
                         ..default()
                     })
@@ -119,213 +112,81 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                                 ),
                             ));
                         });
-                        head.spawn(Node {
-                            min_width: Val::Px(0.0),
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(6.0),
-                            ..default()
-                        })
-                        .with_children(|detail| {
-                            detail.spawn((ShipPanelField::Title, text("", TextRole::Title)));
-                            detail
-                                .spawn((
-                                    Node {
-                                        height: Val::Px(6.0),
-                                        flex_shrink: 0.0,
-                                        overflow: Overflow::clip(),
-                                        ..default()
-                                    },
-                                    BackgroundColor(Color::NONE),
-                                    ThemedFill::alpha(UiColorType::TextSecondary, 0.25),
-                                    ThemedRadius::control(),
-                                ))
-                                .with_children(|track| {
-                                    track.spawn((
-                                        ShipConditionFill,
-                                        Node {
-                                            width: Val::Percent(100.0),
-                                            height: Val::Percent(100.0),
-                                            ..default()
-                                        },
-                                        BackgroundColor(Color::NONE),
-                                        ThemedFill::new(UiColorType::Nominal),
-                                    ));
-                                });
-                        });
+                        head.spawn((ShipPanelField::Title, text("", TextRole::Title)));
+                        head.spawn((ShipConditionBar, bar(1.0, UiColorType::Nominal)));
                     });
-                panel.spawn(divider());
-                // The Inventory inspector's fact row: the word on the left and
-                // the value, clipped on one line, on the right.
-                panel
-                    .spawn((
+                spawn_block(panel, "Control", ShipPanelField::Control).with_children(|block| {
+                    block.spawn((
                         ShipPanelField::Control,
-                        control_row(JustifyContent::SpaceBetween),
-                    ))
-                    .with_children(|fact| {
-                        fact.spawn((
-                            text("Control", TextRole::Label),
-                            Node {
-                                flex_shrink: 0.0,
-                                ..default()
-                            },
-                        ));
-                        fact.spawn((
-                            ShipPanelField::Control,
-                            Name::new("ShipControl"),
-                            text("", TextRole::Value),
-                            TextLayout::new(Justify::Right, LineBreak::NoWrap),
-                            Node {
-                                min_width: Val::Px(0.0),
-                                overflow: Overflow::clip(),
-                                ..default()
-                            },
-                        ));
-                    });
-                panel
-                    .spawn(Node {
-                        flex_direction: FlexDirection::Row,
-                        flex_wrap: FlexWrap::Wrap,
-                        column_gap: Val::Px(8.0),
-                        row_gap: Val::Px(8.0),
-                        ..default()
-                    })
-                    .with_children(|row| {
+                        Name::new("ShipControl"),
+                        text("", TextRole::Value),
+                    ));
+                    block.spawn(verb_row(RowAlign::End)).with_children(|row| {
                         row.spawn((
                             ShipPanelButton::Rebind,
+                            Name::new("ShipRebind"),
                             button(ButtonSpec::control("Rebind")),
+                            VerbGate::Hidden,
                         ))
                         .observe(on_ship_rebind_button);
                     });
-                // The Salvage block is Delete's form, as the repair form is
-                // Repair's: the yield tiles, then the action. The button sits
-                // at the block's left edge so its 240 px tooltip stays inside
-                // the 300 px panel at every window size.
-                panel
-                    .spawn((
-                        ShipPanelField::Salvage,
-                        Name::new("ShipSalvage"),
-                        Node {
-                            display: Display::None,
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(6.0),
-                            flex_shrink: 0.0,
-                            ..default()
-                        },
+                });
+                spawn_block(panel, "Repair", ShipPanelField::RepairForm).with_children(|form| {
+                    form.spawn((
+                        ShipRepairQuantity,
+                        amount_row(AmountSpec { name: "ShipRepair" }),
                     ))
-                    .with_children(|block| {
-                        block.spawn(divider());
-                        block.spawn(text("Salvage", TextRole::Label));
-                        // One part per line, so two parts never read as one.
-                        block.spawn((
-                            ShipSalvageTiles::default(),
-                            Node {
-                                flex_direction: FlexDirection::Column,
-                                row_gap: Val::Px(4.0),
-                                ..default()
-                            },
-                        ));
-                        block
-                            .spawn(control_row(JustifyContent::FlexStart))
-                            .with_children(|row| {
-                                row.spawn((
-                                    ShipPanelButton::Delete,
-                                    button(ButtonSpec::control("Delete").danger()),
-                                    Tooltip::default(),
-                                    Name::new("ShipDelete"),
-                                ))
-                                .observe(on_ship_delete_button);
-                            });
-                    });
-                // Under the actions: a result shows where the press was.
-                panel.spawn((ShipPanelField::Note, text("", TextRole::Label)));
-                panel
-                    .spawn((
-                        ShipPanelField::RepairForm,
-                        Node {
-                            display: Display::None,
-                            flex_direction: FlexDirection::Column,
-                            row_gap: Val::Px(10.0),
-                            flex_shrink: 0.0,
-                            ..default()
-                        },
-                    ))
-                    .with_children(|form| {
-                        form.spawn(divider());
-                        form.spawn(text("Repair", TextRole::Heading));
-                        form.spawn(Node {
-                            flex_wrap: FlexWrap::Wrap,
-                            row_gap: Val::Px(6.0),
-                            ..control_row(JustifyContent::FlexStart)
-                        })
-                        .with_children(|row| {
-                            row.spawn(Node {
-                                width: Val::Px(72.0),
-                                flex_shrink: 0.0,
-                                ..default()
-                            })
-                            .with_children(|cell| {
-                                cell.spawn((
-                                    ShipRepairQuantity,
-                                    text_field(TextFieldSpec::new("1").max_chars(5).tool()),
-                                ));
-                            });
-                            row.spawn((
-                                ShipPanelField::RepairStock,
-                                text("", TextRole::Value),
-                                Node {
-                                    flex_grow: 1.0,
-                                    ..default()
-                                },
-                                TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                            ));
-                            row.spawn((
-                                Name::new("ShipRepairAll"),
-                                button(ButtonSpec::control("All").ghost()),
-                            ))
-                            .observe(on_ship_repair_all_button);
-                        });
-                        form.spawn((
-                            ShipRepairQuantity,
-                            Slider {
-                                track_click: TrackClick::Snap,
-                                ..default()
-                            },
-                            SliderValue(1.0),
-                            SliderRange::new(1.0, 1.0),
-                            SliderStep(1.0),
-                            SliderPrecision(0),
-                            slider_track(0.0),
+                    .observe(on_ship_repair_amount);
+                    form.spawn((ShipPanelField::RepairPreview, text("", TextRole::Body)));
+                    form.spawn(verb_row(RowAlign::End)).with_children(|row| {
+                        row.spawn((
+                            Name::new("ShipRepair"),
+                            ShipPanelButton::Repair,
+                            button(ButtonSpec::control("Repair").primary()),
+                            VerbGate::Disabled,
+                            ButtonCueType::Owned,
                         ))
-                        .observe(on_ship_repair_slider);
-                        form.spawn((
-                            ShipPanelField::RepairPreview,
-                            text("", TextRole::Body),
-                            Node {
-                                min_height: Val::Px(13.0 * 1.2 * SUMMARY_LINES),
-                                ..default()
-                            },
-                        ));
-                        form.spawn(control_row(JustifyContent::FlexStart))
-                            .with_children(|row| {
-                                row.spawn((
-                                    Name::new("ShipRepair"),
-                                    ShipPanelButton::Repair,
-                                    button(ButtonSpec::control("Repair").primary()),
-                                    ButtonCueType::Owned,
-                                ))
-                                .observe(on_ship_repair_button);
-                            });
+                        .observe(on_ship_repair_button);
                     });
+                });
                 spawn_ship_repair_jobs(panel);
                 #[cfg(not(target_arch = "wasm32"))]
                 spawn_ship_rescue(panel);
                 spawn_ship_rebuild_list(panel);
+                // Delete's block: the parts it gives back, one per line so two
+                // never read as one, over Delete. Last, as the one verb that
+                // takes a section away.
+                spawn_block(
+                    panel,
+                    "Salvage",
+                    (ShipPanelField::Salvage, Name::new("ShipSalvage")),
+                )
+                .with_children(|block| {
+                    block.spawn((
+                        ShipSalvageTiles::default(),
+                        Node {
+                            flex_direction: FlexDirection::Column,
+                            row_gap: Val::Px(metrics::GAP_S),
+                            ..default()
+                        },
+                    ));
+                    block.spawn(verb_row(RowAlign::End)).with_children(|row| {
+                        row.spawn((
+                            ShipPanelButton::Delete,
+                            Name::new("ShipDelete"),
+                            button(ButtonSpec::control("Delete").danger()),
+                            VerbGate::Hidden,
+                        ))
+                        .observe(on_ship_delete_button);
+                    });
+                });
             });
         });
 }
 
 /// The banner across the top of the view while a rebind is armed, hidden
-/// until then. [`update_ship_panel`] names the section in it.
+/// until then: `Bind` and the section, the keys that end the capture, and
+/// the tag of a refused source. [`update_ship_rebind_prompt`] fills it.
 pub(crate) fn spawn_ship_rebind_prompt(view: &mut ChildSpawnerCommands) {
     view.spawn((
         ShipPanelField::RebindPrompt,
@@ -333,7 +194,7 @@ pub(crate) fn spawn_ship_rebind_prompt(view: &mut ChildSpawnerCommands) {
         Node {
             display: Display::None,
             position_type: PositionType::Absolute,
-            top: Val::Px(10.0),
+            top: Val::Px(metrics::GAP_L),
             left: Val::Px(0.0),
             right: Val::Px(0.0),
             justify_content: JustifyContent::Center,
@@ -345,16 +206,28 @@ pub(crate) fn spawn_ship_rebind_prompt(view: &mut ChildSpawnerCommands) {
     ))
     .with_children(|row| {
         row.spawn((
-            ShipPanelField::RebindPrompt,
-            text_toned("", TextRole::Title, UiColorType::Accent),
             Node {
-                padding: UiRect::axes(Val::Px(10.0), Val::Px(4.0)),
+                column_gap: Val::Px(metrics::GAP),
+                align_items: bevy::prelude::AlignItems::Center,
+                height: Val::Px(metrics::CONTROL_H),
+                padding: UiRect::axes(Val::Px(metrics::GAP), Val::Px(0.0)),
                 ..default()
             },
             BackgroundColor(Color::NONE),
             ThemedFill::alpha(UiColorType::Background, 0.85),
             Pickable::IGNORE,
-        ));
+        ))
+        .with_children(|banner| {
+            banner.spawn((
+                ShipPanelField::RebindPrompt,
+                text_toned("", TextRole::Value, UiColorType::Accent),
+            ));
+            for word in [REBIND_IN_USE, REBIND_RESERVED] {
+                banner.spawn((ShipRebindRefusal(word), tag(word, UiColorType::Danger)));
+            }
+            banner.spawn((ShipRebindDriveKey, key_chip("Backspace")));
+            banner.spawn(key_chip("Esc"));
+        });
     });
 }
 
@@ -421,16 +294,16 @@ pub(crate) fn sync_ship_rebind_click_guard(
 
 /// Apply in-app [`SectionRepairCommand`] messages (the `P` action key and the
 /// panel button) to player-ship sections: start a plate repair job by
-/// [`start_plate_repair`], or flash its refusal on the panel note line. A
-/// target that is not a live section of the player ship is skipped with no
-/// note: every writer takes it from the pane's own list.
+/// [`start_plate_repair`], or buzz a refusal: the disabled Repair and its
+/// Danger "/ max" already show why. A target that is not a live section of
+/// the player ship is skipped: every writer takes it from the pane's own
+/// list.
 #[expect(
     clippy::type_complexity,
     reason = "the player ship's hold and jobs beside the section reads"
 )]
 pub(crate) fn apply_ship_section_commands(
     mut messages: MessageReader<SectionRepairCommand>,
-    mut runtime: ResMut<ShipRuntime>,
     mut q_player: Query<
         (Entity, Option<&ShipInventory>, Option<&mut ShipRepairJobs>),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
@@ -477,18 +350,13 @@ pub(crate) fn apply_ship_section_commands(
             command.requested_plates,
             free_plates,
         ) {
-            // The new job row in the Repairs block shows a start; an
-            // earlier refusal's note goes.
-            Ok(job) => {
-                runtime.note = None;
+            // The new job row in the Repairs block shows a start.
+            Some(job) => {
                 running.push(job.clone());
                 started.push(job);
                 play_menu_select(&mut commands, bank.as_deref());
             }
-            Err(row) => {
-                play_menu_deny(&mut commands, bank.as_deref());
-                runtime.note = Some((row.text, 2.5));
-            }
+            None => play_menu_deny(&mut commands, bank.as_deref()),
         }
     }
     if started.is_empty() {

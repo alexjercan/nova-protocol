@@ -536,7 +536,7 @@ mod smoke {
     use nova_protocol::{
         nova_debug::harness::{shoot, AutopilotPlugin},
         nova_events::engine::GameEvent,
-        nova_interface::ship::{SectionAddCommand, ShipRuntime},
+        nova_interface::ship::SectionAddCommand,
     };
 
     use super::*;
@@ -753,10 +753,7 @@ mod smoke {
             log.asked += 1;
             log.asked_at = frame;
             log.sockets.get(asked).cloned().unwrap_or_else(|| {
-                panic!(
-                    "start role sandbox: every free socket refused the kinetic PDC: {:?}",
-                    world.resource::<ShipRuntime>().note()
-                )
+                panic!("start role sandbox: every free socket refused the kinetic PDC")
             })
         };
         info!("start role sandbox: add the kinetic PDC at {section} {point}");
@@ -870,10 +867,7 @@ mod smoke {
         if kinetic_pdcs(world, player) > log.pdcs || frame < log.asked_at + ADD_FRAMES {
             return;
         }
-        warn!(
-            "start role sandbox: the add was refused: {:?}",
-            world.resource::<ShipRuntime>().note()
-        );
+        warn!("start role sandbox: the add was refused");
         ask_at_the_next_socket(world, frame);
     }
 

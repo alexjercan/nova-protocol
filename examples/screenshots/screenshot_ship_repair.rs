@@ -4,9 +4,9 @@
 //! It boots the interface range from `shared/computer.rs`, knocks the player
 //! hull down and stocks hull plates, then opens the interface with the real
 //! keys: TAB, the next-pane key onto Ship, and one `viewer_next` from `CTL-1`
-//! onto `HULL-1`. It clicks the form's All and shoots the panel BEFORE Repair
-//! is pressed, so the frame shows the draft: the condition bar, the plate
-//! count, the slider and the integrity the repair will reach.
+//! onto `HULL-1`. It clicks the amount row's Max and shoots the panel BEFORE
+//! Repair is pressed, so the frame shows the draft: the condition bar, the
+//! plate count, the slider and the integrity the repair will reach.
 //!
 //! ## Why the damage is written in
 //!
@@ -17,10 +17,11 @@
 //!
 //! ## What the walk checks before the shot
 //!
-//! The panel title names `HULL-1`, the preview reads full integrity, and the
-//! one visible slider holds the All count. All must sit strictly between one
-//! plate and the whole stock, so the frame shows a computed count rather than
-//! either bound. The hull and the stock are unchanged: nothing was submitted.
+//! The panel title names `HULL-1`, the preview reads full integrity, the
+//! amount row's "/ max" names the Max count and the one visible slider holds
+//! it. Max must sit strictly between one plate and the whole stock, so the
+//! frame shows a computed count rather than either bound. The hull and the
+//! stock are unchanged: nothing was submitted.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - draft the repair, run the
@@ -61,7 +62,7 @@ const REPAIR_SHOT: &str = "news-0150-ship-repair.png";
 #[cfg(feature = "debug")]
 const HURT_INTEGRITY: f32 = 0.35;
 
-/// Hull plates the hold carries: more than the repair needs, so All is a
+/// Hull plates the hold carries: more than the repair needs, so Max is a
 /// computed count and not the whole stock.
 #[cfg(feature = "debug")]
 const STOCKED_PLATES: u32 = 10;
@@ -140,7 +141,7 @@ fn hurt_the_hull(world: &mut World) {
     );
 }
 
-/// The plates All drafts for the hurt hull.
+/// The plates Max drafts for the hurt hull.
 #[cfg(feature = "debug")]
 fn all_plates(current: f32, max: f32) -> u32 {
     STOCKED_PLATES.min(((max - current) / HULL_PLATE_HEALTH).ceil() as u32)
@@ -169,7 +170,7 @@ fn the_hull_is_selected() -> std::sync::Arc<nova_protocol::nova_debug::harness::
     })
 }
 
-/// The preview line a draft of All that fills the hurt hull reads: the
+/// The preview line a draft of Max that fills the hurt hull reads: the
 /// integrity it restores to and the seconds its plates take.
 #[cfg(feature = "debug")]
 fn full_preview(current: f32, max: f32) -> String {
@@ -203,8 +204,8 @@ fn the_interface_shows(
     })
 }
 
-/// Assert the drafted repair the still shows: All between one plate and the
-/// whole stock, the slider and stock line on it, and nothing submitted.
+/// Assert the drafted repair the still shows: Max between one plate and the
+/// whole stock, the slider and the "/ max" on it, and nothing submitted.
 #[cfg(feature = "debug")]
 fn check_the_draft(world: &mut World) {
     let (current, max) = player_hull(world).expect("screenshot_ship_repair: one player hull");
@@ -216,7 +217,7 @@ fn check_the_draft(world: &mut World) {
     let all = all_plates(current, max);
     assert!(
         1 < all && all < STOCKED_PLATES,
-        "screenshot_ship_repair: All drafts {all} plates, not strictly between 1 and {STOCKED_PLATES}"
+        "screenshot_ship_repair: Max drafts {all} plates, not strictly between 1 and {STOCKED_PLATES}"
     );
     let mut ships = world.query_filtered::<&ShipInventory, With<PlayerSpaceshipMarker>>();
     let stock = ships
@@ -227,11 +228,11 @@ fn check_the_draft(world: &mut World) {
         stock, STOCKED_PLATES,
         "screenshot_ship_repair: plates spent before Repair"
     );
-    let stock_line = format!("{STOCKED_PLATES} plates free in the hold");
+    let top = format!("/ {all}");
     assert_eq!(
-        visible_texts(world, |text| text == stock_line),
+        visible_texts(world, |text| text == top),
         1,
-        "screenshot_ship_repair: the form does not show `{stock_line}`"
+        "screenshot_ship_repair: the amount row does not show `{top}`"
     );
     let mut sliders = world.query::<(
         &SliderValue,
@@ -247,11 +248,11 @@ fn check_the_draft(world: &mut World) {
     assert_eq!(
         shown,
         [(all as f32, all as f32)],
-        "screenshot_ship_repair: the repair slider is not at All"
+        "screenshot_ship_repair: the repair slider is not at Max"
     );
 }
 
-/// The walk: hurt the hull, open the Ship pane on it, draft All, check the
+/// The walk: hurt the hull, open the Ship pane on it, draft Max, check the
 /// draft and shoot it.
 #[cfg(feature = "debug")]
 fn repair_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
@@ -313,8 +314,8 @@ fn repair_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .deadline(STEP_DEADLINE_SECS)
         .add()
         .click_named(
-            "draft all",
-            "ShipRepairAll",
+            "draft max",
+            "ShipRepairMax",
             the_preview_reads_full(),
             STEP_DEADLINE_SECS,
         )

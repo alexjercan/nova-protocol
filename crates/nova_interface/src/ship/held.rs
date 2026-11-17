@@ -2,7 +2,8 @@
 //! the panel shows that part in place of the selection. The block names the
 //! part under its family icon, gives its price (the credits, the parts from
 //! the hold and the parts the station sells into it), the socket it mates by
-//! and its roll. When the hand empties, the selection comes back.
+//! and its roll. A part the ship cannot pay for shows the price, or `PARTS`,
+//! in Danger. When the hand empties, the selection comes back.
 //!
 //! Touch this module when changing what the panel shows for a part in hand.
 
@@ -10,17 +11,14 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
-    prelude::{control_row, divider, metrics, preview_frame, text, TextRole},
+    prelude::{metrics, preview_frame, spawn_block, spawn_kv, text, TextRole},
     theme::UiColorType,
     widget::{ThemedImageTint, ThemedText},
 };
 
 use super::{
-    catalogue::tile_refusal_text,
-    ghost::ShipPlacementPreview,
-    rebuild::StationSite,
-    scene::{ShipPanelField, ShipRuntime},
-    sections::ShipViewSubject,
+    ghost::ShipPlacementPreview, rebuild::StationSite, refit::payment_refusal_tag,
+    scene::ShipRuntime, sections::ShipViewSubject,
 };
 use crate::icons::{icon_node, InterfaceIcons, SectionIconType};
 
@@ -57,66 +55,38 @@ pub(crate) enum ShipHeldField {
 }
 
 /// Build the Placing block, hidden until a part is in hand:
-/// [`update_ship_held_block`] fills it. Its note line is a
-/// [`ShipPanelField::Note`], so an add's result shows here too.
+/// [`update_ship_held_block`] fills it.
 pub(crate) fn spawn_ship_held_block(panel: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
-    panel
-        .spawn((
-            ShipHeldBlock,
-            Name::new(SHIP_HELD_PANEL),
-            Node {
-                display: Display::None,
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(10.0),
-                flex_shrink: 0.0,
-                ..default()
-            },
-        ))
-        .with_children(|block| {
-            block.spawn(text("Placing", TextRole::Heading));
-            block.spawn(preview_frame()).with_children(|frame| {
-                frame.spawn((
-                    ShipHeldIcon,
-                    icon_node(
-                        icons.section(SectionIconType::Hull),
-                        SectionIconType::Hull.color(),
-                        metrics::PREVIEW * 0.75,
-                    ),
-                ));
-            });
-            block.spawn((ShipHeldField::Name, text("", TextRole::Title)));
-            block.spawn(divider());
-            for (label, field) in [
-                ("Price", ShipHeldField::Price),
-                ("From the hold", ShipHeldField::FromHold),
-                ("Bought", ShipHeldField::Bought),
-                ("Socket", ShipHeldField::Socket),
-                ("Roll", ShipHeldField::Roll),
-            ] {
-                block
-                    .spawn(control_row(JustifyContent::SpaceBetween))
-                    .with_children(|fact| {
-                        fact.spawn((
-                            text(label, TextRole::Label),
-                            Node {
-                                flex_shrink: 0.0,
-                                ..default()
-                            },
-                        ));
-                        fact.spawn((
-                            field,
-                            text("", TextRole::Value),
-                            TextLayout::new(Justify::Right, LineBreak::NoWrap),
-                            Node {
-                                min_width: Val::Px(0.0),
-                                overflow: Overflow::clip(),
-                                ..default()
-                            },
-                        ));
-                    });
-            }
-            block.spawn((ShipPanelField::Note, text("", TextRole::Label)));
+    let mut block = spawn_block(
+        panel,
+        "Placing",
+        (ShipHeldBlock, Name::new(SHIP_HELD_PANEL)),
+    );
+    block
+        .entry::<Node>()
+        .and_modify(|mut node| node.display = Display::None);
+    block.with_children(|block| {
+        block.spawn(preview_frame()).with_children(|frame| {
+            frame.spawn((
+                ShipHeldIcon,
+                icon_node(
+                    icons.section(SectionIconType::Hull),
+                    SectionIconType::Hull.color(),
+                    metrics::PREVIEW * 0.75,
+                ),
+            ));
         });
+        block.spawn((ShipHeldField::Name, text("", TextRole::Title)));
+        for (label, field) in [
+            ("Price", ShipHeldField::Price),
+            ("Hold", ShipHeldField::FromHold),
+            ("Bought", ShipHeldField::Bought),
+            ("Socket", ShipHeldField::Socket),
+            ("Roll", ShipHeldField::Roll),
+        ] {
+            spawn_kv(block, label, (field, text("", TextRole::Value)));
+        }
+    });
 }
 
 /// Show the Placing block in place of the selection while a part is in hand
@@ -205,13 +175,13 @@ pub(crate) fn update_ship_held_block(
             UiColorType::Text,
         ),
         Some(Err(refusal)) => (
-            tile_refusal_text(refusal),
+            payment_refusal_tag(refusal),
             "-".to_string(),
             "-".to_string(),
             UiColorType::Danger,
         ),
         None => (
-            "No refit here".to_string(),
+            "-".to_string(),
             "-".to_string(),
             "-".to_string(),
             UiColorType::Danger,

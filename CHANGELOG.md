@@ -56,6 +56,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The keybind dock along the bottom of the flight HUD is centred on the screen, one gap between chips. On a narrow screen each wrapped line is centred too.
 - Every Tab pane and editor control is one height in both themes. The pane head holds its tabs, mode tags, balance, clock and Close in fixed slots, so a growing balance moves nothing.
 - A verb that cannot work here is hidden, a short balance disables its verb and paints the number red, and a hidden cause shows one tag word. Refusal sentences and notice lines are gone.
+- The Ship pane's blocks share one layout: heading, rows, verbs at the bottom right. Repair is one amount row with Max. Delete hides away from a refit dock; its note line is gone.
 - **(breaking)** UiTheme drops `metrics.border_width`, the slider `height` and the badge `bracketed`, `padding_x` and `border_width`. Lint refuses a disabled button state that looks live.
 
 ### Fixes

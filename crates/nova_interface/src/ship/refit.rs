@@ -12,6 +12,9 @@
 //! and the credits, and raises the [`SectionAddRequest`] the scenario crate
 //! adds the section from.
 //!
+//! A refusal is one tag word ([`payment_refusal_tag`], [`swap_refusal_tag`],
+//! [`add_refusal_tag`]); a refused command changes nothing and buzzes.
+//!
 //! Touch this module when changing what Swap or Add takes or how a refusal
 //! reads.
 
@@ -28,7 +31,8 @@ use nova_ship::prelude::*;
 use nova_sound::prelude::*;
 
 use super::{
-    rebuild::{payment_refusal_text, rebuild_price_text, ResolvedSite, StationSite},
+    delete::build_fault_tag,
+    rebuild::{ResolvedSite, StationSite},
     scene::ShipRuntime,
     sections::{code_prefix, design_section_code},
 };
@@ -43,90 +47,27 @@ pub struct SectionSwapCommand {
     pub prototype: String,
 }
 
-/// The lower-case noun for a section kind, for the refusal lines.
-fn class_noun(class: SectionClass) -> &'static str {
-    match class {
-        SectionClass::Hull => "hull",
-        SectionClass::Thruster => "thruster",
-        SectionClass::Controller => "controller",
-        SectionClass::Turret => "turret",
-        SectionClass::Torpedo => "torpedo bay",
-        SectionClass::Railgun => "railgun",
-        SectionClass::Docking => "docking port",
-        SectionClass::CargoIntake => "cargo intake",
-        SectionClass::Mining => "mining emitter",
-    }
-}
-
-/// The note line for a refused swap of section `code` for the part named
-/// `name`; the list and the handler share it.
-pub(crate) fn swap_refusal_text(
-    items: &GameItems,
-    code: &str,
-    name: &str,
-    refusal: &SectionSwapRefusalType,
-) -> String {
+/// The word for a recipe that cannot be paid: the price itself when the
+/// ship is short of credits, else what is short. Swap, Add and the
+/// catalogue's tiles share it.
+pub(crate) fn payment_refusal_tag(refusal: &RecipePaymentRefusalType) -> String {
     match refusal {
-        SectionSwapRefusalType::NotDocked => "swap: dock at a station that refits".to_string(),
-        SectionSwapRefusalType::NoRefitService => "swap: this dock offers no refit".to_string(),
-        SectionSwapRefusalType::NotBuilt => format!("swap: this station does not build {name}"),
-        SectionSwapRefusalType::Family(SectionFamilyFaultType::OtherKind { have, offered }) => {
-            format!(
-                "swap: {code} is a {}, {name} is a {}",
-                class_noun(*have),
-                class_noun(*offered)
-            )
-        }
-        SectionSwapRefusalType::Family(SectionFamilyFaultType::OtherFootprint {
-            have,
-            offered,
-        }) => format!(
-            "swap: {code} fills {}x{}x{} cells, {name} fills {}x{}x{}",
-            have.x, have.y, have.z, offered.x, offered.y, offered.z
-        ),
-        SectionSwapRefusalType::Family(SectionFamilyFaultType::SamePart) => {
-            format!("swap: {code} already is a {name}")
-        }
-        SectionSwapRefusalType::Payment(refusal) => {
-            format!("swap: {}", payment_refusal_text(items, name, refusal))
-        }
-        SectionSwapRefusalType::Build(fault) => build_fault_text("swap", name, code, fault),
+        RecipePaymentRefusalType::MissingParts { .. } => "PARTS".to_string(),
+        RecipePaymentRefusalType::InsufficientCredits { need, .. } => cr_text(*need),
+        RecipePaymentRefusalType::CreditOverflow => "PRICE".to_string(),
     }
 }
 
-/// The note line for a refit that would leave the ship with the post-build
-/// `fault`, after the action's prefix: part `name` at section `code`.
-pub(crate) fn build_fault_text(
-    action: &str,
-    name: &str,
-    code: &str,
-    fault: &RefitBuildFaultType,
-) -> String {
-    match fault {
-        RefitBuildFaultType::Disconnected { .. } => {
-            format!("{action}: {name} would split the ship at {code}")
-        }
-        RefitBuildFaultType::InvalidSockets => {
-            format!("{action}: {name} does not mate with the sections around {code}")
-        }
-        RefitBuildFaultType::BlockedExit => {
-            format!("{action}: {name} at {code} would block a firing or exhaust lane")
-        }
-        RefitBuildFaultType::Underpowered { thrust, needed } => {
-            format!("{action}: the drives would push {thrust:.1}, the ship needs {needed:.1}")
-        }
-        RefitBuildFaultType::NoController => {
-            format!("{action}: {name} would leave the ship without a flight computer")
-        }
-        RefitBuildFaultType::LastWeapon => {
-            format!("{action}: {name} would leave the ship without a weapon")
-        }
-        RefitBuildFaultType::Undercontrolled {
-            controllers,
-            needed,
-        } => format!(
-            "{action}: the ship would carry {controllers} flight computers, it needs {needed}"
-        ),
+/// The word for a refused swap, or `None` when the part cannot replace the
+/// section at all: the catalogue then offers no Swap and says nothing.
+pub(crate) fn swap_refusal_tag(refusal: &SectionSwapRefusalType) -> Option<String> {
+    match refusal {
+        SectionSwapRefusalType::Payment(refusal) => Some(payment_refusal_tag(refusal)),
+        SectionSwapRefusalType::Build(fault) => Some(build_fault_tag(fault).to_string()),
+        SectionSwapRefusalType::NotDocked
+        | SectionSwapRefusalType::NoRefitService
+        | SectionSwapRefusalType::NotBuilt
+        | SectionSwapRefusalType::Family(_) => None,
     }
 }
 
@@ -212,8 +153,8 @@ impl ResolvedSite<'_> {
 /// [`swap_build_fault`] check: take the hold's parts, buy the rest from the
 /// station at ask, pay the price to the station, queue one `Swapped` report,
 /// and raise the [`SectionSwapRequest`] that replaces the section at full
-/// health. The old part is not refunded. A refusal changes nothing and shows
-/// its reason on the note line.
+/// health. The old part is not refunded. A refusal changes nothing and
+/// buzzes.
 pub(crate) fn apply_ship_swap_commands(
     mut messages: MessageReader<SectionSwapCommand>,
     mut runtime: ResMut<ShipRuntime>,
@@ -275,11 +216,7 @@ pub(crate) fn apply_ship_swap_commands(
         };
         let payment = match planned {
             Ok(payment) => payment,
-            Err(refusal) => {
-                runtime.note = Some((
-                    swap_refusal_text(&items, &code, &offered.base.name, &refusal),
-                    2.5,
-                ));
+            Err(_) => {
                 play_menu_deny(&mut commands, bank.as_deref());
                 continue;
             }
@@ -317,14 +254,6 @@ pub(crate) fn apply_ship_swap_commands(
             prototype: offered.base.id.clone(),
         });
         runtime.reselect = Some(section.id.clone());
-        runtime.note = Some((
-            format!(
-                "swapped {code} for {}: {}",
-                offered.base.name,
-                rebuild_price_text(&payment)
-            ),
-            2.5,
-        ));
         play_menu_select(&mut commands, bank.as_deref());
         swapped = true;
     }
@@ -411,39 +340,22 @@ fn added_section_code(design: &ShipDesignSections, class: SectionClass) -> Strin
     format!("{}-{}", code_prefix(class), before + 1)
 }
 
-/// The line for a refused add of the part named `name` on section `code`;
-/// the ghost callout and the handler's note share it.
-pub(crate) fn add_refusal_text(
-    items: &GameItems,
-    code: &str,
-    name: &str,
-    refusal: &SectionAddRefusalType,
-) -> String {
+/// The word for a refused add, on the placement ghost's callout.
+pub(crate) fn add_refusal_tag(refusal: &SectionAddRefusalType) -> String {
     match refusal {
-        SectionAddRefusalType::NotDocked => "add: dock at a station that refits".to_string(),
-        SectionAddRefusalType::NoRefitService => "add: this dock offers no refit".to_string(),
-        SectionAddRefusalType::NotBuilt => format!("add: this station does not build {name}"),
-        SectionAddRefusalType::Fit(SectionAddFaultType::Occupied) => {
-            format!("add: that point on {code} is taken")
+        SectionAddRefusalType::NotDocked | SectionAddRefusalType::NoRefitService => {
+            "NO REFIT".to_string()
         }
-        SectionAddRefusalType::Fit(SectionAddFaultType::NoSockets) => {
-            format!("add: {name} has no socket to mount by")
-        }
-        SectionAddRefusalType::Fit(SectionAddFaultType::Overlap) => {
-            format!("add: {name} on {code} would overlap the hull")
-        }
-        SectionAddRefusalType::Fit(SectionAddFaultType::Obstructed) => {
-            format!("add: {name} on {code} would hit the station or a ship docked there")
-        }
+        SectionAddRefusalType::NotBuilt => "NOT BUILT".to_string(),
+        SectionAddRefusalType::Fit(SectionAddFaultType::Occupied) => "TAKEN".to_string(),
+        SectionAddRefusalType::Fit(SectionAddFaultType::NoSockets) => "NO SOCKET".to_string(),
+        SectionAddRefusalType::Fit(SectionAddFaultType::Overlap) => "OVERLAP".to_string(),
+        SectionAddRefusalType::Fit(SectionAddFaultType::Obstructed) => "BLOCKED".to_string(),
         SectionAddRefusalType::Fit(SectionAddFaultType::Build(fault)) => {
-            build_fault_text("add", name, code, fault)
+            build_fault_tag(fault).to_string()
         }
-        SectionAddRefusalType::NoFreeKey => {
-            format!("add: every mining key is taken, {name} would have none")
-        }
-        SectionAddRefusalType::Payment(refusal) => {
-            format!("add: {}", payment_refusal_text(items, name, refusal))
-        }
+        SectionAddRefusalType::NoFreeKey => "NO KEY".to_string(),
+        SectionAddRefusalType::Payment(refusal) => payment_refusal_tag(refusal),
     }
 }
 
@@ -548,8 +460,7 @@ impl ResolvedSite<'_> {
 /// [`plan_section_add`] rules: take the hold's parts, buy the rest from the
 /// station at ask, pay the price to the station, queue one `Added` report,
 /// and raise the [`SectionAddRequest`] that mounts the part at full health
-/// under [`added_section_id`]. A refusal changes nothing and shows its reason
-/// on the note line.
+/// under [`added_section_id`]. A refusal changes nothing and buzzes.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system reading the catalogue, the site, the bindings and both holds"
@@ -634,11 +545,7 @@ pub(crate) fn apply_ship_add_commands(
         };
         let plan = match planned {
             Ok(plan) => plan,
-            Err(refusal) => {
-                runtime.note = Some((
-                    add_refusal_text(&items, &code, &offered.base.name, &refusal),
-                    2.5,
-                ));
+            Err(_) => {
                 play_menu_deny(&mut commands, bank.as_deref());
                 continue;
             }
@@ -683,14 +590,6 @@ pub(crate) fn apply_ship_add_commands(
             bindings: plan.bindings.clone(),
         });
         runtime.reselect = Some(id);
-        runtime.note = Some((
-            format!(
-                "added {} as {new_code} on {code}: {}",
-                offered.base.name,
-                rebuild_price_text(payment)
-            ),
-            2.5,
-        ));
         play_menu_select(&mut commands, bank.as_deref());
         added = true;
     }

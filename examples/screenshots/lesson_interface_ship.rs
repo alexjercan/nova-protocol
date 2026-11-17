@@ -55,14 +55,11 @@
 //!
 //! ## Why the interface is closed and reopened before each sheet
 //!
-//! The panel's note line is a transient (`ShipRuntime.note`), and it counts
-//! down on real time. An armed capture pins that clock at one cell per frame,
-//! so a 2.5 s note outlives a twenty-cell sheet: the repair's own note line
-//! would sit under the buttons of whatever is recorded next. Leaving the pane
-//! clears the note, the selection and any armed rebind (`manage_ship_scene`'s
-//! teardown), so the walk closes the interface with TAB, reopens it - TAB
-//! reopens the last pane, which is Ship - and re-cycles. Each sheet then opens
-//! on a panel that says only what it is about.
+//! Leaving the pane clears the selection, the repair draft and any armed
+//! rebind (`manage_ship_scene`'s teardown), so the walk closes the interface
+//! with TAB, reopens it - TAB reopens the last pane, which is Ship - and
+//! re-cycles. Each sheet then opens on a panel that says only what it is
+//! about.
 //!
 //! ## What did not work
 //!
@@ -72,8 +69,7 @@
 //! a source that is never up. Every press in this walk is `press_action` or
 //! `press_key` with its own `release_*` beat for that reason; the walk sat on
 //! the armed prompt for a whole sheet the one time a press was left down, and
-//! because an armed capture outranks the note line, the panel showed nothing to
-//! say why.
+//! the panel showed nothing to say why.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - drive the whole session, exit

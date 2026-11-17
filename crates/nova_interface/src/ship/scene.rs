@@ -15,8 +15,7 @@ use bevy::{
     camera::{visibility::RenderLayers, ImageRenderTarget, RenderTarget},
     mesh::PrimitiveTopology,
     prelude::*,
-    ui::InteractionDisabled,
-    ui_widgets::{Activate, Button, SliderRange, SliderValue, ValueChange},
+    ui_widgets::{Activate, Button},
 };
 use nova_gameplay::prelude::*;
 use nova_input::prelude::InputBindings;
@@ -26,11 +25,13 @@ use nova_ship::prelude::{
 };
 use nova_sound::prelude::*;
 use nova_ui::{
-    prelude::{text, TextRole},
+    prelude::{
+        spawn_kv, text, Amount, AmountChanged, AmountField, AmountTop, Bar, BarFill, Short,
+        TextRole, VerbGate,
+    },
     theme::{ActiveUiTheme, UiColorType},
     widget::{
-        ButtonCueType, Selected, TextFieldError, TextFieldFocused, TextFieldValue, ThemedBorder,
-        ThemedFill, ThemedImageTint, ThemedText, Tooltip,
+        ButtonCueType, Selected, TextFieldFocused, ThemedBorder, ThemedFill, ThemedImageTint,
     },
 };
 
@@ -63,31 +64,51 @@ pub(crate) enum ShipPanelField {
     Control,
     /// The repair form, shown only while the selection has repairable damage.
     RepairForm,
-    /// The live hull plate stock beside the typed quantity.
-    RepairStock,
-    /// The predicted integrity, or why the repair is refused.
+    /// The integrity and the seconds the drafted plates give.
     RepairPreview,
-    Note,
     /// The banner over the view while a rebind is armed. The banner row and
     /// its text both carry it: the row is shown or hidden, the text is set.
     RebindPrompt,
-    /// The Salvage block under the actions, shown while Delete has a verdict.
+    /// The Salvage block, shown while Delete works at this dock.
     Salvage,
 }
+
+/// The key chip on the rebind banner that only a thruster's capture takes:
+/// Backspace puts a thruster back on the Main Drive.
+#[derive(Component)]
+pub(crate) struct ShipRebindDriveKey;
+
+/// A tag on the rebind banner, shown while the last source the capture took
+/// was refused for this word.
+#[derive(Component)]
+pub(crate) struct ShipRebindRefusal(pub(crate) &'static str);
+
+/// The rebind refusal of a source another action already holds.
+pub(crate) const REBIND_IN_USE: &str = "IN USE";
+/// The rebind refusal of the pointer's own button.
+pub(crate) const REBIND_RESERVED: &str = "RESERVED";
+/// What the Salvage tiles show: the parts a delete gives back, or the hold
+/// a full hold cannot fit them in.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum SalvageShown {
+    /// The positive parts; an empty map draws `None`.
+    Parts(BTreeMap<ItemDesignId, u32>),
+    /// The grams the parts need and the grams the hold has free.
+    Hold { need_g: u64, free_g: u64 },
+}
+
 /// The Salvage tiles, with what they last drew so they rebuild only on a
-/// change: `None` while they draw nothing (hidden or refused), else the
-/// positive parts drawn; an empty map drew the `nothing to salvage` line.
+/// change: `None` while they draw nothing.
 #[derive(Component, Default)]
-pub(crate) struct ShipSalvageTiles(Option<BTreeMap<ItemDesignId, u32>>);
+pub(crate) struct ShipSalvageTiles(Option<SalvageShown>);
 /// The selected section's family icon in the panel head.
 #[derive(Component)]
 pub(crate) struct ShipPreviewIcon;
-/// The panel's condition bar fill, as wide as the selected section's
-/// integrity.
+/// The panel's condition bar, as full as the selected section's integrity.
 #[derive(Component)]
-pub(crate) struct ShipConditionFill;
-/// A whole-plate selector for the current repair draft: the typed field and
-/// the slider.
+pub(crate) struct ShipConditionBar;
+/// The repair draft's amount row: whole plates, up to what the hold and the
+/// missing integrity allow.
 #[derive(Component)]
 pub(crate) struct ShipRepairQuantity;
 /// The status dot in a section badge's corner.
@@ -195,8 +216,12 @@ pub struct ShipRuntime {
     pub(crate) mat_outline: Option<Handle<StandardMaterial>>,
     pub(crate) mat_outline_selected: Option<Handle<StandardMaterial>>,
     pub(crate) selected: Option<Entity>,
-    /// A transient note (e.g. an action result) shown in the panel.
-    pub(crate) note: Option<(String, f32)>,
+    /// Why the armed rebind refused the last source it captured, as the
+    /// banner's one tag word; cleared when the capture ends.
+    pub(crate) rebind_refused: Option<&'static str>,
+    /// Why the last SOS call found no answer, as Call SOS's tag word;
+    /// cleared when the Distress block stops offering a call.
+    pub(crate) rescue_refused: Option<&'static str>,
     /// Whether Repair is valid for the current selection, cached by
     /// `update_ship_panel` so the button `Activate` observer can no-op on a
     /// disabled action without re-deriving the section's validity.
@@ -211,16 +236,15 @@ pub struct ShipRuntime {
     pub(crate) refits: bool,
     /// Whether the selection can be deleted now, cached by
     /// `update_ship_delete_verdict`: `None` while there is no selection,
-    /// else the parts a delete gives back or the refusal, with the sections
-    /// a split would cut off the dock.
+    /// else the parts a delete gives back or the refusal's gate, with the
+    /// sections a split would cut off the dock.
     pub(crate) delete_verdict: Option<Result<BTreeMap<ItemDesignId, u32>, SectionDeleteRefusal>>,
-    /// Draft quantity belongs to this section; changing selection starts at All.
+    /// Draft quantity belongs to this section; changing selection starts at Max.
     /// A full section, or any section before the player ship's inventory
     /// exists, does not take the draft, so damage or arriving stock starts it
-    /// at All instead of the 0 snapshot taken before.
+    /// at Max instead of the 0 snapshot taken before.
     pub(crate) repair_target: Option<Entity>,
-    /// The repair draft in whole plates. `None` while the field holds text
-    /// that is not a whole number, which Repair refuses.
+    /// The repair draft in whole plates; `None` with no selection.
     pub(crate) requested_plates: Option<u32>,
     /// Section waiting for a replacement keyboard or mouse binding.
     pub(crate) rebinding: Option<Entity>,
@@ -286,11 +310,21 @@ impl ShipRuntime {
 
     /// Whether the selection can be deleted now: `None` while there is no
     /// selection, else the parts a delete gives back (zero counts included)
-    /// or the reason line it is refused with.
-    pub fn delete_verdict(&self) -> Option<Result<&BTreeMap<ItemDesignId, u32>, &str>> {
+    /// or the gate the refused Delete wears.
+    pub fn delete_verdict(&self) -> Option<Result<&BTreeMap<ItemDesignId, u32>, &VerbGate>> {
         self.delete_verdict
             .as_ref()
-            .map(|verdict| verdict.as_ref().map_err(|refusal| refusal.line.as_str()))
+            .map(|verdict| verdict.as_ref().map_err(|refusal| &refusal.gate))
+    }
+
+    /// The gate of the panel's Delete: hidden with no verdict or at a dock
+    /// that does not refit, ready while the delete holds.
+    pub fn delete_gate(&self) -> VerbGate {
+        match self.delete_verdict() {
+            None => VerbGate::Hidden,
+            Some(Ok(_)) => VerbGate::Ready,
+            Some(Err(gate)) => gate.clone(),
+        }
     }
 
     /// The live sections a delete of the selection would cut off the dock,
@@ -301,12 +335,6 @@ impl ShipRuntime {
             Some(Err(refusal)) => &refusal.severed,
             _ => &[],
         }
-    }
-
-    /// The transient note the panel shows, such as why an action was
-    /// refused, while it lasts.
-    pub fn note(&self) -> Option<&str> {
-        self.note.as_ref().map(|(note, _)| note.as_str())
     }
 }
 
@@ -370,7 +398,7 @@ pub(crate) fn manage_ship_scene(
         runtime.selected = None;
         runtime.repair_target = None;
         runtime.requested_plates = None;
-        runtime.note = None;
+        runtime.rebind_refused = None;
         runtime.rebinding = None;
         runtime.rebind_awaiting_release = false;
         runtime.rebind_swallow = false;
@@ -809,12 +837,6 @@ pub(crate) fn ship_input(
     };
     let dt = input.dt();
 
-    if let Some((_, remaining)) = runtime.note.as_mut() {
-        *remaining -= dt;
-        if *remaining <= 0.0 {
-            runtime.note = None;
-        }
-    }
     if runtime.rebind_armed() {
         return;
     }
@@ -908,7 +930,7 @@ pub(crate) fn ship_input(
         }
     }
 
-    // A changed selection starts at its own current All, before either P or a
+    // A changed selection starts at its own current Max, before either P or a
     // panel click can reuse a quantity from the previous section.
     if runtime.repair_target != runtime.selected {
         let view = runtime
@@ -947,41 +969,20 @@ pub(crate) fn ship_input(
         {
             runtime.rebinding = Some(sel);
             runtime.rebind_awaiting_release = true;
-            runtime.note = None;
+            runtime.rebind_refused = None;
             return;
         }
-        if input.just_pressed("ship_delete") {
-            match &runtime.delete_verdict {
-                Some(Ok(_)) => {
-                    deletes.write(SectionDeleteCommand { target: sel });
-                }
-                // The muted button's reason, on the note line under the
-                // Salvage block where the press was.
-                Some(Err(refusal)) => runtime.note = Some((refusal.line.clone(), 2.5)),
-                None => {}
-            }
+        // A refused Delete shows its gate on the button; the key does
+        // nothing more.
+        if input.just_pressed("ship_delete") && matches!(runtime.delete_verdict, Some(Ok(_))) {
+            deletes.write(SectionDeleteCommand { target: sel });
         }
+        // A refused draft is sent too: the handler buzzes it.
         if input.just_pressed("ship_repair") {
-            let repairable = list
-                .iter()
-                .find(|view| view.entity == sel)
-                .is_some_and(|view| {
-                    plate_repair_limit(view.health.as_ref(), view.disabled, u32::MAX) > 0
-                });
-            // With the form shown, an empty, invalid or zero quantity is not
-            // sent. Without it, P still sends, so the refusal reaches the
-            // note line.
-            let requested = if repairable {
-                runtime.requested_plates.filter(|plates| *plates > 0)
-            } else {
-                Some(runtime.requested_plates.unwrap_or(0))
-            };
-            if let Some(requested_plates) = requested {
-                commands.write(SectionRepairCommand {
-                    target: sel,
-                    requested_plates,
-                });
-            }
+            commands.write(SectionRepairCommand {
+                target: sel,
+                requested_plates: runtime.requested_plates.unwrap_or(0),
+            });
         }
     }
 }
@@ -1264,13 +1265,7 @@ pub(crate) fn on_ship_blip_click(
     // it. With a part in hand the click places it, as on the view, and does
     // not move the selection.
     if held.0.is_some() {
-        commit_placement(
-            &preview,
-            &mut runtime,
-            &mut adds,
-            bank.as_deref(),
-            &mut commands,
-        );
+        commit_placement(&preview, &mut adds, bank.as_deref(), &mut commands);
         return;
     }
     if let Ok(blip) = q_blip.get(activate.entity) {
@@ -1355,61 +1350,14 @@ pub(crate) fn on_ship_repair_button(
     }
 }
 
-/// Reset the selected section's draft to the current affordable maximum.
-pub(crate) fn on_ship_repair_all_button(
-    _activate: On<Activate>,
-    mut runtime: ResMut<ShipRuntime>,
-    sections: ShipSections,
-    inventory: Query<(&ShipInventory, Option<&ShipRepairJobs>), With<PlayerSpaceshipMarker>>,
-) {
-    let Some(view) = runtime.selected.and_then(|selected| {
-        sections
-            .collect()
-            .into_iter()
-            .find(|view| view.entity == selected)
-    }) else {
-        return;
-    };
-    let Ok((stock, jobs)) = inventory.single() else {
-        return;
-    };
-    runtime.requested_plates = Some(plate_repair_limit(
-        view.health.as_ref(),
-        view.disabled,
-        free_plates(stock, jobs),
-    ));
-}
-
-/// Use a whole slider step, never a fractional hull plate.
-pub(crate) fn on_ship_repair_slider(
-    change: On<ValueChange<f32>>,
-    mut runtime: ResMut<ShipRuntime>,
-    sections: ShipSections,
-    inventory: Query<(&ShipInventory, Option<&ShipRepairJobs>), With<PlayerSpaceshipMarker>>,
-) {
-    let Some(view) = runtime.selected.and_then(|selected| {
-        sections
-            .collect()
-            .into_iter()
-            .find(|view| view.entity == selected)
-    }) else {
-        return;
-    };
-    let Ok((stock, jobs)) = inventory.single() else {
-        return;
-    };
-    let max = plate_repair_limit(
-        view.health.as_ref(),
-        view.disabled,
-        free_plates(stock, jobs),
-    );
-    if max > 0 {
-        runtime.requested_plates = Some(change.value.round().clamp(1.0, max as f32) as u32);
-    }
+/// Take the repair amount row's moves as the draft: the field, the slider,
+/// the wheel and Max all land here once per move.
+pub(crate) fn on_ship_repair_amount(changed: On<AmountChanged>, mut runtime: ResMut<ShipRuntime>) {
+    runtime.requested_plates = Some(changed.value);
 }
 
 /// Arm a rebind capture on the selected section when the panel button is
-/// clicked, unless the panel marked rebind disabled for it.
+/// clicked, unless the panel hid Rebind for it.
 pub(crate) fn on_ship_rebind_button(
     _activate: On<Activate>,
     pause: Res<State<PauseStates>>,
@@ -1420,29 +1368,28 @@ pub(crate) fn on_ship_rebind_button(
     }
     runtime.rebinding = runtime.selected;
     runtime.rebind_awaiting_release = runtime.rebinding.is_some();
-    runtime.note = None;
+    runtime.rebind_refused = None;
 }
 
-/// Refresh the section panel from the current selection: title, family icon,
-/// condition bar, binding row, the repair form, button state, the Salvage
-/// block, and the note line (the rebind prompt or a transient action result).
-/// Caches the enabled flags for the observers and the footer.
+/// Refresh the section panel from the current selection: the title, the
+/// Control block, the Repair block, the Salvage block and
+/// each verb's [`VerbGate`]. Caches the enabled flags for the observers and
+/// the footer.
 ///
-/// The Salvage block, Delete inside it, shows while the selection has a
-/// delete verdict. While [`plan_ship_delete`](super::delete::plan_ship_delete)
-/// holds, the block draws one tile per part it gives back, or
-/// `nothing to salvage`, over an enabled Delete; while it refuses, Delete is
-/// disabled with the reason as its tooltip.
+/// A block shows only while its verb works at this place: Control while the
+/// section takes a binding, Repair while the selection has repairable damage
+/// and no job, Salvage while the ship is docked at a station that refits.
+/// Inside a shown block a verb is ready, disabled (the short value painted
+/// Danger) or tagged with one word.
 ///
-/// The repair form shows only while the selection has repairable damage, and
-/// disables Repair and blanks its summary while the draft is refused.
-/// Typed text becomes the draft before a selection change, damage to a full
-/// selected section, or the player ship's inventory arriving resets it to All.
-/// The field is rewritten only when the draft holds a number its text does not
-/// read as, so invalid text stays for the player to fix, focused or not; a
-/// hidden form lets go of the keyboard.
+/// The Repair block's amount row runs from 1 to what the hold and the missing
+/// integrity allow; its "/ max" paints Danger while the hold has no free
+/// plate. A selection change, damage to a full selected section or the
+/// player ship's inventory arriving resets the draft to Max. A hidden block's
+/// field lets go of the keyboard.
 #[expect(
     clippy::too_many_arguments,
+    clippy::type_complexity,
     reason = "one system writing every live part of the panel"
 )]
 pub(crate) fn update_ship_panel(
@@ -1452,53 +1399,14 @@ pub(crate) fn update_ship_panel(
     icons: Res<InterfaceIcons>,
     items: Option<Res<GameItems>>,
     input_bindings: Res<InputBindings>,
-    mut q_text: Query<(&ShipPanelField, &mut Text, &mut ThemedText)>,
-    mut q_part: Query<
-        (&ShipPanelField, &mut Node),
-        (
-            Without<Text>,
-            Without<ShipPanelButton>,
-            Without<ShipConditionFill>,
-            Without<ShipRepairQuantity>,
-        ),
-    >,
-    mut q_button: Query<
-        (
-            Entity,
-            &ShipPanelButton,
-            Has<InteractionDisabled>,
-            Has<Selected>,
-            &mut Node,
-            Option<&mut Tooltip>,
-        ),
-        (Without<ShipConditionFill>, Without<ShipRepairQuantity>),
-    >,
+    mut q_text: Query<(&ShipPanelField, &mut Text)>,
+    mut q_part: Query<(&ShipPanelField, &mut Node), Without<Text>>,
+    mut q_verb: Query<(Entity, &ShipPanelButton, &mut VerbGate, Has<Selected>)>,
     mut q_tiles: Query<(Entity, &mut ShipSalvageTiles)>,
-    mut q_preview: Query<
-        (&mut ImageNode, &mut ThemedImageTint, &mut Visibility),
-        With<ShipPreviewIcon>,
-    >,
-    mut q_bar: Query<
-        (&mut Node, &mut ThemedFill),
-        (
-            With<ShipConditionFill>,
-            Without<ShipRepairQuantity>,
-            Without<ShipPanelButton>,
-        ),
-    >,
-    mut q_slider: Query<
-        (Entity, &SliderRange, &SliderValue, &mut Node),
-        (With<ShipRepairQuantity>, Without<ShipPanelButton>),
-    >,
-    mut q_field: Query<
-        (
-            Entity,
-            &mut TextFieldValue,
-            Has<TextFieldFocused>,
-            Has<TextFieldError>,
-        ),
-        With<ShipRepairQuantity>,
-    >,
+    mut q_amount: Query<(Entity, &mut Amount), With<ShipRepairQuantity>>,
+    q_children: Query<&Children>,
+    q_top: Query<Option<&Short>, With<AmountTop>>,
+    q_focused: Query<(), (With<AmountField>, With<TextFieldFocused>)>,
     q_inventory: Query<(&ShipInventory, Option<&ShipRepairJobs>), With<PlayerSpaceshipMarker>>,
 ) {
     if !runtime.active {
@@ -1522,13 +1430,6 @@ pub(crate) fn update_ship_panel(
             .is_some_and(|jobs| jobs.get(&RepairJobKey::Section(view.entity)).is_some())
     };
     let selected = inventory.and(selected);
-    // This system's own rewrite below does not read as a change on its next
-    // run, so only the player's typing lands here.
-    for (_, value, _, _) in &mut q_field {
-        if value.is_changed() && !value.is_added() {
-            runtime.requested_plates = value.trim().parse::<u32>().ok();
-        }
-    }
     if runtime.repair_target != runtime.selected {
         runtime.requested_plates = selected
             .as_ref()
@@ -1550,11 +1451,10 @@ pub(crate) fn update_ship_panel(
         (Some(view), Some(requested)) => panel_action_state(view, requested, stock),
         _ => PanelActions::none(),
     };
-    // The form's stock line and summary, while the selection has repairable
-    // damage: the integrity the plates restore and the seconds they take. A
-    // refused draft shows no summary: the greyed Repair, the marked count
-    // field and the stock line carry it. A hull shown read-only names its
-    // section and its condition, no more.
+    // The form's summary, while the selection has repairable damage: the
+    // integrity the plates restore and the seconds they take. A refused
+    // draft shows none: the disabled Repair and the Danger "/ max" carry it.
+    // A hull shown read-only names its section and its condition, no more.
     let read_only = sections.read_only();
     let form = selected
         .as_ref()
@@ -1562,7 +1462,7 @@ pub(crate) fn update_ship_panel(
         .filter(|view| !busy(view))
         .filter(|view| plate_repair_limit(view.health.as_ref(), view.disabled, u32::MAX) > 0)
         .map(|view| {
-            let summary = requested
+            requested
                 .and_then(|requested| {
                     plan_plate_repair(view.health.as_ref(), view.disabled, requested, stock).ok()
                 })
@@ -1574,61 +1474,36 @@ pub(crate) fn update_ship_panel(
                         PLATE_REPAIR_SECS * repair.plates as f32
                     )
                 })
-                .unwrap_or_default();
-            let noun = if stock == 1 { "plate" } else { "plates" };
-            (format!("{stock} {noun} free in the hold"), summary)
+                .unwrap_or_default()
         });
     let title = match &selected {
         Some(view) => format!("{}  {}", view.code, view.name),
-        None => "No section selected".to_string(),
+        None => "--".to_string(),
     };
-    let control = selected
-        .as_ref()
-        .filter(|_| !read_only)
-        .and_then(|view| view.binding_text(&input_bindings));
-    runtime.panel_repair_enabled = actions.repair_enabled;
-    runtime.panel_repairable = form.is_some();
     // An UNBOUND weapon is the one that most needs a key, so a section that
     // takes a binding offers Rebind with or without one.
-    runtime.panel_rebind_enabled = !read_only
+    let rebind = !read_only
         && selected
             .as_ref()
             .is_some_and(|view| view.bindings.is_some());
-
-    // The armed rebind names its section over the view; the note line keeps
-    // a transient action result.
-    let prompt = runtime
-        .rebinding
-        .and_then(|target| sections.collect().into_iter().find(|v| v.entity == target))
-        .map(|view| {
-            let what = if view.name == view.code {
-                view.code
-            } else {
-                format!("{} {}", view.code, view.name)
-            };
-            // Backspace is the thruster's way back to the Main Drive
-            // (`apply_ship_rebind`).
-            if view.kind == SectionClass::Thruster {
-                format!("Press a key or button to bind {what}, Backspace for the Main Drive, Esc to cancel")
-            } else {
-                format!("Press a key or button to bind {what}, Esc to cancel")
-            }
-        });
-    let (note, note_color) = if prompt.is_some() {
-        (String::new(), UiColorType::TextMuted)
-    } else if let Some((note, _)) = &runtime.note {
-        (note.clone(), UiColorType::Accent)
-    } else {
-        (String::new(), UiColorType::TextMuted)
-    };
+    let control = selected
+        .as_ref()
+        .filter(|_| !read_only)
+        .and_then(|view| view.binding_text(&input_bindings))
+        .or_else(|| rebind.then(|| "--".to_string()));
+    runtime.panel_repair_enabled = actions.repair_enabled;
+    runtime.panel_repairable = form.is_some();
+    runtime.panel_rebind_enabled = rebind;
+    let delete_gate = runtime.delete_gate();
 
     for (field, mut node) in &mut q_part {
         let shown = match field {
             ShipPanelField::Control => control.is_some(),
             ShipPanelField::RepairForm => form.is_some(),
-            ShipPanelField::RebindPrompt => prompt.is_some(),
-            ShipPanelField::Salvage => runtime.delete_verdict.is_some(),
-            _ => true,
+            ShipPanelField::Salvage => delete_gate != VerbGate::Hidden,
+            // `update_ship_rebind_prompt` owns the banner.
+            ShipPanelField::RebindPrompt => continue,
+            ShipPanelField::Title | ShipPanelField::RepairPreview => true,
         };
         let display = if shown { Display::Flex } else { Display::None };
         if node.display != display {
@@ -1636,69 +1511,30 @@ pub(crate) fn update_ship_panel(
         }
     }
 
-    for (field, mut text, mut themed) in &mut q_text {
-        let (value, tint) = match field {
-            ShipPanelField::Title => (title.as_str(), UiColorType::Text),
-            ShipPanelField::Control => (control.as_deref().unwrap_or_default(), UiColorType::Text),
-            ShipPanelField::RepairStock => (
-                form.as_ref().map_or("", |(stock, _)| stock.as_str()),
-                UiColorType::Text,
-            ),
-            ShipPanelField::RepairPreview => (
-                form.as_ref().map_or("", |(_, summary)| summary.as_str()),
-                UiColorType::TextBody,
-            ),
-            ShipPanelField::Note => (note.as_str(), note_color),
-            ShipPanelField::RebindPrompt => {
-                (prompt.as_deref().unwrap_or_default(), UiColorType::Accent)
+    for (field, mut text) in &mut q_text {
+        let value = match field {
+            ShipPanelField::Title => title.as_str(),
+            ShipPanelField::Control => control.as_deref().unwrap_or_default(),
+            ShipPanelField::RepairPreview => form.as_deref().unwrap_or_default(),
+            ShipPanelField::RepairForm | ShipPanelField::Salvage | ShipPanelField::RebindPrompt => {
+                continue
             }
-            ShipPanelField::RepairForm | ShipPanelField::Salvage => continue,
         };
         if text.0 != value {
             text.0 = value.to_string();
         }
-        if themed.color != tint {
-            themed.color = tint;
-        }
     }
 
-    for (entity, button, disabled, lit, mut node, tooltip) in &mut q_button {
-        let enabled = match button {
-            ShipPanelButton::Repair => actions.repair_enabled,
-            ShipPanelButton::Rebind => runtime.panel_rebind_enabled,
-            // A refused delete is disabled: its tooltip says why.
-            ShipPanelButton::Delete => matches!(runtime.delete_verdict, Some(Ok(_))),
+    for (entity, button, mut gate, lit) in &mut q_verb {
+        let wanted = match button {
+            ShipPanelButton::Repair if actions.repair_enabled => VerbGate::Ready,
+            ShipPanelButton::Repair => VerbGate::Disabled,
+            ShipPanelButton::Rebind if rebind => VerbGate::Ready,
+            ShipPanelButton::Rebind => VerbGate::Hidden,
+            ShipPanelButton::Delete => delete_gate.clone(),
         };
-        if *button == ShipPanelButton::Delete {
-            let wanted = if runtime.delete_verdict.is_some() {
-                Display::Flex
-            } else {
-                Display::None
-            };
-            if node.display != wanted {
-                node.display = wanted;
-            }
-            // The reason while refused; empty while it holds, which shows no
-            // panel on hover.
-            if let Some(mut tooltip) = tooltip {
-                let reason = match runtime.delete_verdict() {
-                    Some(Err(reason)) => reason,
-                    _ => "",
-                };
-                if tooltip.0 != reason {
-                    tooltip.0 = reason.to_string();
-                }
-            }
-        }
+        gate.set_if_neq(wanted);
         if *button == ShipPanelButton::Rebind {
-            let wanted = if enabled {
-                Display::Flex
-            } else {
-                Display::None
-            };
-            if node.display != wanted {
-                node.display = wanted;
-            }
             // Lit while the capture waits, so the panel shows what owns the keys.
             let armed = runtime.rebinding.is_some();
             if armed && !lit {
@@ -1707,27 +1543,23 @@ pub(crate) fn update_ship_panel(
                 commands.entity(entity).remove::<Selected>();
             }
         }
-        // Runs every frame the pane owns the screen, so only a change in the
-        // enabled state touches the button.
-        if enabled && disabled {
-            commands.entity(entity).remove::<InteractionDisabled>();
-        } else if !enabled && !disabled {
-            commands.entity(entity).insert(InteractionDisabled);
-        }
     }
 
     // `GameItems` is absent only before content loads, when there is no
     // verdict to draw either (`update_ship_delete_verdict`).
     if let Some(items) = items.as_deref() {
-        let salvage = match runtime.delete_verdict() {
-            Some(Ok(parts)) => Some(
+        let salvage = match &runtime.delete_verdict {
+            Some(Ok(parts)) => Some(SalvageShown::Parts(
                 parts
                     .iter()
                     .filter(|(_, count)| **count > 0)
                     .map(|(item, count)| (item.clone(), *count))
-                    .collect::<BTreeMap<_, _>>(),
-            ),
-            _ => None,
+                    .collect(),
+            )),
+            Some(Err(refusal)) => refusal
+                .hold
+                .map(|(need_g, free_g)| SalvageShown::Hold { need_g, free_g }),
+            None => None,
         };
         for (entity, mut drawn) in &mut q_tiles {
             if drawn.0 == salvage {
@@ -1737,13 +1569,24 @@ pub(crate) fn update_ship_panel(
                 .entity(entity)
                 .despawn_related::<Children>()
                 .with_children(|row| match &salvage {
-                    Some(parts) if parts.is_empty() => {
-                        row.spawn(text("nothing to salvage", TextRole::Body));
+                    Some(SalvageShown::Parts(parts)) if parts.is_empty() => {
+                        row.spawn(text("None", TextRole::Body));
                     }
-                    Some(parts) => {
+                    Some(SalvageShown::Parts(parts)) => {
                         for (item, count) in parts {
                             spawn_part_tile(row, &icons, items, item, &format!("+{count}"));
                         }
+                    }
+                    Some(SalvageShown::Hold { need_g, free_g }) => {
+                        spawn_kv(
+                            row,
+                            "Hold",
+                            text(
+                                format!("{} / {}", kg_text(*free_g), kg_text(*need_g)),
+                                TextRole::Value,
+                            ),
+                        )
+                        .insert(Short(true));
                     }
                     None => {}
                 });
@@ -1751,58 +1594,53 @@ pub(crate) fn update_ship_panel(
         }
     }
 
-    for (entity, range, value, mut node) in &mut q_slider {
-        let display = if limit > 1 {
-            Display::Flex
-        } else {
-            Display::None
+    for (row, mut amount) in &mut q_amount {
+        let wanted = Amount {
+            value: requested.unwrap_or(1).clamp(1, limit.max(1)),
+            min: 1,
+            max: limit,
         };
-        if node.display != display {
-            node.display = display;
+        if *amount != wanted {
+            *amount = wanted;
         }
-        let wanted = SliderRange::new(1.0, limit.max(1) as f32);
-        if *range != wanted {
-            commands.entity(entity).insert(wanted);
-        }
-        // Invalid text keeps the last whole number on the slider.
-        if let Some(requested) = requested {
-            let shown = requested.clamp(1, limit.max(1)) as f32;
-            if value.0 != shown {
-                commands.entity(entity).insert(SliderValue(shown));
+        for part in q_children.iter_descendants(row) {
+            if form.is_none() && q_focused.contains(part) {
+                commands.entity(part).remove::<TextFieldFocused>();
+            }
+            if let Ok(short) = q_top.get(part) {
+                let wanted = Short(form.is_some() && limit == 0);
+                if short != Some(&wanted) {
+                    commands.entity(part).insert(wanted);
+                }
             }
         }
     }
+}
 
-    for (entity, mut value, focused, marked) in &mut q_field {
-        if form.is_none() {
-            if focused {
-                commands.entity(entity).remove::<TextFieldFocused>();
-            }
-            continue;
-        }
-        let Some(requested) = requested else {
-            if !marked {
-                commands
-                    .entity(entity)
-                    .insert(TextFieldError(String::new()));
-            }
-            continue;
-        };
-        if marked {
-            commands.entity(entity).remove::<TextFieldError>();
-        }
-        if value.trim().parse::<u32>().ok() == Some(requested) {
-            continue;
-        }
-        value.0 = requested.to_string();
-        if focused {
-            commands
-                .entity(entity)
-                .insert(TextFieldFocused::at_end(&value.0));
-        }
+/// Fill the panel head from the selection: its family icon and its
+/// condition bar in its status colour. With no selection the head shows no
+/// icon and an empty bar.
+#[expect(
+    clippy::type_complexity,
+    reason = "the preview icon, the bar and its fill"
+)]
+pub(crate) fn update_ship_panel_head(
+    runtime: Res<ShipRuntime>,
+    sections: ShipSections,
+    icons: Res<InterfaceIcons>,
+    mut q_preview: Query<
+        (&mut ImageNode, &mut ThemedImageTint, &mut Visibility),
+        With<ShipPreviewIcon>,
+    >,
+    mut q_bar: Query<(&mut Bar, &Children), With<ShipConditionBar>>,
+    mut q_bar_fill: Query<&mut ThemedFill, With<BarFill>>,
+) {
+    if !runtime.active {
+        return;
     }
-
-    // With no selection the head shows no family icon and an empty bar.
+    let selected = runtime
+        .selected
+        .and_then(|sel| sections.collect().into_iter().find(|v| v.entity == sel));
     let wanted = if selected.is_some() {
         Visibility::Inherited
     } else {
@@ -1813,12 +1651,23 @@ pub(crate) fn update_ship_panel(
             *visibility = wanted;
         }
     }
-    let Some(view) = selected else {
-        for (mut node, _) in &mut q_bar {
-            if node.width != Val::Percent(0.0) {
-                node.width = Val::Percent(0.0);
+    let (fraction, status_color) = match &selected {
+        Some(view) => (view.integrity().unwrap_or(1.0), view.status_color()),
+        None => (0.0, UiColorType::Nominal),
+    };
+    for (mut bar, children) in &mut q_bar {
+        if bar.0 != fraction {
+            bar.0 = fraction;
+        }
+        for &child in children {
+            if let Ok(mut fill) = q_bar_fill.get_mut(child) {
+                if fill.color != status_color {
+                    fill.color = status_color;
+                }
             }
         }
+    }
+    let Some(view) = selected else {
         return;
     };
     let icon = SectionIconType::of(view.kind);
@@ -1831,15 +1680,62 @@ pub(crate) fn update_ship_panel(
             tint.color = icon.color();
         }
     }
-    let width = Val::Percent(view.integrity().unwrap_or(1.0) * 100.0);
-    let status_color = view.status_color();
-    for (mut node, mut fill) in &mut q_bar {
-        if node.width != width {
-            node.width = width;
+}
+
+/// Fill the rebind banner while a capture is armed: `Bind` and the section,
+/// the keys that end it, and the tag of a refused source.
+#[expect(
+    clippy::type_complexity,
+    reason = "the banner row, its text, its thruster key and its refusal tag"
+)]
+pub(crate) fn update_ship_rebind_prompt(
+    runtime: Res<ShipRuntime>,
+    sections: ShipSections,
+    mut q_row: Query<
+        (&ShipPanelField, &mut Node),
+        (
+            Without<Text>,
+            Without<ShipRebindDriveKey>,
+            Without<ShipRebindRefusal>,
+        ),
+    >,
+    mut q_text: Query<(&ShipPanelField, &mut Text)>,
+    mut q_key: Query<&mut Node, (With<ShipRebindDriveKey>, Without<ShipRebindRefusal>)>,
+    mut q_refusal: Query<(&ShipRebindRefusal, &mut Node), Without<ShipRebindDriveKey>>,
+) {
+    if !runtime.active {
+        return;
+    }
+    let armed = runtime
+        .rebinding
+        .and_then(|target| sections.collect().into_iter().find(|v| v.entity == target));
+    let show = |node: &mut Node, shown: bool| {
+        let display = if shown { Display::Flex } else { Display::None };
+        if node.display != display {
+            node.display = display;
         }
-        if fill.color != status_color {
-            fill.color = status_color;
+    };
+    for (field, mut node) in &mut q_row {
+        if *field == ShipPanelField::RebindPrompt {
+            show(&mut node, armed.is_some());
         }
+    }
+    let Some(view) = armed else {
+        return;
+    };
+    let label = format!("Bind {}", view.code);
+    for (field, mut text) in &mut q_text {
+        if *field == ShipPanelField::RebindPrompt && text.0 != label {
+            text.0.clone_from(&label);
+        }
+    }
+    // Backspace is the thruster's way back to the Main Drive
+    // (`apply_ship_rebind`).
+    for mut node in &mut q_key {
+        show(&mut node, view.kind == SectionClass::Thruster);
+    }
+    for (refusal, mut node) in &mut q_refusal {
+        show(&mut node, runtime.rebind_refused == Some(refusal.0));
     }
 }
 

@@ -11,11 +11,11 @@
 //! palette, each with its recipe items. A part the station does not build, or
 //! whose recipe the player's hold and the station's stock together cannot
 //! carry ([`plan_recipe_payment`] finds a missing part), is listed muted with
-//! that reason and cannot be placed. Credits do not mute: a part the ship
-//! cannot pay for shows the credit refusal as its note; a payable one, its
-//! price. A placeable part that can replace the selected section offers Swap
-//! with its price as the focus card's second verb, or, when the swap is
-//! refused, a second note line that says why.
+//! one tag word and cannot be placed. Credits do not mute: a part the ship
+//! cannot pay for and a payable one both show the price. A placeable part
+//! that can replace the selected section offers Swap with its price as the
+//! focus card's second verb, or, when the swap is refused for a cause of its
+//! own, a second note line with the section and the tag word.
 //!
 //! Place puts the part in hand ([`HeldPart`]); the placement ghost
 //! (`super::ghost`) shows where a click adds it. Swap raises a
@@ -35,8 +35,8 @@ use nova_ship::prelude::*;
 use nova_ui::theme::{ActiveUiTheme, UiColorType};
 
 use super::{
-    rebuild::{payment_refusal_text, StationSite},
-    refit::{swap_refusal_text, SectionSwapCommand},
+    rebuild::StationSite,
+    refit::{payment_refusal_tag, swap_refusal_tag, SectionSwapCommand},
     scene::ShipRuntime,
     sections::{design_section_code, ShipViewSubject},
 };
@@ -135,13 +135,9 @@ fn station_listing(
                     entry.alternate = Some(format!("Swap {code}, {}", cr_text(payment.price_cr)));
                 }
                 Err(refusal) => {
-                    entry.note.push('\n');
-                    entry.note.push_str(&swap_refusal_text(
-                        items,
-                        &code,
-                        &offered.base.name,
-                        &refusal,
-                    ));
+                    if let Some(tag) = swap_refusal_tag(&refusal) {
+                        entry.note.push_str(&format!("\nSwap {code}  {tag}"));
+                    }
                 }
             }
         }
@@ -154,9 +150,9 @@ fn station_listing(
 /// stock `stock`/`stock_cr`, against the ship's `own`/`own_cr`, without a
 /// swap. Reasons in `SectionAddRefusalType` order: not built, then payment.
 /// A part not built or short of a recipe item cannot be placed and has no
-/// tile line; its note is the disabled Place's tooltip. A credit refusal
-/// stays placeable with the credits it needs on its tile, and the placement
-/// ghost refuses the click.
+/// tile line; its tag word is the disabled Place's tooltip. A credit refusal
+/// stays placeable with its price on its tile, and the placement ghost
+/// refuses the click.
 fn offered_entry(
     items: &GameItems,
     icons: &InterfaceIcons,
@@ -167,16 +163,11 @@ fn offered_entry(
     own: &ShipInventory,
     own_cr: u32,
 ) -> GalleryEntry {
-    let name = &offered.base.name;
     let recipe = &offered.base.build;
     let built = builds.contains(&offered.base.id);
     let rows = recipe_items(items, icons, recipe, built.then_some((stock, own)));
     let (tile, note, placeable) = if !built {
-        (
-            None,
-            "This station cannot craft this section".to_string(),
-            false,
-        )
+        (None, "NOT BUILT".to_string(), false)
     } else {
         match plan_recipe_payment(items, recipe, stock, stock_cr, own, own_cr) {
             Ok(payment) => (
@@ -186,11 +177,8 @@ fn offered_entry(
             ),
             Err(refusal) => {
                 let placeable = !matches!(refusal, RecipePaymentRefusalType::MissingParts { .. });
-                (
-                    placeable.then(|| tile_refusal_text(&refusal)),
-                    payment_refusal_text(items, name, &refusal),
-                    placeable,
-                )
+                let tag = payment_refusal_tag(&refusal);
+                (placeable.then(|| tag.clone()), tag, placeable)
             }
         }
     };
@@ -242,18 +230,6 @@ fn recipe_items(
             }
         })
         .collect()
-}
-
-/// Why a part cannot be paid, in the few words its gallery tile has room for.
-/// The focus card gives the whole reason.
-pub(crate) fn tile_refusal_text(refusal: &RecipePaymentRefusalType) -> String {
-    match refusal {
-        RecipePaymentRefusalType::MissingParts { .. } => "Short of parts".to_string(),
-        RecipePaymentRefusalType::InsufficientCredits { need, .. } => {
-            format!("Needs {}", cr_text(*need))
-        }
-        RecipePaymentRefusalType::CreditOverflow => "Price too high".to_string(),
-    }
 }
 
 /// Show the Catalogue button while the ship is docked at a living station
@@ -528,7 +504,7 @@ mod tests {
     }
 
     /// A part the station does not build is listed muted with no tile line,
-    /// whatever both holds carry, and its note is the concise reason. Nothing
+    /// whatever both holds carry, and its note is one tag word. Nothing
     /// is ever bought for it, so its recipe rows carry no supply.
     #[test]
     fn a_part_the_station_does_not_build_is_listed_muted_with_its_reason() {
@@ -550,7 +526,7 @@ mod tests {
 
         assert!(!entry.placeable);
         assert_eq!(entry.tile, None);
-        assert_eq!(entry.note, "This station cannot craft this section");
+        assert_eq!(entry.note, "NOT BUILT");
         assert_eq!(
             rows(&entry),
             [
@@ -561,11 +537,10 @@ mod tests {
         );
     }
 
-    /// A built part neither hold covers is muted with no tile line, its note
-    /// names the first short item and by how many, and its rows say which
-    /// item is short.
+    /// A built part neither hold covers is muted with no tile line and the
+    /// `PARTS` tag, and its rows say which item is short and by how many.
     #[test]
-    fn a_part_short_of_a_recipe_item_names_the_item_and_the_shortfall() {
+    fn a_part_short_of_a_recipe_item_is_muted_and_its_row_shows_the_shortfall() {
         let items = test_items();
         let own = hold(&items, &[("SectionPanel", 1)]);
         let stock = hold(&items, &[("TurretBody", 1), ("TurretBarrel", 1)]);
@@ -582,10 +557,7 @@ mod tests {
 
         assert!(!entry.placeable);
         assert_eq!(entry.tile, None);
-        assert_eq!(
-            entry.note,
-            "PDC needs 1 more Section panel than both holds carry"
-        );
+        assert_eq!(entry.note, "PARTS");
         let panel_ask = items.design(&"SectionPanel".into()).reference_price();
         assert_eq!(
             rows(&entry)[0],
@@ -659,8 +631,8 @@ mod tests {
         let entry = offered_entry(&items, &icons(), &pdc(), &builds_pdc(), &stock, 0, &own, 50);
 
         assert!(entry.placeable);
-        assert_eq!(entry.tile.as_deref(), Some("Needs 300 cr"));
-        assert_eq!(entry.note, "PDC costs 300 cr, the ship holds 50 cr");
+        assert_eq!(entry.tile.as_deref(), Some("300 cr"));
+        assert_eq!(entry.note, "300 cr");
         assert_eq!(entry.recipe.len(), 3);
     }
 }

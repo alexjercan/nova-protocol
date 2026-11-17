@@ -8,7 +8,6 @@
 //! Touch this module when adding a section fact the Ship pane displays.
 
 use bevy::{ecs::system::SystemParam, prelude::*};
-use nova_command::prelude::*;
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
 use nova_input::prelude::{InputBindings, InputSource};
@@ -517,28 +516,8 @@ pub struct SectionRepairCommand {
     pub requested_plates: u32,
 }
 
-/// The note line for a refused repair; the panel and the handler share it.
-pub(crate) fn repair_refusal_text(code: &str, refusal: PlateRepairRefusalType) -> String {
-    match refusal {
-        PlateRepairRefusalType::NoIntegrity => {
-            format!("repair: {code} has no integrity to restore")
-        }
-        PlateRepairRefusalType::Destroyed => format!("repair: {code} is destroyed"),
-        PlateRepairRefusalType::Full => format!("repair: {code} is at full integrity"),
-        PlateRepairRefusalType::NoPlates => {
-            "repair: no hull plates selected or free in the hold".to_string()
-        }
-        PlateRepairRefusalType::InsufficientPlates => {
-            format!("repair: {code} request exceeds the free hull plates")
-        }
-        PlateRepairRefusalType::ExcessPlates => {
-            format!("repair: {code} request exceeds live missing integrity")
-        }
-    }
-}
-
 /// Start a plate repair job on a section by the [`plan_plate_repair`] rule,
-/// or change nothing. `free_plates` is the plates no running job has queued
+/// or `None`: a refusal changes nothing. `free_plates` is the plates no running job has queued
 /// ([`ShipRepairJobs::free_hold`]), and `busy` is true while the section
 /// already has a job. The job spends nothing now: the repair job tick fits
 /// one plate per [`PLATE_REPAIR_SECS`] while the game clock runs.
@@ -550,15 +529,10 @@ pub(crate) fn start_plate_repair(
     busy: bool,
     requested_plates: u32,
     free_plates: u32,
-) -> Result<RepairJob, TerminalRow> {
-    let refused = |text| TerminalRow {
-        kind: TerminalRowKind::Error,
-        text,
-    };
+) -> Option<RepairJob> {
     if busy {
-        return Err(refused(format!("repair: {code} is already under repair")));
+        return None;
     }
-    let repair = plan_plate_repair(health, disabled, requested_plates, free_plates)
-        .map_err(|refusal| refused(repair_refusal_text(code, refusal)))?;
-    Ok(RepairJob::plates(section, code.to_string(), repair.plates))
+    let repair = plan_plate_repair(health, disabled, requested_plates, free_plates).ok()?;
+    Some(RepairJob::plates(section, code.to_string(), repair.plates))
 }

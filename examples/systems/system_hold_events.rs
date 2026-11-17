@@ -490,8 +490,8 @@ mod walk {
         .until(frames(SETTLE_FRAMES))
         .add()
         .click_named(
-            "hold_events: repair: draft all",
-            "ShipRepairAll",
+            "hold_events: repair: draft max",
+            "ShipRepairMax",
             pointer_released(),
             SESSION_SECS,
         )

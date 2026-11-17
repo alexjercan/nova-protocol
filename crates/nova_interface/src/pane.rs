@@ -965,10 +965,6 @@ pub(crate) fn view_split() -> Node {
     }
 }
 
-/// Lines an action form's summary reserves, so a one-line result and a
-/// two-line one leave the form's action button in place.
-pub(crate) const SUMMARY_LINES: f32 = 3.0;
-
 /// Height of the Map and Ship footer, in logical px. Fixed, so a legend or a
 /// hint that wraps cannot push the view up.
 const PANE_FOOTER_PX: f32 = 96.0;

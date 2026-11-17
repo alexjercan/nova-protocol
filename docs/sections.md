@@ -68,8 +68,8 @@ half, a pad button keeps the key. Every common pad button but Right Trigger 2
 (the guns' trigger, which sections may share) belongs to a Flight or Always
 action and is refused.
 
-The Ship pane (`nova_interface/src/ship/rebuild.rs`) lists every lost
-section, and plans its rebuild by `plan_section_rebuild`
+The Ship pane's Lost block (`nova_interface/src/ship/rebuild.rs`) lists
+every lost section as one row (code, price or field time, Rebuild), and plans its rebuild by `plan_section_rebuild`
 (`nova_gameplay::inventory`) at the site the ship is at
 (`RebuildSiteType`). Both sites read `lost_section_facts`
 (`design_sections.rs`): the section must be lost, and `rebuild_anchored` must
@@ -91,6 +91,12 @@ find a live mate for its sockets.
   plans the rebuild again, takes the parts, pushes `Rebuilt` at price 0 and
   triggers the same `SectionRebuildRequest`. A refusal at the end takes
   nothing.
+
+A short part or short credits disable a row's Rebuild with the short number
+in Danger, no live mate tags it `NO MOUNT`, and a part the station does not
+build has no Rebuild (`rebuild_row_refusal`). A section a field rebuild
+works on has no row: its Repairs row shows it. Docked at a hull without
+`Rebuild`, the block hides.
 
 `rebuild_design_section` (`nova_scenario`) observes the request and spawns
 the section again at full health through the same per-section spawn the ship
@@ -132,11 +138,12 @@ lacks. A reason the chain does not reach is `unfixed`: the only such section
 is live but `SectionInactiveMarker`. A player ship gets that marker only from
 a derelict design or a frozen inactive flag; integrity destroys a depleted
 section and severs a cut-off one into a wreck, so both are lost and the
-chain reaches them. The click refuses an unfixed quote with a pane note,
+chain reaches them. Call SOS is tagged `NO FIX` for an unfixed quote,
 because the rescue rebuilds only lost sections and must not dock a ship that
 still cannot fly. Otherwise the click asks `find_rescue_station`
 (`nova_world_base/src/rescue.rs`) for the nearest living station whose
-civilization is not Enemy to the player, and inserts a `ShipRescueCall`
+civilization is not Enemy to the player (with none, Call SOS is tagged
+`NO STATION` until the block leaves the offer), and inserts a `ShipRescueCall`
 (`nova_ship/src/sections/rescue_call.rs`) naming it and the chain.
 `advance_ship_rescue_call` (`RescueSystems`) runs it for `RESCUE_SECS` on
 `Time<Virtual>`; `RescueCallCancelRequest` ends it for free, and
@@ -193,7 +200,8 @@ Catalogue button, left of Fit and Reset, opens the parts gallery
 (`nova_interface/src/ship/catalogue.rs`). A placeable part the
 selected live section can be swapped for gets Swap as the focus card's second
 verb (`GalleryAlternate`), labelled with the swap price
-(`Swap PDC-2, 100 cr`), or a second note line with the swap refusal, when
+(`Swap PDC-2, 100 cr`), or a second note line with the refusal's tag word
+(`Swap PDC-2  SPLITS`, `swap_refusal_tag`), when
 `section_swap_family`
 accepts the part, and only when the part's prototype is in the station's
 `StationBuilds` (`nova_gameplay::markers`, read through
@@ -231,18 +239,17 @@ whose recipe the player's hold and the station's stock together cannot carry
 (`plan_recipe_payment` finds a missing part), has `placeable: false`: its
 tile text, border and focus card title are muted, a theme surface veil greys
 its 3D preview, it has no `tile` line, Place on its card is disabled with the
-`note` as its tooltip (`This station cannot craft this section`, or the
-missing-part refusal), the tile itself carries that same `note` as its hover
-tooltip, and Enter and Q do not take it. Credits do not mute: a part the ship
-cannot pay for stays placeable with `Needs 400 cr` on its tile and the credit
-refusal as its note. A station `builds` id that `GameSections` lacks panics
+`note` as its tooltip (`NOT BUILT`, or `PARTS` for a missing part), the tile
+itself carries that same `note` as its hover tooltip, and Enter and Q do not
+take it. Credits do not mute: a part the ship cannot pay for stays placeable
+with the credits it needs (`400 cr`) on its tile and as its note. A station `builds` id that `GameSections` lacks panics
 when the catalogue opens; station lint refuses it first. Every tile's label
 strip is a fixed height (`LABEL_H`): the name sits left on one clipped line,
-with the `GalleryEntry.tile` line (a price or a refusal such as `Needs 300
-cr`) right-aligned beside it when the part has one, and the category sits
+with the `GalleryEntry.tile` line (a price, or the credits a short ship
+needs, such as `300 cr`) right-aligned beside it when the part has one, and the category sits
 alone on the line below. A placeable `GalleryEntry` carries a short `tile`
-line, its price (`180 cr`) or credit refusal, and the price or the whole
-refusal as the focus card's `note`. Its `recipe` packs one `GalleryRecipeItem`
+line, its price (`180 cr`) or the credits it needs, and the same as the
+focus card's `note`. Its `recipe` packs one `GalleryRecipeItem`
 row per item, with no gap, at the top of the card's clipping details: the
 item's icon, a quantity cell reading `covered/count` (covered is held plus
 bought, e.g. `1/2`, Danger-coloured when the item is short and Primary
@@ -259,8 +266,8 @@ apply: `From the hold N`, `Bought N at <ask> cr, <total> cr`, and
 `Missing N` (a short part is not placeable but its row stays at full alpha).
 `supply: None` is a part the station does not build: the row is muted, with
 the plain required count, no price and no tooltip. The split is
-pointer-only; a keyboard user reads the quantity and total cells, the whole
-refusal on the note line and the Swap button's price. Place on the focus
+pointer-only; a keyboard user reads the quantity and total cells, the
+note's tag word and the Swap button's price. Place on the focus
 card puts a part in hand (`HeldPart`, shared with the editor).
 While a part is in hand, the placement ghost
 (`nova_interface/src/ship/ghost.rs`) casts the pointer's ray into the Ship
@@ -295,18 +302,18 @@ ship-root space, within `PARTNER_REACH_MARGIN` cells of the ship's reach),
 and `sync_ship_station_blocks` draws the same boxes as dim outlines in the
 Ship view, not selectable. A swap does not check the station. The ghost block
 shows at the pose with a Nominal outline for a valid add and a Danger outline
-for a refusal, and its callout beside the pointer shows the refusal, or the
-price with the parts the hold gives and the parts bought at the station's ask
-(`RecipePayment`): the click buys exactly those, so it is the quick buy. A
-click with a valid ghost raises
-`SectionAddCommand`; a click with a refused ghost puts the refusal on the note
-line. A click on a section badge commits the same way (`commit_placement`),
+for a refusal, and its callout beside the pointer shows the price, or the
+refusal's tag word (`add_refusal_tag`: `TAKEN`, `BLOCKED`, `OVERLAP`, ...).
+The Placing block gives the parts the hold gives and the parts bought at the
+station's ask (`RecipePayment`): the click buys exactly those, so it is the
+quick buy. A click with a valid ghost raises
+`SectionAddCommand`; a click with a refused ghost buzzes and changes nothing. A click on a section badge commits the same way (`commit_placement`),
 since the badge stops the click. The part stays in hand for the next add. With
 no part in hand, a click on a block selects its section. While a part is in
 hand, the Ship panel shows the Placing block (`ship/held.rs`) in place of the
 selection: the part's icon and name, its price (the aimed placement's
 `RecipePayment`, else `plan_recipe_payment` of its recipe), the socket and
-roll of `ShipRuntime::mount`, and the note line; Delete is hidden.
+roll of `ShipRuntime::mount`; Delete is hidden.
 Q over empty space or Esc (`close_surface_from_menu_keys`, before it closes
 anything) puts the part away, and the footer names `Q/Esc Put away`.
 `plan_section_add` checks the gate, the fit, the binding and the payment (`plan_recipe_payment`,
@@ -359,23 +366,23 @@ mates, lowers the root's pinned health by its pool and despawns it.
 re-clads only the cells round the hole. No credits move. The per-frame
 `update_ship_delete_verdict` caches what a delete of the selection gives
 back or the refusal (`ShipRuntime::delete_verdict`, a `SectionDeleteRefusal`
-with the reason line and, for a split, the sections that would lose the
+with the Delete's `VerbGate` from `delete_gate`, the hold's free and needed
+grams for a full hold and, for a split, the sections that would lose the
 dock: every piece of `RefitBuildFaultType::Disconnected { pieces }` but the
-one holding the docked port), with or without a Refit dock. The Salvage
-block shows while there is a verdict, with the Delete button, a compact
-Danger button, as its action. When the delete can go, the block stacks one
-part tile per part it gives back down a column (`pane::spawn_part_tile`,
-the tile the Inventory strip block draws), or `nothing to salvage`, over an
-enabled Delete. When it refuses, Delete is muted with the reason as its `Tooltip`
-(`delete_refusal_text`: no prefix and no code, the title names the section),
-the Ship view outlines the severed sections with the refused ghost's Danger
-material (`update_ship_blocks`) and fills them with a translucent Danger fill
-(`sync_ship_target_face`, the block fill's only writer, which restores the
-family fill when the verdict clears; `ShipRuntime::delete_severed`), and the
-Delete key puts the same reason on the note line. The note after a delete
-(`delete::delete_yield_lines`) opens with `deleted <code> to the hold:` then
-one `+n Name` line per part, or reads `deleted <code>: nothing to salvage`
-when it gave back none.
+one holding the docked port), with or without a Refit dock. Away from a
+Refit dock the gate is `Hidden` and the Salvage block hides with it.
+Otherwise the block shows the Delete button, a Danger control, as its verb.
+When the delete can go, the block lays out one part tile per part it gives
+back (`pane::spawn_part_tile`, the tile the Inventory strip block draws), or
+`None`, over an enabled Delete. A split or a full hold disables Delete (the
+full hold shows `Hold` free / need in Danger); a last flight computer, last
+weapon, docked port or other build fault tags it (`LAST CTL`, `LAST WPN`,
+`PORT`, `build_fault_tag`). On a split the Ship view outlines the severed
+sections with the refused ghost's Danger material (`update_ship_blocks`) and
+fills them with a translucent Danger fill (`sync_ship_target_face`, the
+block fill's only writer, which restores the family fill when the verdict
+clears; `ShipRuntime::delete_severed`). The Delete key on a refused delete
+buzzes and changes nothing.
 
 ### Stripping a docked wreck
 

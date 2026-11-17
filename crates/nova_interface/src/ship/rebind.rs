@@ -7,11 +7,11 @@ use nova_input::prelude::{
 };
 use nova_ship::prelude::*;
 
-use super::ShipRuntime;
+use super::{ShipRuntime, REBIND_IN_USE, REBIND_RESERVED};
 
 /// What flying the ship already spends `source` on, read off the LIVE table -
 /// a player who rebinds the main drive frees Space for a section, and one who
-/// moves a verb ONTO a section's key must be told here.
+/// moves a verb ONTO a section's key is refused here.
 fn reserved_conflict(bindings: &InputBindings, source: InputSource) -> Option<String> {
     bindings
         .holder_in(ActionContext::Flight, source)
@@ -59,6 +59,7 @@ pub(crate) fn apply_ship_rebind(
     };
     if keys.just_pressed(KeyCode::Escape) {
         runtime.rebinding = None;
+        runtime.rebind_refused = None;
         runtime.rebind_awaiting_release = false;
         runtime.rebind_swallow = true;
         // The prompt going is the cancel's only sign.
@@ -87,8 +88,8 @@ pub(crate) fn apply_ship_rebind(
                 bindings: Vec::new(),
             });
             runtime.rebinding = None;
+            runtime.rebind_refused = None;
             runtime.rebind_swallow = true;
-            runtime.note = Some((format!("{} fires on the Main Drive", id.0), 2.5));
             return;
         }
     }
@@ -108,11 +109,16 @@ pub(crate) fn apply_ship_rebind(
     let ship = parent.parent();
     // A source flying the ship already spends: `RebindSurface::ShipPanel` is
     // where this panel's refusal stands against the editor's deliberate
-    // warn-instead-of-refuse.
+    // warn-instead-of-refuse. The capture stays armed under the refusal's tag.
     let held_by = reserved_conflict(&bindings, source);
+    let in_use = held_by.is_some();
     let verdict = rebind_verdict(RebindSurface::ShipPanel, source, held_by);
-    if let RebindVerdict::Refuse(line) = verdict {
-        runtime.note = Some((line, 2.5));
+    if let RebindVerdict::Refuse(_) = verdict {
+        runtime.rebind_refused = Some(if in_use {
+            REBIND_IN_USE
+        } else {
+            REBIND_RESERVED
+        });
         return;
     }
     // Each mining section deploys on its own key, so a key another emitter on
@@ -135,15 +141,8 @@ pub(crate) fn apply_ship_rebind(
                     && other_parent.parent() == ship
                     && other_mining.is_some_and(|binding| binding.0.contains(&source))
             });
-        if let Some((_, _, other_id, ..)) = other {
-            runtime.note = Some((
-                format!(
-                    "mining section {} already holds {}",
-                    other_id.0,
-                    source.readout_label()
-                ),
-                2.5,
-            ));
+        if other.is_some() {
+            runtime.rebind_refused = Some(REBIND_IN_USE);
             return;
         }
     }
@@ -209,8 +208,8 @@ pub(crate) fn apply_ship_rebind(
         bindings: binds,
     });
     runtime.rebinding = None;
+    runtime.rebind_refused = None;
     runtime.rebind_swallow = true;
-    runtime.note = Some((format!("Bound {} to {}", id.0, source.readout_label()), 2.5));
 }
 
 #[cfg(test)]
@@ -315,11 +314,10 @@ mod tests {
         world.run_system_once(apply_ship_rebind).unwrap();
 
         assert_eq!(world.resource::<ShipRuntime>().rebinding, Some(target));
-        assert!(world
-            .resource::<ShipRuntime>()
-            .note
-            .as_ref()
-            .is_some_and(|(note, _)| note.contains("flight control")));
+        assert_eq!(
+            world.resource::<ShipRuntime>().rebind_refused,
+            Some(REBIND_IN_USE)
+        );
     }
 
     /// One press must not deploy two emitters: a key another mining section
@@ -354,14 +352,7 @@ mod tests {
         );
         let runtime = world.resource::<ShipRuntime>();
         assert_eq!(runtime.rebinding, Some(keel), "the capture stays armed");
-        assert!(
-            runtime
-                .note
-                .as_ref()
-                .is_some_and(|(note, _)| note.contains("bow_beam")),
-            "{:?}",
-            runtime.note
-        );
+        assert_eq!(runtime.rebind_refused, Some(REBIND_IN_USE));
 
         // The gun fires on F; a mining key may share it.
         world
@@ -602,9 +593,6 @@ mod tests {
             .is_none());
         let runtime = world.resource::<ShipRuntime>();
         assert_eq!(runtime.rebinding, Some(thruster));
-        assert_eq!(
-            runtime.note.as_ref().map(|(note, _)| note.as_str()),
-            Some("Right Trigger is already bound to flight control: Main Drive")
-        );
+        assert_eq!(runtime.rebind_refused, Some(REBIND_IN_USE));
     }
 }

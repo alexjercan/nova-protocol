@@ -12,9 +12,9 @@ use bevy::{prelude::*, ui_widgets::Activate};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
-    prelude::{button, control_row, divider, text, TextRole},
+    prelude::{bar, button, control_row, metrics, spawn_block, text, Bar, TextRole},
     theme::UiColorType,
-    widget::{ButtonSpec, ThemedFill, ThemedRadius},
+    widget::ButtonSpec,
 };
 
 /// The Repairs block, hidden while the player ship runs no job.
@@ -35,37 +35,30 @@ pub(crate) enum ShipRepairJobField {
     Time(usize),
 }
 
-/// A row's progress bar fill, by the index of its job.
+/// A row's progress bar, by the index of its job.
 #[derive(Component, Clone, Copy)]
-pub(crate) struct ShipRepairJobFill(usize);
+pub(crate) struct ShipRepairJobBar(usize);
 
-/// Build the Repairs block: a title and the rows [`update_ship_repair_jobs`]
-/// fills.
+/// Build the Repairs block: the rows [`update_ship_repair_jobs`] fills.
 pub(crate) fn spawn_ship_repair_jobs(panel: &mut ChildSpawnerCommands) {
-    panel
-        .spawn((
-            ShipRepairJobsBlock,
-            Name::new("ShipRepairJobs"),
+    let mut block = spawn_block(
+        panel,
+        "Repairs",
+        (ShipRepairJobsBlock, Name::new("ShipRepairJobs")),
+    );
+    block
+        .entry::<Node>()
+        .and_modify(|mut node| node.display = Display::None);
+    block.with_children(|block| {
+        block.spawn((
+            ShipRepairJobRows::default(),
             Node {
-                display: Display::None,
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(6.0),
-                flex_shrink: 0.0,
+                row_gap: Val::Px(metrics::GAP),
                 ..default()
             },
-        ))
-        .with_children(|block| {
-            block.spawn(divider());
-            block.spawn(text("Repairs", TextRole::Heading));
-            block.spawn((
-                ShipRepairJobRows::default(),
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(6.0),
-                    ..default()
-                },
-            ));
-        });
+        ));
+    });
 }
 
 /// The row label of `job`: its code and what it does, such as
@@ -91,10 +84,10 @@ pub(crate) fn update_ship_repair_jobs(
         (Entity, Option<&ShipRepairJobs>),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
-    mut q_block: Query<&mut Node, (With<ShipRepairJobsBlock>, Without<ShipRepairJobFill>)>,
+    mut q_block: Query<&mut Node, With<ShipRepairJobsBlock>>,
     mut q_rows: Query<(Entity, &mut ShipRepairJobRows)>,
     mut q_text: Query<(&ShipRepairJobField, &mut Text)>,
-    mut q_fill: Query<(&ShipRepairJobFill, &mut Node), Without<ShipRepairJobsBlock>>,
+    mut q_bar: Query<(&ShipRepairJobBar, &mut Bar)>,
 ) {
     let Ok(mut block) = q_block.single_mut() else {
         return;
@@ -141,11 +134,11 @@ pub(crate) fn update_ship_repair_jobs(
             }
         }
     }
-    for (fill, mut node) in &mut q_fill {
-        if let Some(job) = jobs.get(fill.0) {
-            let width = Val::Percent(job.progress() * 100.0);
-            if node.width != width {
-                node.width = width;
+    for (index, mut bar) in &mut q_bar {
+        if let Some(job) = jobs.get(index.0) {
+            let progress = job.progress();
+            if bar.0 != progress {
+                bar.0 = progress;
             }
         }
     }
@@ -156,7 +149,7 @@ fn spawn_job_row(parent: &mut ChildSpawnerCommands, player: Entity, index: usize
     parent
         .spawn(Node {
             flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(3.0),
+            row_gap: Val::Px(metrics::GAP_S),
             ..default()
         })
         .with_children(|row| {
@@ -190,28 +183,9 @@ fn spawn_job_row(parent: &mut ChildSpawnerCommands, player: Entity, index: usize
                     .observe(on_cancel_button(player, job.key()));
                 });
             row.spawn((
-                Node {
-                    height: Val::Px(6.0),
-                    flex_shrink: 0.0,
-                    overflow: Overflow::clip(),
-                    ..default()
-                },
-                BackgroundColor(Color::NONE),
-                ThemedFill::alpha(UiColorType::TextSecondary, 0.25),
-                ThemedRadius::control(),
-            ))
-            .with_children(|track| {
-                track.spawn((
-                    ShipRepairJobFill(index),
-                    Node {
-                        width: Val::Percent(job.progress() * 100.0),
-                        height: Val::Percent(100.0),
-                        ..default()
-                    },
-                    BackgroundColor(Color::NONE),
-                    ThemedFill::new(UiColorType::Accent),
-                ));
-            });
+                ShipRepairJobBar(index),
+                bar(job.progress(), UiColorType::Accent),
+            ));
         });
 }
 

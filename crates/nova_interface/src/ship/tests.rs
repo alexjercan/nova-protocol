@@ -15,11 +15,9 @@ use nova_input::prelude::{InputSource, RegisterInputActions};
 use nova_ship::prelude::*;
 use nova_sound::prelude::*;
 use nova_ui::{
+    prelude::{Amount, AmountChanged, AmountField, VerbGate},
     theme::{ActiveUiTheme, UiColorType},
-    widget::{
-        ButtonCueType, TextFieldError, TextFieldFocused, TextFieldValue, ThemedFill,
-        ThemedImageTint, Tooltip,
-    },
+    widget::{ButtonCueType, TextFieldFocused, ThemedFill, ThemedImageTint},
 };
 
 use super::{app::*, delete::SectionDeleteRefusal, scene::*, sections::*, *};
@@ -176,13 +174,6 @@ fn ship_repair_starts_a_plate_job_that_spends_nothing_up_front() {
             })
             .unwrap_or_default()
     };
-    let note = |app: &App| {
-        app.world()
-            .resource::<ShipRuntime>()
-            .note
-            .clone()
-            .map(|(text, _)| text)
-    };
     let stock = |count| {
         ShipInventory::new(
             &items,
@@ -197,10 +188,6 @@ fn ship_repair_starts_a_plate_job_that_spends_nothing_up_front() {
         queued(&app).is_empty(),
         "a repair with no plates is not queued"
     );
-    assert_eq!(
-        note(&app).as_deref(),
-        Some("repair: no hull plates selected or free in the hold")
-    );
 
     // Two commands in one frame: the first queues 1 plate on HULL-1 at 80/100,
     // the second sees that job and refuses.
@@ -209,22 +196,14 @@ fn ship_repair_starts_a_plate_job_that_spends_nothing_up_front() {
     assert_eq!(queued(&app), vec![(hull, 1)]);
     assert_eq!(health(&app, hull), 80.0, "a queued job fits nothing yet");
     assert_eq!(plates(&app, ship), 2, "a queued job spends nothing");
-    assert_eq!(
-        note(&app).as_deref(),
-        Some("repair: HULL-1 is already under repair")
-    );
 
     // PDC-1 at 12/60: 2 plates exceed the 1 plate the HULL-1 job leaves free;
     // 1 plate queues beside the HULL-1 job.
     repair(&mut app, &[(turret, 2)]);
-    assert_eq!(
-        note(&app).as_deref(),
-        Some("repair: PDC-1 request exceeds the free hull plates")
-    );
+    assert_eq!(queued(&app), vec![(hull, 1)]);
     repair(&mut app, &[(turret, 1)]);
     assert_eq!(queued(&app), vec![(hull, 1), (turret, 1)]);
     assert_eq!(health(&app, turret), 12.0);
-    assert_eq!(note(&app), None, "the job row shows a start");
 
     // A collapse-disabled section with HP left refuses and keeps its marker.
     app.world_mut().entity_mut(ship).insert(stock(5));
@@ -241,7 +220,6 @@ fn ship_repair_starts_a_plate_job_that_spends_nothing_up_front() {
         .world()
         .entity(thruster)
         .contains::<IntegrityDisabledMarker>());
-    assert_eq!(note(&app).as_deref(), Some("repair: THR-1 is destroyed"));
 
     // Another ship's section, a ship root and a despawned entity: silent, and
     // no job starts on either ship.
@@ -262,11 +240,9 @@ fn ship_repair_starts_a_plate_job_that_spends_nothing_up_front() {
         .id();
     let gone = app.world_mut().spawn_empty().id();
     app.world_mut().despawn(gone);
-    app.world_mut().resource_mut::<ShipRuntime>().note = None;
     repair(&mut app, &[(foreign, 1), (ship, 1), (gone, 1)]);
     assert!(app.world().get::<ShipRepairJobs>(other).is_none());
     assert_eq!(queued(&app).len(), 2);
-    assert_eq!(note(&app), None);
 }
 
 #[test]
@@ -1320,8 +1296,9 @@ fn a_split_delete_paints_the_cut_off_blocks_danger_and_restores_them() {
 
     app.world_mut().resource_mut::<ShipRuntime>().delete_verdict =
         Some(Err(SectionDeleteRefusal {
-            line: "Splits the ship: red sections lose the dock".to_string(),
+            gate: VerbGate::Disabled,
             severed: vec![turret],
+            hold: None,
         }));
     app.world_mut()
         .run_system_once(sync_ship_target_face)
@@ -1596,13 +1573,13 @@ fn panel_buttons_raise_section_repair_command() {
     assert_eq!(take_cues(&mut app), [UiSfx::MenuSelect]);
 }
 
-/// A refused delete mutes the Delete button with the reason as its tooltip,
-/// and neither a click on it nor the Delete key raises a command: the key puts
-/// the reason on the note line instead. An allowed delete enables the button
-/// with an empty tooltip, and the click and the key each raise one command for
-/// the selection.
+/// A refused delete wears its refusal's gate on the Delete button, and
+/// neither a click on it nor the Delete key raises a command. Away from a
+/// refit the gate hides the Salvage block. An allowed delete readies the
+/// button, and the click and the key each raise one command for the
+/// selection.
 #[test]
-fn a_refused_delete_mutes_the_button_with_its_reason_as_tooltip() {
+fn a_refused_delete_gates_the_button_and_raises_nothing() {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
@@ -1659,26 +1636,32 @@ fn a_refused_delete_mutes_the_button_with_its_reason_as_tooltip() {
         app.world_mut().run_system_once(ship_input).unwrap();
     };
 
-    let reason = "Last working flight computer";
-    {
+    let salvage_display = |app: &mut App| {
+        app.world_mut()
+            .query_filtered::<(&ShipPanelField, &Node), Without<Text>>()
+            .iter(app.world())
+            .find(|(field, _)| **field == ShipPanelField::Salvage)
+            .map(|(_, node)| node.display)
+            .expect("salvage block")
+    };
+    let refuse = |app: &mut App, gate: VerbGate| {
         let mut runtime = app.world_mut().resource_mut::<ShipRuntime>();
         runtime.active = true;
         runtime.selected = Some(turret);
         runtime.delete_verdict = Some(Err(SectionDeleteRefusal {
-            line: reason.to_string(),
+            gate,
             severed: Vec::new(),
+            hold: None,
         }));
-    }
+    };
+    refuse(&mut app, VerbGate::Tagged("LAST CTL"));
     app.update();
-    assert!(
-        app.world().entity(delete).contains::<InteractionDisabled>(),
-        "a refused delete mutes the button"
-    );
     assert_eq!(
-        app.world().get::<Tooltip>(delete).map(|tip| tip.0.as_str()),
-        Some(reason),
-        "the reason is the muted button's tooltip"
+        app.world().get::<VerbGate>(delete),
+        Some(&VerbGate::Tagged("LAST CTL")),
+        "a refused delete tags the button with its word"
     );
+    assert_eq!(salvage_display(&mut app), Display::Flex);
     app.world_mut().trigger(Activate { entity: delete });
     app.world_mut().flush();
     assert!(
@@ -1690,27 +1673,24 @@ fn a_refused_delete_mutes_the_button_with_its_reason_as_tooltip() {
         commands(&mut app).is_empty(),
         "the refused key raises nothing"
     );
+
+    refuse(&mut app, VerbGate::Hidden);
+    app.update();
     assert_eq!(
-        app.world().resource::<ShipRuntime>().note(),
-        Some(reason),
-        "the refused key puts the reason on the note line"
+        salvage_display(&mut app),
+        Display::None,
+        "away from a refit the Salvage block takes no space"
     );
 
-    {
-        let mut runtime = app.world_mut().resource_mut::<ShipRuntime>();
-        runtime.delete_verdict = Some(Ok(std::collections::BTreeMap::new()));
-        runtime.note = None;
-    }
+    app.world_mut().resource_mut::<ShipRuntime>().delete_verdict =
+        Some(Ok(std::collections::BTreeMap::new()));
     app.update();
-    assert!(
-        !app.world().entity(delete).contains::<InteractionDisabled>(),
-        "an allowed delete enables the button"
-    );
     assert_eq!(
-        app.world().get::<Tooltip>(delete).map(|tip| tip.0.as_str()),
-        Some(""),
-        "an enabled Delete has no hover hint"
+        app.world().get::<VerbGate>(delete),
+        Some(&VerbGate::Ready),
+        "an allowed delete readies the button"
     );
+    assert_eq!(salvage_display(&mut app), Display::Flex);
     app.world_mut().trigger(Activate { entity: delete });
     app.world_mut().flush();
     assert_eq!(
@@ -1724,7 +1704,6 @@ fn a_refused_delete_mutes_the_button_with_its_reason_as_tooltip() {
         [turret],
         "the enabled key raises one command"
     );
-    assert_eq!(app.world().resource::<ShipRuntime>().note(), None);
 }
 
 #[test]
@@ -1806,9 +1785,20 @@ fn update_ship_panel_reflects_selection() {
         shown(&mut app, ShipPanelField::RepairForm),
         "a damaged hull shows the repair form"
     );
+    let amount = |app: &mut App| -> Amount {
+        *app.world_mut()
+            .query_filtered::<&Amount, With<ShipRepairQuantity>>()
+            .single(app.world())
+            .unwrap()
+    };
     assert_eq!(
-        field_text(&mut app, ShipPanelField::RepairStock),
-        "1 plate free in the hold"
+        amount(&mut app),
+        Amount {
+            value: 1,
+            min: 1,
+            max: 1
+        },
+        "the amount row runs to the one free plate"
     );
 
     // A damaged hull with plates caches repair ENABLED for the observer.
@@ -1824,19 +1814,13 @@ fn update_ship_panel_reflects_selection() {
     assert_eq!(field_text(&mut app, ShipPanelField::Control), "K / LMB");
     assert!(shown(&mut app, ShipPanelField::Control));
 
-    // Typed text that is not a whole number empties the draft, marks the
-    // field, disables Repair, and stays as typed while the field is focused.
-    let field = app
+    // A move of the amount row is the draft; one past the free plates
+    // disables Repair.
+    let row = app
         .world_mut()
-        .query_filtered::<Entity, (With<ShipRepairQuantity>, With<TextFieldValue>)>()
+        .query_filtered::<Entity, With<ShipRepairQuantity>>()
         .single(app.world())
         .unwrap();
-    // Written in place, as the widget types: a re-insert could read as added.
-    app.world_mut().get_mut::<TextFieldValue>(field).unwrap().0 = "x".to_string();
-    app.world_mut()
-        .entity_mut(field)
-        .insert(TextFieldFocused::at_end("x"));
-    app.update();
     let repair = app
         .world_mut()
         .query_filtered::<(Entity, &ShipPanelButton), Without<Text>>()
@@ -1844,25 +1828,36 @@ fn update_ship_panel_reflects_selection() {
         .find(|(_, button)| **button == ShipPanelButton::Repair)
         .map(|(entity, _)| entity)
         .expect("repair button");
-    assert_eq!(app.world().resource::<ShipRuntime>().requested_plates, None);
+    app.world_mut().resource_mut::<ShipRuntime>().selected = Some(hull);
+    app.update();
+    app.world_mut()
+        .resource_mut::<ShipRuntime>()
+        .requested_plates = Some(2);
+    app.update();
     assert!(!app.world().resource::<ShipRuntime>().panel_repair_enabled);
-    assert!(app.world().entity(repair).contains::<InteractionDisabled>());
-    assert!(app.world().entity(field).contains::<TextFieldError>());
-    assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "x");
+    assert_eq!(
+        app.world().get::<VerbGate>(repair),
+        Some(&VerbGate::Disabled)
+    );
     assert_eq!(field_text(&mut app, ShipPanelField::RepairPreview), "");
-
-    app.world_mut().get_mut::<TextFieldValue>(field).unwrap().0 = "1".to_string();
+    app.world_mut().trigger(AmountChanged {
+        entity: row,
+        value: 1,
+    });
     app.update();
     assert_eq!(
         app.world().resource::<ShipRuntime>().requested_plates,
         Some(1)
     );
     assert!(app.world().resource::<ShipRuntime>().panel_repair_enabled);
-    assert!(!app.world().entity(repair).contains::<InteractionDisabled>());
-    assert!(!app.world().entity(field).contains::<TextFieldError>());
+    assert_eq!(app.world().get::<VerbGate>(repair), Some(&VerbGate::Ready));
+    assert_eq!(
+        field_text(&mut app, ShipPanelField::RepairPreview),
+        "100/100 HP, 4 s"
+    );
 
     // A section selected at full integrity has no draft of its own yet. The
-    // damage that makes it repairable starts its draft at All, as in the
+    // damage that makes it repairable starts its draft at Max, as in the
     // Ship lesson where the turret is hurt after the pane selects it.
     app.world_mut().entity_mut(ship).insert(ShipInventory::new(
         &items,
@@ -1879,19 +1874,25 @@ fn update_ship_panel_reflects_selection() {
         Some(5),
         "92 missing HP at 20 HP a plate"
     );
-    assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "5");
+    assert_eq!(amount(&mut app).value, 5);
     assert!(app.world().resource::<ShipRuntime>().panel_repair_enabled);
 
-    // Later damage keeps the player's draft, even text that is not a number.
-    app.world_mut().get_mut::<TextFieldValue>(field).unwrap().0 = "x".to_string();
+    // Later damage keeps the player's draft.
+    app.world_mut().trigger(AmountChanged {
+        entity: row,
+        value: 2,
+    });
     app.update();
     app.world_mut().get_mut::<Health>(thruster).unwrap().current = 4.0;
     app.update();
-    assert_eq!(app.world().resource::<ShipRuntime>().requested_plates, None);
-    assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "x");
+    assert_eq!(
+        app.world().resource::<ShipRuntime>().requested_plates,
+        Some(2)
+    );
+    assert_eq!(amount(&mut app).value, 2);
 
     // A damaged section selected before the player ship's inventory exists
-    // starts at All once the inventory arrives, then keeps the player's text.
+    // starts at Max once the inventory arrives, then keeps the player's draft.
     app.world_mut().entity_mut(ship).remove::<ShipInventory>();
     app.world_mut().resource_mut::<ShipRuntime>().selected = Some(turret);
     app.update();
@@ -1907,14 +1908,19 @@ fn update_ship_panel_reflects_selection() {
         Some(3),
         "48 missing HP at 20 HP a plate"
     );
-    assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "3");
+    assert_eq!(amount(&mut app).value, 3);
     assert!(app.world().resource::<ShipRuntime>().panel_repair_enabled);
-    app.world_mut().get_mut::<TextFieldValue>(field).unwrap().0 = "x".to_string();
+    app.world_mut().trigger(AmountChanged {
+        entity: row,
+        value: 1,
+    });
     app.update();
     app.world_mut().get_mut::<Health>(turret).unwrap().current = 6.0;
     app.update();
-    assert_eq!(app.world().resource::<ShipRuntime>().requested_plates, None);
-    assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "x");
+    assert_eq!(
+        app.world().resource::<ShipRuntime>().requested_plates,
+        Some(1)
+    );
 }
 
 /// Build the same panel subtree as [`update_ship_panel_reflects_selection`],
@@ -1973,10 +1979,7 @@ fn update_ship_panel_shows_no_section_without_a_player_inventory() {
             .map(|(_, text)| text.0.clone())
             .expect("panel field text")
     };
-    assert_eq!(
-        field_text(&mut app, ShipPanelField::Title),
-        "No section selected"
-    );
+    assert_eq!(field_text(&mut app, ShipPanelField::Title), "--");
     assert!(!app.world().resource::<ShipRuntime>().panel_repair_enabled);
 }
 
@@ -1984,7 +1987,7 @@ fn update_ship_panel_shows_no_section_without_a_player_inventory() {
 fn update_ship_panel_blanks_the_preview_of_a_refused_draft() {
     // A section already at full integrity has no repair form; a damaged one
     // whose draft is refused keeps its form with a blank summary and Repair
-    // greyed: the stock line beside the count shows the shortfall.
+    // disabled.
     let items = test_items();
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
@@ -2116,7 +2119,7 @@ fn update_ship_panel_hides_the_repair_form_while_a_job_runs_on_the_section() {
 
     let field = app
         .world_mut()
-        .query_filtered::<Entity, (With<ShipRepairQuantity>, With<TextFieldValue>)>()
+        .query_filtered::<Entity, With<AmountField>>()
         .single(app.world())
         .unwrap();
     app.world_mut()
@@ -2393,4 +2396,222 @@ fn only_the_selected_section_spells_out_its_code() {
         }),
         "the raised pill belongs to the selected section"
     );
+}
+
+/// The section panel laid out by bevy_ui under both shipped themes, around a
+/// damaged hull docked at a refit with one plate free: the repair amount row
+/// is one line, every shown verb is one control high, and a hidden block (the
+/// hull's Control, the Distress of a ship that is not stranded, Salvage away
+/// from a refit) takes no space.
+#[test]
+fn ship_panel_blocks_lay_out_on_the_kit() {
+    use bevy::{
+        a11y::AccessibilityPlugin,
+        camera::{visibility::VisibilityPlugin, ComputedCameraValues, RenderTargetInfo},
+        image::TextureAtlasLayout,
+        math::UVec2,
+        text::TextPlugin,
+        ui::UiPlugin,
+        window::{PrimaryWindow, WindowEvent, WindowResolution},
+    };
+    use nova_ui::{
+        prelude::metrics::CONTROL_H,
+        theme::{
+            base::base_ui_themes, GameUiThemes, SelectedUiTheme, HARDWARE_THEME_ID,
+            PHOSPHOR_THEME_ID,
+        },
+        NovaUiPlugin,
+    };
+
+    const WINDOW: UVec2 = UVec2::new(1280, 1000);
+    for theme in [PHOSPHOR_THEME_ID, HARDWARE_THEME_ID] {
+        let items = test_items();
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            AssetPlugin::default(),
+            TransformPlugin,
+            AccessibilityPlugin,
+            VisibilityPlugin,
+            InputPlugin,
+            bevy::picking::input::PointerInputPlugin,
+            bevy::picking::PickingPlugin,
+            bevy::picking::InteractionPlugin,
+            TextPlugin,
+            UiPlugin,
+            NovaUiPlugin,
+        ));
+        app.add_message::<WindowEvent>();
+        app.init_asset::<Image>().init_asset::<TextureAtlasLayout>();
+        app.init_asset::<Mesh>()
+            .init_asset::<bevy::mesh::skinning::SkinnedMeshInverseBindposes>();
+        app.insert_resource(GameUiThemes(base_ui_themes()));
+        app.insert_resource(SelectedUiTheme(theme.to_string()));
+        app.world_mut().spawn((
+            Window {
+                resolution: WindowResolution::new(WINDOW.x, WINDOW.y),
+                ..default()
+            },
+            PrimaryWindow,
+        ));
+        app.world_mut().spawn((
+            Camera2d,
+            Camera {
+                computed: ComputedCameraValues {
+                    target_info: Some(RenderTargetInfo {
+                        physical_size: WINDOW,
+                        scale_factor: 1.0,
+                    }),
+                    ..default()
+                },
+                ..default()
+            },
+            IsDefaultUiCamera,
+        ));
+        app.init_resource::<ShipRuntime>();
+        app.init_resource::<ShipViewSubject>();
+        app.init_resource::<HeldPart>();
+        app.insert_resource(InterfaceIcons::blank());
+        app.insert_resource(test_items());
+        app.insert_resource(nova_input::prelude::InputBindings::from_actions(
+            flight_bindings(),
+        ));
+        app.add_systems(Update, (update_ship_panel, update_ship_panel_head).chain());
+        let (ship, hull, _turret, _thruster) = spawn_scripted_ship(app.world_mut());
+        app.world_mut().entity_mut(ship).insert(ShipInventory::new(
+            &items,
+            400_000,
+            [(ItemDesignId::from(ItemRoleType::HullPlate), 1)],
+        ));
+        app.world_mut()
+            .run_system_once(assign_section_codes)
+            .unwrap();
+        let root = app
+            .world_mut()
+            .spawn(Node {
+                width: Val::Px(360.0),
+                height: Val::Px(WINDOW.y as f32),
+                ..default()
+            })
+            .id();
+        app.world_mut()
+            .run_system_once(move |mut commands: Commands| {
+                commands
+                    .entity(root)
+                    .with_children(|parent| spawn_ship_panel(parent, &InterfaceIcons::blank()));
+            })
+            .unwrap();
+        {
+            let mut runtime = app.world_mut().resource_mut::<ShipRuntime>();
+            runtime.active = true;
+            runtime.selected = Some(hull);
+            runtime.delete_verdict = Some(Ok(std::collections::BTreeMap::new()));
+        }
+        for _ in 0..4 {
+            app.update();
+        }
+
+        let size = |app: &App, entity: Entity| {
+            app.world()
+                .get::<ComputedNode>(entity)
+                .expect("a laid-out node")
+                .size()
+        };
+        let centre_y = |app: &App, entity: Entity| {
+            let node = app.world().get::<ComputedNode>(entity).unwrap();
+            app.world()
+                .get::<UiGlobalTransform>(entity)
+                .unwrap()
+                .translation
+                .y
+                * node.inverse_scale_factor()
+        };
+        let named = |app: &mut App, name: &str| {
+            app.world_mut()
+                .query::<(Entity, &Name)>()
+                .iter(app.world())
+                .find(|(_, n)| n.as_str() == name)
+                .map(|(entity, _)| entity)
+                .unwrap_or_else(|| panic!("{theme}: a node named {name}"))
+        };
+
+        let row = app
+            .world_mut()
+            .query_filtered::<Entity, With<ShipRepairQuantity>>()
+            .single(app.world())
+            .unwrap();
+        let row_centre = centre_y(&app, row);
+        assert!(size(&app, row).y > 0.0, "{theme}: the repair row shows");
+        for name in [
+            "ShipRepairField",
+            "ShipRepairTop",
+            "ShipRepairSlider",
+            "ShipRepairMax",
+        ] {
+            let part = named(&mut app, name);
+            let centre = centre_y(&app, part);
+            assert!(
+                (centre - row_centre).abs() <= 0.5,
+                "{theme}: {name} centres at {centre}, the row at {row_centre}"
+            );
+        }
+
+        let buttons: Vec<(Entity, Option<String>)> = app
+            .world_mut()
+            .query_filtered::<(Entity, Option<&Name>), With<Button>>()
+            .iter(app.world())
+            .map(|(entity, name)| (entity, name.map(|name| name.to_string())))
+            .collect();
+        let mut shown = Vec::new();
+        for (button, name) in buttons {
+            let height = size(&app, button).y;
+            if height > 0.0 {
+                assert!(
+                    (height - CONTROL_H).abs() <= 0.5,
+                    "{theme}: verb {name:?} is {height} px high"
+                );
+                shown.extend(name);
+            }
+        }
+        for name in ["ShipRepair", "ShipDelete", "ShipRepairMax"] {
+            assert!(
+                shown.iter().any(|shown| shown == name),
+                "{theme}: {name} is laid out ({shown:?})"
+            );
+        }
+
+        let block = |app: &mut App, field: ShipPanelField| {
+            app.world_mut()
+                .query_filtered::<(Entity, &ShipPanelField), Without<Text>>()
+                .iter(app.world())
+                .find(|(_, shown)| **shown == field)
+                .map(|(entity, _)| entity)
+                .expect("a panel block")
+        };
+        let control = block(&mut app, ShipPanelField::Control);
+        assert_eq!(
+            size(&app, control),
+            Vec2::ZERO,
+            "{theme}: a hull has no Control"
+        );
+        let distress = named(&mut app, "ShipRescue");
+        assert_eq!(size(&app, distress), Vec2::ZERO, "{theme}: no Distress");
+        let salvage = block(&mut app, ShipPanelField::Salvage);
+        assert!(size(&app, salvage).y > 0.0, "{theme}: Salvage shows docked");
+
+        app.world_mut().resource_mut::<ShipRuntime>().delete_verdict =
+            Some(Err(SectionDeleteRefusal {
+                gate: VerbGate::Hidden,
+                severed: Vec::new(),
+                hold: None,
+            }));
+        for _ in 0..2 {
+            app.update();
+        }
+        assert_eq!(
+            size(&app, salvage),
+            Vec2::ZERO,
+            "{theme}: away from a refit Salvage takes no space"
+        );
+    }
 }

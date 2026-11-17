@@ -20,7 +20,7 @@
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 0 | `outcome: a tab switch closes the catalogue and its camera` | on the Map tab and back on the Ship pane: no catalogue camera, no gallery host, the gallery state is closed |
-//! | 1 | `outcome: a cross-family swap is refused` | the note names both kinds; the design, the section, the holds and the balances are as they were |
+//! | 1 | `outcome: a cross-family swap is refused` | the design, the section, the holds and the balances are as they were |
 //! | 2 | `outcome: a section is swapped at a station` | `pdc_a` is a twin kinetic PDC at full health under its old code and its rebound key; the design is inline and names the new prototype; the parts and the price moved; `OnSwapped` fired once |
 //! | 3 | `outcome: a swapped section survives a freeze and thaw` | the thawed hull has `pdc_a` as a twin kinetic PDC at full health on the same key |
 //!
@@ -591,29 +591,10 @@ mod walk {
         });
     }
 
-    fn the_note_reads_swap() -> Arc<Predicate> {
-        when(|world| {
-            world
-                .resource::<ShipRuntime>()
-                .note()
-                .is_some_and(|note| note.starts_with("swap: "))
-        })
-    }
-
-    /// Claim 1: the refusal names both kinds and changes nothing.
+    /// Claim 1: the refusal changes nothing.
     fn assert_the_refusal(world: &mut World) {
         let player = player(world);
         let station = station(world);
-        let note = world
-            .resource::<ShipRuntime>()
-            .note()
-            .expect("station swap probe: the refusal shows a note")
-            .to_string();
-        assert!(
-            note.starts_with(&format!("swap: {SWAPPED_CODE} is a turret, "))
-                && note.ends_with(" is a thruster"),
-            "station swap probe: the refusal must name both kinds: {note:?}"
-        );
         let pdc = section_of(world, player, SWAPPED_PDC);
         assert_eq!(
             pdc,
@@ -641,12 +622,12 @@ mod walk {
         assert_eq!(credits(world, station), station_cr);
         assert_eq!(held(world, station, BODY), station_bodies);
         assert_eq!(held(world, station, BARREL), station_barrels);
-        info!("station swap probe: refused pdc_a for a thruster: {note}");
+        info!("station swap probe: refused {SWAPPED_CODE} for a thruster");
         let elapsed = world.resource::<Time>().elapsed_secs();
         nova_probe::probe_marker(
             world,
             "outcome: a cross-family swap is refused",
-            serde_json::json!({ "t": elapsed, "note": note }),
+            serde_json::json!({ "t": elapsed }),
         );
     }
 
@@ -996,9 +977,10 @@ mod walk {
         .until(frames(SETTLE_FRAMES))
         .add()
         .step("station swap: ask for a thruster")
+        // The refused command changes nothing to wait on: give the handler
+        // the settle frames, then check nothing moved.
         .on_enter(ask_for_a_thruster)
-        .until(the_note_reads_swap())
-        .deadline(SESSION_SECS)
+        .until(frames(SETTLE_FRAMES))
         .add()
         .step("station swap: assert the refusal")
         .on_enter(assert_the_refusal)

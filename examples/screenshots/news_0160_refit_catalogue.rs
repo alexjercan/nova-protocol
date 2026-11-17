@@ -25,7 +25,7 @@
 //! `ship_part_roll` key (R), the Placing block's roll stepping to 90 deg;
 //! the click that fits the part; and, with the pointer moved off the view
 //! onto the Placing block so no second ghost aims, the view easing onto the
-//! new section while the note line reads the add. Before the loop closes it
+//! new section. Before the loop closes it
 //! asserts the new PDC is live at the rolled ghost's pose under a `PDC-`
 //! code and selected, the price moved from the tug's balance to the
 //! station's, the hold's parts and the station's sold parts moved, and the
@@ -644,35 +644,8 @@ fn offset_from_centre(world: &World) -> f32 {
     pixel.distance(view.center())
 }
 
-/// The add's note line reads in the Placing block, and where the view's
-/// ease starts. Read the frame the PDC goes live: the note shows for 2.5
-/// seconds, which the ease beat outlasts on an unclocked software run.
-fn check_the_note_and_record_the_ease(world: &mut World) {
-    let ship = the_ship(world);
-    let id = world.resource::<Committed>().id.clone();
-    let section = section_of(world, ship, &id).expect("refit catalogue: the PDC is live");
-    let code = world
-        .get::<SectionCode>(section)
-        .expect("refit catalogue: the PDC is coded")
-        .0
-        .clone();
-    let name = pdc(world).base.name.clone();
-    let note = world
-        .resource::<ShipRuntime>()
-        .note()
-        .map(ToString::to_string);
-    let added = format!("added {name} as {code} on ");
-    assert!(
-        note.as_deref().is_some_and(|note| note.starts_with(&added)),
-        "refit catalogue: the note reads {note:?}, not '{added}...'"
-    );
-    assert!(
-        texts_under(world, SHIP_HELD_PANEL)
-            .iter()
-            .any(|text| text.starts_with(&added)),
-        "refit catalogue: the Placing block's note line does not read the add: {:?}",
-        texts_under(world, SHIP_HELD_PANEL)
-    );
+/// Where the view's ease starts, read the frame the PDC goes live.
+fn record_the_ease(world: &mut World) {
     let from = offset_from_centre(world);
     info!("refit catalogue: the PDC went live {from:.1} px off the view's centre");
     world.insert_resource(EaseFrom(from));
@@ -905,7 +878,7 @@ fn script() -> AutopilotPlugin<GameStates> {
         .deadline(BEAT_SECS)
         .add()
         .step("refit catalogue: the view eases onto the PDC")
-        .on_enter(check_the_note_and_record_the_ease)
+        .on_enter(record_the_ease)
         .until(frames(EASE_FRAMES))
         .add()
         .step("refit catalogue: check the fit")

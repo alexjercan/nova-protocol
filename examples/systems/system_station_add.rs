@@ -22,7 +22,7 @@
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: an add at an occupied point is refused` | the note names the section of the taken point; the design, the live sections, the holds and the balances are as they were |
+//! | 1 | `outcome: an add at an occupied point is refused` | the design, the live sections, the holds and the balances are as they were |
 //! | 2 | `outcome: a section is added to a base hull` | the ghost callout gave the price; the PDC is live at full health at the pose the aimed point gives, under the next PDC code, with an empty binding Rebind sets; the generator's post-build checks pass on the live ship; the design is inline and names it; the parts and the price moved; `OnAdded` fired once |
 //! | 3 | `outcome: a base hull's added section survives a freeze and thaw` | the thawed hull has the PDC whole, with its binding |
 //! | 4 | `outcome: a section is added to a generated hull` | as claim 2 on the generated hull, and the PDC flies on the left mouse button its sibling turrets carry |
@@ -270,7 +270,7 @@ mod walk {
         nova_interface::{
             pane::InterfacePaneType,
             ship::{
-                ship_ghost_aim, ship_view_window_px, SectionAddCommand, SectionCode, ShipRuntime,
+                ship_ghost_aim, ship_view_window_px, SectionAddCommand, SectionCode,
                 SHIP_GHOST_CALLOUT,
             },
         },
@@ -750,15 +750,6 @@ mod walk {
         });
     }
 
-    fn the_note_reads_add() -> Arc<Predicate> {
-        when(|world| {
-            world
-                .resource::<ShipRuntime>()
-                .note()
-                .is_some_and(|note| note.starts_with("add: "))
-        })
-    }
-
     /// The design, the live sections, the holds and the balances are as
     /// they were before the round's add.
     fn assert_nothing_changed(world: &World, what: &str) {
@@ -793,19 +784,9 @@ mod walk {
         }
     }
 
-    /// Claim 1: the refusal names the taken point and changes nothing.
+    /// Claim 1: the refusal changes nothing.
     fn assert_the_refusal(world: &mut World) {
         let target = target(world);
-        let note = world
-            .resource::<ShipRuntime>()
-            .note()
-            .expect("station add probe: the refusal shows a note")
-            .to_string();
-        assert_eq!(
-            note,
-            format!("add: that point on {} is taken", target.code),
-            "station add probe: the refusal must name the taken point's section"
-        );
         assert_nothing_changed(world, "a refused add");
         assert!(
             matches!(
@@ -816,12 +797,15 @@ mod walk {
             ),
             "station add probe: a refused add leaves the catalogue design"
         );
-        info!("station add probe: refused: {note}");
+        info!(
+            "station add probe: refused the taken point on {}",
+            target.code
+        );
         let elapsed = world.resource::<Time>().elapsed_secs();
         nova_probe::probe_marker(
             world,
             "outcome: an add at an occupied point is refused",
-            serde_json::json!({ "t": elapsed, "note": note }),
+            serde_json::json!({ "t": elapsed }),
         );
     }
 
@@ -873,17 +857,8 @@ mod walk {
         ship_ghost_aim(world) == Some((target.section, target.point, true))
     }
 
-    /// The callout beside the valid ghost names the part, the section and
-    /// the recipe's price.
+    /// The callout beside the valid ghost gives the recipe's price alone.
     fn assert_the_ghost(world: &mut World) {
-        let target = target(world);
-        let name = world
-            .resource::<GameSections>()
-            .get_section(PDC_KINETIC_TURRET_SECTION_ID)
-            .expect("station add probe: the catalogue has the kinetic PDC")
-            .base
-            .name
-            .clone();
         let mut callouts = world.query::<(&Name, &Children, &InheritedVisibility)>();
         let (children, visible) = callouts
             .iter(world)
@@ -896,13 +871,9 @@ mod walk {
             .find_map(|child| world.get::<Text>(*child))
             .map(|text| text.0.clone())
             .expect("station add probe: the ghost callout has a line");
-        let held: u32 = HOLD.iter().map(|&(_, count)| count).sum();
         assert_eq!(
             text,
-            format!(
-                "{name} on {}, {PRICE} cr: {held} parts from the hold, 0 bought",
-                target.code
-            ),
+            cr_text(PRICE),
             "station add probe: the ghost callout gives the price"
         );
         info!("station add probe: ghost callout: {text}");
@@ -1242,9 +1213,10 @@ mod walk {
         .until(frames(SETTLE_FRAMES))
         .add()
         .step("station add: ask at the taken point")
+        // The refused command changes nothing to wait on: give the handler
+        // the settle frames, then check nothing moved.
         .on_enter(ask_at_the_taken_point)
-        .until(the_note_reads_add())
-        .deadline(SESSION_SECS)
+        .until(frames(SETTLE_FRAMES))
         .add()
         .step("station add: assert the refusal")
         .on_enter(assert_the_refusal)

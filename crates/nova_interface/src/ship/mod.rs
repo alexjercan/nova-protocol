@@ -14,21 +14,25 @@
 //! foremost block marks the bow. The interactive SECTIONS ride on top as
 //! projected clickable badges: the family icon, a status pip and the code.
 //! The section panel beside the view shows the selection's code, name and
-//! condition bar, its binding, the Rebind action, the Salvage block with its
-//! Delete action and, while the selection has repairable damage, the repair
-//! form. Orbit the camera as the editor's looks, with the right-button drag
+//! condition bar over kit blocks (`nova_ui::widget::layout`), each a heading,
+//! a body and its verbs at the bottom right: Control with the binding and
+//! Rebind, Repair with the plate amount row and Repair, the running Repairs,
+//! Distress, the Lost sections and Salvage with Delete. A block whose verb
+//! cannot work here hides and takes no space; a verb short of a resource is
+//! disabled with the short number in Danger; another cause tags it with one
+//! word ([`VerbGate`](nova_ui::prelude::VerbGate)). Orbit the camera as the
+//! editor's looks, with the right-button drag
 //! (the pad's D-pad) + wheel; `Q` picks the part of the section under the
 //! pointer; `[`/`]` cycle the selection; Fit frames the whole ship at the
 //! current angles, and Reset also restores the opening angles; `G` toggles
 //! structural mates; `P` repairs, `B` replaces the selected bindable
 //! section's input, and Delete takes the selected section off while docked
 //! at a station that refits, its parts back in the hold. The Salvage block
-//! lists what it gives back over the Delete button; a refused Delete is muted
-//! with the reason as its tooltip, the key puts the reason on the note line,
-//! and a delete that would split the ship fills and outlines the sections
-//! that would lose the dock in red. While the form's quantity field has the
-//! caret, these keys type into it instead. The footer names only the keys
-//! that apply now.
+//! lists what it gives back over the Delete button and hides away from a
+//! refit; a delete that would split the ship disables Delete and fills and
+//! outlines the sections that would lose the dock in red. While the repair
+//! amount field has the caret, these keys type into it instead. The footer
+//! names only the keys that apply now.
 //!
 //! While [`ShipViewSubject`] names a hull (the Station pane's Info), the view
 //! draws that hull in place of the player ship, read-only: it turns, zooms
@@ -50,10 +54,10 @@
 //! selected section's kind and footprint, which raises a
 //! `SectionSwapCommand`. Place puts the part in hand (`HeldPart`): a ghost
 //! block follows the pointer over the view, snapped to the free socket
-//! nearest it, with its price or refusal beside it, and a click on a valid
+//! nearest it, with its price or refusal tag beside it, and a click on a valid
 //! ghost raises a `SectionAddCommand`. While the part is in hand the panel
-//! shows it under a Placing header in place of the selection. With no part in hand, a click on a
-//! block selects its section. What the station sells as a whole (ships,
+//! shows it in a Placing block in place of the selection. With no part in
+//! hand, a click on a block selects its section. What the station sells as a whole (ships,
 //! escorts and the station itself) is in the Station pane (`crate::station`);
 //! stripping a docked wreck is in the Inventory pane (`crate::inventory`).
 //! The panel scrolls with the wheel while the pointer is over it.
@@ -64,11 +68,11 @@
 //! | --- | --- |
 //! | `sections` | Section codes, the live section view and the repair seam. |
 //! | `app` | The side panel layout and the repair action handler. |
-//! | `rebuild` | The lost-section list and the rebuild action handler. |
+//! | `rebuild` | The Lost block and the rebuild action handler. |
 //! | `repair_jobs` | The Repairs block: running repair jobs, their bars and Cancel. |
 //! | `rescue` | The Distress block: the SOS call a stranded ship places, its bar and Cancel. |
-//! | `refit` | The Swap and Add action handlers and their refusal lines. |
-//! | `delete` | The Delete action: its rule, handler and refusal lines. |
+//! | `refit` | The Swap and Add action handlers and their refusal tags. |
+//! | `delete` | The Delete action: its rule, handler and gate. |
 //! | `catalogue` | The station catalogue: the gallery host, its listing and Swap. |
 //! | `ghost` | The placement ghost, its callout, and the view's pointer and click. |
 //! | `held` | The panel's Placing block for the part in hand. |
@@ -207,6 +211,8 @@ impl Plugin for ShipPanePlugin {
                     project_ship_blips,
                     label_the_selected_section,
                     update_ship_panel,
+                    update_ship_panel_head,
+                    update_ship_rebind_prompt,
                     sync_ship_rebind_click_guard,
                     update_ship_held_block,
                     update_ship_rebuild_list.run_if(ship_view_editable),
