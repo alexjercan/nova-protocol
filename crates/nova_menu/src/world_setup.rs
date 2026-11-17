@@ -962,6 +962,7 @@ pub(crate) fn refresh_seed_preview(
     loaded: Res<LoadedSectionPacks>,
     styles: Res<GameStyles>,
     items: Res<GameItems>,
+    consumables: Res<GameConsumables>,
     profiles: Res<GameTradeProfiles>,
 ) {
     let (Some(seed), Ok((preview, drawn))) = (seeds.iter().next(), previews.single()) else {
@@ -974,13 +975,15 @@ pub(crate) fn refresh_seed_preview(
         return;
     };
     let generator =
-        NovaLayeredWorld::from_loaded(&loaded, &styles, &items, &profiles).map_err(|faults| {
-            faults
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("; ")
-        });
+        NovaLayeredWorld::from_loaded(&loaded, &styles, &items, &consumables, &profiles).map_err(
+            |faults| {
+                faults
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            },
+        );
     let described = generator
         .and_then(|generator| start_preview(seed, &generator).map_err(|fault| fault.to_string()));
     let (view, caption) = match described {
@@ -1134,6 +1137,7 @@ pub(crate) fn on_create_world(
     loaded: Res<LoadedSectionPacks>,
     styles: Res<GameStyles>,
     items: Res<GameItems>,
+    consumables: Res<GameConsumables>,
     profiles: Res<GameTradeProfiles>,
     #[cfg(not(target_arch = "wasm32"))] name_field: Single<
         (Entity, &TextFieldValue),
@@ -1159,7 +1163,15 @@ pub(crate) fn on_create_world(
     };
     // The seed's starting station, before anything is created for it: a
     // seed with no allied station near the origin is refused at the field.
-    let session = match start_session(seed, role.clone(), &loaded, &styles, &items, &profiles) {
+    let session = match start_session(
+        seed,
+        role.clone(),
+        &loaded,
+        &styles,
+        &items,
+        &consumables,
+        &profiles,
+    ) {
         Ok(session) => session,
         Err(refusal) => {
             commands.entity(seed_entity).insert(TextFieldError(refusal));

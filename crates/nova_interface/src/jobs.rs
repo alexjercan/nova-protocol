@@ -627,14 +627,9 @@ fn update_jobs_pane(
             credits_cr: q_credits.get(*station).ok()?.0,
         })
     });
-    let hand_in_refusal = |job: &Job| {
+    let hand_in_check = |job: &Job| {
         let (Some(hold), Some(own_cr)) = (hold, own_cr) else {
-            return Some(hand_in_refusal_text(
-                job,
-                &JobHandInRefusalType::NotDocked,
-                &chart,
-                &items,
-            ));
+            return Some(JobHandInRefusalType::NotDocked);
         };
         plan_job_hand_in(
             job,
@@ -644,7 +639,9 @@ fn update_jobs_pane(
             jobs.is_done(&job.id),
         )
         .err()
-        .map(|refusal| hand_in_refusal_text(job, &refusal, &chart, &items))
+    };
+    let hand_in_refusal = |job: &Job| {
+        hand_in_check(job).map(|refusal| hand_in_refusal_text(job, &refusal, &chart, &items))
     };
     if runtime
         .confirm_drop
@@ -812,8 +809,19 @@ fn update_jobs_pane(
                 .filter(|_| !held)
                 .map(|remaining| time_left(job, remaining)),
             progress: held.then(|| job.progress(hold, done)),
+            // A held job's inspector names only a refusal its rows do not
+            // show: the Hand in row names the station, Progress the hold
+            // count and the DONE badge the work.
             refusal: if held {
-                hand_in_refusal(job)
+                hand_in_check(job)
+                    .filter(|refusal| {
+                        matches!(
+                            refusal,
+                            JobHandInRefusalType::StationCannotPay { .. }
+                                | JobHandInRefusalType::CreditOverflow
+                        )
+                    })
+                    .map(|refusal| hand_in_refusal_text(job, &refusal, &chart, &items))
             } else {
                 accept_refusal
             },

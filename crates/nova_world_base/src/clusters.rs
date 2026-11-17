@@ -80,7 +80,7 @@ use nova_assets::prelude::ASTEROID_TEXTURE_PATH;
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3, MetersPerSecondSquared};
 use nova_gameplay::prelude::{
     circular_orbit_speed, unit_sphere_point, Allegiance, AssetRef, CivilizationId, ClusterType,
-    Fnv32, GameItems, GravitySettings, GravityWell, SeedStream, TraderMarket,
+    Fnv32, GameConsumables, GameItems, GravitySettings, GravityWell, SeedStream, TraderMarket,
 };
 use nova_scenario::prelude::{
     asteroid_seed_from_id, station_orbit_velocity, AsteroidConfig, PlanetConfig, PlanetType,
@@ -372,6 +372,7 @@ pub fn sector_clusters(
         &EnvironmentFields::new(input.seed),
         world.parts(),
         world.items(),
+        world.consumables(),
         input,
     )?
     .summary())
@@ -1796,9 +1797,17 @@ pub(crate) fn plan_sector(
     fields: &EnvironmentFields,
     parts: &ShipPartSnapshot,
     items: &GameItems,
+    consumables: &GameConsumables,
     input: SectorGenerationInput,
 ) -> Result<SectorPlan, SectorFault> {
-    plan_sector_with(fields, parts, items, input, STATION_TRAFFIC_HULLS)
+    plan_sector_with(
+        fields,
+        parts,
+        items,
+        consumables,
+        input,
+        STATION_TRAFFIC_HULLS,
+    )
 }
 
 /// [`plan_sector`] with `traffic_hulls` traffic hulls per living station.
@@ -1807,13 +1816,14 @@ fn plan_sector_with(
     fields: &EnvironmentFields,
     parts: &ShipPartSnapshot,
     items: &GameItems,
+    consumables: &GameConsumables,
     input: SectorGenerationInput,
     traffic_hulls: usize,
 ) -> Result<SectorPlan, SectorFault> {
     let coord = input.coord;
     let edge = input.geometry.sector_edge;
     let civilizations = CivilizationField::new(input.seed);
-    let mut claims = StationClaims::new(parts, items);
+    let mut claims = StationClaims::new(parts, items, consumables);
     let mut hosts = |clearance: Meters, node: [i32; 3]| {
         Ok(cluster_at(fields, input.seed, edge, node)?
             .is_some_and(|cluster| station_pose(&cluster, edge, clearance, input.seed).is_some()))
@@ -2277,6 +2287,7 @@ mod tests {
                     &fields,
                     config.generator.parts(),
                     config.generator.items(),
+                    config.generator.consumables(),
                     config.input(coord),
                 )
                 .unwrap_or_else(|fault| panic!("{coord}: {fault}"));
@@ -2337,6 +2348,7 @@ mod tests {
             &EnvironmentFields::new(SEED),
             &unbuildable,
             config().generator.items(),
+            config().generator.consumables(),
             config().input(owner),
         )
         .expect_err("a hull no layout fits must fail its cell");
@@ -2548,6 +2560,7 @@ mod tests {
                     &fields,
                     config.generator.parts(),
                     config.generator.items(),
+                    config.generator.consumables(),
                     config.input(coord),
                     traffic,
                 )
@@ -2746,6 +2759,7 @@ mod tests {
                     &fields,
                     config.generator.parts(),
                     config.generator.items(),
+                    config.generator.consumables(),
                     config.input(coord),
                 )
                 .unwrap_or_else(|fault| panic!("{seed} {coord}: {fault}"));
@@ -2995,6 +3009,7 @@ mod tests {
                     &fields,
                     config.generator.parts(),
                     config.generator.items(),
+                    config.generator.consumables(),
                     config.input(SectorCoord::new(x, 0, z)),
                 )
                 .unwrap_or_else(|fault| panic!("[{x}, 0, {z}]: {fault}"));
@@ -3080,6 +3095,7 @@ mod tests {
             &fields,
             world.generator.parts(),
             world.generator.items(),
+            world.generator.consumables(),
             world.input(coord),
         )
         .unwrap();
@@ -3161,6 +3177,7 @@ mod tests {
             &fields,
             world.generator.parts(),
             world.generator.items(),
+            world.generator.consumables(),
             world.input(coord),
         )
         .unwrap();
@@ -3168,6 +3185,7 @@ mod tests {
             &fields,
             world.generator.parts(),
             world.generator.items(),
+            world.generator.consumables(),
             world.input(coord),
         )
         .unwrap();
@@ -3285,6 +3303,7 @@ mod tests {
                     &fields,
                     world.generator.parts(),
                     world.generator.items(),
+                    world.generator.consumables(),
                     world.input(coord),
                 )
                 .unwrap();

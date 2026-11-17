@@ -17,7 +17,7 @@ use std::collections::{HashMap, HashSet};
 
 use bevy::{ecs::system::RunSystemOnce, prelude::*, ui_widgets::Activate};
 use nova_assets::{
-    items::{item_pack_faults, ItemPack},
+    items::{item_pack_faults, largest_torpedo_blast, ItemPack},
     merge_bundles,
     mod_cache::prelude::is_safe_id,
     mod_refs::prelude::{bare_asset_refs, resource_ref_violations, DEP_SCHEME, SELF_SCHEME},
@@ -249,8 +249,10 @@ fn lint_judged(
                     .into_iter()
                     .map(|issue| error(issue.to_string())),
             ),
-            // The item rule judges recipes with every visible pack.
-            Content::Lesson(_) | Content::Item(_) | Content::Recipe(_) => {}
+            // The item rule judges recipes and consumables with every visible
+            // pack.
+            Content::Lesson(_) | Content::Item(_) | Content::Recipe(_) | Content::Consumable(_) => {
+            }
         }
     }
     if tables > 1 {
@@ -412,6 +414,14 @@ fn item_findings(own: &str, data: &ProjectData, packs: &[VisiblePack]) -> Vec<Pr
                     _ => None,
                 })
                 .collect(),
+            consumables: content
+                .iter()
+                .filter_map(|item| match item {
+                    Content::Consumable(design) => Some(design),
+                    _ => None,
+                })
+                .collect(),
+            torpedo_blast: largest_torpedo_blast(content.iter().copied()),
         })
         .collect();
     item_pack_faults(&packs)

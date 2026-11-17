@@ -22,7 +22,7 @@ use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::{EntityId, GeneratedBodyId};
 use nova_events::prelude::{Meters3, SectorCoord};
 use nova_gameplay::prelude::{
-    CivilizationId, ClusterType, GameItems, GameTradeProfiles, StanceType,
+    CivilizationId, ClusterType, GameConsumables, GameItems, GameTradeProfiles, StanceType,
 };
 #[cfg(not(target_arch = "wasm32"))]
 use nova_gameplay::prelude::{
@@ -78,7 +78,11 @@ pub(crate) fn block_stations(
     let edge = OPEN_WORLD_SECTOR_EDGE;
     let fields = EnvironmentFields::new(seed);
     let civilizations = CivilizationField::new(seed);
-    let mut claims = StationClaims::new(generator.parts(), generator.items());
+    let mut claims = StationClaims::new(
+        generator.parts(),
+        generator.items(),
+        generator.consumables(),
+    );
     let mut hosts = |clearance, node| {
         Ok(cluster_at(&fields, seed, edge, node)?
             .is_some_and(|cluster| station_pose(&cluster, edge, clearance, seed).is_some()))
@@ -252,10 +256,11 @@ pub fn start_session(
     loaded: &LoadedSectionPacks,
     styles: &GameStyles,
     items: &GameItems,
+    consumables: &GameConsumables,
     profiles: &GameTradeProfiles,
 ) -> Result<OpenWorldSession, String> {
-    let generator =
-        NovaLayeredWorld::from_loaded(loaded, styles, items, profiles).map_err(|faults| {
+    let generator = NovaLayeredWorld::from_loaded(loaded, styles, items, consumables, profiles)
+        .map_err(|faults| {
             faults
                 .iter()
                 .map(ToString::to_string)

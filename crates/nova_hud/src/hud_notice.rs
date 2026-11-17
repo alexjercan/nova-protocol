@@ -25,13 +25,15 @@
 //! `DOCK-1 REBUILT` or `HULL-3 REPAIR STOPPED: NO PLATES`. A player rescue
 //! call that ends on its own ([`RescueCallEnded`]) posts how:
 //! `SOS ANSWERED: PAID 1,400 CR` when the answer takes the bill,
-//! `SOS FAILED: NO ANSWER, CALL AGAIN` when the station refuses and nothing
-//! is taken, `SOS ENDED: DOCKED` when the ship docks before the answer, and
-//! `NO FREE BERTH: SHIP FIXED, DOCK YOURSELF` when the paid berth gives up.
+//! `SOS FAILED: NO ANSWER` when the station refuses and nothing is taken,
+//! `SOS ENDED: DOCKED` when the ship docks before the answer, and
+//! `NO FREE BERTH: SHIP FIXED` when the paid berth gives up.
 //! A player craft job that ends on its own ([`CraftJobEnded`]) posts how:
 //! `CRAFTED 500 PDC ROUND`, `CRAFT STOPPED: NO STONE ORE, 300 MADE` or
 //! `CRAFT STOPPED: UNDOCKED`. A cancel posts nothing: the player pressed it
-//! in the Ship pane or the Craft view, which notes it. The player's hold reserve of an ammunition item crossing into
+//! in the Ship pane or the Craft view, where its row goes. A player decoy
+//! flare that pulls torpedoes off ([`ConsumableUsed`]) posts
+//! `FLARE: 2 DECOYED`. The player's hold reserve of an ammunition item crossing into
 //! LOW or DRY ([`AmmoReserveCrossed`]) posts `PDC ROUND LOW: 400` or
 //! `TORPEDO DRY`, once per crossing.
 //!
@@ -51,9 +53,9 @@ use nova_ship::{
     flight::prelude::{MatchRefusal, MatchRefusalType},
     input::prelude::FlightVerbHints,
     sections::prelude::{
-        AmmoReserveCrossed, AmmoReserveWarningType, CraftJobEndType, CraftJobEnded, DockClamped,
-        DockPressRefusal, DockPressRefusalType, DockReleased, RepairJobEndType, RepairJobEnded,
-        RescueCallEnded, RescueEndType,
+        AmmoReserveCrossed, AmmoReserveWarningType, ConsumableOutcomeType, ConsumableUsed,
+        CraftJobEndType, CraftJobEnded, DockClamped, DockPressRefusal, DockPressRefusalType,
+        DockReleased, RepairJobEndType, RepairJobEnded, RescueCallEnded, RescueEndType,
     },
 };
 use nova_sound::prelude::*;
@@ -196,7 +198,7 @@ impl HudNoticeKeepOut<'_, '_> {
 /// held job's done, a refused supply dock and a player repair job's end to
 /// it, and runs `post_dock_refusal_notice`, `post_match_refusal_notice`,
 /// `post_dock_press_notice`, `post_repair_job_notice`, `post_rescue_notice`,
-/// `post_craft_job_notice`, `show_hud_notice` and
+/// `post_craft_job_notice`, `post_consumable_notice`, `show_hud_notice` and
 /// `paint_hud_notice` chained
 /// in Update within [`NovaHudSystems`]. The box itself is a player-scoped
 /// widget spawned by `NovaHudPlugin`.
@@ -213,6 +215,7 @@ impl Plugin for HudNoticePlugin {
         app.add_message::<RepairJobEnded>();
         app.add_message::<RescueCallEnded>();
         app.add_message::<CraftJobEnded>();
+        app.add_message::<ConsumableUsed>();
         app.init_resource::<ShownNotice>();
         app.register_type::<HudNoticeMarker>();
         app.register_type::<HudNoticeText>();
@@ -230,6 +233,7 @@ impl Plugin for HudNoticePlugin {
                 post_repair_job_notice,
                 post_rescue_notice,
                 post_craft_job_notice,
+                post_consumable_notice,
                 show_hud_notice,
                 paint_hud_notice,
             )
@@ -355,8 +359,28 @@ fn post_craft_job_notice(
     }
 }
 
+/// Post a player ship's flare result, `FLARE: 2 DECOYED`: nothing else
+/// shows it. A refused use is the cockpit deny cue and the dim KIT, BOOST or
+/// FLARE chip; a started repair or boost shows on the status chip.
+fn post_consumable_notice(
+    mut used: MessageReader<ConsumableUsed>,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut notices: MessageWriter<HudNotice>,
+) {
+    for used in used.read() {
+        if !q_player.contains(used.ship) {
+            continue;
+        }
+        if let ConsumableOutcomeType::Decoyed { torpedoes } = used.outcome {
+            let line = format!("FLARE: {torpedoes} DECOYED");
+            debug!("hud_notice: {line}");
+            notices.write(HudNotice(line));
+        }
+    }
+}
+
 /// The notice line for a craft job of `recipe` that ended on its own;
-/// `None` for a cancel, which the pane notes. A stop names what it made
+/// `None` for a cancel, whose pane row goes. A stop names what it made
 /// before it, when it made any.
 fn craft_job_end_line(
     items: &GameItems,
@@ -391,7 +415,7 @@ fn craft_job_end_line(
 }
 
 /// The notice line for a rescue call that ended on its own; `None` for a
-/// cancel, which the pane notes.
+/// cancel, whose pane row goes.
 ///
 /// A refused call took nothing and leaves the ship stranded, so the pane
 /// offers SOS again. A berth that gives up after a paid answer leaves the
@@ -402,8 +426,8 @@ fn rescue_end_line(end: &RescueEndType) -> Option<String> {
             format!("SOS ANSWERED: PAID {}", cr_text(*paid_cr).to_uppercase())
         }
         RescueEndType::Docked => "SOS ENDED: DOCKED".to_string(),
-        RescueEndType::Refused => "SOS FAILED: NO ANSWER, CALL AGAIN".to_string(),
-        RescueEndType::NoBerth => "NO FREE BERTH: SHIP FIXED, DOCK YOURSELF".to_string(),
+        RescueEndType::Refused => "SOS FAILED: NO ANSWER".to_string(),
+        RescueEndType::NoBerth => "NO FREE BERTH: SHIP FIXED".to_string(),
         RescueEndType::Cancelled => return None,
     })
 }

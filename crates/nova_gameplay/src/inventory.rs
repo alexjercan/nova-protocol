@@ -329,8 +329,8 @@ pub fn lot_cr_text(credits: u32, lot: u32) -> String {
     }
 }
 
-/// What an item is for. There is no fuel category: thrust never consumes
-/// stock.
+/// What an item is for. A usable item (a `Consumable`) keeps one of these;
+/// there is no consumable category.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ItemCategoryType {

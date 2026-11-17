@@ -49,6 +49,97 @@
         site: Ship,
     )),
     Recipe((
+        id: "base/repair_kit",
+        inputs: [
+            (
+                "HullPlate",
+                2,
+            ),
+            (
+                "SectionPanel",
+                1,
+            ),
+        ],
+        output: (
+            "RepairKit",
+            1,
+        ),
+        duration_secs: 12.0,
+        site: Ship,
+    )),
+    Recipe((
+        id: "base/boost_cell",
+        inputs: [
+            (
+                "WaterIce",
+                1,
+            ),
+            (
+                "CarbonOre",
+                1,
+            ),
+        ],
+        output: (
+            "BoostCell",
+            1,
+        ),
+        duration_secs: 8.0,
+        site: Ship,
+    )),
+    Recipe((
+        id: "base/decoy_flare",
+        inputs: [
+            (
+                "IronOre",
+                1,
+            ),
+            (
+                "CarbonOre",
+                1,
+            ),
+        ],
+        output: (
+            "DecoyFlare",
+            1,
+        ),
+        duration_secs: 6.0,
+        site: Ship,
+    )),
+    Recipe((
+        id: "base/docking_collar",
+        inputs: [
+            (
+                "AlloyPlate",
+                1,
+            ),
+            (
+                "IronOre",
+                5,
+            ),
+        ],
+        output: (
+            "DockingCollar",
+            1,
+        ),
+        duration_secs: 20.0,
+        site: Ship,
+    )),
+    Recipe((
+        id: "base/actuator_pack",
+        inputs: [
+            (
+                "IronOre",
+                4,
+            ),
+        ],
+        output: (
+            "ActuatorPack",
+            1,
+        ),
+        duration_secs: 10.0,
+        site: Ship,
+    )),
+    Recipe((
         id: "base/alloy_plate",
         inputs: [
             (

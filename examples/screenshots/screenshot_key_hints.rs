@@ -10,6 +10,9 @@
 //! - `key-hints-stop.png`: the dock row at rest. The STOP chip reads `STOP`.
 //! - `key-hints-weapons.png`: the stance key held. The row adds FIRE,
 //!   TORPEDO and RAILGUN with the keys of their sections.
+//! - `key-hints-every-chip.png`: the stance key held and every verb under
+//!   the scenario spotlight, so all eighteen chips draw. At 1280 px one line
+//!   cannot hold them: the right chips wrap onto a line above the row.
 //! - `key-hints-match-chord.png`: the RCS modifier held. The STOP chip reads
 //!   `MATCH` and the RCS chip is lit.
 //! - `key-hints-match-flying-chord.png`: MATCH engaged, the modifier still
@@ -273,6 +276,56 @@ fn still(
         .add()
 }
 
+/// Every dock chip draws whole inside the window, and no two overlap.
+#[cfg(feature = "debug")]
+fn assert_every_chip_on_screen(world: &mut World) {
+    let width = world
+        .query::<&Window>()
+        .single(world)
+        .expect("screenshot_key_hints: one window")
+        .width();
+    let mut chips: Vec<(usize, Rect)> = world
+        .query::<(&DockChip, &Node, &ComputedNode, &UiGlobalTransform)>()
+        .iter(world)
+        .map(|(chip, node, computed, transform)| {
+            assert_ne!(
+                node.display,
+                Display::None,
+                "screenshot_key_hints: the {} chip draws",
+                DOCK_VERBS[chip.0]
+            );
+            let size = computed.size() * computed.inverse_scale_factor();
+            let centre = transform.translation * computed.inverse_scale_factor();
+            (chip.0, Rect::from_center_size(centre, size))
+        })
+        .collect();
+    chips.sort_by_key(|(index, _)| *index);
+    assert_eq!(
+        chips.len(),
+        DOCK_VERBS.len(),
+        "screenshot_key_hints: every chip"
+    );
+    for (index, rect) in &chips {
+        assert!(
+            rect.min.x >= 0.0 && rect.max.x <= width,
+            "screenshot_key_hints: the {} chip is cut at {width} px: {rect:?}",
+            DOCK_VERBS[*index]
+        );
+    }
+    for (at, (index, rect)) in chips.iter().enumerate() {
+        for (other, next) in &chips[at + 1..] {
+            let overlap = rect.intersect(*next);
+            assert!(
+                overlap.width() <= 0.5 || overlap.height() <= 0.5,
+                "screenshot_key_hints: the {} chip overlaps the {} chip",
+                DOCK_VERBS[*index],
+                DOCK_VERBS[*other]
+            );
+        }
+    }
+    info!("screenshot_key_hints: PASS every chip whole at {width} px");
+}
+
 /// The pad is the device in hand.
 #[cfg(feature = "debug")]
 fn the_pad_is_in_hand() -> Arc<Predicate> {
@@ -500,6 +553,24 @@ fn key_hints_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
     let script = still(script, "key-hints-weapons.png", |world| {
         assert_section_labels(world, InputDeviceType::Desk);
     })
+    .step("spotlight every dock verb")
+    .on_enter(|world: &mut World| {
+        let mut emphasis = world.resource_mut::<HintEmphasis>();
+        for verb in DOCK_VERBS {
+            emphasis.set(verb);
+        }
+    })
+    .until(frames(3))
+    .add();
+    let script = still(
+        script,
+        "key-hints-every-chip.png",
+        assert_every_chip_on_screen,
+    )
+    .step("clear the spotlight")
+    .on_enter(|world: &mut World| world.resource_mut::<HintEmphasis>().clear_all())
+    .until(frames(2))
+    .add()
     .step("let the stance key up")
     .on_enter(release_action("combat_stance"))
     .until(hints_where(|hints| !hints.fire.shown))

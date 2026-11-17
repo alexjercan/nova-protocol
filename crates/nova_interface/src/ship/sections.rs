@@ -453,21 +453,18 @@ pub(crate) fn takes_a_player_binding(kind: SectionClass) -> bool {
 /// The flight rig action a thruster with no key of its own fires on.
 const MAIN_DRIVE_ACTION: &str = "main_drive";
 
-/// Whether Repair is valid for a section, plus a reason for a disabled
-/// action. Uses the same [`plan_plate_repair`] check as
-/// [`start_plate_repair`], so the panel button never disagrees with the
-/// handler.
+/// Whether Repair is valid for a section. Uses the same
+/// [`plan_plate_repair`] check as [`start_plate_repair`], so the panel
+/// button never disagrees with the handler.
 pub(crate) struct PanelActions {
     pub(crate) repair_enabled: bool,
-    pub(crate) reason: Option<String>,
 }
 
 impl PanelActions {
-    /// The no-selection state: nothing actionable, no reason.
+    /// The no-selection state: nothing actionable.
     pub(crate) fn none() -> Self {
         Self {
             repair_enabled: false,
-            reason: None,
         }
     }
 }
@@ -499,12 +496,14 @@ pub(crate) fn panel_action_state(
     requested_plates: u32,
     stock: u32,
 ) -> PanelActions {
-    let repair = plan_plate_repair(view.health.as_ref(), view.disabled, requested_plates, stock);
     PanelActions {
-        repair_enabled: repair.is_ok(),
-        reason: repair
-            .err()
-            .map(|refusal| repair_refusal_text(&view.code, refusal)),
+        repair_enabled: plan_plate_repair(
+            view.health.as_ref(),
+            view.disabled,
+            requested_plates,
+            stock,
+        )
+        .is_ok(),
     }
 }
 
@@ -551,7 +550,7 @@ pub(crate) fn start_plate_repair(
     busy: bool,
     requested_plates: u32,
     free_plates: u32,
-) -> Result<(RepairJob, TerminalRow), TerminalRow> {
+) -> Result<RepairJob, TerminalRow> {
     let refused = |text| TerminalRow {
         kind: TerminalRowKind::Error,
         text,
@@ -561,18 +560,5 @@ pub(crate) fn start_plate_repair(
     }
     let repair = plan_plate_repair(health, disabled, requested_plates, free_plates)
         .map_err(|refusal| refused(repair_refusal_text(code, refusal)))?;
-    let noun = if repair.plates == 1 {
-        "plate"
-    } else {
-        "plates"
-    };
-    Ok((
-        RepairJob::plates(section, code.to_string(), repair.plates),
-        TerminalRow {
-            kind: TerminalRowKind::Info,
-            // No duration: the job row owns the time left, and a one-shot
-            // note would go stale against it.
-            text: format!("repairing {code}: {} hull {noun} queued", repair.plates),
-        },
-    ))
+    Ok(RepairJob::plates(section, code.to_string(), repair.plates))
 }

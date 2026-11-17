@@ -2701,6 +2701,7 @@ mod tests {
                 &fixture_loaded(),
                 &fixture_styles(),
                 &items,
+                &nova_gameplay::prelude::GameConsumables::default(),
                 &GameTradeProfiles::default(),
             )
             .unwrap(),

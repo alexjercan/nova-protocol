@@ -4,15 +4,17 @@
 //! The block shows while the player ship flies undocked in the open world,
 //! with no station berth under way, and is stranded ([`rescue_quote`]): no
 //! working thruster, flight computer or free docking port. A ship that lost
-//! only its guns flies and docks, so it is not stranded. The block names
-//! why, and its button shows what the rescue would charge now. A click asks
+//! only its guns flies and docks, so it is not stranded. The block tags
+//! why, such as `NO DRIVE  NO PORT`, and beside its button shows what the
+//! rescue would charge now. A click asks
 //! [`find_rescue_station`] for the nearest station that answers and places
 //! the [`ShipRescueCall`]; no station answering refuses on the note line. A
 //! ship whose only thruster, flight computer or port is live but not working,
 //! with no lost one to rebuild, is refused at the click too: the rescue
 //! rebuilds lost sections only, and would dock a ship that still cannot fly.
-//! While the call runs the block shows its bar, its time left and Cancel.
-//! The call runs on the game clock, which this pane stops.
+//! While the call runs the block shows its bar, its time left and Cancel;
+//! the running row is the only sign of a placed or cancelled call. The call
+//! runs on the game clock, which this pane stops.
 //!
 //! Touch this module when changing how the pane offers, shows or cancels a
 //! rescue call.
@@ -61,18 +63,14 @@ pub(crate) enum ShipRescueField {
 #[derive(Component)]
 pub(crate) struct ShipRescueFill;
 
-/// The offer's note under the title. The call runs on the game clock, which
-/// this pane stops.
-pub(crate) const SHIP_RESCUE_NOTE: &str = "The call runs only while you fly.";
-
 /// The pane note when no station answers a call.
 pub(crate) const SHIP_RESCUE_NO_STATION: &str = "no station answers the call";
 
 /// The pane note when the ship is docked or berthing: it is not stranded.
 pub(crate) const SHIP_RESCUE_DOCKED: &str = "the ship is docked: no SOS";
 
-/// Build the Distress block: a title, the clock note, the offer and the
-/// running call, filled by [`update_ship_rescue`].
+/// Build the Distress block: a title, the offer and the running call,
+/// filled by [`update_ship_rescue`].
 pub(crate) fn spawn_ship_rescue(panel: &mut ChildSpawnerCommands) {
     panel
         .spawn((
@@ -89,7 +87,6 @@ pub(crate) fn spawn_ship_rescue(panel: &mut ChildSpawnerCommands) {
         .with_children(|block| {
             block.spawn(divider());
             block.spawn(themed_label("Distress", 13.0, UiColorType::Accent));
-            block.spawn(themed_label(SHIP_RESCUE_NOTE, 12.0, UiColorType::TextBody));
             block
                 .spawn((
                     ShipRescuePart::Offer,
@@ -102,7 +99,7 @@ pub(crate) fn spawn_ship_rescue(panel: &mut ChildSpawnerCommands) {
                 .with_children(|offer| {
                     offer.spawn((
                         ShipRescueField::Reasons,
-                        themed_label("", 12.0, UiColorType::Text),
+                        themed_label("", 11.0, UiColorType::TextSecondary),
                     ));
                     offer
                         .spawn(control_row(JustifyContent::FlexStart))
@@ -140,7 +137,7 @@ pub(crate) fn spawn_ship_rescue(panel: &mut ChildSpawnerCommands) {
                         .spawn(control_row(JustifyContent::FlexStart))
                         .with_children(|line| {
                             line.spawn((
-                                themed_label("SOS sent", 12.0, UiColorType::Text),
+                                themed_label("SOS", 12.0, UiColorType::Text),
                                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
                                 Node {
                                     flex_grow: 1.0,
@@ -192,7 +189,7 @@ pub(crate) fn spawn_ship_rescue(panel: &mut ChildSpawnerCommands) {
         });
 }
 
-/// The pane words for each reason, such as `no drive, no free port`.
+/// The pane word for each reason, such as `no drive, no free port`.
 fn reason_words(reasons: &[StrandedType]) -> String {
     reasons
         .iter()
@@ -205,10 +202,17 @@ fn reason_words(reasons: &[StrandedType]) -> String {
         .join(", ")
 }
 
-/// The reasons line of a stranded ship, such as `Stranded: no drive, no
-/// free port.`
-pub(crate) fn stranded_line(reasons: &[StrandedType]) -> String {
-    format!("Stranded: {}.", reason_words(reasons))
+/// The reason tags of a stranded ship, such as `NO DRIVE  NO PORT`.
+pub(crate) fn stranded_tags(reasons: &[StrandedType]) -> String {
+    reasons
+        .iter()
+        .map(|reason| match reason {
+            StrandedType::NoThruster => "NO DRIVE",
+            StrandedType::NoFlightComputer => "NO FLIGHT COMPUTER",
+            StrandedType::NoDockingPort => "NO PORT",
+        })
+        .collect::<Vec<_>>()
+        .join("  ")
 }
 
 /// The bill line, or the note that the rescue cannot fix the ship: a
@@ -226,21 +230,17 @@ fn unfixed_note(quote: &RescueQuote) -> String {
     format!("SOS cannot fix: {}", reason_words(&quote.unfixed))
 }
 
-/// The bill line of a quote: what the call takes now, and that it is all
-/// the ship has when it holds less than the bill.
+/// The bill line of a quote: what the call takes now, the rebuilds it
+/// carries and its seconds. A balance short of the bill pays all of it; the
+/// pane's balance shows that.
 pub(crate) fn rescue_bill_line(quote: &RescueQuote) -> String {
     let rebuilds = match quote.chain.len() {
         0 => String::new(),
         1 => ", 1 rebuild".to_string(),
         count => format!(", {count} rebuilds"),
     };
-    let short = if u64::from(quote.bill.charged_cr) < quote.bill.owed_cr {
-        " (all you have)"
-    } else {
-        ""
-    };
     format!(
-        "{}{short}{rebuilds}, {:.0} s",
+        "{}{rebuilds}, {:.0} s",
         cr_text(quote.bill.charged_cr),
         RESCUE_SECS
     )
@@ -276,7 +276,7 @@ pub(crate) fn update_ship_rescue(world: &mut World) {
                 Some(quote) => (
                     Some(ShipRescuePart::Offer),
                     vec![
-                        (ShipRescueField::Reasons, stranded_line(&quote.reasons)),
+                        (ShipRescueField::Reasons, stranded_tags(&quote.reasons)),
                         (ShipRescueField::Bill, offer_line(&quote)),
                     ],
                     0.0,
@@ -325,8 +325,8 @@ pub(crate) fn update_ship_rescue(world: &mut World) {
     }
 }
 
-/// Place the rescue call of `player`: the nearest station that answers,
-/// the chain [`rescue_quote`] plans now, and the note that says so. A ship
+/// Place the rescue call of `player`: the nearest station that answers and
+/// the chain [`rescue_quote`] plans now. The running row shows the call. A ship
 /// docked or berthing, no longer stranded, one the chain cannot fix, or no
 /// station answering, places nothing.
 pub(crate) fn place_rescue_call(world: &mut World, player: Entity) {
@@ -392,10 +392,6 @@ pub(crate) fn place_rescue_call(world: &mut World, player: Entity) {
         station.spawn,
         chain,
     ));
-    note(
-        world,
-        format!("SOS sent; a station answers in {RESCUE_SECS:.0} s"),
-    );
 }
 
 /// Place the call when the SOS button is clicked.
@@ -407,16 +403,14 @@ fn on_sos_button(_activate: On<Activate>, mut commands: Commands) {
     });
 }
 
-/// Cancel the running call when its Cancel button is clicked, and say so.
+/// Cancel the running call when its Cancel button is clicked; the block
+/// offers SOS again.
 fn on_sos_cancel_button(
     _activate: On<Activate>,
     mut commands: Commands,
     q_player: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
-    mut runtime: ResMut<ShipRuntime>,
 ) {
-    let Ok(player) = q_player.single() else {
-        return;
-    };
-    commands.trigger(RescueCallCancelRequest { entity: player });
-    runtime.note = Some(("cancelled the SOS call".to_string(), 2.5));
+    if let Ok(player) = q_player.single() {
+        commands.trigger(RescueCallCancelRequest { entity: player });
+    }
 }

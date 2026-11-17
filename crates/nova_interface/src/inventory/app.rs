@@ -37,9 +37,9 @@ use nova_ui::{
 };
 
 use super::{
-    spawn_market_strip, spawn_strip_block, CreditTakeCommand, InventoryActionCommand,
-    InventoryActionType, InventoryDraft, InventoryRuntime, InventorySideType, InventoryStoreType,
-    TakeAllCommand,
+    spawn_inventory_use_button, spawn_market_strip, spawn_strip_block, CreditTakeCommand,
+    InventoryActionCommand, InventoryActionType, InventoryDraft, InventoryRuntime,
+    InventorySideType, InventoryStoreType, TakeAllCommand,
 };
 use crate::{
     craft::{spawn_craft_open_button, CraftRuntime},
@@ -875,6 +875,7 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                     item.spawn(divider());
                     fact_row(item, "Stock", InventoryInspectorField::Stock);
                     fact_row(item, "Weight", InventoryInspectorField::Weight);
+                    spawn_inventory_use_button(item);
                     item.spawn((
                         InspectorPart::TotalWeight,
                         control_row(JustifyContent::SpaceBetween),

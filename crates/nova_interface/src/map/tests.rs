@@ -2997,7 +2997,7 @@ fn a_selected_contact_fills_the_panel_in_place() {
         (MapPanelField::Kind, "HOSTILE"),
         (MapPanelField::Range, "Range 500 m"),
         (MapPanelField::Bearing, "Bearing 000 mark +00"),
-        (MapPanelField::Note, "Hostile contact."),
+        (MapPanelField::Note, ""),
     ] {
         assert_eq!(panel_text(world, field), want, "{field:?}");
     }

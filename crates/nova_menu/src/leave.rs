@@ -162,9 +162,18 @@ pub(crate) fn drive_pending_leave(
                         let designs = world.resource::<GameShipDesigns>();
                         let profiles = world.resource::<GameTradeProfiles>();
                         let recipes = world.resource::<GameRecipes>();
+                        let consumables = world.resource::<GameConsumables>();
                         open_world(
-                            root, &slug, packs, roles, items, &scenarios, designs, profiles,
+                            root,
+                            &slug,
+                            packs,
+                            roles,
+                            items,
+                            &scenarios,
+                            designs,
+                            profiles,
                             recipes,
+                            consumables,
                         )
                         .map_err(|refusal| refusal.to_string())
                     }

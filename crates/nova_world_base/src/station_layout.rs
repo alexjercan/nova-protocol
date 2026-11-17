@@ -52,8 +52,8 @@ use std::{
 use bevy::prelude::*;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{
-    market_deals_in, CivilizationId, Fnv32, GameItems, ItemCategoryType, ItemDesignId,
-    ItemRoleType, SeedStream, ShipInventoryStock,
+    market_deals_in, CivilizationId, Fnv32, GameConsumables, GameItems, ItemCategoryType,
+    ItemDesign, ItemDesignId, ItemRoleType, SeedStream, ShipInventoryStock,
 };
 use nova_scenario::prelude::{
     SectionSource, ShipDesign, ShipIntegrityConfig, ShipPresentationConfig, SpaceshipSectionConfig,
@@ -120,6 +120,11 @@ const GOODS: [(ItemRoleType, f32); 7] = [
     (ItemRoleType::Rations, 3.0),
     (ItemRoleType::SalvagedParts, 2.0),
 ];
+
+/// The goods weight of each usable item ([`GameConsumables`]): a station
+/// sells the repair kits, boost cells and flares a ship uses in flight, mod
+/// consumables included, unless its market does not deal in one.
+const CONSUMABLE_GOODS_WEIGHT: f32 = 1.0;
 
 /// The PDC rounds a newly generated station that stocks them opens with at
 /// least. One start-band escort can spend a 2-PDC hull's whole 2,000-round
@@ -459,7 +464,8 @@ pub fn generate_station(
 /// can be built once from the station's own stock. The goods hold at least
 /// one unit of each item a weapon the civilization knows reloads from, at
 /// least [`PDC_OPENING_ROUNDS`] PDC rounds when one reloads from them, and
-/// no other ammunition. A lawful civilization's station stocks no part its
+/// no other ammunition. Every item of `consumables` is stocked as a good at
+/// [`CONSUMABLE_GOODS_WEIGHT`], whatever its category. A lawful civilization's station stocks no part its
 /// market does not deal in ([`market_deals_in`]): a contraband recipe part
 /// is left out, and a rebuild there spends the hold's. An extinct
 /// civilization's dead station keeps the same stock and credits as loot.
@@ -475,11 +481,13 @@ pub fn generate_station(
 ///
 /// # Panics
 ///
-/// When a section names no part of `parts`, or a goods role or a recipe part
-/// is missing from `items`: content lint refuses both first.
+/// When a section names no part of `parts`, or a goods role, a recipe part
+/// or a consumable's item is missing from `items`: content lint refuses each
+/// first.
 pub fn generated_station(
     parts: &ShipPartSnapshot,
     items: &GameItems,
+    consumables: &GameConsumables,
     layout: &StationLayout,
     civilization: &Civilization,
 ) -> Result<StationDesign, StationLayoutConstraintType> {
@@ -502,23 +510,33 @@ pub fn generated_station(
         .iter()
         .filter_map(|part| part.config.kind.reload_item())
         .collect();
-    let goods: Vec<(ItemRoleType, f32)> = GOODS
+    // The role goods, then every usable item (mod consumables too) at
+    // [`CONSUMABLE_GOODS_WEIGHT`], each where the market deals in it.
+    let goods: Vec<(&ItemDesign, Option<ItemRoleType>, f32)> = GOODS
         .into_iter()
         .filter(|(role, _)| role.category() != ItemCategoryType::Ammo || reloads.contains(role))
+        .map(|(role, weight)| (items.role(role), Some(role), weight))
+        .chain(consumables.iter().map(|consumable| {
+            (
+                items.design(&consumable.item),
+                None,
+                CONSUMABLE_GOODS_WEIGHT,
+            )
+        }))
+        .filter(|(design, role, _)| role.is_some() || market_deals_in(design, civilization.lawful))
         .collect();
     let mut stock: BTreeMap<ItemDesignId, u32> = BTreeMap::new();
-    let total: f32 = goods.iter().map(|(_, weight)| weight).sum();
-    for (role, weight) in goods {
-        let design = items.role(role);
+    let total: f32 = goods.iter().map(|(_, _, weight)| weight).sum();
+    for (design, role, weight) in goods {
         let portion = (budget as f64 * f64::from(weight / total)) as u64;
         let mut units = u32::try_from(portion / u64::from(design.mass_g))
             .expect("a station hold's units fit a u32");
         // A heavy round whose share rounds to nothing is still stocked, so
         // every weapon the civilization fields can rearm here.
-        if role.category() == ItemCategoryType::Ammo {
+        if role.is_some_and(|role| role.category() == ItemCategoryType::Ammo) {
             units = units.max(1);
         }
-        if role == ItemRoleType::PdcRound {
+        if role == Some(ItemRoleType::PdcRound) {
             units = units.max(PDC_OPENING_ROUNDS);
         }
         if units > 0 {
@@ -1877,8 +1895,14 @@ mod tests {
         };
         let request = request_of(civilization, 1, StationArchetypeType::Ring, 1.0);
         let layout = generate_station(&parts, request).expect("the station generates");
-        let station =
-            generated_station(&parts, &items, &layout, &living).expect("the stock fits the hold");
+        let station = generated_station(
+            &parts,
+            &items,
+            &GameConsumables::default(),
+            &layout,
+            &living,
+        )
+        .expect("the stock fits the hold");
         let stocked: BTreeSet<&str> = station
             .stock
             .stacks()
@@ -1984,8 +2008,14 @@ mod tests {
             "the fixture's arithmetic holds for 16 to 249 hull cells, not {hulls}"
         );
 
-        let station =
-            generated_station(&parts, &items, &layout, &living).expect("the stock fits the hold");
+        let station = generated_station(
+            &parts,
+            &items,
+            &GameConsumables::default(),
+            &layout,
+            &living,
+        )
+        .expect("the stock fits the hold");
 
         let stock: BTreeMap<&str, u32> = station
             .stock
@@ -2072,8 +2102,14 @@ mod tests {
                 stance: nova_gameplay::prelude::StanceType::Neutral,
                 lawful,
             };
-            let station = generated_station(&parts, &items, &layout, &civilization)
-                .expect("the stock fits the hold");
+            let station = generated_station(
+                &parts,
+                &items,
+                &GameConsumables::default(),
+                &layout,
+                &civilization,
+            )
+            .expect("the stock fits the hold");
             let count = |item: &str| {
                 station
                     .stock
@@ -2135,8 +2171,14 @@ mod tests {
         };
         let layout = generate_station(&parts, request).expect("the station generates");
 
-        let failure = generated_station(&parts, &items, &layout, &living)
-            .expect_err("one PDC round outweighs the hold");
+        let failure = generated_station(
+            &parts,
+            &items,
+            &GameConsumables::default(),
+            &layout,
+            &living,
+        )
+        .expect_err("one PDC round outweighs the hold");
 
         let StationLayoutConstraintType::StockOverHold { stock_g, hold_g } = failure else {
             panic!("{failure}");
@@ -2199,8 +2241,14 @@ mod tests {
         let layout = generate_station(&parts, request).expect("the station generates");
         let stock = |round_g| {
             let items = items(round_g);
-            let station =
-                generated_station(&parts, &items, &layout, &living).expect("the stock fits");
+            let station = generated_station(
+                &parts,
+                &items,
+                &GameConsumables::default(),
+                &layout,
+                &living,
+            )
+            .expect("the stock fits");
             let stacks: BTreeMap<String, u32> = station
                 .stock
                 .stacks()
@@ -2213,8 +2261,14 @@ mod tests {
         let (heavy, heavy_g) = stock(1_000);
         let (light, _) = stock(1);
         assert_eq!(heavy[round], PDC_OPENING_ROUNDS, "{heavy:?}");
-        let station =
-            generated_station(&parts, &items(1_000), &layout, &living).expect("the stock fits");
+        let station = generated_station(
+            &parts,
+            &items(1_000),
+            &GameConsumables::default(),
+            &layout,
+            &living,
+        )
+        .expect("the stock fits");
         let market =
             crate::sector_ships::trader_market(ClusterType::RockOnly, &living, &station.stock);
         let rule = RestockRule {
@@ -2268,9 +2322,15 @@ mod tests {
                 lawful: false,
             };
             let layout = generate_station(&parts, request).expect("the station generates");
-            generated_station(&parts, &items, &layout, &living)
-                .expect("the stock fits")
-                .services
+            generated_station(
+                &parts,
+                &items,
+                &GameConsumables::default(),
+                &layout,
+                &living,
+            )
+            .expect("the stock fits")
+            .services
         };
         assert_eq!(services(0.0), SERVICES);
         assert_eq!(services(CRAFT_ADVANCEMENT - 0.01), SERVICES);

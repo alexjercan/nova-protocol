@@ -9,10 +9,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use nova_assets::items::{item_pack_faults, ItemPack};
+use nova_assets::items::{item_pack_faults, largest_torpedo_blast, ItemPack};
 use nova_gameplay::prelude::{
-    price_table_faults, trade_profile_faults, GameItems, GameTradeProfiles, ItemDesign, PriceTable,
-    RecipeDesign, SectionClass, TradeProfileDesign,
+    price_table_faults, trade_profile_faults, ConsumableDesign, GameItems, GameTradeProfiles,
+    ItemDesign, PriceTable, RecipeDesign, SectionClass, TradeProfileDesign,
 };
 use nova_input::prelude::InputSource;
 use nova_mod_format::{
@@ -69,6 +69,7 @@ struct WalkedBundle {
     price_tables: Vec<PriceTable>,
     trade_profiles: Vec<TradeProfileDesign>,
     recipes: Vec<RecipeDesign>,
+    consumables: Vec<ConsumableDesign>,
     scenarios: Vec<ScenarioConfig>,
     campaigns: Vec<CampaignConfig>,
     lessons: Vec<Lesson>,
@@ -143,6 +144,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
     let mut price_tables = Vec::new();
     let mut trade_profiles = Vec::new();
     let mut recipes = Vec::new();
+    let mut consumables = Vec::new();
     let mut scenarios = Vec::new();
     let mut campaigns = Vec::new();
     let mut lessons = Vec::new();
@@ -158,6 +160,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
             Content::PriceTable(table) => price_tables.push(table.clone()),
             Content::TradeProfile(profile) => trade_profiles.push(profile.clone()),
             Content::Recipe(recipe) => recipes.push(recipe.clone()),
+            Content::Consumable(consumable) => consumables.push(consumable.clone()),
             Content::Scenario(scenario) => scenarios.push(scenario.clone()),
             Content::Campaign(campaign) => campaigns.push(campaign.clone()),
             Content::Lesson(lesson) => lessons.push(lesson.clone()),
@@ -175,6 +178,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         price_tables,
         trade_profiles,
         recipes,
+        consumables,
         scenarios,
         campaigns,
         lessons,
@@ -1107,7 +1111,7 @@ fn build_report(
         });
     }
 
-    // 1c. Items and recipes: the rule the merge applies, over every walked
+    // 1c. Items, recipes and consumables: the rule the merge applies, over every walked
     // pack at once, since a player may enable any of them together and the
     // merge then refuses both packs of an unrelated duplicate, or the mod
     // that cheapens a base recipe input. A fault is reported against
@@ -1129,6 +1133,8 @@ fn build_report(
             dependencies: walked.manifest.meta.dependencies.as_slice(),
             items: walked.items.iter().collect(),
             recipes: walked.recipes.iter().collect(),
+            consumables: walked.consumables.iter().collect(),
+            torpedo_blast: largest_torpedo_blast(walked.content.iter().map(|(_, item)| item)),
         })
         .collect();
     let item_faults: Vec<(String, String)> = item_pack_faults(&packs)
@@ -1446,6 +1452,7 @@ mod tests {
             price_tables: Vec::new(),
             trade_profiles: Vec::new(),
             recipes: Vec::new(),
+            consumables: Vec::new(),
             scenarios,
             campaigns,
             lessons,

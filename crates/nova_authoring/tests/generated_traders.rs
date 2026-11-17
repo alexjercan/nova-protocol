@@ -11,13 +11,17 @@
 use std::collections::BTreeMap;
 
 use nova_authoring::{
-    generation::{build_items, build_price_table, build_section_catalog, build_trade_profiles},
+    generation::{
+        build_consumables, build_items, build_price_table, build_section_catalog,
+        build_trade_profiles,
+    },
     lint_walk::repo_ship_part_packs,
 };
 use nova_events::prelude::Meters3;
 use nova_gameplay::prelude::{
-    apply_visit_trades, CivilizationId, ClusterType, GameItems, GameTradeProfiles, ItemDesignId,
-    ItemTradeType, ShipInventory, ShipInventoryStock, ShipRoleType, StanceType, TraderMarket,
+    apply_visit_trades, CivilizationId, ClusterType, GameConsumables, GameItems, GameTradeProfiles,
+    ItemDesignId, ItemTradeType, ShipInventory, ShipInventoryStock, ShipRoleType, StanceType,
+    TraderMarket,
 };
 use nova_scenario::prelude::{resolve_ship_design, GameShipDesigns, ShipDesign, ShipDesignSource};
 use nova_ship::prelude::GameSections;
@@ -177,8 +181,14 @@ fn sell_at_a_generated_station(
         },
     )
     .unwrap_or_else(|failure| panic!("the station lays out: {failure}"));
-    let station = generated_station(&parts, &items, &layout, &civilization)
-        .unwrap_or_else(|constraint| panic!("the station is stocked: {constraint}"));
+    let station = generated_station(
+        &parts,
+        &items,
+        &GameConsumables::new(build_consumables()),
+        &layout,
+        &civilization,
+    )
+    .unwrap_or_else(|constraint| panic!("the station is stocked: {constraint}"));
     let mut station_hold = hold(&items, &sections, &station.hull, &station.stock);
     let mut station_cr = station.credits;
     let stocked = station_hold.count(&good);

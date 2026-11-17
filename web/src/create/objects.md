@@ -341,6 +341,16 @@ one from 2 `IronOre` and 1 `CarbonOre` for a 30 cr fee, docked at a station
 that offers `Craft`. See [Craft](../stations/#craft) for the rule and
 [Recipes](../mod-files/#recipes) for the format.
 
+Base ships three [consumable](../mod-files/#consumables) items. They are not
+role ids: a mod may replace them, or replace their consumables. Each has a
+lot of 1.
+
+| Item | Mass | Category | Ask | Bid | Use |
+| --- | --- | --- | --- | --- | --- |
+| `RepairKit` | 20 kg | Repair | 120 | 90 | `Repair`, key 1 |
+| `BoostCell` | 10 kg | Parts | 26 | 20 | `ThrustBoost`, key 2 |
+| `DecoyFlare` | 5 kg | Ammo | 24 | 18 | `Flare`, key 3 |
+
 Base ships one `Contraband` item. It is not a role id either: a mod may add
 its own `Contraband` items, and a lawful market refuses every one the same
 way.
@@ -492,7 +502,7 @@ crashing, so a missing dependency is visible instead of fatal.
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `input_mapping` | map | `{}` | per-SECTION bindings, keyed by section id: `{ "turret_port": [ Mouse(Left) ] }`. Values are `Keyboard(<KeyCode>)` / `Mouse(<MouseButton>)` / `Gamepad(<GamepadButton>)` - modifier-free buttons only. Every `Mining` section on the ship needs its own non-empty entry, and no two of them may share a button: lint and load refuse the ship |
+| `input_mapping` | map | `{}` | per-SECTION bindings, keyed by section id: `{ "turret_port": [ Mouse(Left) ] }`. Values are `Keyboard(<KeyCode>)` / `Mouse(<MouseButton>)` / `Gamepad(<GamepadButton>)` - modifier-free buttons only. Every `Mining` section on the ship needs its own non-empty entry, and no two of them may share a button: lint and load refuse the ship. A binding on a button the flight rig already drives, such as `Keyboard(Digit1)`, `Keyboard(Digit2)` or `Keyboard(Digit3)` (the [consumable](../mod-files/#consumables) keys), fails lint as `input-overlap` |
 
 `Player((..))` is STRICT: a key that is not in that table is a load error
 naming the key, not a key quietly dropped.

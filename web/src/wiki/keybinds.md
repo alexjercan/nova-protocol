@@ -158,6 +158,21 @@ A dash means the action has no binding on that device.
                 ></span>
             </td>
         </tr>
+        <tr>
+            <td>KIT - use a repair kit</td>
+            <td><kbd>1</kbd></td>
+            <td>unbound</td>
+        </tr>
+        <tr>
+            <td>BOOST - use a boost cell</td>
+            <td><kbd>2</kbd></td>
+            <td>unbound</td>
+        </tr>
+        <tr>
+            <td>FLARE - use a decoy flare</td>
+            <td><kbd>3</kbd></td>
+            <td>unbound</td>
+        </tr>
     </tbody>
 </table>
 
@@ -168,6 +183,12 @@ Dock and Helm appear in **Settings > Controls > FLIGHT** with <kbd>D</kbd> and <
 On a gamepad DOCK and HELM are chords on the RCS button, like MATCH. GOTO and ORBIT do nothing useful while RCS is held, so while you hold the left stick click the GOTO button docks and lets go, and the ORBIT button takes and hands back the helm. The keybind dock draws both buttons on the DOCK and HELM chips. The chord follows the RCS, GOTO and ORBIT bindings, so <kbd>Shift</kbd> + <kbd>G</kbd> and <kbd>Shift</kbd> + <kbd>O</kbd> do the same on a keyboard. The gamepad column of the Dock and Helm rows in Settings stays empty until you bind a button of your own there.
 
 Roll turns the view and the hull together at a quarter turn a second, through the same controller that points the nose, and draws no RCS. <kbd>Q</kbd> rolls left and <kbd>E</kbd> rolls right; holding both holds still. Roll does nothing in free look, with weapons raised, while RCS is held or while an autopilot verb is flying. Roll Left and Roll Right appear in **Settings > Controls > FLIGHT**; no gamepad button is free for them, and a ship's own section keys cannot take <kbd>Q</kbd> or <kbd>E</kbd>.
+
+<!-- Consumable keys: crates/nova_ship/src/input/bindings.rs `flight_bindings`
+     (use_repair_kit, use_boost, use_flare); reserved against section keys by
+     `flight_rig_reserved_sources`. -->
+
+<kbd>1</kbd>, <kbd>2</kbd> and <kbd>3</kbd> use one [consumable](../crafting/#consumables) from your hold: a repair kit, a boost cell or a decoy flare. They appear in **Settings > Controls > FLIGHT** as Use Repair Kit, Use Boost Cell and Use Decoy Flare. No gamepad button is free for them, and a ship's own section keys cannot take them. A refused use keeps the item and plays the deny cue.
 
 Mining has no flight key. Each mining beam section has its own key, like a weapon or a thruster: a ship's first beam answers <kbd>V</kbd> and the right trigger on a gamepad, on the mining tug's bow and on a beam placed in the editor alike. A second beam takes <kbd>B</kbd> and no gamepad button. The right trigger is also FIRE: with the weapons cold it only mines, and with them hot it does both. Hold a beam's key with an ore rock travel-locked, in front of that emitter and within 100 m; it opens, runs its tip out and cuts the rock once a second where it hits. Release the key and that beam retracts. Rebind each beam on the [Ship pane](../interface/#rebinding-a-section). See [Mining beam](../sections/mining-beam/).
 

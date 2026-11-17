@@ -37,7 +37,7 @@
 //! ## Why the map walk presses `viewer_next` twice
 //!
 //! The first press from no selection lands on the own ship, whose panel reads
-//! "That is you"; the second steps onto the next contact. The contact list has
+//! `OWN SHIP`; the second steps onto the next contact. The contact list has
 //! no sort (`MapContacts::collect` is query order), and the two hostiles have
 //! come up in either order between runs, so the sheet is about "a hostile", not
 //! about one named ship. The walk does not read the selection (`MapRuntime` is

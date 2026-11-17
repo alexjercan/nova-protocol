@@ -75,19 +75,6 @@ impl MapContactKind {
         }
     }
 
-    /// What the contact panel says a contact of this kind is.
-    pub(crate) fn note(self) -> &'static str {
-        match self {
-            MapContactKind::OwnShip => "That is you.",
-            MapContactKind::Ally => "Friendly contact.",
-            MapContactKind::Hostile => "Hostile contact.",
-            MapContactKind::Objective => "Mission objective.",
-            MapContactKind::Terrain => "Asteroid mass.",
-            MapContactKind::Neutral => "Ship on no side.",
-            MapContactKind::Planet => "Planetary body.",
-        }
-    }
-
     /// The code prefix for this kind (`SELF`, `ALLY`, `HOST`, `OBJ`, `AST`,
     /// `NEU`, `PLN`), the
     /// stem of the unique per-contact [`MapContactCode`] labels.

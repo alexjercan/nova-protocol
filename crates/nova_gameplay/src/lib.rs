@@ -39,6 +39,7 @@ pub mod chart;
 pub mod cheats;
 pub mod civilization;
 pub mod clock;
+pub mod consumable;
 pub mod contact_model;
 pub mod cooldown;
 pub mod crafting;
@@ -128,18 +129,18 @@ pub mod prelude {
     pub use super::{
         asset_ref::prelude::*, beacon::prelude::*, bounds::prelude::*, button_cue::prelude::*,
         chart::prelude::*, cheats::prelude::*, civilization::prelude::*, clock::prelude::*,
-        contact_model::prelude::*, cooldown::prelude::*, crafting::prelude::*, damage::prelude::*,
-        freeze::prelude::*, goal::prelude::*, gravity::prelude::*, hash::prelude::*,
-        impact_sound::prelude::*, impact_spark::prelude::*, integrity::prelude::*,
-        inventory::prelude::*, jobs::prelude::*, juice::prelude::*, lifetime::prelude::*,
-        markers::prelude::*, market::prelude::*, math::prelude::*, mesh::prelude::*,
-        narrative_accent::prelude::*, objectives::prelude::*, open_objectives::prelude::*,
-        plugin::prelude::*, projectile_hooks::prelude::*, relations::prelude::*,
-        render_target::prelude::*, rescue::prelude::*, role_icon::prelude::*, rounds::prelude::*,
-        saved_refs::prelude::*, settings::prelude::*, shake::prelude::*, soft_dot::prelude::*,
-        station_visits::prelude::*, trade_profile::prelude::*, transform::prelude::*,
-        transient_light::prelude::*, EscapeOwner, GameMode, GameStates, GuardedLeave, PauseStates,
-        UnsavedWork,
+        consumable::prelude::*, contact_model::prelude::*, cooldown::prelude::*,
+        crafting::prelude::*, damage::prelude::*, freeze::prelude::*, goal::prelude::*,
+        gravity::prelude::*, hash::prelude::*, impact_sound::prelude::*, impact_spark::prelude::*,
+        integrity::prelude::*, inventory::prelude::*, jobs::prelude::*, juice::prelude::*,
+        lifetime::prelude::*, markers::prelude::*, market::prelude::*, math::prelude::*,
+        mesh::prelude::*, narrative_accent::prelude::*, objectives::prelude::*,
+        open_objectives::prelude::*, plugin::prelude::*, projectile_hooks::prelude::*,
+        relations::prelude::*, render_target::prelude::*, rescue::prelude::*,
+        role_icon::prelude::*, rounds::prelude::*, saved_refs::prelude::*, settings::prelude::*,
+        shake::prelude::*, soft_dot::prelude::*, station_visits::prelude::*,
+        trade_profile::prelude::*, transform::prelude::*, transient_light::prelude::*, EscapeOwner,
+        GameMode, GameStates, GuardedLeave, PauseStates, UnsavedWork,
     };
 }
 

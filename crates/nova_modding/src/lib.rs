@@ -49,7 +49,9 @@ use bevy::{
     prelude::*,
     reflect::TypePath,
 };
-use nova_gameplay::prelude::{ItemDesign, PriceTable, RecipeDesign, TradeProfileDesign};
+use nova_gameplay::prelude::{
+    ConsumableDesign, ItemDesign, PriceTable, RecipeDesign, TradeProfileDesign,
+};
 // The pure serde format types live in the engine-free `nova_mod_format`
 // crate so the portal generator builds without bevy; re-exported here so game
 // code keeps importing them from nova_modding.
@@ -186,6 +188,16 @@ pub enum Content {
     /// rules judge the merged item catalog, so a mod that replaces an item
     /// until a recipe of another pack pays is the mod refused.
     Recipe(RecipeDesign),
+    /// A [`ConsumableDesign`] - registers into `GameConsumables` keyed by its
+    /// item id. Makes an item usable in flight: one use takes one item and
+    /// starts a repair, a thrust boost or a torpedo flare.
+    ///
+    /// A mod makes any item usable by declaring a consumable for it, and
+    /// replaces a base one by declaring the same item, like a recipe. An
+    /// unknown item, an item engine code spends, a bad number, a flare lure
+    /// inside the largest torpedo blast and two consumables of one effect
+    /// type fail at lint and refuse the owning mod at load.
+    Consumable(ConsumableDesign),
 }
 
 /// The fixed [`Content::id`] of the [`Content::PriceTable`] singleton: a
@@ -214,6 +226,7 @@ impl Content {
             Content::PriceTable(_) => "price table",
             Content::TradeProfile(_) => "trade profile",
             Content::Recipe(_) => "recipe",
+            Content::Consumable(_) => "consumable",
         }
     }
 
@@ -234,6 +247,7 @@ impl Content {
             Content::PriceTable(_) => PRICE_TABLE_ID,
             Content::TradeProfile(profile) => profile.id.as_str(),
             Content::Recipe(recipe) => recipe.id.as_str(),
+            Content::Consumable(consumable) => consumable.item.as_str(),
         }
     }
 

@@ -1,0 +1,24 @@
+[
+    Consumable((
+        item: "RepairKit",
+        effect: Repair(
+            health: 80.0,
+            duration_secs: 10.0,
+        ),
+    )),
+    Consumable((
+        item: "BoostCell",
+        effect: ThrustBoost(
+            factor: 1.5,
+            duration_secs: 8.0,
+        ),
+    )),
+    Consumable((
+        item: "DecoyFlare",
+        effect: Flare(
+            near_m: 400.0,
+            far_m: 3000.0,
+            lure_m: 800.0,
+        ),
+    )),
+]

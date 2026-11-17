@@ -350,26 +350,6 @@ pub enum CraftRefusalType {
     CreditOverflow,
 }
 
-impl CraftRefusalType {
-    /// The reason as a pane line: `Dock at a Craft station`, `Short of Stone
-    /// ore: 3 of 5`.
-    pub fn reason(&self, items: &GameItems) -> String {
-        match self {
-            Self::Running => "A craft is running".to_string(),
-            Self::BadBatches => format!("Batches must be 1 to {CRAFT_BATCHES_MAX}"),
-            Self::NotAtCraftStation => "Dock at a Craft station".to_string(),
-            Self::ShortInput { item, need, have } => format!(
-                "Short of {}: {have} of {need}",
-                items.design(item).name.to_lowercase()
-            ),
-            Self::ShortCredits { need, have } => {
-                format!("Short of credits: {have} of {need} cr")
-            }
-            Self::CreditOverflow => "The station cannot hold more credits".to_string(),
-        }
-    }
-}
-
 /// The first input of `recipe` the hold `hold` is short of for `batches`
 /// batches, in authored order.
 fn short_input(

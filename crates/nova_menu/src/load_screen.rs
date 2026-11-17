@@ -22,6 +22,7 @@ use std::{
 };
 
 use bevy::{
+    ecs::system::SystemParam,
     picking::hover::Hovered,
     prelude::*,
     tasks::{block_on, futures_lite::future, IoTaskPool, Task},
@@ -148,6 +149,14 @@ pub(crate) struct LoadWorldRow {
 #[derive(Component)]
 pub(crate) struct LoadWorldDetails;
 
+/// The crafting catalogs a save's craft job and consumable effects are
+/// checked against.
+#[derive(SystemParam)]
+pub(crate) struct CraftCatalogs<'w> {
+    recipes: Res<'w, GameRecipes>,
+    consumables: Res<'w, GameConsumables>,
+}
+
 /// The details pane's Load button.
 #[derive(Component)]
 pub(crate) struct LoadWorldButton;
@@ -163,6 +172,7 @@ fn read_listings(
     designs: &GameShipDesigns,
     profiles: &GameTradeProfiles,
     recipes: &GameRecipes,
+    consumables: &GameConsumables,
     checks: &mut WorldChecks,
 ) -> Result<Vec<WorldListing>, WorldRefusal> {
     let listings = list_worlds(root, packs, roles);
@@ -173,6 +183,7 @@ fn read_listings(
     let designs = Arc::new(designs.clone());
     let profiles = Arc::new(profiles.clone());
     let recipes = Arc::new(recipes.clone());
+    let consumables = Arc::new(consumables.clone());
     checks.0 = listings
         .iter()
         .flatten()
@@ -185,9 +196,19 @@ fn read_listings(
             let designs = Arc::clone(&designs);
             let profiles = Arc::clone(&profiles);
             let recipes = Arc::clone(&recipes);
+            let consumables = Arc::clone(&consumables);
             let task = IoTaskPool::get().spawn(async move {
                 check_world(
-                    &root, &slug, &packs, &roles, &items, &scenarios, &designs, &profiles, &recipes,
+                    &root,
+                    &slug,
+                    &packs,
+                    &roles,
+                    &items,
+                    &scenarios,
+                    &designs,
+                    &profiles,
+                    &recipes,
+                    &consumables,
                 )
             });
             (listing.folder.slug.clone(), task)
@@ -236,7 +257,7 @@ pub(crate) fn on_load_screen(
     scenarios: Res<GameScenarios>,
     designs: Res<GameShipDesigns>,
     profiles: Res<GameTradeProfiles>,
-    recipes: Res<GameRecipes>,
+    crafting: CraftCatalogs,
     mut checks: ResMut<WorldChecks>,
     mut listings: ResMut<WorldListings>,
     mut selected: ResMut<SelectedWorldSlug>,
@@ -252,7 +273,8 @@ pub(crate) fn on_load_screen(
             &scenarios,
             &designs,
             &profiles,
-            &recipes,
+            &crafting.recipes,
+            &crafting.consumables,
             &mut checks,
         ),
         None => Ok(Vec::new()),
@@ -324,7 +346,7 @@ pub(crate) fn on_delete_world_confirm(
     scenarios: Res<GameScenarios>,
     designs: Res<GameShipDesigns>,
     profiles: Res<GameTradeProfiles>,
-    recipes: Res<GameRecipes>,
+    crafting: CraftCatalogs,
     mut checks: ResMut<WorldChecks>,
     mut step: ResMut<WorldDeleteStep>,
     mut listings: ResMut<WorldListings>,
@@ -345,7 +367,8 @@ pub(crate) fn on_delete_world_confirm(
         &scenarios,
         &designs,
         &profiles,
-        &recipes,
+        &crafting.recipes,
+        &crafting.consumables,
         &mut checks,
     );
     *step = match result {
@@ -369,14 +392,25 @@ pub(crate) fn open_world_task(
     designs: &GameShipDesigns,
     profiles: &GameTradeProfiles,
     recipes: &GameRecipes,
+    consumables: &GameConsumables,
 ) -> Task<OpenedWorld> {
     let (root, slug) = (root.to_path_buf(), slug.to_string());
     let (packs, roles, items) = (packs.clone(), roles.clone(), items.clone());
     let scenarios = RegisteredScenarios::from(scenarios);
     let (designs, profiles, recipes) = (designs.clone(), profiles.clone(), recipes.clone());
+    let consumables = consumables.clone();
     IoTaskPool::get().spawn(async move {
         open_world(
-            &root, &slug, &packs, &roles, &items, &scenarios, &designs, &profiles, &recipes,
+            &root,
+            &slug,
+            &packs,
+            &roles,
+            &items,
+            &scenarios,
+            &designs,
+            &profiles,
+            &recipes,
+            &consumables,
         )
     })
 }
@@ -393,7 +427,7 @@ pub(crate) fn on_load_world(
     scenarios: Res<GameScenarios>,
     designs: Res<GameShipDesigns>,
     profiles: Res<GameTradeProfiles>,
-    recipes: Res<GameRecipes>,
+    crafting: CraftCatalogs,
     checks: Res<WorldChecks>,
     selected: Res<SelectedWorldSlug>,
     mut opening: ResMut<WorldOpen>,
@@ -409,7 +443,16 @@ pub(crate) fn on_load_world(
     // its prompt back.
     *step = WorldDeleteStep::Idle;
     let task = open_world_task(
-        root, slug, &packs, &roles, &items, &scenarios, &designs, &profiles, &recipes,
+        root,
+        slug,
+        &packs,
+        &roles,
+        &items,
+        &scenarios,
+        &designs,
+        &profiles,
+        &crafting.recipes,
+        &crafting.consumables,
     );
     opening.0 = Some((slug.to_string(), task));
 }
@@ -515,7 +558,7 @@ pub(crate) fn on_continue_world(
     scenarios: Res<GameScenarios>,
     designs: Res<GameShipDesigns>,
     profiles: Res<GameTradeProfiles>,
-    recipes: Res<GameRecipes>,
+    crafting: CraftCatalogs,
     mut checks: ResMut<WorldChecks>,
     mut listings: ResMut<WorldListings>,
     mut selected: ResMut<SelectedWorldSlug>,
@@ -536,13 +579,23 @@ pub(crate) fn on_continue_world(
         &scenarios,
         &designs,
         &profiles,
-        &recipes,
+        &crafting.recipes,
+        &crafting.consumables,
         &mut checks,
     );
     selected.0 = Some(button.0.clone());
     *step = WorldDeleteStep::Idle;
     let task = open_world_task(
-        root, &button.0, &packs, &roles, &items, &scenarios, &designs, &profiles, &recipes,
+        root,
+        &button.0,
+        &packs,
+        &roles,
+        &items,
+        &scenarios,
+        &designs,
+        &profiles,
+        &crafting.recipes,
+        &crafting.consumables,
     );
     opening.0 = Some((button.0.clone(), task));
 }
@@ -613,7 +666,7 @@ pub(crate) fn refuse_resumed_world(
     scenarios: Res<GameScenarios>,
     designs: Res<GameShipDesigns>,
     profiles: Res<GameTradeProfiles>,
-    recipes: Res<GameRecipes>,
+    crafting: CraftCatalogs,
     mut checks: ResMut<WorldChecks>,
     mut listings: ResMut<WorldListings>,
     mut selected: ResMut<SelectedWorldSlug>,
@@ -636,7 +689,8 @@ pub(crate) fn refuse_resumed_world(
             &scenarios,
             &designs,
             &profiles,
-            &recipes,
+            &crafting.recipes,
+            &crafting.consumables,
             &mut checks,
         ),
         None => Ok(Vec::new()),

@@ -169,20 +169,20 @@ fn the_hull_is_selected() -> std::sync::Arc<nova_protocol::nova_debug::harness::
     })
 }
 
-/// The preview line a draft that fills the hurt hull reads.
+/// The preview line a draft of All that fills the hurt hull reads: the
+/// integrity it restores to and the seconds its plates take.
 #[cfg(feature = "debug")]
-fn full_preview(max: f32) -> String {
-    format!(
-        "Predicted integrity: {max:.0}/{max:.0} HP\nA plate fits every {PLATE_REPAIR_SECS:.0} s, up to {HULL_PLATE_HEALTH:.0} HP."
-    )
+fn full_preview(current: f32, max: f32) -> String {
+    let secs = PLATE_REPAIR_SECS * all_plates(current, max) as f32;
+    format!("{max:.0}/{max:.0} HP, {secs:.0} s")
 }
 
 /// Advance once the form previews a repair to full integrity.
 #[cfg(feature = "debug")]
 fn the_preview_reads_full() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(|world: &World| {
-        player_hull(world).is_some_and(|(_, max)| {
-            let preview = full_preview(max);
+        player_hull(world).is_some_and(|(current, max)| {
+            let preview = full_preview(current, max);
             visible_texts(world, |text| text == preview) == 1
         })
     })

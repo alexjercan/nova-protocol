@@ -87,6 +87,7 @@ fn start_the_world(
     loaded: Res<LoadedSectionPacks>,
     styles: Res<GameStyles>,
     items: Res<GameItems>,
+    consumables: Res<GameConsumables>,
     profiles: Res<GameTradeProfiles>,
     mut mode: ResMut<GameMode>,
     mut pick: ResMut<NewGameScenario>,
@@ -100,10 +101,16 @@ fn start_the_world(
         let known: Vec<&str> = roles.0.iter().map(|role| role.id.as_str()).collect();
         panic!("open world stage: no start role '{role}'; the roles are {known:?}");
     }
-    let session = start_session(start.seed, role, &loaded, &styles, &items, &profiles)
-        .unwrap_or_else(|refusal| {
-            panic!("open world stage: seed {} refused: {refusal}", start.seed)
-        });
+    let session = start_session(
+        start.seed,
+        role,
+        &loaded,
+        &styles,
+        &items,
+        &consumables,
+        &profiles,
+    )
+    .unwrap_or_else(|refusal| panic!("open world stage: seed {} refused: {refusal}", start.seed));
     info!(
         "open world stage: the start docks at '{}' at {:?}",
         session.start.id, session.start.position

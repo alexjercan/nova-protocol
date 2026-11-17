@@ -2,7 +2,7 @@
 //! order and overlay it by id into the game's registries (`GameSections`,
 //! `GameShipDesigns`, `GameScenarios`, `GameCampaigns`, `GameStyles`,
 //! `GameItems`, `GameStationDesigns`, `GameStartRoles`, `GameTradeProfiles`,
-//! `GameRecipes`), linting the result
+//! `GameRecipes`, `GameConsumables`), linting the result
 //! as it goes.
 
 /// Glob-import surface: `use nova_assets::merge::prelude::*` re-exports the
@@ -20,8 +20,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::{
-    price_table_faults, trade_profile_faults, Fnv64, GameItems, GamePriceTable, GameRecipes,
-    GameStates, GameTradeProfiles, ItemDesign, PriceTable, RecipeDesign, TradeProfileDesign,
+    price_table_faults, trade_profile_faults, ConsumableDesign, Fnv64, GameConsumables, GameItems,
+    GamePriceTable, GameRecipes, GameStates, GameTradeProfiles, ItemDesign, PriceTable,
+    RecipeDesign, TradeProfileDesign,
 };
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
 use nova_scenario::prelude::{
@@ -203,6 +204,14 @@ pub fn register_bundles(
                         _ => None,
                     })
                     .collect(),
+                consumables: content
+                    .iter()
+                    .filter_map(|item| match item {
+                        Content::Consumable(design) => Some(design),
+                        _ => None,
+                    })
+                    .collect(),
+                torpedo_blast: crate::items::largest_torpedo_blast(content.iter().copied()),
             })
         })
         .collect();
@@ -793,6 +802,7 @@ pub fn register_bundles(
     commands.insert_resource(GameStartRoles(outcome.start_roles));
     commands.insert_resource(merged_profiles);
     commands.insert_resource(GameRecipes::new(outcome.recipes));
+    commands.insert_resource(GameConsumables::new(outcome.consumables));
     // The gate above refuses a base that states no table, so a merge over a
     // loaded catalog always has one. Without a catalog nothing was gated and
     // no generated world arms, so there is no trader to price.
@@ -1095,6 +1105,9 @@ pub struct MergeOutcome {
     /// Recipes in registration order, overlaid last-wins by id - so a mod
     /// replaces a base recipe by declaring the same id.
     pub recipes: Vec<RecipeDesign>,
+    /// Consumables in registration order, overlaid last-wins by item - so a
+    /// mod replaces a base consumable by declaring the same item.
+    pub consumables: Vec<ConsumableDesign>,
     /// Human-readable messages, one per intra-bundle duplicate id that was
     /// skipped. Empty on clean data.
     pub conflicts: Vec<String>,
@@ -1242,6 +1255,16 @@ fn merge_content_item(item: &Content, into: &mut MergeOutcome) {
             Some(existing) => *existing = recipe.clone(),
             None => into.recipes.push(recipe.clone()),
         },
+        Content::Consumable(consumable) => {
+            match into
+                .consumables
+                .iter_mut()
+                .find(|c| c.item == consumable.item)
+            {
+                Some(existing) => *existing = consumable.clone(),
+                None => into.consumables.push(consumable.clone()),
+            }
+        }
     }
 }
 

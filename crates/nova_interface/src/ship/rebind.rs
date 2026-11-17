@@ -61,7 +61,7 @@ pub(crate) fn apply_ship_rebind(
         runtime.rebinding = None;
         runtime.rebind_awaiting_release = false;
         runtime.rebind_swallow = true;
-        runtime.note = Some(("Rebind cancelled".to_string(), 2.5));
+        // The prompt going is the cancel's only sign.
         return;
     }
     // Wait for a CLEAN frame, not merely the next one. This capture is armed by

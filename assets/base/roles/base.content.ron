@@ -8,8 +8,10 @@
         kit: (
             credits: 2200,
             stock: {
+                "BoostCell": 3,
                 "HullPlate": 15,
                 "Rations": 25,
+                "RepairKit": 3,
             },
         ),
         jobs: Trade,
@@ -30,8 +32,10 @@
         kit: (
             credits: 1800,
             stock: {
+                "DecoyFlare": 4,
                 "HullPlate": 10,
                 "PdcRound": 3000,
+                "RepairKit": 3,
             },
         ),
         jobs: Salvage,
@@ -52,7 +56,9 @@
         kit: (
             credits: 2000,
             stock: {
+                "BoostCell": 3,
                 "Rations": 50,
+                "RepairKit": 3,
                 "WaterIce": 50,
             },
         ),
@@ -74,8 +80,10 @@
         kit: (
             credits: 1600,
             stock: {
+                "DecoyFlare": 4,
                 "HullPlate": 10,
                 "PdcRound": 3000,
+                "RepairKit": 3,
             },
         ),
         jobs: Combat,
@@ -96,8 +104,10 @@
         kit: (
             credits: 1000,
             stock: {
+                "DecoyFlare": 4,
                 "HullPlate": 10,
                 "PdcRound": 3000,
+                "RepairKit": 3,
                 "Torpedo": 2,
             },
         ),
@@ -119,8 +129,10 @@
         kit: (
             credits: 1800,
             stock: {
+                "DecoyFlare": 4,
                 "HullPlate": 10,
                 "PdcRound": 3000,
+                "RepairKit": 3,
             },
         ),
         jobs: Combat,

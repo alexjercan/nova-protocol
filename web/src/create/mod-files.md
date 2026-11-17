@@ -2,9 +2,9 @@
 
 A Nova Protocol mod is a folder that contains one bundle manifest, one or more
 content files, and any art or audio that the mod owns. Content files can define
-twelve kinds of reusable item: campaigns, scenarios, ship sections, whole
+fourteen kinds of reusable item: campaigns, scenarios, ship sections, whole
 ships, stations, ship skin styles, training lessons, UI themes, items, start
-roles, price tables, and trade profiles.
+roles, price tables, trade profiles, recipes, and consumables.
 
 The editor writes this same layout. Open **Sandbox** on the main menu to
 make a mod without hand-editing a file. Its Assets tab shows the items as file
@@ -164,7 +164,7 @@ content is rebalanced, prune the entry.
 ## Content files
 
 Every `*.content.ron` file is a RON list. One file may contain any mix of the
-thirteen item kinds:
+fourteen item kinds:
 
 ```ron
 [
@@ -255,11 +255,18 @@ thirteen item kinds:
         bid_cr: 45,
     )),
     Recipe((
-        id: "my_mod/sensor_core",
+        id: "my_mod/survey_core",
         inputs: [("SalvagedParts", 1)],
-        output: ("my_mod_sensor_core", 1),
+        output: ("my_mod/survey_core", 1),
         duration_secs: 12.0,
         site: Ship,
+    )),
+    Consumable((
+        item: "RepairKit",
+        effect: Repair(
+            health: 120.0,
+            duration_secs: 12.0,
+        ),
     )),
 ]
 ```
@@ -324,6 +331,75 @@ The price and mass rules read the merged catalog. When a mod replaces an input
 or the output and breaks a rule, that mod is refused, not the pack it depends
 on.
 
+### Consumables
+
+<!-- Format and rules: crates/nova_gameplay/src/consumable.rs
+     (`ConsumableDesign`, `ConsumableType`, `consumable_faults`,
+     CONSUMABLE_DURATION_MAX_SECS 60, THRUST_BOOST_FACTOR_MAX 3); merged-catalog
+     rules: crates/nova_assets/src/items.rs `item_pack_faults`; base:
+     assets/base/consumables/base.content.ron; key reservation:
+     crates/nova_ship/src/input/bindings.rs `flight_bindings`,
+     `flight_rig_reserved_sources`, checked by
+     crates/nova_authoring/src/lint_walk.rs `scenario_input_overlaps`. -->
+
+A `Consumable` makes an item usable in flight: one use takes one item and
+starts its effect. Its key is `item`. Every field is required.
+
+| field | meaning |
+|---|---|
+| `item` | the item id a use takes one of |
+| `effect` | one of the three effects below |
+
+| effect | fields | does | flight key |
+|---|---|---|---|
+| `Repair` | `health`, `duration_secs` | heals `health` over `duration_secs`, each tick to the live, enabled section with the lowest health share. Never a lost section. Ends early when nothing is damaged | <kbd>1</kbd> |
+| `ThrustBoost` | `factor`, `duration_secs` | multiplies every thruster impulse by `factor` while no autopilot verb flies. Its clock runs either way. Refused docked or with no live thruster | <kbd>2</kbd> |
+| `Flare` | `near_m`, `far_m`, `lure_m` | at once: every torpedo homing on the ship from `near_m` to `far_m` away drops its lock and flies to a point `lure_m` to one side, where it fuzes | <kbd>3</kbd> |
+
+The base game makes `RepairKit` (`Repair`, 80 HP over 10 s), `BoostCell`
+(`ThrustBoost`, 1.5 for 8 s) and `DecoyFlare` (`Flare`, 400 m, 3,000 m,
+800 m) usable. A consumable for an item another pack already made usable
+replaces it whole, as the example above does. Each effect type owns one
+flight key, so the merged catalog holds one consumable per type: to change
+a base effect, replace its consumable.
+
+Lint, then load, refuse a pack whose consumable:
+
+- names an item no loaded pack defines;
+- names a role id the game spends itself, such as `HullPlate` or `Torpedo`
+  (see [Content files](#content-files));
+- runs a `duration_secs` that is not above 0 and at most 60;
+- heals a `health` that is not finite or not above 0;
+- boosts by a `factor` that is not above 1 and at most 3;
+- has a `near_m` that is not above 0, or a `far_m` that is not above
+  `near_m`;
+- has a `lure_m` that is not above 1.5 times the largest torpedo
+  `blast_radius` the loaded content writes in a section, an inline bay or a
+  patch (450 m in base, so 675 m), so a lured blast would reach the ship: a
+  lured torpedo fuzes up to half its blast radius short of the lure point.
+  Of the flare's pack and each pack whose torpedo blast reaches the lure,
+  the pack that depends on the others is refused, so a mod that adds a
+  larger warhead is the one refused;
+- shares an effect type with another pack's consumable. Of the two, the pack
+  that depends on the other is refused; two unrelated packs are both
+  refused;
+- is defined twice in one pack.
+
+The rules run on the merged catalog, so a refused pack is switched off with
+every pack that depends on it, as for an item error.
+
+Generated stations stock every consumable item as a trade good, mod
+consumables included, except a `Contraband` item at a lawful station. A running repair or boost is saved with the ship by
+item; a save whose effect names an item the catalog does not make usable is
+refused on open.
+
+#### Keys 1, 2 and 3 are flight keys
+
+<kbd>1</kbd>, <kbd>2</kbd> and <kbd>3</kbd> are the consumable flight
+actions. A player ship's `input_mapping` that binds a section to one of them
+fails lint with an `input-overlap` error, as for every other flight key. See
+[The controller](../objects/#the-controller).
+
 ## The content chapters
 
 <div id="wiki-children"></div>
@@ -356,6 +432,10 @@ on.
 - An [item](../objects/#inventory) is one entry in the catalog a ship's stock,
   a cargo canister, or a trade can carry - what it is called, what it is for,
   what it weighs, and what a trader pays for it.
+- A [recipe](#recipes) turns hold items into another item, on the ship or at
+  a station.
+- A [consumable](#consumables) makes an item usable in flight for a repair,
+  a thrust boost or a torpedo flare.
 
 ## Paths and dependencies
 
@@ -373,15 +453,15 @@ the [base content catalog](../base-content/) for reusable base ids and assets.
 
 Content merges by id:
 
-- A new id adds a campaign, scenario, section, ship, style, lesson, recipe, or
-  theme.
+- A new id adds a campaign, scenario, section, ship, style, lesson, recipe,
+  consumable, or theme.
 - An id that already exists replaces that whole entry.
 - A duplicate id inside one bundle is a conflict: the load logs it, keeps the
   first entry, and loads the rest of the bundle.
 
 For sections, the key is `base.id`. For campaigns, scenarios, ships, styles,
-lessons, recipes, and UI themes, the key is `id`. Prefix new ids with your mod id to
-avoid accidental collisions.
+lessons, recipes, and UI themes, the key is `id`. For consumables, the key is
+`item`. Prefix new ids with your mod id to avoid accidental collisions.
 
 An item id follows a stricter rule: a new id adds, but an id another pack
 already defines is replaced only when your mod depends on that pack, directly

@@ -19,15 +19,19 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - Ship pane repairs are now timed jobs: one hull plate every 4 s of game time, spent as it is fitted. Jobs on several sections run side by side; Tab and pause hold them; Cancel keeps fitted plates.
 - A ship with no drive, computer or free port can call SOS from the Ship pane. After 60 s of game time the nearest station that admits you bills 200 cr plus parts, rebuilds them and docks you.
-- A saved Open World now keeps running repair jobs, an SOS call and a craft job, and a Load resumes them.
+- A saved Open World now keeps running repair jobs, an SOS call, a craft job and running repair kits and boosts, and a Load resumes them.
 - **(breaking)** A v0.18.0 save no longer loads: the base content changed, and a save of another catalog is refused.
-- Crafting: recipes run as timed jobs on the game clock. Ship recipes (PDC rounds, hull plates, section panels) run in flight; Station recipes need a docked station that offers Craft.
+- Crafting: recipes run as timed jobs on the game clock. Ship recipes run in flight; Station recipes need a docked station that offers Craft.
+- Ship recipes: PDC rounds, hull plates, section panels, repair kits, boost cells, decoy flares, docking collars and actuator packs, so a lost docking port rebuilds in the field.
+- Consumables on keys 1 to 3: a repair kit heals 80 HP over 10 s, a boost cell gives x1.5 thrust for 8 s in manual flight. A refused use keeps the item; a second use of a running type is refused.
+- Generated stations sell repair kits, boost cells and decoy flares. Start kits add 3 repair kits, and 3 boost cells (unarmed roles) or 4 decoy flares (armed roles).
 - Refine is replaced by Craft: alloy plates, rail slugs and torpedoes are crafted at a Craft station for a fee a batch. Stations that offered Refine now offer Craft.
 
 ### Combat & Weapons
 
 - PDC-armed start roles (scavenger, bounty hunter, military, pirate) carry 3,000 PDC rounds, up from 1,000.
 - A generated station that sells PDC rounds opens with at least 4,000, up from 2,000, and restocks back to it.
+- Decoy flare (key 3): torpedoes homing on you from 400 to 3,000 m drop the lock, fly to a point 800 m aside and burst there. Closer ones keep the lock.
 
 ### Ships & Sections
 
@@ -38,14 +42,19 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - `OnRepaired` now fires when a repair job ends, with every plate it fitted. `OnRebuilt` also fires for a field rebuild, with `price_cr: 0` and no `OnCreditsChanged`.
 - `OnCreditsChanged` gains cause `Rescue`: an SOS rescue takes its charge in one change at the answer. Its `OnRebuilt` events carry hold parts and each section's share.
 - **(breaking)** Recipes are content: `Recipe((id, inputs, output, duration_secs, site))`, with `site: Ship` or `Station(fee_cr: n)`. The item `refine` field is gone.
+- Consumables are content: `Consumable((item, effect))`, effect `Repair`, `ThrustBoost` or `Flare`. One per effect type; lint refuses bad numbers and a lure inside a torpedo blast.
+- **(breaking)** A player ship `input_mapping` that binds key 1, 2 or 3 fails lint: those keys are now the consumable flight actions.
 - **(breaking)** The station service `Refine` is now `Craft`, and the `OnCreditsChanged` cause `Refine` is now `Craft`: one per party for each Station recipe batch.
 
 ### Interface & HUD
 
 - The Ship pane lists running repairs with a bar, the time left and Cancel. In flight a chip under the RCS pips shows the first job, and a notice says how each one ends.
-- The Ship pane's Distress block says why the ship is stranded and what a rescue costs, then shows the call with Cancel. The HUD chip reads `SOS 42 S`; a notice says how it ends.
+- The Ship pane's Distress block tags why the ship is stranded and shows what a rescue costs, then shows the call with Cancel. The HUD chip reads `SOS 42 S`; a notice says how it ends.
 - Low-ammo warning: when the hold has under one magazine of an ammo item, a notice (`PDC ROUND LOW: 400`, then `PDC ROUND DRY`) and one cue play, and the weapon gauge shows `LOW` or `DRY`.
-- Craft button in the Inventory pane opens a Craft view: recipe tiles, greyed with the reason, a card with a batch slider and Max, the running job with Cancel. A HUD chip and notice follow the job.
+- The Inventory pane's Craft button opens a Craft view: recipe tiles, a card with have / need for the chosen batches, a batch slider, the job with Cancel. A HUD chip and notice follow it.
+- Dock chips `KIT 3`, `BOOST 2`, `FLARE 4` show held consumables; the status chip shows `KIT 6 S / BOOST 5 S`; a flare posts `FLARE: 2 DECOYED`. The Inventory inspector gains Use.
+- A custom key binding on 1, 2 or 3 resets to its default on load: those keys now use a repair kit, a boost cell and a decoy flare.
+- The Map, Ship and Jobs panes drop lines that repeat what a row, count, badge or bar already shows, such as the contact kind note and a job's hold count.
 
 ### Fixes
 

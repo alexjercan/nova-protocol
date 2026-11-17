@@ -2,9 +2,9 @@
 //! player ship, with its progress bar, its time left and Cancel.
 //!
 //! The jobs themselves live in `nova_ship` ([`ShipRepairJobs`]) and run on
-//! the game clock, so the TAB interface that shows this block holds them.
-//! The block says so in one line. A Cancel raises a
-//! [`RepairJobCancelRequest`]; plates a plate job already fitted stay fitted.
+//! the game clock, so the TAB interface that shows this block holds them. A
+//! Cancel raises a [`RepairJobCancelRequest`] and the row goes; plates a
+//! plate job already fitted stay fitted.
 //!
 //! Touch this module when changing how the pane shows or cancels a job.
 
@@ -16,7 +16,6 @@ use nova_ui::{
     widget::{ButtonSpec, ThemedFill, ThemedRadius},
 };
 
-use super::ShipRuntime;
 use crate::pane::{compact_button, control_row, divider, themed_label};
 
 /// The Repairs block, hidden while the player ship runs no job.
@@ -41,12 +40,8 @@ pub(crate) enum ShipRepairJobField {
 #[derive(Component, Clone, Copy)]
 pub(crate) struct ShipRepairJobFill(usize);
 
-/// The line under the block's title. The jobs run on the game clock, which
-/// this pane stops. Kept short enough for one line at the panel's width.
-pub(crate) const SHIP_REPAIR_JOBS_NOTE: &str = "Jobs run only while you fly.";
-
-/// Build the Repairs block: a title, the clock note, and the rows
-/// [`update_ship_repair_jobs`] fills.
+/// Build the Repairs block: a title and the rows [`update_ship_repair_jobs`]
+/// fills.
 pub(crate) fn spawn_ship_repair_jobs(panel: &mut ChildSpawnerCommands) {
     panel
         .spawn((
@@ -63,11 +58,6 @@ pub(crate) fn spawn_ship_repair_jobs(panel: &mut ChildSpawnerCommands) {
         .with_children(|block| {
             block.spawn(divider());
             block.spawn(themed_label("Repairs", 13.0, UiColorType::Accent));
-            block.spawn(themed_label(
-                SHIP_REPAIR_JOBS_NOTE,
-                12.0,
-                UiColorType::TextBody,
-            ));
             block.spawn((
                 ShipRepairJobRows::default(),
                 Node {
@@ -198,11 +188,7 @@ fn spawn_job_row(parent: &mut ChildSpawnerCommands, player: Entity, index: usize
                         Name::new(format!("ShipRepairCancel-{}", job.code)),
                         compact_button(ButtonSpec::new("Cancel").fit().ghost()),
                     ))
-                    .observe(on_cancel_button(
-                        player,
-                        job.key(),
-                        job.code.clone(),
-                    ));
+                    .observe(on_cancel_button(player, job.key()));
                 });
             row.spawn((
                 Node {
@@ -230,19 +216,13 @@ fn spawn_job_row(parent: &mut ChildSpawnerCommands, player: Entity, index: usize
         });
 }
 
-/// Cancel the job `code` on `key`'s section of `player` when its Cancel
-/// button is clicked, and say so on the note line. The open pane holds the
-/// clock, so no job ends on its own while the note shows.
-fn on_cancel_button(
-    player: Entity,
-    key: RepairJobKey,
-    code: String,
-) -> impl FnMut(On<Activate>, Commands, ResMut<ShipRuntime>) {
-    move |_activate, mut commands, mut runtime| {
+/// Cancel the job on `key`'s section of `player` when its Cancel button is
+/// clicked.
+fn on_cancel_button(player: Entity, key: RepairJobKey) -> impl FnMut(On<Activate>, Commands) {
+    move |_activate, mut commands| {
         commands.trigger(RepairJobCancelRequest {
             entity: player,
             key: key.clone(),
         });
-        runtime.note = Some((format!("cancelled the {code} job"), 2.5));
     }
 }

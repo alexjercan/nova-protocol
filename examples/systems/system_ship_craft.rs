@@ -12,7 +12,7 @@
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 0 | `outcome: a ship recipe crafts in flight` | the start inserted a one-batch job and took nothing; when the batch ended the hold had lost one iron ore and one stone ore and gained 100 PDC rounds, the balance did not move and the job ended `Crafted { batches: 1 }` |
-//! | 1 | `outcome: a station recipe refuses undocked` | the start was refused with `Dock at a Craft station` and inserted no job; a Station job put on the ship ended at once `Stopped { NotAtCraftStation }` with nothing taken |
+//! | 1 | `outcome: a station recipe refuses undocked` | the start was refused and inserted no job; a Station job put on the ship ended at once `Stopped { NotAtCraftStation }` with nothing taken |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -287,17 +287,11 @@ mod walk {
         );
     }
 
-    /// The Station recipe's start was refused undocked: no job, the reason
-    /// on the notice.
+    /// The Station recipe's start was refused undocked: no job.
     fn assert_the_refused_start(world: &mut World) {
         assert!(
             job(world).is_none(),
             "ship craft probe: no Station job starts undocked"
-        );
-        assert_eq!(
-            world.resource::<CraftRuntime>().notice.text(),
-            Some("Dock at a Craft station"),
-            "ship craft probe: the notice names the dock"
         );
     }
 
@@ -370,12 +364,9 @@ mod walk {
             .add()
             .step("ship craft: ask for a Station recipe undocked")
             .on_enter(start(STATION_RECIPE))
-            .until(when(|world| {
-                world.resource::<CraftRuntime>().notice.text().is_some()
-                    && world.resource::<CraftRuntime>().notice.text()
-                        != Some("Crafting 100 PDC round: 8 s on the flight clock")
-            }))
-            .deadline(SESSION_SECS)
+            // The start command is read the frame after it is written; a
+            // refused start leaves no world value to wait on.
+            .until(frames(3))
             .add()
             .step("ship craft: check the refused start")
             .on_enter(assert_the_refused_start)

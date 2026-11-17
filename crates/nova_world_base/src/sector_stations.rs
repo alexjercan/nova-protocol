@@ -31,7 +31,7 @@
 use std::collections::BTreeMap;
 
 use nova_events::prelude::{Meters, Meters3};
-use nova_gameplay::prelude::{CivilizationId, GameItems};
+use nova_gameplay::prelude::{CivilizationId, GameConsumables, GameItems};
 use nova_scenario::prelude::StationDesign;
 use nova_world::prelude::*;
 
@@ -82,6 +82,7 @@ pub(crate) struct CivilizationStation {
 fn civilization_station(
     parts: &ShipPartSnapshot,
     items: &GameItems,
+    consumables: &GameConsumables,
     civilization: &Civilization,
 ) -> Result<CivilizationStation, SectorFault> {
     let request = StationLayoutRequest {
@@ -95,13 +96,13 @@ fn civilization_station(
         field: "station",
         value: failure.to_string(),
     })?;
-    let design = generated_station(parts, items, &layout, civilization).map_err(|constraint| {
-        SectorFault::Generation {
+    let design = generated_station(parts, items, consumables, &layout, civilization).map_err(
+        |constraint| SectorFault::Generation {
             id: civilization.id.to_string(),
             field: "station_stock",
             value: constraint.to_string(),
-        }
-    })?;
+        },
+    )?;
     Ok(CivilizationStation {
         design,
         clearance: layout.clearance,
@@ -155,17 +156,23 @@ fn nodes_by_distance(centroid: Meters3) -> Vec<[i32; 3]> {
 pub(crate) struct StationClaims<'a> {
     parts: &'a ShipPartSnapshot,
     items: &'a GameItems,
+    consumables: &'a GameConsumables,
     stations: BTreeMap<CivilizationId, CivilizationStation>,
     nodes: BTreeMap<CivilizationId, Vec<[i32; 3]>>,
 }
 
 impl<'a> StationClaims<'a> {
     /// Claims whose stations are laid out from `parts` and stocked from
-    /// `items`.
-    pub(crate) fn new(parts: &'a ShipPartSnapshot, items: &'a GameItems) -> Self {
+    /// `items` and `consumables`.
+    pub(crate) fn new(
+        parts: &'a ShipPartSnapshot,
+        items: &'a GameItems,
+        consumables: &'a GameConsumables,
+    ) -> Self {
         Self {
             parts,
             items,
+            consumables,
             stations: BTreeMap::new(),
             nodes: BTreeMap::new(),
         }
@@ -181,7 +188,8 @@ impl<'a> StationClaims<'a> {
         civilization: &Civilization,
     ) -> Result<&CivilizationStation, SectorFault> {
         if !self.stations.contains_key(&civilization.id) {
-            let station = civilization_station(self.parts, self.items, civilization)?;
+            let station =
+                civilization_station(self.parts, self.items, self.consumables, civilization)?;
             self.stations.insert(civilization.id, station);
         }
         Ok(&self.stations[&civilization.id])
@@ -310,11 +318,12 @@ mod tests {
             let civilizations = CivilizationField::new(seed);
             let parts = config.generator.parts();
             let items = config.generator.items();
+            let consumables = config.generator.consumables();
             let mut hosts = |clearance: Meters, node: [i32; 3]| {
                 Ok(cluster_at(&fields, seed, edge, node)?
                     .is_some_and(|cluster| station_pose(&cluster, edge, clearance, seed).is_some()))
             };
-            let mut claims = StationClaims::new(parts, items);
+            let mut claims = StationClaims::new(parts, items, consumables);
             let mut manifests: BTreeMap<SectorCoord, SectorManifest> = BTreeMap::new();
             let mut stems: BTreeSet<String> = BTreeSet::new();
             for x in -1..=1 {
@@ -363,7 +372,7 @@ mod tests {
                                 .expect("a claimed node hosts a station");
                             let coord = SectorCoord::containing(pose.position, edge);
                             let manifest = manifests.entry(coord).or_insert_with(|| {
-                                plan_sector(&fields, parts, items, config.input(coord))
+                                plan_sector(&fields, parts, items, consumables, config.input(coord))
                                     .and_then(|plan| plan.manifest())
                                     .unwrap_or_else(|fault| panic!("{seed} {coord}: {fault}"))
                             });

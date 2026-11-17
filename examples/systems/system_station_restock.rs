@@ -764,6 +764,7 @@ mod walk {
             world.resource::<GameShipDesigns>(),
             world.resource::<GameTradeProfiles>(),
             world.resource::<GameRecipes>(),
+            world.resource::<GameConsumables>(),
         )
         .unwrap_or_else(|refusal| panic!("restock: cannot open the leave save: {refusal}"));
         let body = the_station_record(state.sectors.get(cell), &id, cell);

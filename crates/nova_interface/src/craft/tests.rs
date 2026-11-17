@@ -95,23 +95,32 @@ fn texts_under(world: &mut World, name: &str) -> Vec<String> {
 }
 
 /// Undocked, the ship recipe's tile is live and the station recipe's tile is
-/// muted and names the dock it needs; the first tile is picked.
+/// muted under its `STATION` tag; the first tile is picked.
 #[test]
 fn an_undocked_ship_sees_its_ship_recipe_live_and_a_station_recipe_greyed() {
     let mut app = craft_app();
     spawn_player(app.world_mut());
     app.update();
     let world = app.world_mut();
-    let ship_tile = texts_under(world, &craft_tile_name(&ship_rounds().id));
+    let refused = |world: &mut World, recipe: &RecipeDesignId| {
+        let tiles = world
+            .query::<&CraftTileGrid>()
+            .single(world)
+            .expect("one grid");
+        tiles
+            .0
+            .as_ref()
+            .and_then(|tiles| tiles.iter().find(|tile| tile.recipe == *recipe))
+            .map(|tile| tile.refused)
+            .expect("the recipe's tile")
+    };
     assert!(
-        !ship_tile.iter().any(|text| text.starts_with("Dock")),
-        "the ship recipe runs in flight: {ship_tile:?}"
+        !refused(world, &ship_rounds().id),
+        "the ship recipe runs in flight"
     );
-    let station_tile = texts_under(world, &craft_tile_name(&station_slug().id));
     assert!(
-        station_tile.contains(&"x1  STATION".to_string())
-            && station_tile.contains(&"Dock at a Craft station".to_string()),
-        "the station recipe is greyed with its reason: {station_tile:?}"
+        refused(world, &station_slug().id),
+        "the station recipe is greyed undocked"
     );
     assert_eq!(
         world.resource::<CraftRuntime>().selected(),
@@ -121,7 +130,7 @@ fn an_undocked_ship_sees_its_ship_recipe_live_and_a_station_recipe_greyed() {
 }
 
 /// Craft on a ship recipe inserts the job; a station recipe started
-/// undocked is refused, takes nothing and says why.
+/// undocked is refused and takes nothing.
 #[test]
 fn craft_starts_a_ship_recipe_in_flight_and_refuses_a_station_recipe_undocked() {
     let mut app = craft_app();
@@ -134,10 +143,6 @@ fn craft_starts_a_ship_recipe_in_flight_and_refuses_a_station_recipe_undocked() 
     });
     app.update();
     assert!(app.world().get::<ShipCraftJob>(ship).is_none());
-    assert_eq!(
-        app.world().resource::<CraftRuntime>().notice.text(),
-        Some("Dock at a Craft station")
-    );
 
     app.world_mut().write_message(CraftStartCommand {
         recipe: ship_rounds().id,
@@ -148,15 +153,6 @@ fn craft_starts_a_ship_recipe_in_flight_and_refuses_a_station_recipe_undocked() 
         app.world().get::<ShipCraftJob>(ship),
         Some(&ShipCraftJob::new(ship_rounds().id, 2))
     );
-    assert_eq!(
-        app.world().resource::<CraftRuntime>().notice.text(),
-        Some("Crafting 200 PDC round: 16 s on the flight clock")
-    );
-
-    // The job runs: every tile now says so.
-    app.update();
-    let tile = texts_under(app.world_mut(), &craft_tile_name(&ship_rounds().id));
-    assert!(tile.contains(&"A craft is running".to_string()), "{tile:?}");
 }
 
 /// The entity named `name`.
@@ -170,8 +166,8 @@ fn named(world: &mut World, name: &str) -> Entity {
 }
 
 /// The slider runs from 1 to the batches the hold covers; its value sets the
-/// count, the Takes and Makes lines and the batches Craft starts, and a value
-/// past the top is held at it.
+/// count, the card's totals and the batches Craft starts, and a value past
+/// the top is held at it.
 #[test]
 fn the_batch_slider_sets_the_batches_a_craft_click_starts() {
     let mut app = craft_app();
@@ -196,12 +192,7 @@ fn the_batch_slider_sets_the_batches_a_craft_click_starts() {
         Some(&SliderValue(2.0))
     );
     let form = texts_under(app.world_mut(), "CraftCard");
-    for line in [
-        "2",
-        "of 2",
-        "Takes 2 iron ore, 2 stone ore",
-        "Makes 200 PDC round in 16 s",
-    ] {
+    for line in ["2", "of 2", "PDC round x200", "4 / 2", "2 / 2", "16 s"] {
         assert!(form.contains(&line.to_string()), "{line:?} in {form:?}");
     }
 

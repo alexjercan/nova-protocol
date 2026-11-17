@@ -24,6 +24,9 @@
 //! alloy plates and torpedoes, so mined ore has a use besides the sell
 //! button.
 //!
+//! The repair kit, boost cell and decoy flare are usable in flight: each has
+//! a consumable (`super::consumables`) and a ship recipe.
+//!
 //! The unmarked cores are the one contraband item: a lawful station's
 //! market neither buys nor sells them (`nova_gameplay`'s `market_deals_in`).
 
@@ -53,6 +56,12 @@ pub(crate) const DOCKING_COLLAR: &str = "DockingCollar";
 pub(crate) const ALLOY_PLATE: &str = "AlloyPlate";
 /// Flight cores with no registry marks: the base game's one contraband item.
 pub(crate) const UNMARKED_CORES: &str = "UnmarkedCores";
+/// The repair consumable (`super::consumables`).
+pub(crate) const REPAIR_KIT: &str = "RepairKit";
+/// The thrust boost consumable.
+pub(crate) const BOOST_CELL: &str = "BoostCell";
+/// The torpedo flare consumable.
+pub(crate) const DECOY_FLARE: &str = "DecoyFlare";
 
 /// The base game's items, in the order the file carries them.
 pub(crate) fn item_catalog() -> Vec<ItemDesign> {
@@ -287,6 +296,36 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             1,
             300,
             240,
+        ),
+        (
+            REPAIR_KIT,
+            "Repair kit",
+            "Patch foam and plate cut to size. Key 1 heals the most damaged sections for 10 s.",
+            Repair,
+            20_000,
+            1,
+            120,
+            90,
+        ),
+        (
+            BOOST_CELL,
+            "Boost cell",
+            "One-shot reaction mass for the main drive. Key 2: half again the thrust for 8 s.",
+            Parts,
+            10_000,
+            1,
+            26,
+            20,
+        ),
+        (
+            DECOY_FLARE,
+            "Decoy flare",
+            "A hot decoy. Key 3 pulls the torpedoes homing on you off to one side.",
+            Ammo,
+            5_000,
+            1,
+            24,
+            18,
         ),
     ]
     .into_iter()

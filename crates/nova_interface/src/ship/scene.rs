@@ -1434,7 +1434,7 @@ pub(crate) fn on_ship_rebind_button(
 /// disabled with the reason as its tooltip.
 ///
 /// The repair form shows only while the selection has repairable damage, and
-/// disables Repair with the reason in its summary while the draft is refused.
+/// disables Repair and blanks its summary while the draft is refused.
 /// Typed text becomes the draft before a selection change, damage to a full
 /// selected section, or the player ship's inventory arriving resets it to All.
 /// The field is rewritten only when the draft holds a number its text does not
@@ -1550,8 +1550,10 @@ pub(crate) fn update_ship_panel(
         _ => PanelActions::none(),
     };
     // The form's stock line and summary, while the selection has repairable
-    // damage. A refused summary is the same reason the handler would note.
-    // A hull shown read-only names its section and its condition, no more.
+    // damage: the integrity the plates restore and the seconds they take. A
+    // refused draft shows no summary: the greyed Repair, the marked count
+    // field and the stock line carry it. A hull shown read-only names its
+    // section and its condition, no more.
     let read_only = sections.read_only();
     let form = selected
         .as_ref()
@@ -1559,22 +1561,19 @@ pub(crate) fn update_ship_panel(
         .filter(|view| !busy(view))
         .filter(|view| plate_repair_limit(view.health.as_ref(), view.disabled, u32::MAX) > 0)
         .map(|view| {
-            let summary = match requested {
-                None => Err("Type a whole number".to_string()),
-                Some(requested) => {
-                    plan_plate_repair(view.health.as_ref(), view.disabled, requested, stock)
-                        .map(|repair| {
-                            format!(
-                                "Predicted integrity: {:.0}/{:.0} HP\nA plate fits every {:.0} s, up to {:.0} HP.",
-                                repair.current,
-                                view.health.as_ref().map_or(0.0, |h| h.max),
-                                PLATE_REPAIR_SECS,
-                                HULL_PLATE_HEALTH
-                            )
-                        })
-                        .map_err(|_| actions.reason.clone().unwrap_or_default())
-                }
-            };
+            let summary = requested
+                .and_then(|requested| {
+                    plan_plate_repair(view.health.as_ref(), view.disabled, requested, stock).ok()
+                })
+                .map(|repair| {
+                    format!(
+                        "{:.0}/{:.0} HP, {:.0} s",
+                        repair.current,
+                        view.health.as_ref().map_or(0.0, |h| h.max),
+                        PLATE_REPAIR_SECS * repair.plates as f32
+                    )
+                })
+                .unwrap_or_default();
             let noun = if stock == 1 { "plate" } else { "plates" };
             (format!("{stock} {noun} free in the hold"), summary)
         });
@@ -1596,8 +1595,7 @@ pub(crate) fn update_ship_panel(
             .is_some_and(|view| view.bindings.is_some());
 
     // The armed rebind names its section over the view; the note line keeps
-    // a transient action result. A disabled Repair gives its reason in the
-    // form summary.
+    // a transient action result.
     let prompt = runtime
         .rebinding
         .and_then(|target| sections.collect().into_iter().find(|v| v.entity == target))
@@ -1645,11 +1643,10 @@ pub(crate) fn update_ship_panel(
                 form.as_ref().map_or("", |(stock, _)| stock.as_str()),
                 UiColorType::Text,
             ),
-            ShipPanelField::RepairPreview => match form.as_ref().map(|(_, summary)| summary) {
-                Some(Ok(summary)) => (summary.as_str(), UiColorType::TextBody),
-                Some(Err(reason)) => (reason.as_str(), UiColorType::Danger),
-                None => ("", UiColorType::TextBody),
-            },
+            ShipPanelField::RepairPreview => (
+                form.as_ref().map_or("", |(_, summary)| summary.as_str()),
+                UiColorType::TextBody,
+            ),
             ShipPanelField::Note => (note.as_str(), note_color),
             ShipPanelField::RebindPrompt => {
                 (prompt.as_deref().unwrap_or_default(), UiColorType::Accent)

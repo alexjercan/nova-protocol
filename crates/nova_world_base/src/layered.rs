@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPacks};
 use nova_events::prelude::Meters;
-use nova_gameplay::prelude::{GameItems, GameTradeProfiles, ShipRoleType};
+use nova_gameplay::prelude::{GameConsumables, GameItems, GameTradeProfiles, ShipRoleType};
 use nova_ship::prelude::GameStyles;
 use nova_world::prelude::*;
 
@@ -61,6 +61,7 @@ pub struct NovaLayeredWorld {
     parts: Arc<ShipPartSnapshot>,
     catalog: ContentCatalogDigest,
     items: Arc<GameItems>,
+    consumables: Arc<GameConsumables>,
     profiles: Arc<GameTradeProfiles>,
 }
 
@@ -93,6 +94,7 @@ impl NovaLayeredWorld {
         loaded: &LoadedSectionPacks,
         styles: &GameStyles,
         items: &GameItems,
+        consumables: &GameConsumables,
         profiles: &GameTradeProfiles,
     ) -> Result<Self, Vec<ShipPartFault>> {
         let packs: Vec<ShipPartPack> = loaded
@@ -134,6 +136,7 @@ impl NovaLayeredWorld {
                         parts: Arc::new(parts),
                         catalog: loaded.digest,
                         items: Arc::new(items.clone()),
+                        consumables: Arc::new(consumables.clone()),
                         profiles: Arc::new(profiles.clone()),
                     })
                 } else {
@@ -160,6 +163,12 @@ impl NovaLayeredWorld {
     /// The item catalog this world was armed with.
     pub fn items(&self) -> &GameItems {
         &self.items
+    }
+
+    /// The consumables this world was armed with: generated stations stock
+    /// their items.
+    pub fn consumables(&self) -> &GameConsumables {
+        &self.consumables
     }
 }
 
@@ -188,6 +197,7 @@ impl SectorGenerator for NovaLayeredWorld {
             &EnvironmentFields::new(input.seed),
             &self.parts,
             &self.items,
+            &self.consumables,
             input,
         )?
         .manifest()?;

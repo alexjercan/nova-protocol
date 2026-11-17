@@ -61,8 +61,8 @@ use nova_assets::{prelude::LoadedSectionPacks, storage::write_atomic};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
     kg_text, CargoCanisterRuntimeId, Chart, CivilizationStances, ClusterType, CraftSiteType,
-    GameItems, GameRecipes, GameTradeProfiles, GoalRecord, ItemDesignId, JobPostings,
-    JobSourceType, Jobs, SavedBodyRef, SavedOwner, SavedSectionRef, SavedTargetRef,
+    GameConsumables, GameItems, GameRecipes, GameTradeProfiles, GoalRecord, ItemDesignId,
+    JobPostings, JobSourceType, Jobs, SavedBodyRef, SavedOwner, SavedSectionRef, SavedTargetRef,
     StationServiceType, StationVisits, CARGO_CANISTER_MAX_MASS_G, CRAFT_BATCHES_MAX,
     PLATE_REPAIR_SECS, RESCUE_SECS,
 };
@@ -551,12 +551,22 @@ pub fn open_world(
     designs: &GameShipDesigns,
     profiles: &GameTradeProfiles,
     recipes: &GameRecipes,
+    consumables: &GameConsumables,
 ) -> Result<(WorldFolder, WorldLock, WorldSaveHeader, WorldSaveState), WorldRefusal> {
     check_slug(slug)?;
     let path = root.join(slug);
     let lock = lock_world(&path)?;
     let header = read_header(&path, loaded, roles)?;
-    let state = read_state(&path, &header, items, scenarios, designs, profiles, recipes)?;
+    let state = read_state(
+        &path,
+        &header,
+        items,
+        scenarios,
+        designs,
+        profiles,
+        recipes,
+        consumables,
+    )?;
     sweep_orphans(&path, &state_file(header.generation));
     Ok((
         WorldFolder {
@@ -588,11 +598,22 @@ pub fn check_world(
     designs: &GameShipDesigns,
     profiles: &GameTradeProfiles,
     recipes: &GameRecipes,
+    consumables: &GameConsumables,
 ) -> Result<(), WorldRefusal> {
     check_slug(slug)?;
     let path = root.join(slug);
     let header = read_header(&path, loaded, roles)?;
-    read_state(&path, &header, items, scenarios, designs, profiles, recipes).map(drop)
+    read_state(
+        &path,
+        &header,
+        items,
+        scenarios,
+        designs,
+        profiles,
+        recipes,
+        consumables,
+    )
+    .map(drop)
 }
 
 /// Read and check the state file `header` names in the world folder `path`.
@@ -604,6 +625,7 @@ fn read_state(
     designs: &GameShipDesigns,
     profiles: &GameTradeProfiles,
     recipes: &GameRecipes,
+    consumables: &GameConsumables,
 ) -> Result<WorldSaveState, WorldRefusal> {
     let state_name = state_file(header.generation);
     let text = std::fs::read_to_string(path.join(&state_name))
@@ -668,7 +690,7 @@ fn read_state(
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_rcs(&state, designs)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
-    check_saved_jobs(&state, designs, recipes)
+    check_saved_jobs(&state, designs, recipes, consumables)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     if !scenarios.0.contains(&state.scenario.scenario_id) {
         return Err(WorldRefusal::Scenario {
@@ -1171,12 +1193,15 @@ fn design_section_ids(
     Ok(sections.iter().map(|section| section.id.clone()).collect())
 }
 
-/// Every saved repair job, rescue call and craft job is one a session ran:
+/// Every saved repair job, rescue call, craft job and consumable effect is
+/// one a session ran:
 /// a plate job on a section the ship kept, a field rebuild and a rescue
 /// chain on sections its design names and it lost, at most one job a
 /// section, a craft job of a loaded recipe below its batch count of at
 /// most `CRAFT_BATCHES_MAX`, a station recipe only on the player ship saved
-/// docked, and finite clocks within their spans. Only the read path checks:
+/// docked, at most one running consumable effect a slot, each of a loaded
+/// repair or boost consumable, and finite clocks within their spans. Only
+/// the read path checks:
 /// Load runs
 /// it on open, so a job naming a section the design lacks or a recipe the
 /// catalog lacks refuses the world rather than drop the job or panic in its
@@ -1186,6 +1211,7 @@ fn check_saved_jobs(
     state: &WorldSaveState,
     designs: &GameShipDesigns,
     recipes: &GameRecipes,
+    consumables: &GameConsumables,
 ) -> Result<(), String> {
     // `docked`: the ship was saved in a dock, the one place a station
     // recipe runs. Only the player ship saves its dock.
@@ -1215,6 +1241,35 @@ fn check_saved_jobs(
                     "{owner} runs a craft job of '{}' at batch {} of {} and {} s of {} s, \
                      which no session wrote",
                     job.recipe, job.done, job.queued, job.elapsed_secs, recipe.duration_secs
+                ));
+            }
+        }
+        let mut slots = BTreeSet::new();
+        for running in ship.consumable_effects() {
+            let Some(duration) = consumables
+                .get(&running.item)
+                .and_then(|design| Some((design.effect.slot(), design.effect.duration_secs()?)))
+            else {
+                return Err(format!(
+                    "{owner} runs a consumable effect of '{}', which no repair or boost \
+                     consumable takes",
+                    running.item
+                ));
+            };
+            if !slots.insert(duration.0) {
+                return Err(format!(
+                    "{owner} runs two {} consumable effects",
+                    duration.0.word()
+                ));
+            }
+            if !running.elapsed_secs.is_finite()
+                || running.elapsed_secs < 0.0
+                || running.elapsed_secs >= duration.1
+            {
+                return Err(format!(
+                    "{owner} runs a consumable effect of '{}' at {} s of {} s, which no \
+                     session wrote",
+                    running.item, running.elapsed_secs, duration.1
                 ));
             }
         }

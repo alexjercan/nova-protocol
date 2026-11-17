@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crafting Slice Two</title>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1d1d1b; --muted: #5d5b55; --line: #d9d5cc;
+  --card: #ffffff; --accent: #2f5d8a; --ok: #2d6a3e; --warn: #8a4b16; --code: #f1eee7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16171a; --fg: #e6e4df; --muted: #a09d96; --line: #34363b;
+    --card: #1e2024; --accent: #8ab4de; --ok: #8fcf9c; --warn: #e3a66a; --code: #23262b;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16171a; --fg: #e6e4df; --muted: #a09d96; --line: #34363b;
+  --card: #1e2024; --accent: #8ab4de; --ok: #8fcf9c; --warn: #e3a66a; --code: #23262b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.6rem; margin: 0 0 4px; }
+h2 { font-size: 1.2rem; margin: 36px 0 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+h3 { font-size: 1rem; margin: 20px 0 6px; }
+p, li { max-width: 72ch; }
+.sub { color: var(--muted); margin: 0 0 16px; }
+code, pre { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.86rem; }
+code { background: var(--code); padding: 1px 4px; border-radius: 3px; }
+pre { background: var(--code); padding: 12px; border-radius: 6px; overflow-x: auto; line-height: 1.4; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0 12px; font-size: 0.92rem; }
+th, td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+th { color: var(--muted); font-weight: 600; }
+td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.rec { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent);
+  border-radius: 6px; padding: 10px 14px; margin: 10px 0; }
+.rec b { color: var(--accent); }
+.alt { color: var(--muted); font-size: 0.93rem; }
+.ok { color: var(--ok); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.toc { columns: 2; padding-left: 18px; }
+@media (max-width: 640px) { .toc { columns: 1; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Crafting: second slice, consumables</h1>
+<p class="sub">Task 20261116-132140. Design for review, 2026-11-17. Code map with paths and lines: <code>MAP-2.md</code>
+in this folder. Slice 1 (recipes, craft job, Craft view) is landed in <code>c876b6454</code>, <code>969f17601</code>,
+<code>7e53f8721</code>. Nothing in this page is built.</p>
+
+<div class="rec"><b>Recommendation in one block.</b> Three consumables, each one hold item that the ship makes
+from ore or parts on a <code>Ship</code> recipe:
+<ul>
+<li><b>Repair kit</b> (key <code>1</code>): 80 HP over 10 s to the most damaged live sections. Fixes section loss in a fight.</li>
+<li><b>Boost cell</b> (key <code>2</code>): x1.5 thrust for 8 s in manual flight. Gets a hurt ship out of a fight or home.</li>
+<li><b>Decoy flare</b> (key <code>3</code>): re-aims every torpedo homing on you, from 400 to 3000 m, at a point 800 m off
+your ship. It needs no running state. It is the cut line: drop it first if the slice runs long.</li>
+</ul>
+A new content kind <code>Consumable</code> makes an item usable and names one effect from a closed enum. Keys 1, 2 and 3
+are new rebindable FLIGHT actions. The Inventory pane gets a <code>Use</code> verb. Timed effects run on the game clock and
+are saved. Stations stock the three items, and start kits carry some. Plus two content-only part recipes so a lost
+docking port can be rebuilt in the field from ore. No AI change.</div>
+
+<ol class="toc">
+<li><a href="#pain">Pain and candidates</a></li>
+<li><a href="#set">The three consumables</a></li>
+<li><a href="#use">Activation UX</a></li>
+<li><a href="#format">Content format and lint</a></li>
+<li><a href="#items">Items, recipes, prices</a></li>
+<li><a href="#runtime">Runtime effects</a></li>
+<li><a href="#save">Save</a></li>
+<li><a href="#hud">HUD, audio, VFX</a></li>
+<li><a href="#supply">Supply: stock and start kits</a></li>
+<li><a href="#forks">Forks</a></li>
+<li><a href="#verdicts">Other ideas: now, later, never</a></li>
+<li><a href="#risk">Dies, may break, fails loudly</a></li>
+<li><a href="#proof">Proof plan and docs</a></li>
+<li><a href="#research">Research</a></li>
+</ol>
+
+<h2 id="pain">1. Pain and candidates</h2>
+<p>Owner pains, in order: fragility after section loss (above all the docking port), ammo running dry, flat jobs,
+uneven start roles. Each candidate is scored against them and against what the code has today.</p>
+<div class="table-wrap">
+<table>
+<tr><th>Candidate</th><th>Pain it fixes</th><th>Systems touched</th><th class="n">New code</th><th>AI</th><th>Save</th><th>Risk</th><th>Verdict</th></tr>
+<tr><td>Repair kit</td><td>Fragility: heals before a section hits 0 HP and is lost</td><td>section <code>Health</code> (plate job write, <code>repair_jobs.rs:498</code>)</td>
+<td class="n">small</td><td>none</td><td>running effect</td><td>balance vs plates</td><td class="ok">now</td></tr>
+<tr><td>Boost cell</td><td>Fragility (escape), long trips home, unarmed roles</td><td><code>thruster_impulse_system</code> <code>thruster_section.rs:620</code></td>
+<td class="n">small</td><td>none</td><td>running effect</td><td>autopilot plans with base thrust</td><td class="ok">now</td></tr>
+<tr><td>Decoy flare</td><td>Fragility: a torpedo does 750 in a 300 m blast</td><td>torpedo target, <code>projectile.rs:12-56</code>, fuze <code>:294-299</code></td>
+<td class="n">medium</td><td>torpedoes only</td><td>none (<code>SavedTorpedoTarget::Frozen</code>)</td><td>value unmeasured</td><td class="ok">now, cut line</td></tr>
+<tr><td>Decoy vs AI acquisition</td><td>Fragility</td><td>sensors, <code>update_ai_target</code> <code>acquisition.rs:158-227</code></td>
+<td class="n">large</td><td>AI behaviour</td><td>decoy entity</td><td>AI regressions</td><td class="warn">later</td></tr>
+<tr><td>Ammo pack</td><td>Ammo</td><td>none new: rounds are hold items already, reload pulls from the hold (<code>ammo.rs:425-484</code>)</td>
+<td class="n">-</td><td>-</td><td>-</td><td>duplicate of PdcRound</td><td class="warn">never</td></tr>
+<tr><td>Emergency bulkhead (no section dies for N s)</td><td>Fragility</td><td>integrity core <code>core.rs:371-381</code></td>
+<td class="n">medium</td><td>none</td><td>running effect</td><td>touches destruction rules</td><td class="warn">later</td></tr>
+</table>
+</div>
+
+<h2 id="set">2. The three consumables</h2>
+<div class="table-wrap">
+<table>
+<tr><th>Item</th><th>Key</th><th>Effect</th><th>Refused (item kept)</th></tr>
+<tr><td>Repair kit <code>RepairKit</code></td><td>1</td><td>80 HP over 10 s, 8 HP/s, each tick to the live, enabled section with
+the lowest health share. Never revives a lost section. Ends early when nothing is damaged; the rest is lost.</td>
+<td>none in hold; a kit runs; no live section is damaged</td></tr>
+<tr><td>Boost cell <code>BoostCell</code></td><td>2</td><td>Every thruster impulse x1.5 for 8 s while no autopilot verb flies. The
+clock runs while an autopilot verb flies, but the factor is not applied then.</td>
+<td>none in hold; a boost runs; docked; no live thruster</td></tr>
+<tr><td>Decoy flare <code>DecoyFlare</code></td><td>3</td><td>Instant. Each hostile torpedo homing on your ship, 400 to 3000 m away,
+drops its lock and flies to its own lure point 800 m from your ship, at right angles to its approach. It fuzes there
+(half blast radius reach). Torpedoes inside 400 m keep the lock; your PDCs are the last layer.</td>
+<td>none in hold; no torpedo in that band homes on you</td></tr>
+</table>
+</div>
+<p>Stacking: one running effect per type. Different types run together (kit and boost at once). A Use of a running type
+is refused, not extended, so a double press never wastes an item.</p>
+
+<h2 id="use">3. Activation UX</h2>
+<div class="rec"><b>Recommend:</b> one FLIGHT action per effect type, keyboard <code>1</code>, <code>2</code>, <code>3</code>, rebindable
+in Settings &gt; Controls &gt; FLIGHT. Gamepad unbound by default (no pad button is free in flight,
+<code>crates/nova_ship/src/input/bindings.rs:36-39</code>). Plus a <code>Use</code> verb on own rows in the Inventory pane.</div>
+<ul>
+<li>Digits are free in flight; no base or example content maps one; keycap glyphs exist
+(<code>crates/nova_hud/src/key_glyphs.rs:87-97</code>). A flight action joins <code>flight_rig_reserved_sources</code>
+(<code>bindings.rs:152-171</code>), so a mod ship that maps a section to 1, 2 or 3 fails lint.</li>
+<li>Labels: <code>use_repair_kit</code> "Use Repair Kit", <code>use_boost</code> "Use Boost Cell", <code>use_flare</code> "Use Decoy Flare".</li>
+<li>Inventory pane: <code>InventoryActionType::Use</code> on an own row whose item has a <code>Consumable</code>. One click uses one.
+It runs the same plan function as the key. Under TAB the clock is held, so a used kit starts healing when the pane closes.
+No new bar, no new button: one chip on the row, as Jettison is.</li>
+<li>No hotbar, no slot assignment. The keybind dock shows a chip per consumable the hold carries (see HUD).</li>
+</ul>
+
+<h2 id="format">4. Content format and lint</h2>
+<div class="rec"><b>Recommend:</b> a new content kind <code>Consumable</code>, one entry per usable item, keyed by the item id. It is
+additive: no existing item or mod changes shape. Every field is required.</div>
+<pre>Consumable((
+    item: "RepairKit",
+    effect: Repair((health: 80.0, duration_secs: 10.0)),
+)),
+Consumable((
+    item: "BoostCell",
+    effect: ThrustBoost((factor: 1.5, duration_secs: 8.0)),
+)),
+Consumable((
+    item: "DecoyFlare",
+    effect: Flare((near_m: 400.0, far_m: 3000.0, lure_m: 800.0)),
+)),</pre>
+<h3>Rust types (<code>nova_gameplay</code>, new module <code>consumable.rs</code>)</h3>
+<pre>pub struct ConsumableDesign {
+    pub item: ItemDesignId,          // the id; one consumable per item
+    pub effect: ConsumableType,
+}
+pub enum ConsumableType {            // closed: each variant is code
+    Repair { health: f32, duration_secs: f32 },
+    ThrustBoost { factor: f32, duration_secs: f32 },
+    Flare { near_m: Meters, far_m: Meters, lure_m: Meters },
+}
+pub struct GameConsumables(BTreeMap&lt;ItemDesignId, ConsumableDesign&gt;);  // Resource
+pub fn consumable_faults(c: &amp;ConsumableDesign, items: &amp;GameItems,
+                         max_blast_m: Meters) -&gt; Vec&lt;String&gt;;
+pub fn plan_consumable_use(c: &amp;ConsumableDesign, facts: &amp;UseFacts)
+    -&gt; Result&lt;ConsumableUse, ConsumableRefusalType&gt;;</pre>
+<h3>Lint (content lint and the load merge, keyed by the item id)</h3>
+<ul>
+<li>Unknown item. The item is an <code>ItemRoleType</code> id (engine code already spends those; a usable PdcRound would
+fight the reload).</li>
+<li><code>health</code>, <code>duration_secs</code> not finite or not above 0; <code>duration_secs</code> above 60.</li>
+<li><code>factor</code> not in (1.0, 3.0].</li>
+<li><code>near_m</code> not above 0; <code>far_m</code> not above <code>near_m</code>; <code>lure_m</code> not above the largest torpedo
+<code>blast_radius</code> in the merged catalog (300 m in base), so a lure can never sit inside a blast that reaches the ship.</li>
+<li>Two consumables with the same effect type in the merged catalog (each type has one key). An overlay of the same item
+replaces it, as a recipe overlay does.</li>
+</ul>
+
+<h2 id="items">5. Items, recipes, prices</h2>
+<p>Every recipe passes the slice-1 rules: inputs at ask (plus fee) at least the output at bid, lot-exact, and output mass
+at most input mass (<code>crafting.rs:230-320</code>). All are <code>Ship</code> recipes: field supply is the reason to craft.</p>
+<h3>New items</h3>
+<div class="table-wrap">
+<table>
+<tr><th>Id</th><th>Category</th><th class="n">Mass kg</th><th class="n">Ask</th><th class="n">Bid</th><th>About (draft)</th></tr>
+<tr><td><code>RepairKit</code></td><td>Repair</td><td class="n">20</td><td class="n">120</td><td class="n">90</td><td>Patch foam and plate cut to size. Key 1 heals the most damaged sections for 10 s.</td></tr>
+<tr><td><code>BoostCell</code></td><td>Parts</td><td class="n">10</td><td class="n">26</td><td class="n">20</td><td>One-shot reaction mass for the main drive. Key 2: half again the thrust for 8 s.</td></tr>
+<tr><td><code>DecoyFlare</code></td><td>Ammo</td><td class="n">5</td><td class="n">24</td><td class="n">18</td><td>A hot decoy. Key 3 pulls the torpedoes homing on you off to one side.</td></tr>
+</table>
+</div>
+<h3>New recipes</h3>
+<div class="table-wrap">
+<table>
+<tr><th>Id</th><th>Inputs</th><th>Output</th><th class="n">s</th><th class="n">Cost</th><th class="n">Earns</th><th class="n">kg in &gt; out</th><th>Lint</th></tr>
+<tr><td><code>base/repair_kit</code></td><td>2 HullPlate, 1 SectionPanel</td><td>1 RepairKit</td><td class="n">12</td><td class="n">100</td><td class="n">90</td><td class="n">30 &gt; 20</td><td class="ok">pass</td></tr>
+<tr><td><code>base/boost_cell</code></td><td>1 WaterIce, 1 CarbonOre</td><td>1 BoostCell</td><td class="n">8</td><td class="n">20</td><td class="n">20</td><td class="n">20 &gt; 10</td><td class="ok">pass</td></tr>
+<tr><td><code>base/decoy_flare</code></td><td>1 IronOre, 1 CarbonOre</td><td>1 DecoyFlare</td><td class="n">6</td><td class="n">24</td><td class="n">18</td><td class="n">20 &gt; 5</td><td class="ok">pass</td></tr>
+<tr><td><code>base/docking_collar</code> (fork 8)</td><td>1 AlloyPlate, 5 IronOre</td><td>1 DockingCollar</td><td class="n">20</td><td class="n">170</td><td class="n">150</td><td class="n">80 &gt; 80</td><td class="ok">pass</td></tr>
+<tr><td><code>base/actuator_pack</code> (fork 8)</td><td>4 IronOre</td><td>1 ActuatorPack</td><td class="n">10</td><td class="n">64</td><td class="n">60</td><td class="n">40 &gt; 15</td><td class="ok">pass</td></tr>
+</table>
+</div>
+<ul>
+<li>Kit from ore: 4 IronOre and 2 CarbonOre (80 cr at ask, 34 s in three jobs) against 120 cr to buy. Mined ore costs time
+only. Kit from bought plates and panels: 100 cr, cheaper than a bought kit, and both inputs are in every station's stock.</li>
+<li>A kit is 4 plates of HP (80) in one key press with no section choice, in 10 s. A plate job is 20 HP per 4 s per section,
+set up under TAB. The kit costs more per HP (100 against 80 cr); it buys speed and no menu.</li>
+<li>Docking port field rebuild takes 1 DockingCollar, 1 ActuatorPack and 2 SectionPanel. Today only the panel has a recipe, so a
+ship with no collar in the hold cannot rebuild a lost port and must call SOS. With fork 8 it can, from ore and one alloy
+plate carried from a station.</li>
+<li>Prices stay provisional, as all item prices are (<code>tasks/20261111-122537/TASK.md:20-23</code>).</li>
+</ul>
+
+<h2 id="runtime">6. Runtime effects</h2>
+<pre>pub struct ShipConsumableEffects(pub Vec&lt;RunningConsumable&gt;);  // Component on the ship root
+pub struct RunningConsumable {    // serde, deny_unknown_fields
+    pub item: ItemDesignId,       // a Repair or ThrustBoost consumable
+    pub elapsed_secs: f32,        // 0 &lt;= elapsed &lt; duration_secs
+}</pre>
+<ul>
+<li><b>Use:</b> a <code>ConsumableUseRequest { ship, effect type }</code> from the key or the pane. <code>plan_consumable_use</code>
+(pure, <code>nova_gameplay</code>) checks the refusals in the table above. On a pass it removes one item from
+<code>ShipInventory</code>, then pushes a running entry (Repair, ThrustBoost) or re-aims torpedoes (Flare). The item is taken at
+use, unlike jobs: the effect starts at once, and there is no Cancel.</li>
+<li><b>Clock:</b> <code>Update</code> on <code>Res&lt;Time&gt;</code>, set <code>ConsumableSystems</code> after <code>CraftJobSystems</code>
+(both are on the root; state the order). TAB and pause hold it, as they hold every job.</li>
+<li><b>Repair tick:</b> <code>health * dt / duration_secs</code> this frame, given to the lowest-share live, enabled section with
+health above 0 (the plate job's section filter, <code>repair_jobs.rs:486-488</code>), carried to the next section at max. A
+pure split function holds the rule.</li>
+<li><b>Boost:</b> <code>thruster_impulse_system</code> multiplies the impulse by the root's boost factor
+(<code>thruster_section.rs:620</code>) when the root has no <code>Autopilot</code>. The autopilot plan reads the unboosted
+magnitude (<code>flight/autopilot.rs:499</code>) and never sees the factor. The signature reads the magnitude too
+(<code>signature.rs:111-140</code>), so a boost does not raise it. No speed cap exists to adjust.</li>
+<li><b>Flare:</b> for each torpedo with <code>TorpedoTargetEntity</code> equal to the ship root and a hostile owner, in the band:
+remove <code>TorpedoTargetEntity</code> and set <code>TorpedoTargetPosition</code> to the lure point. That is the state a torpedo enters
+when its target dies (<code>projectile.rs:25-38</code>); it flies there and fuzes at half blast radius
+(<code>projectile.rs:294-299</code>). Run it <code>.before(update_target_position)</code>. The lure point:
+<code>ship + 800 m * normalize(approach x ship_up)</code>, with <code>ship_right</code> when the cross product is near zero.
+<code>TorpedoTargetChosen</code> stays, so PDCs keep it as a target (<code>assignment.rs:205</code>).</li>
+<li><b>Docked:</b> boost refused. Kit allowed (the station also sells plates). Flare allowed but rarely useful.</li>
+<li><b>Hull buy or board:</b> running effects are removed with the jobs (<code>spaceship.rs:880-887</code>).</li>
+</ul>
+<h3>AI</h3>
+<p>No AI change in this slice. AI ships neither use nor react to consumables. AI torpedo launch logic is unchanged; a
+flared AI torpedo is lost to its owner, which may fire again. AI use of kits is a later slice.</p>
+
+<h2 id="save">7. Save</h2>
+<ul>
+<li><code>FrozenShipState.effects: Vec&lt;RunningConsumable&gt;</code>, required like <code>repairs</code>
+(<code>spaceship.rs:650-678</code>). Freeze beside the jobs (<code>:1054-1065</code>), restore beside them (<code>:2146-2163</code>).</li>
+<li><code>check_saved_jobs</code> (<code>save/mod.rs:1185-1326</code>) refuses: an item with no consumable; a Flare entry; two entries of
+one type; <code>elapsed_secs</code> not finite, below 0 or at or past the duration.</li>
+<li>A flared torpedo saves as <code>SavedTorpedoTarget::Frozen(point)</code>, which exists (<code>torpedo_section/frozen.rs:89-93</code>).
+No new torpedo state.</li>
+<li>Older saves: the new kind and items change the catalog digest, so a save of another catalog is refused at the header
+(<code>merge.rs:980-1020</code>), as slice 1 decided. No exception.</li>
+</ul>
+
+<h2 id="hud">8. HUD, audio, VFX</h2>
+<ul>
+<li><b>Keybind dock:</b> chips <code>KIT 3</code>, <code>BOOST 2</code>, <code>FLARE 4</code>, with the bound keycap, shown only while the
+hold carries that item. <code>DOCK_VERBS</code> grows 15 to 18 (<code>keybind_dock.rs:141-157</code>).</li>
+<li><b>Status chip:</b> running effects show after an SOS call and before repair and craft jobs:
+<code>KIT 6 S</code>, <code>BOOST 5 S</code>, or both on the one line (<code>flight_status.rs:745-822</code>).</li>
+<li><b>Notice</b> (<code>HudNotice</code>, <code>hud_notice.rs:93-96</code>): refusals only, plus the flare result:
+<code>NO REPAIR KIT</code>, <code>NOTHING TO REPAIR</code>, <code>BOOST RUNNING</code>, <code>BOOST: UNDOCK FIRST</code>,
+<code>NO TORPEDO ON YOU</code>, <code>FLARE: 2 TORPEDOES DECOYED</code>.</li>
+<li><b>Audio, existing assets only, stand-ins for the owner to hear:</b> kit <code>salvage_pickup.wav</code>; boost
+<code>torpedo_ignite.wav</code>; flare <code>cargo_eject.wav</code>; refusal the cockpit <code>radar_deny</code> cue
+(<code>ship_audio/feedback.rs:32-77</code>).</li>
+<li><b>VFX, minimal:</b> the flare plays the torpedo dud puff (<code>torpedo_section/death.rs:239-277</code>) at each lure point.
+Boost: no plume change (input is clamped at 1, <code>thruster_section.rs:640-702</code>), no camera shake, no FOV change. Kit: none.</li>
+</ul>
+
+<h2 id="supply">9. Supply: stock and start kits</h2>
+<p>Generated stations stock no raw ore (<code>station_layout.rs:110-122</code>). Unverified: whether trader visits bring ore
+to a station (<code>station_visits.rs</code>). So a combat role cannot buy the ore for boost cells or flares. Two changes:</p>
+<ul>
+<li><b>Station stock:</b> each item that has a <code>Consumable</code> joins the goods budget at weight 1.0, read from
+<code>GameConsumables</code> (mod consumables are stocked too). The Ammo-category filter at <code>:505</code> stays role-only.</li>
+<li><b>Start kits:</b> bounty_hunter, military, pirate and scavenger add 3 RepairKit and 4 DecoyFlare; industrial and
+transport add 3 RepairKit and 3 BoostCell. The kit builder takes role ids only today
+(<code>start_roles.rs:150-176</code>, unverified span), so it takes item ids instead. This also gives the unarmed roles an
+escape tool (uneven start roles).</li>
+</ul>
+
+<h2 id="forks">10. Forks</h2>
+<h3>Fork 1: content format</h3>
+<ol>
+<li><b>Recommend:</b> a <code>Consumable</code> kind keyed by item. Additive, a mod can make a base item usable without replacing it.</li>
+<li>A required <code>use:</code> field on every <code>Item</code>. Breaks every mod item (<b>breaking</b>); <code>None</code> on 23 base items.</li>
+<li>Engine role items with const numbers. Not moddable; adds three ids to <code>ItemRoleType</code>.</li>
+</ol>
+<h3>Fork 2: activation</h3>
+<ol>
+<li><b>Recommend:</b> one flight action per effect type, keys 1, 2, 3, plus a pane <code>Use</code> verb.</li>
+<li>Four slot keys, items assigned to slots in the pane (Everspace 2 style). Saved slot table, more UI.</li>
+<li>Pane <code>Use</code> only. Too slow for a flare; TAB holds the clock.</li>
+</ol>
+<h3>Fork 3: the set</h3>
+<ol>
+<li><b>Recommend:</b> kit, boost, flare; the flare is the cut line.</li>
+<li>Kit and flare only (both fight fragility).</li>
+<li>Kit and boost only (no torpedo code; flare later once AI torpedo use is measured).</li>
+</ol>
+<h3>Fork 4: supply</h3>
+<ol>
+<li><b>Recommend:</b> craft, station stock and start kits.</li>
+<li>Craft only. Combat roles get boost cells and flares only by mining or loot.</li>
+<li>Station only. No recipes; misses the crafting point.</li>
+</ol>
+<h3>Fork 5: category</h3>
+<ol>
+<li><b>Recommend:</b> existing categories (Repair, Parts, Ammo). The <code>Use</code> chip marks a usable row.</li>
+<li>A new <code>Consumable</code> category: one filter chip and a market rule key, but every <code>ItemCategoryType</code> match,
+icon and color must take it.</li>
+</ol>
+<h3>Fork 6: boost scope</h3>
+<ol>
+<li><b>Recommend:</b> manual flight only (no factor while an autopilot verb flies).</li>
+<li>All thrust. Autopilot stops and GOTO legs then run on a thrust they did not plan for. Risk of overshoot.</li>
+</ol>
+<h3>Fork 7: two consumables of one effect type</h3>
+<ol>
+<li><b>Recommend:</b> lint refuses it. One key, one item; lifts when slots (fork 2.2) land.</li>
+<li>The key uses the first held one in item-id order. Silent and surprising.</li>
+</ol>
+<h3>Fork 8: dock-chain part recipes</h3>
+<ol>
+<li><b>Recommend:</b> add <code>base/docking_collar</code> and <code>base/actuator_pack</code> now. Content only; it feeds field
+rebuild of the docking port, the owner's top pain.</li>
+<li>Later, with the sections-as-items decision.</li>
+</ol>
+<h3>Fork 9: kit timing</h3>
+<ol>
+<li><b>Recommend:</b> heal over 10 s. Readable on the chip; a burst still beats it.</li>
+<li>Instant 80 HP. Simpler; too strong as a panic button.</li>
+</ol>
+
+<h2 id="verdicts">11. Other ideas: now, later, never</h2>
+<div class="table-wrap">
+<table>
+<tr><th>Idea</th><th>Verdict</th><th>Reason</th></tr>
+<tr><td>Sections as items (craft a section, carry it, fit it)</td><td class="warn">never as items; part recipes now</td>
+<td>Field rebuild already takes build-recipe parts from the hold (<code>plan_field_parts</code>, <code>inventory.rs:2122-2142</code>), and
+station Add and Swap take hold parts first (<code>plan_recipe_payment</code> <code>:1980-2033</code>). A section item would add 26
+items that repeat the recipes and a second fit path. The gap is parts without recipes; fork 8 closes the dock chain.</td></tr>
+<tr><td>Fabricator section</td><td class="warn">later</td><td>A new <code>SectionKind</code> touches about 40 match sites, a mesh, the editor and
+generated hulls (<code>base_section.rs:458-485</code>). Built-in crafting works. Add it as a third site <code>Fabricator</code> only if hull
+choice should change what a ship can make; no format break for existing recipes.</td></tr>
+<tr><td>Craft queue</td><td class="warn">later</td><td>A kit from ore is three jobs in a row. Play the slice first; a queue adds save shape and UI rows.</td></tr>
+<tr><td>Inventory and Market pane rework</td><td class="warn">later</td><td>This slice adds one <code>Use</code> chip. Rework after the catalogue
+UX task (20261116-133436), which sets the open and return model.</td></tr>
+<tr><td>Decoy drone against AI acquisition</td><td class="warn">later</td><td>Needs a fake target that passes the sensor filter
+(<code>sensing.rs:279-284</code>) and an AI target kind; risk to AI behaviour.</td></tr>
+<tr><td>Emergency bulkhead</td><td class="warn">later</td><td>Strong against section loss, but it changes the destroy-at-0-HP rule.</td></tr>
+<tr><td>AI uses consumables</td><td class="warn">later</td><td>Kits at low health, then flares. Flares on AI ships would cut the player's torpedo value.</td></tr>
+<tr><td>Ammo pack, rapid reload</td><td class="warn">never</td><td>Rounds are hold items and crafted from ore already.</td></tr>
+<tr><td>Shield cell, heat sink</td><td class="warn">never</td><td>No shield or heat model exists.</td></tr>
+</table>
+</div>
+
+<h2 id="risk">12. Dies, may break, fails loudly</h2>
+<h3>Dies</h3>
+<ul>
+<li>Doc "There is no fuel category: thrust never consumes stock" (<code>inventory.rs:332-333</code>).</li>
+<li>Doc "No recipe makes a new item" (<code>recipes.rs:5-7</code>).</li>
+<li>Doc "a torpedo keeps its first target for life" (<code>torpedo_section/mod.rs:729-737</code>): a flare re-aims it.</li>
+<li>Role-only start-kit stock signature, if fork 4.1.</li>
+</ul>
+<h3>May break</h3>
+<ul>
+<li>A mod ship that maps a section to keys 1, 2 or 3 fails lint (<b>breaking</b> for that mod; base and example map none).</li>
+<li>Generated station stock and start-kit tests (counts change). World generation output changes; older saves are refused
+by the catalog digest anyway.</li>
+<li>Fights run longer with kits, so ammo use per fight rises (<code>tasks/20261116-132139/MEASURE.md</code>).</li>
+<li>Boost at x1.5 on a light hull: unmeasured feel; collision damage at higher speed is the player's choice.</li>
+<li>Exhaustive <code>Content</code> matches in the editor (compiler finds them).</li>
+</ul>
+<h3>Fails loudly</h3>
+<ul>
+<li>A consumable with an unknown item, a role item, a bad number, a lure inside the largest blast, or a second of one type:
+lint error, then load error, keyed by the item id.</li>
+<li>A save with an unknown or non-timed effect item, a duplicate type or a bad elapsed: the world is refused.</li>
+<li>A running effect whose item has no consumable at runtime: panic (the save check refuses it first).</li>
+</ul>
+
+<h2 id="proof">13. Proof plan and docs</h2>
+<ul>
+<li><b>Unit</b> (<code>nova_gameplay</code>): each <code>consumable_faults</code> refusal; <code>plan_consumable_use</code> refusal order;
+the repair split (lowest share first, carry at max, skip disabled and 0 HP); the lure point (distance, right angle,
+fallback axis); band filter at 400 and 3000 m.</li>
+<li><b>ECS</b> (<code>nova_ship</code>): a kit heals 80 HP over 10 s game time and nothing while the clock is held; a boost scales
+impulse x1.5 without <code>Autopilot</code> and x1 with it, and ends at 8 s; a flare re-aims a homing torpedo, which detonates at
+least 500 m from the ship; a torpedo inside 400 m keeps its lock; a refusal keeps the item.</li>
+<li><b>Save</b> (<code>nova_scenario</code>, <code>nova_world_base</code>): a running kit and boost resume after a round trip and thaw; each
+save-check refusal.</li>
+<li><b>Content:</b> <code>content -- gen</code>, then lint base and <code>--target example</code>; the example mod gains one consumable.</li>
+<li><b>Measure first (decides fork 3):</b> count AI torpedo launches at the player over a short <code>nova-probe</code> seed set. If
+none, the flare moves to a later slice.</li>
+<li><b>System example</b> <code>system_ship_consumables</code>, autopilot, asserted markers: (0) key 1 heals a damaged section;
+(1) key 2 raises measured acceleration by 1.4 to 1.6x; (2) key 3 decoys a scripted torpedo (<code>torpedo_section/scripted.rs</code>)
+and the hull takes no blast; (3) each refusal keeps the item.</li>
+<li><b>Playable example</b> <code>consumables_sandbox</code>: damaged hull, a scripted torpedo launcher on a timer, kits, cells and
+flares in the hold; no deadline; autopilot smoke run; README row. Frames of the dock chips and status chip inspected.</li>
+<li><b>Docs:</b> new wiki page <code>web/src/wiki/crafting.md</code> "Crafting and consumables" (the loop: mine or buy, craft on
+ship or station, use in flight, repair and rebuild), registered in <code>web/src/docs-manifest.js</code>; rows in
+<code>keybinds.md</code>; chips in <code>hud.md</code>; <code>interface.md</code> Use verb; <code>combat-weapons.md</code> flares; mod
+reference <code>create/mod-files.md</code>; <code>CHANGELOG.md</code> under Gameplay, Interface, Modding. This page meets the
+Done-when wiki clause.</li>
+</ul>
+
+<h2 id="research">14. Research</h2>
+<p>Short, sourced by a web pass on 2026-11-17. Fandom pages were read through search excerpts only (HTTP 402 on fetch).
+Old forum posts may not match current game versions.</p>
+<h3>Patterns that fit Nova</h3>
+<ul>
+<li><b>Fixed key per slot</b> for fight consumables: Everspace 2 binds devices to 1-4 and consumables to 5-8; Starsector has one
+ship-system key. An inventory <code>Use</code> is for calm use. Point defense stays automatic, as Nova's PDCs are.</li>
+<li><b>Finite items for economy effects, charges for panic buttons.</b> Elite heat sinks and FTL missiles are stock you restock;
+Starsector flares and Everspace devices regenerate. Nova has no regenerating systems, so items it is.</li>
+<li><b>Countermeasures in three layers:</b> kill (PDC; Everspace 2 Missile Defense System), lure (Starsector flares), break lock
+(Elite ECM; a missile that loses lock flies on to the last known point). Nova's flare is a lure that reuses the
+break-lock fallback the torpedo already has.</li>
+<li><b>Why craft rather than buy:</b> field availability (Elite synthesis, No Man's Sky portable refiner), materials from
+mining or salvage, and no station in reach. Keep field recipes simple; keep advanced ones at stations (Space Engineers
+Survival Kit vs Assembler, Minecraft 2x2 vs 3x3, Starbound table upgrades).</li>
+<li><b>Field repair has limits</b> so stations stay useful: Elite's AFMU cannot fix the hull and needs ammo; only repair
+limpets fix the hull in the field, and they cost cargo space. Nova's kit heals but never revives a lost section.</li>
+<li><b>Stacking is a stated rule:</b> Elite fires one heat sink per press even with several launchers. Nova refuses a second
+use of a running type.</li>
+<li><b>Running out is recoverable, not a game over:</b> FTL fuel and distress beacon, Starsector CR decay. Nova has SOS.</li>
+</ul>
+<h3>Sources</h3>
+<ul>
+<li>Elite Dangerous: <a href="https://elite-dangerous.fandom.com/wiki/Heatsink_Launcher">Heatsink launcher</a>,
+<a href="https://elite-dangerous.fandom.com/wiki/Chaff_Launcher">Chaff launcher</a>,
+<a href="https://sites.google.com/view/ed-pve-combat/mechanics/shield-tanking">Shield cell banks</a>,
+<a href="https://forums.frontier.co.uk/threads/auto-field-maintenance-system.349163/latest">AFMU (forum)</a>,
+<a href="https://elite-dangerous.fandom.com/wiki/Repair_Limpet_Controller">Repair limpets</a>,
+<a href="https://elite-dangerous.fandom.com/wiki/Synthesis">Synthesis</a>,
+<a href="https://sites.google.com/view/the-anti-xeno-initiative/wiki/ship-builds/synthesis">Synthesis grades (AXI)</a>,
+<a href="https://forums.frontier.co.uk/threads/lets-talk-about-ecms.289085">ECM (forum)</a>.</li>
+<li>Everspace 2: <a href="https://everspace.fandom.com/wiki/Controls_(ES2)">Controls</a>,
+<a href="https://everspace.fandom.com/wiki/Ship_attributes_(ES2)">Ship attributes</a>,
+<a href="https://everspace.fandom.com/wiki/Missile_Defense_System_(ES2)">Missile Defense System</a>,
+<a href="https://gameluster.com/everspace-2-all-devices-what-they-do-guide/">Devices</a>,
+<a href="https://itemlevel.net/everspace-2-ultimate-crafting-guide/">Crafting</a>.</li>
+<li>FTL: <a href="https://ftl.fandom.com/wiki/Missile_(Weapons)">Missiles</a>,
+<a href="https://ftl.fandom.com/wiki/Drone_Control">Drone control</a>.</li>
+<li>Starsector: <a href="https://starsector.wiki.gg/wiki/Combat_readiness">Combat readiness</a>,
+<a href="https://starsector.wiki.gg/wiki/Supplies">Supplies</a>,
+<a href="https://starsector.wiki.gg/wiki/Ship_system">Ship system</a>,
+<a href="https://starsector.wiki.gg/wiki/Flare_Launcher">Flare launcher</a>.</li>
+<li>Space Engineers: <a href="https://spaceengineers.wiki.gg/wiki/Survival_Kit">Survival Kit</a>,
+<a href="https://spaceengineers.wiki.gg/wiki/Assembler">Assembler</a>,
+<a href="https://spaceengineers.wiki.gg/wiki/Gatling_Ammo_Box">Gatling ammo box</a>.
+Avorion: <a href="https://steamah.com/avorion-turret-crafting-guide/">Turret crafting</a>.</li>
+<li>Subnautica: <a href="https://subnautica.fandom.com/wiki/Upgrade_Modules">Upgrade modules and fabricators</a>.
+Starbound: <a href="https://starbounder.org/Basic_Crafting">Basic crafting</a>,
+<a href="https://starbounder.org/Engineer%27s_Table">Engineer's table</a>.
+Minecraft: <a href="https://minecraft.wiki/w/Crafting">Crafting</a>.</li>
+<li>No Man's Sky: <a href="https://nomanssky.fandom.com/wiki/Starship_Launch_Fuel">Launch fuel</a>,
+<a href="https://www.gamepressure.com/nomanssky/portable-refiner/zcb2d4">Portable refiner</a>.
+Rebel Galaxy Outlaw: <a href="https://gamedeveloper.com/design/designing-the-satisfying-space-combat-of-i-rebel-galaxy-outlaw-i-">combat design</a>.</li>
+</ul>
+<p class="alt">Not sourced: Everspace 2 consumable cooldown length; Elite heat sink duration; Subnautica original-game flare
+stats. None of the recommendation depends on them.</p>
+</main>
+</body>
+</html>

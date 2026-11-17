@@ -1,6 +1,6 @@
 # Crafting rework: station and on-ship recipes, more items, consumables
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 85
 - TAGS: v0.19.0, economy, crafting, content
 
@@ -54,6 +54,39 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
     in the top tab row. The Inventory Refine form and its examples die.
   - Deferred: consumables, sections as items, market and inventory rework,
     catalogue UX, fabricator section, craft queue, `OnCrafted` event.
+
+- Second slice (owner 2026-11-17: "do some research and figure it out";
+  agent calls from `DESIGN-2.html`, code map `MAP-2.md`, stated 2026-11-17):
+  - Consumables: a new `Consumable` content kind keyed by item id, with a
+    closed effect set `Repair { health, duration_secs }`,
+    `ThrustBoost { factor, duration_secs }`, `Flare { near_m, far_m, lure_m }`.
+    Lint refuses an unknown item, an engine-used item, bad numbers, a lure
+    point inside the largest torpedo blast, and two consumables of one
+    effect. **(breaking)** for mods only where noted below.
+  - Items and Ship recipes: RepairKit (heals 80 HP over 10 s, lowest-share
+    live section each tick, never a lost section; 2 HullPlate + 1
+    SectionPanel, 12 s), BoostCell (thrust x1.5 for 8 s, manual flight only;
+    1 WaterIce + 1 CarbonOre, 8 s), DecoyFlare (torpedoes homing on the
+    ship from 400 to 3000 m lose lock and fly to a point 800 m aside;
+    1 IronOre + 1 CarbonOre, 6 s). Prices and masses per `DESIGN-2.html`.
+  - The flare is the cut line: first check that some AI ship fires
+    torpedoes at the player in normal play; if none does, the flare moves
+    to a later slice.
+  - Use: rebindable flight actions on keys 1, 2, 3 (no pad default), and
+    a `Use` chip on the player's own rows in the Inventory pane. A running
+    effect of the same kind refuses a second use; a refusal keeps the item
+    and plays the deny cue, with no notice: the dim dock chip shows it
+    (owner UI rule 2026-11-17, no restating text). A keybind dock chip
+    shows while the hold carries the item or its effect runs. A mod ship that binds a section to 1, 2 or 3 fails
+    lint **(breaking)**.
+  - Running effects are saved on the frozen ship and resume on Load.
+  - Supply: craft, station stock and start kits, per `DESIGN-2.html`.
+  - Content-only part recipes for the dock chain: `base/docking_collar`
+    and `base/actuator_pack`, so a lost docking port rebuilds in the field.
+  - Later: fabricator section, craft queue, Inventory and Market rework
+    (after task 20261116-133436), decoy against AI targeting, AI use of
+    consumables. Never: sections as items (field rebuild already takes
+    hold parts), ammo packs, shield cells or heat sinks.
 
 ## Agent findings
 - 23 items in six categories (`assets/base/items/base.content.ron:3-236`,
@@ -123,3 +156,31 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
   job docked at a station that turns derelict holds until undock.
 - Left for later slices: consumables, sections as items, market and
   inventory rework, fabricator section, craft queue, `OnCrafted`.
+
+## Delivery record (2026-11-17, second slice; task CLOSED)
+- Landed: `Consumable` content kind and lint (`crates/nova_gameplay/src/consumable.rs`),
+  RepairKit, BoostCell and DecoyFlare items and Ship recipes, part recipes
+  `base/docking_collar` and `base/actuator_pack`, station stock and start
+  kits, effects (`crates/nova_ship/src/sections/consumables.rs`), keys 1, 2,
+  3 and the Inventory Use button, dock chips that wrap on narrow screens,
+  saved running effects, wiki page `web/src/wiki/crafting.md`,
+  `system_ship_consumables` and `consumables_sandbox` examples.
+- Flare gate: AI ships fire torpedoes at the player, so the flare stayed.
+- Review (independent, read-only): 2 medium, 3 low; fixed: flare lure must
+  exceed 1.5x the largest blast (lured torpedoes fuze up to half a radius
+  short), one flare per ship per pass, largest blast reads inline and
+  scenario bays, changelog notes a custom binding on 1-3 resets. A refused
+  use posts no notice by the owner UI rule (deny cue and dim chip).
+- Same commit: owner UI text pass (no restating prose in the Craft view,
+  Ship pane repair/SOS/lost sections, Map, Jobs, HUD notices).
+- Verified: targeted unit, ECS and save tests; content lint; workspace
+  check; live under Xvfb and lavapipe: `system_ship_consumables` PASS,
+  `consumables_sandbox` PASS, `craft_sandbox`, `sos_rescue_sandbox`,
+  `field_repair_sandbox` PASS; frames read (chips, healed section, boost,
+  flare notice, Use button, dock wrap at 1280x720, craft card, SOS pane).
+- Not verified: hand play, gamepad, a live Load mid effect, audio cues,
+  `mdbook build`, workspace tests and clippy.
+- Later (not in this task): fabricator section, craft queue, Inventory
+  and Market rework (after task 20261116-133436), decoy against AI
+  targeting, AI use of consumables, per-item use sounds, lure puff VFX,
+  Inventory pane text pass.

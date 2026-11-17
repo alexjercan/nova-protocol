@@ -9,25 +9,32 @@
 //! whatever order they load in. The merge then refuses every pack that
 //! depends on a refused one. The base game is a dependency of every other pack.
 //!
-//! Recipes are judged here too, against the item catalog the merge keeps,
-//! since a pack that replaces an item can break a recipe another pack owns.
+//! Recipes and consumables are judged here too, against the item catalog
+//! the merge keeps, since a pack that replaces an item can break a recipe or
+//! a consumable another pack owns.
 //!
 //! The runtime merge (`register_bundles`) and the `content lint` walk both
 //! call [`item_pack_faults`], so a pack lint passes is a pack the game loads.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
+use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{
-    recipe_shape_faults, recipe_value_faults, GameItems, ItemDesign, ItemRoleType, RecipeDesign,
-    CARGO_CANISTER_MAX_MASS_G,
+    consumable_faults, recipe_shape_faults, recipe_value_faults, ConsumableDesign, GameItems,
+    ItemDesign, ItemRoleType, RecipeDesign, CARGO_CANISTER_MAX_MASS_G,
 };
 use nova_mod_format::deps::{transitive_deps, DepGraph};
-use nova_modding::prelude::BASE_MOD_ID;
+use nova_modding::prelude::{Content, BASE_MOD_ID};
+use nova_scenario::prelude::{
+    EventActionConfig, ScenarioObjectKind, SectionSource, ShipDesign, ShipDesignSource,
+    StationDesignSource,
+};
+use nova_ship::prelude::{SectionConfig, SectionConfigPatch, SectionKind, SectionKindPatch};
 
 /// Glob-import surface: `use nova_assets::items::prelude::*` re-exports the
 /// public API of this module.
 pub mod prelude {
-    pub use super::{item_pack_faults, ItemPack};
+    pub use super::{item_pack_faults, largest_torpedo_blast, ItemPack};
 }
 
 /// One pack's item definitions, as the rule reads them.
@@ -41,6 +48,12 @@ pub struct ItemPack<'a> {
     pub items: Vec<&'a ItemDesign>,
     /// Every recipe it defines, in authored order.
     pub recipes: Vec<&'a RecipeDesign>,
+    /// Every consumable it defines, in authored order.
+    pub consumables: Vec<&'a ConsumableDesign>,
+    /// The largest torpedo blast radius among the sections it defines; zero
+    /// when it defines no torpedo bay. A flare lure must stand outside the
+    /// largest of every pack.
+    pub torpedo_blast: Meters,
 }
 
 /// Every fault the item rule finds, by the pack it refuses, in pack id order.
@@ -57,7 +70,13 @@ pub struct ItemPack<'a> {
 /// batch that pays, an output heavier than its inputs), the last pack that
 /// set the recipe or the price or mass of one of its items is refused: a
 /// pack that cheapens a base input is refused, and the base game stays.
-pub fn item_pack_faults(packs: &[ItemPack<'_>]) -> BTreeMap<String, Vec<String>> {
+///
+/// A consumable is judged against the same catalog: its pack is refused for
+/// each [`consumable_faults`] finding, for a second consumable of one item,
+/// and, with the packs that set the other side, for a flare lure inside the
+/// largest torpedo blast of any pack and for two consumables of one effect
+/// type. Of those packs, the ones no other of them depends on are refused.
+pub fn item_pack_faults<'a>(packs: &[ItemPack<'a>]) -> BTreeMap<String, Vec<String>> {
     let mut faults: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut fault = |pack: &str, message: String| {
         faults.entry(pack.to_string()).or_default().push(message);
@@ -171,6 +190,87 @@ pub fn item_pack_faults(packs: &[ItemPack<'_>]) -> BTreeMap<String, Vec<String>>
         }
     }
 
+    // The packs among `owners` that no other of them depends on: the last
+    // to set a side of a rule, so the ones that broke it.
+    let last = |owners: &BTreeSet<&'a str>| -> Vec<&'a str> {
+        owners
+            .iter()
+            .copied()
+            .filter(|owner| {
+                !owners
+                    .iter()
+                    .any(|later| later != owner && depends(later, owner) && !depends(owner, later))
+            })
+            .collect()
+    };
+    let max_blast = packs
+        .iter()
+        .map(|pack| pack.torpedo_blast)
+        .fold(Meters(0.0), |a, b| if b > a { b } else { a });
+    // The consumables the merge keeps: the last definition of each item in
+    // load order, as a recipe overlay.
+    let mut kept: BTreeMap<&str, (&str, &ConsumableDesign)> = BTreeMap::new();
+    for pack in packs {
+        let mut seen = HashSet::new();
+        for consumable in &pack.consumables {
+            let item = consumable.item.as_str();
+            if !seen.insert(item) {
+                fault(
+                    pack.id,
+                    format!("the consumable '{item}' is defined more than once"),
+                );
+            }
+            kept.insert(item, (pack.id, consumable));
+        }
+    }
+    for (owner, consumable) in kept.values() {
+        let found = consumable_faults(consumable, &catalog, max_blast);
+        let (lure, own): (Vec<String>, Vec<String>) = found
+            .into_iter()
+            .partition(|message| message.contains("largest torpedo blast"));
+        for message in own {
+            fault(owner, message);
+        }
+        if lure.is_empty() {
+            continue;
+        }
+        let mut owners: BTreeSet<&str> = BTreeSet::from([*owner]);
+        if let nova_gameplay::prelude::ConsumableType::Flare { lure_m, .. } = consumable.effect {
+            owners.extend(
+                packs
+                    .iter()
+                    .filter(|pack| {
+                        pack.torpedo_blast.0 * nova_gameplay::prelude::FLARE_LURE_BLAST_FACTOR
+                            >= lure_m.0
+                    })
+                    .map(|pack| pack.id),
+            );
+        }
+        for culprit in last(&owners) {
+            for message in &lure {
+                fault(culprit, message.clone());
+            }
+        }
+    }
+    let kept: Vec<(&str, &ConsumableDesign)> = kept.into_values().collect();
+    for (at, (a_owner, a)) in kept.iter().enumerate() {
+        for (b_owner, b) in &kept[at + 1..] {
+            if a.effect.slot() != b.effect.slot() {
+                continue;
+            }
+            let message = format!(
+                "the consumables '{}' and '{}' both have a {:?} effect; each effect type has one \
+                 flight key, so one consumable",
+                a.item,
+                b.item,
+                a.effect.slot()
+            );
+            for culprit in last(&BTreeSet::from([*a_owner, *b_owner])) {
+                fault(culprit, message.clone());
+            }
+        }
+    }
+
     if let Some(base) = packs.iter().find(|pack| pack.id == BASE_MOD_ID) {
         for role in ItemRoleType::ALL {
             if !base.items.iter().any(|item| item.id.as_str() == role.id()) {
@@ -179,6 +279,98 @@ pub fn item_pack_faults(packs: &[ItemPack<'_>]) -> BTreeMap<String, Vec<String>>
         }
     }
     faults
+}
+
+/// The largest torpedo blast radius `content` authors anywhere; zero when it
+/// authors none. The merge and content lint fill [`ItemPack::torpedo_blast`]
+/// with it.
+///
+/// It reads every place a blast radius is written: a section prototype, a
+/// bay inline in a ship, station or scenario design, and a patch on a
+/// prototype bay in a design or a spawn. A pack that redefines a section by
+/// id counts both definitions, so the largest of them is never less than the
+/// effective one.
+pub fn largest_torpedo_blast<'a>(content: impl IntoIterator<Item = &'a Content>) -> Meters {
+    let mut largest = Meters(0.0);
+    let mut note = |blast: Meters| {
+        if blast > largest {
+            largest = blast;
+        }
+    };
+    for item in content {
+        match item {
+            Content::Section(section) => section_blast(section).into_iter().for_each(&mut note),
+            Content::Ship(ship) => design_blasts(&ship.design, &mut note),
+            Content::Station(station) => design_blasts(&station.design.hull, &mut note),
+            Content::Scenario(scenario) => {
+                for event in &scenario.events {
+                    for action in &event.actions {
+                        action.walk(&mut |action| {
+                            let object = match action {
+                                EventActionConfig::SpawnScenarioObject(object) => object,
+                                EventActionConfig::ScatterObjects(scatter) => &scatter.template,
+                                _ => return,
+                            };
+                            match &object.kind {
+                                ScenarioObjectKind::Spaceship(ship) => {
+                                    ship_source_blasts(&ship.design, &mut note);
+                                }
+                                ScenarioObjectKind::Station(station) => {
+                                    if let StationDesignSource::Inline(design) = &station.design {
+                                        design_blasts(&design.hull, &mut note);
+                                    }
+                                }
+                                _ => {}
+                            }
+                        });
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    largest
+}
+
+/// A torpedo bay's blast radius.
+fn section_blast(section: &SectionConfig) -> Option<Meters> {
+    match &section.kind {
+        SectionKind::Torpedo(torpedo) => Some(torpedo.blast_radius),
+        _ => None,
+    }
+}
+
+/// The blast radius a section patch writes.
+fn patch_blast(patch: &SectionConfigPatch) -> Option<Meters> {
+    match &patch.kind {
+        Some(SectionKindPatch::Torpedo(torpedo)) => torpedo.blast_radius,
+        _ => None,
+    }
+}
+
+/// Every blast radius a design's placed sections write.
+fn design_blasts(design: &ShipDesign, note: &mut impl FnMut(Meters)) {
+    for placed in &design.sections {
+        let blast = match &placed.source {
+            SectionSource::Inline(section) => section_blast(section),
+            SectionSource::Prototype { patch, .. } => patch_blast(patch),
+        };
+        blast.into_iter().for_each(&mut *note);
+    }
+}
+
+/// Every blast radius a spawned ship's design writes, inline or patched.
+fn ship_source_blasts(source: &ShipDesignSource, note: &mut impl FnMut(Meters)) {
+    match source {
+        ShipDesignSource::Inline(design) => design_blasts(design, note),
+        ShipDesignSource::Prototype {
+            section_patches, ..
+        } => {
+            for patch in section_patches.values() {
+                patch_blast(&patch.config).into_iter().for_each(&mut *note);
+            }
+        }
+    }
 }
 
 /// What is wrong with one item definition on its own.
@@ -228,7 +420,9 @@ fn item_faults(item: &ItemDesign) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use nova_gameplay::prelude::{CraftSiteType, ItemCategoryType, ItemDesignId, RecipeDesignId};
+    use nova_gameplay::prelude::{
+        ConsumableType, CraftSiteType, ItemCategoryType, ItemDesignId, RecipeDesignId,
+    };
 
     use super::*;
 
@@ -262,6 +456,8 @@ mod tests {
             dependencies: deps,
             items: items.iter().collect(),
             recipes: Vec::new(),
+            consumables: Vec::new(),
+            torpedo_blast: Meters(0.0),
         }
     }
 
@@ -454,6 +650,126 @@ mod tests {
                 "odd".to_string(),
                 vec!["the recipe 'odd/core' takes 'Unobtainium', which is no item".to_string()]
             )])
+        );
+    }
+
+    fn flare(item: &str, lure_m: f32) -> ConsumableDesign {
+        ConsumableDesign {
+            item: ItemDesignId::from(item),
+            effect: ConsumableType::Flare {
+                near_m: Meters(400.0),
+                far_m: Meters(3000.0),
+                lure_m: Meters(lure_m),
+            },
+        }
+    }
+
+    /// Each effect type has one flight key: a mod that adds a second flare
+    /// beside the base one is refused, and a mod that depends on the base
+    /// game may replace the base flare by its item.
+    #[test]
+    fn a_second_consumable_of_one_effect_refuses_the_later_pack() {
+        let mut base_items = base_items();
+        base_items.push(item("Flare", 1_000));
+        base_items.push(item("Glare", 1_000));
+        let base_flare = flare("Flare", 800.0);
+        let mod_flare = flare("Glare", 800.0);
+        let overlay = flare("Flare", 900.0);
+        let none: [String; 0] = [];
+        let mut base = pack(BASE_MOD_ID, &none, &base_items);
+        base.consumables = vec![&base_flare];
+        base.torpedo_blast = Meters(300.0);
+        assert!(item_pack_faults(std::slice::from_ref(&base)).is_empty());
+
+        let mut glare = pack("glare", &none, &[]);
+        glare.consumables = vec![&mod_flare];
+        let faults = item_pack_faults(&[base.clone(), glare]);
+        assert_eq!(faults.keys().collect::<Vec<_>>(), ["glare"]);
+        assert!(
+            faults["glare"][0].contains("both have a Flare effect"),
+            "{faults:?}"
+        );
+
+        let mut replace = pack("bright", &none, &[]);
+        replace.consumables = vec![&overlay];
+        assert!(item_pack_faults(&[base, replace]).is_empty());
+    }
+
+    /// A mod torpedo bay whose blast reaches the base flare lure is the pack
+    /// refused, not the base game.
+    #[test]
+    fn a_mod_blast_over_the_base_lure_refuses_the_mod() {
+        let mut base_items = base_items();
+        base_items.push(item("Flare", 1_000));
+        let base_flare = flare("Flare", 800.0);
+        let none: [String; 0] = [];
+        let mut base = pack(BASE_MOD_ID, &none, &base_items);
+        base.consumables = vec![&base_flare];
+        base.torpedo_blast = Meters(300.0);
+        let mut big = pack("big-bang", &none, &[]);
+        big.torpedo_blast = Meters(900.0);
+        let faults = item_pack_faults(&[base, big]);
+        assert_eq!(faults.keys().collect::<Vec<_>>(), ["big-bang"]);
+        assert!(
+            faults["big-bang"][0].contains("largest torpedo blast"),
+            "{faults:?}"
+        );
+    }
+
+    fn bay(blast: f32) -> SectionConfig {
+        use bevy::prelude::default;
+        SectionConfig {
+            base: default(),
+            kind: SectionKind::Torpedo(nova_ship::prelude::TorpedoSectionConfig {
+                blast_radius: Meters(blast),
+                ..default()
+            }),
+        }
+    }
+
+    /// A blast written inline in a ship design or by a patch on a placed
+    /// prototype bay counts, not only a section prototype's.
+    #[test]
+    fn the_largest_blast_reads_inline_bays_and_patches_in_designs() {
+        use bevy::prelude::{default, Quat, Vec3};
+        use nova_scenario::prelude::{ShipDesignPrototype, SpaceshipSectionConfig};
+        let placed = |id: &str, source| SpaceshipSectionConfig {
+            id: id.into(),
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            source,
+        };
+        let ship = |source| {
+            Content::Ship(ShipDesignPrototype {
+                id: "ship".into(),
+                name: "Ship".into(),
+                design: ShipDesign {
+                    sections: vec![placed("bay", source)],
+                    ..default()
+                },
+            })
+        };
+        let prototype = Content::Section(Box::new(bay(300.0)));
+        assert_eq!(largest_torpedo_blast([&prototype]), Meters(300.0));
+
+        let inline = ship(SectionSource::Inline(bay(900.0)));
+        assert_eq!(largest_torpedo_blast([&prototype, &inline]), Meters(900.0));
+
+        let patched = ship(SectionSource::Prototype {
+            id: "bay".into(),
+            patch: SectionConfigPatch {
+                kind: Some(SectionKindPatch::Torpedo(
+                    nova_ship::prelude::TorpedoSectionConfigPatch {
+                        blast_radius: Some(Meters(1_200.0)),
+                        ..default()
+                    },
+                )),
+                ..default()
+            },
+        });
+        assert_eq!(
+            largest_torpedo_blast([&prototype, &patched]),
+            Meters(1_200.0)
         );
     }
 }

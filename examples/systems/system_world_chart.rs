@@ -1148,6 +1148,7 @@ mod walk {
             world.resource::<GameShipDesigns>(),
             world.resource::<GameTradeProfiles>(),
             world.resource::<GameRecipes>(),
+            world.resource::<GameConsumables>(),
         )
         .unwrap_or_else(|refusal| panic!("world chart: cannot open the leave save: {refusal}"));
         assert_eq!(

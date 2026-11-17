@@ -17,12 +17,14 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::{GameItems, GameRecipes, HullStripPauseType};
+use nova_gameplay::prelude::{
+    ConsumableSlotType, GameConsumables, GameItems, GameRecipes, HullStripPauseType,
+};
 use nova_ship::{
     flight::prelude::*,
     prelude::{
         CameraAuthoritySystems, DockedHelmType, DockedShip, DockingConnection, HullStripJob,
-        RepairWorkType, ShipCraftJob, ShipRepairJobs, ShipRescueCall,
+        RepairWorkType, ShipConsumableEffects, ShipCraftJob, ShipRepairJobs, ShipRescueCall,
     },
 };
 use nova_ui::hud::{chip_node, chip_paint, ChipText, ChipTone};
@@ -743,11 +745,16 @@ fn drive_mode_chip(
 }
 
 /// The ship's running rescue call and its time left, such as `SOS 42 S`, or
-/// else its first running repair job and its share done, below the RCS
+/// else its running consumables and their time left, such as `KIT 6 S /
+/// BOOST 5 S`, or else its first running repair job and its share done, below the RCS
 /// chip, such as `REPAIR HULL-3 40%` or `REBUILD DOCK-1 75% +1` with one more
 /// job running, or else its craft job and its share done, such as
 /// `CRAFT PDC ROUND 40%`. A ship with none shows nothing. All run on the
 /// game clock, so the chip shows them moving only in flight.
+#[expect(
+    clippy::type_complexity,
+    reason = "the call, effects, jobs and craft of one ship"
+)]
 fn drive_repair_chip(
     q_hud: Query<&FlightStatusHudTargetEntity, With<FlightStatusHudMarker>>,
     mut q_ui: Query<(&mut ScreenIndicatorAnchor, &mut Text, &ChildOf), With<RepairChipUIMarker>>,
@@ -755,17 +762,41 @@ fn drive_repair_chip(
         Option<&ShipRepairJobs>,
         Option<&ShipRescueCall>,
         Option<&ShipCraftJob>,
+        Option<&ShipConsumableEffects>,
     )>,
     items: Option<Res<GameItems>>,
     recipes: Option<Res<GameRecipes>>,
+    consumables: Option<Res<GameConsumables>>,
 ) {
     for (mut anchor, mut text, &ChildOf(parent)) in &mut q_ui {
         let Ok(ship) = q_hud.get(parent) else {
             continue;
         };
-        let (jobs, call, craft) = q_jobs.get(**ship).unwrap_or((None, None, None));
+        let (jobs, call, craft, effects) = q_jobs.get(**ship).unwrap_or((None, None, None, None));
         if let Some(call) = call {
             let line = format!("SOS {:.0} S", call.remaining_secs().ceil());
+            anchor.set_if_neq(ScreenIndicatorAnchor(Some(
+                ScreenIndicatorAnchorKind::Entity(**ship),
+            )));
+            if **text != line {
+                **text = line;
+            }
+            continue;
+        }
+        let running: Vec<String> = effects
+            .zip(consumables.as_deref())
+            .map(|(effects, consumables)| {
+                ConsumableSlotType::ALL
+                    .into_iter()
+                    .filter_map(|slot| {
+                        let left = effects.remaining_secs(consumables, slot)?;
+                        Some(format!("{} {:.0} S", slot.word(), left.ceil()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !running.is_empty() {
+            let line = running.join(" / ");
             anchor.set_if_neq(ScreenIndicatorAnchor(Some(
                 ScreenIndicatorAnchorKind::Entity(**ship),
             )));

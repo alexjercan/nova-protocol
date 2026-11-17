@@ -163,5 +163,8 @@ pub fn test_items() -> crate::inventory::GameItems {
             300,
             240,
         ),
+        item("RepairKit", "Repair kit", Repair, 20_000, 1, 120, 90),
+        item("BoostCell", "Boost cell", Parts, 10_000, 1, 26, 20),
+        item("DecoyFlare", "Decoy flare", Ammo, 5_000, 1, 24, 18),
     ])
 }

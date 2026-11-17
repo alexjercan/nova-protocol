@@ -9,6 +9,11 @@
 //! start-band escort can empty a 2-PDC hull's 2,000-round load, so 3,000 in
 //! the hold is two such fights or more before the first station Buy.
 //!
+//! On top of that worth every kit carries three repair kits and an escape
+//! tool: the armed roles four decoy flares (456 cr at ask with the kits),
+//! the unarmed roles three boost cells (438 cr), so each start can use every
+//! key it is likely to need before it can craft.
+//!
 //! Goals are the roles' finite milestones over saved facts. Every role's
 //! progress opens with the same first line, one owned station, a rule in
 //! code; the goal here is the flavour line after it. Each count rests on
@@ -22,12 +27,17 @@
 //! while it stands Enemy is twice that. A charter is a milestone, not an
 //! ending: the world plays on past it.
 
-use nova_gameplay::prelude::{ItemRoleType, JobMixType, RoleIconType, ShipInventoryStock};
+use nova_gameplay::prelude::{
+    ItemDesignId, ItemRoleType, JobMixType, RoleIconType, ShipInventoryStock,
+};
 use nova_scenario::prelude::{RoleGoal, RoleGoalType, StartKit, StartRole};
 
-use super::ships::{
-    INTERCEPTOR_SHIP_ID, LIGHT_FREIGHTER_SHIP_ID, MINING_TUG_SHIP_ID, PATROL_PICKET_SHIP_ID,
-    RAIDER_SHIP_ID, SALVAGE_HAULER_SHIP_ID,
+use super::{
+    items::{BOOST_CELL, DECOY_FLARE, REPAIR_KIT},
+    ships::{
+        INTERCEPTOR_SHIP_ID, LIGHT_FREIGHTER_SHIP_ID, MINING_TUG_SHIP_ID, PATROL_PICKET_SHIP_ID,
+        RAIDER_SHIP_ID, SALVAGE_HAULER_SHIP_ID,
+    },
 };
 
 /// Every shipped start role, in the order a picker lists them.
@@ -41,7 +51,12 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
              rocks and sell it.",
             MINING_TUG_SHIP_ID,
             2_200,
-            &[(ItemRoleType::HullPlate, 15), (ItemRoleType::Rations, 25)],
+            &[
+                (ItemRoleType::HullPlate.id(), 15),
+                (ItemRoleType::Rations.id(), 25),
+                (REPAIR_KIT, 3),
+                (BOOST_CELL, 3),
+            ],
             JobMixType::Trade,
             RoleGoal {
                 title: "Ore to market".to_string(),
@@ -59,8 +74,10 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             SALVAGE_HAULER_SHIP_ID,
             1_800,
             &[
-                (ItemRoleType::PdcRound, 3_000),
-                (ItemRoleType::HullPlate, 10),
+                (ItemRoleType::PdcRound.id(), 3_000),
+                (ItemRoleType::HullPlate.id(), 10),
+                (REPAIR_KIT, 3),
+                (DECOY_FLARE, 4),
             ],
             JobMixType::Salvage,
             RoleGoal {
@@ -77,7 +94,12 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
              one station and sell it at another.",
             LIGHT_FREIGHTER_SHIP_ID,
             2_000,
-            &[(ItemRoleType::Rations, 50), (ItemRoleType::WaterIce, 50)],
+            &[
+                (ItemRoleType::Rations.id(), 50),
+                (ItemRoleType::WaterIce.id(), 50),
+                (REPAIR_KIT, 3),
+                (BOOST_CELL, 3),
+            ],
             JobMixType::Trade,
             RoleGoal {
                 title: "A station network".to_string(),
@@ -95,8 +117,10 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             INTERCEPTOR_SHIP_ID,
             1_600,
             &[
-                (ItemRoleType::PdcRound, 3_000),
-                (ItemRoleType::HullPlate, 10),
+                (ItemRoleType::PdcRound.id(), 3_000),
+                (ItemRoleType::HullPlate.id(), 10),
+                (REPAIR_KIT, 3),
+                (DECOY_FLARE, 4),
             ],
             JobMixType::Combat,
             RoleGoal {
@@ -114,9 +138,11 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             PATROL_PICKET_SHIP_ID,
             1_000,
             &[
-                (ItemRoleType::Torpedo, 2),
-                (ItemRoleType::PdcRound, 3_000),
-                (ItemRoleType::HullPlate, 10),
+                (ItemRoleType::Torpedo.id(), 2),
+                (ItemRoleType::PdcRound.id(), 3_000),
+                (ItemRoleType::HullPlate.id(), 10),
+                (REPAIR_KIT, 3),
+                (DECOY_FLARE, 4),
             ],
             JobMixType::Combat,
             RoleGoal {
@@ -134,8 +160,10 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             RAIDER_SHIP_ID,
             1_800,
             &[
-                (ItemRoleType::PdcRound, 3_000),
-                (ItemRoleType::HullPlate, 10),
+                (ItemRoleType::PdcRound.id(), 3_000),
+                (ItemRoleType::HullPlate.id(), 10),
+                (REPAIR_KIT, 3),
+                (DECOY_FLARE, 4),
             ],
             JobMixType::Combat,
             RoleGoal {
@@ -160,7 +188,7 @@ fn role(
     about: &str,
     hull: &str,
     credits: u32,
-    stock: &[(ItemRoleType, u32)],
+    stock: &[(&str, u32)],
     jobs: JobMixType,
     goal: RoleGoal,
     lore: &str,
@@ -173,7 +201,11 @@ fn role(
         hull: hull.into(),
         kit: StartKit {
             credits,
-            stock: ShipInventoryStock::new(stock.iter().map(|&(item, count)| (item.into(), count))),
+            stock: ShipInventoryStock::new(
+                stock
+                    .iter()
+                    .map(|&(item, count)| (ItemDesignId::from(item), count)),
+            ),
         },
         jobs,
         goal,

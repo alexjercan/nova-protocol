@@ -149,6 +149,8 @@ pub(crate) fn asset_mark(kind: &str) -> &'static str {
         "trade profile" => "\u{2316}",
         // GEAR - a machine that makes things.
         "recipe" => "\u{2699}",
+        // BLACK MEDIUM SMALL SQUARE - a cartridge used whole.
+        "consumable" => "\u{25fe}",
         // SQUARE WITH UPPER RIGHT TO LOWER LEFT FILL - a shaded picture.
         "image" => "\u{25a8}",
         // WHITE DIAMOND CONTAINING BLACK SMALL DIAMOND - a solid seen whole.

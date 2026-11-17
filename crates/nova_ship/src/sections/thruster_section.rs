@@ -9,14 +9,14 @@ use bevy::{
     shader::ShaderRef,
 };
 use nova_gameplay::prelude::{
-    AssetRef, DamageLevel, SectionClass, SectionInactiveMarker, ThrusterSectionMarker,
-    TriangleMeshBuilder,
+    AssetRef, DamageLevel, GameConsumables, SectionClass, SectionInactiveMarker,
+    ThrusterSectionMarker, TriangleMeshBuilder,
 };
 
 use crate::{
     prelude::{
-        DockedAssembly, DockedShip, PlaceholderArt, PlaceholderArtType, RenderMeshTransform,
-        SectionRenderMeshTransform, SectionRenderOf,
+        Autopilot, DockedAssembly, DockedShip, PlaceholderArt, PlaceholderArtType,
+        RenderMeshTransform, SectionRenderMeshTransform, SectionRenderOf, ShipConsumableEffects,
     },
     sections::damage_plume::prelude::{plume_scale, DamagePlume},
 };
@@ -582,6 +582,8 @@ pub(crate) fn thruster_impulse_system(
     >,
     mut q_root: Query<Forces>,
     q_docked: Query<(&DockedShip, Has<DockedAssembly>)>,
+    consumables: Option<Res<GameConsumables>>,
+    q_boost: Query<&ShipConsumableEffects, Without<Autopilot>>,
 ) {
     for (transform, &ChildOf(root), magnitude, input) in &q_thruster {
         // Only a docked pair's driver burns, and only while its pair is
@@ -617,7 +619,14 @@ pub(crate) fn thruster_impulse_system(
         // RAW IMPULSE, no `dt`: the magnitude IS a per-tick impulse, see
         // `ThrusterSectionMagnitude`. Multiplying by `dt` here without
         // rescaling every authored magnitude would cut all thrust by 64x.
-        let thrust_impulse = thrust_direction * **magnitude * input.clamp(0.0, 1.0);
+        // A running boost scales every engine of the root alike, so the
+        // balance of a manual burn holds. Manual flight only: an autopilot
+        // verb plans with the authored magnitudes.
+        let boost = match (consumables.as_deref(), q_boost.get(root)) {
+            (Some(consumables), Ok(effects)) => effects.thrust_factor(consumables),
+            _ => 1.0,
+        };
+        let thrust_impulse = thrust_direction * **magnitude * boost * input.clamp(0.0, 1.0);
         let world_point = position + rotation.mul_vec3(transform.translation);
 
         force.apply_linear_impulse_at_point(thrust_impulse, world_point);

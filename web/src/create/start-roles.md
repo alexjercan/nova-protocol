@@ -140,21 +140,25 @@ first, so a role that a mod change removed shows `content changed`.
 
 ## Base start roles
 
+<!-- Kits: crates/nova_authoring/src/base_content/start_roles.rs
+     `start_role_catalog`; prices: assets/base/items/base.content.ron. -->
+
 A kit's worth at ask is its credits plus its items at their `ask_cr` per
-`price_lot`. Each unarmed kit is worth 3,000 cr. Each PDC-armed kit is worth 2,000 to 2,200 cr
-without its rounds. A PDC-armed hull also carries 1,000 `PdcRound` in its
-shared hold, not per mount. That is 10 whole lots of 100 at 10 cr each, so
-the rounds add 100 cr at ask and an armed kit is worth 2,100 to 2,300 cr. The
-rounds sell for 70 cr at their reference `bid_cr`.
+`price_lot`. Without its rounds and consumables, each unarmed kit is worth
+3,000 cr and each PDC-armed kit 2,000 to 2,200 cr. A PDC-armed hull also
+carries 3,000 `PdcRound` in its shared hold, not per mount: 30 whole lots of
+100 at 10 cr each, so 300 cr at ask. Every kit also carries 3 `RepairKit` and
+one escape item: 3 `BoostCell` on an unarmed role (438 cr at ask with the
+kits), 4 `DecoyFlare` on an armed role (456 cr).
 
 | id | hull | kit |
 |---|---|---|
-| `industrial` | `mining_tug` | 2,200 cr, 15 `HullPlate`, 25 `Rations` |
-| `scavenger` | `salvage_hauler` | 1,800 cr, 1,000 `PdcRound`, 10 `HullPlate` |
-| `transport` | `light_freighter` | 2,000 cr, 50 `Rations`, 50 `WaterIce` |
-| `bounty_hunter` | `interceptor` | 1,600 cr, 1,000 `PdcRound`, 10 `HullPlate` |
-| `military` | `patrol_picket` | 1,000 cr, 2 `Torpedo`, 1,000 `PdcRound`, 10 `HullPlate` |
-| `pirate` | `raider` | 1,800 cr, 1,000 `PdcRound`, 10 `HullPlate` |
+| `industrial` | `mining_tug` | 2,200 cr, 15 `HullPlate`, 25 `Rations`, 3 `RepairKit`, 3 `BoostCell` |
+| `scavenger` | `salvage_hauler` | 1,800 cr, 3,000 `PdcRound`, 10 `HullPlate`, 3 `RepairKit`, 4 `DecoyFlare` |
+| `transport` | `light_freighter` | 2,000 cr, 50 `Rations`, 50 `WaterIce`, 3 `RepairKit`, 3 `BoostCell` |
+| `bounty_hunter` | `interceptor` | 1,600 cr, 3,000 `PdcRound`, 10 `HullPlate`, 3 `RepairKit`, 4 `DecoyFlare` |
+| `military` | `patrol_picket` | 1,000 cr, 2 `Torpedo`, 3,000 `PdcRound`, 10 `HullPlate`, 3 `RepairKit`, 4 `DecoyFlare` |
+| `pirate` | `raider` | 1,800 cr, 3,000 `PdcRound`, 10 `HullPlate`, 3 `RepairKit`, 4 `DecoyFlare` |
 
 The roles are generated into `assets/base/roles/base.content.ron`.
 

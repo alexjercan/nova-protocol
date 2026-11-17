@@ -64,8 +64,9 @@ use self::{
         on_torpedo_launch_play_sfx, on_turret_fire_play_sfx,
     },
     cues::{
-        on_ammo_reserve_crossed_play_cue, play_dry_fire_cue, play_hull_warning_cue, play_lock_cues,
-        play_safety_engaged_cue, play_threat_lock_cue, play_torpedo_closing_tone,
+        on_ammo_reserve_crossed_play_cue, play_consumable_refused_cue, play_dry_fire_cue,
+        play_hull_warning_cue, play_lock_cues, play_safety_engaged_cue, play_threat_lock_cue,
+        play_torpedo_closing_tone,
     },
     loops::{drive_railgun_charge_loops, drive_rcs_loops, drive_thruster_loops},
     machinery::{
@@ -147,6 +148,7 @@ impl Plugin for ShipAudioPlugin {
             (
                 play_lock_cues,
                 play_safety_engaged_cue,
+                play_consumable_refused_cue,
                 play_dry_fire_cue,
                 play_threat_lock_cue,
                 play_hull_warning_cue,

@@ -200,3 +200,19 @@ Scenarios can take the capability away: a hull whose flight computer does not
 grant point defense answers a salvo only by hand.
 
 A **neutralized** hull does not defend itself at all - take an armed ship's last gun or its flight computer, or an unarmed ship's last thruster, and it is out of the fight for good. Only your own ship comes back: repair what you lost and it fights again, and enemies target it again. [Ships & damage](../ships/#taking-a-ship-apart) has the rule.
+
+### Decoy flares
+
+<!-- Numbers: assets/base/consumables/base.content.ron (DecoyFlare: near_m
+     400, far_m 3000, lure_m 800). Use and lure: crates/nova_ship/src/sections/
+     consumables.rs `use_consumables`, crates/nova_gameplay/src/consumable.rs
+     `flare_in_band`, `flare_lure_point`. Lint: `consumable_faults` (lure past
+     the largest torpedo blast). -->
+
+| Torpedo homing on you | A flare on <kbd>3</kbd> does |
+| --- | --- |
+| under 400 m | nothing: it keeps its lock, and your point defense is the last layer |
+| 400 m to 3 km | it drops the lock, flies to a point 800 m to one side of your ship, at right angles to its approach, and bursts there |
+| over 3 km | nothing |
+
+A flare is a [consumable](../crafting/#consumables): one press takes one, and is refused, item kept, while no torpedo homes on you inside the band. The 800 m lure point stands outside a 300 m base blast. The HUD notice counts the pulled-off torpedoes, `FLARE: 2 DECOYED`. A flare does not touch a torpedo aimed at another ship.

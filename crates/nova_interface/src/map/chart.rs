@@ -1870,7 +1870,7 @@ pub(crate) fn chart_panel_field(
                     job.task(items.unwrap_or(&GameItems::default()))
                 };
                 format!(
-                    "Posted by {}.\n{state}\nHand in at {} while docked.",
+                    "Posted by {}\n{state}\nHand in at {}",
                     station_name(job.posted_by()),
                     station_name(&job.target)
                 )
@@ -1906,13 +1906,8 @@ pub(crate) fn chart_panel_field(
             let Some(station) = station(id) else {
                 return (String::new(), UiColorType::TextMuted);
             };
-            let found = found(station.found_at);
-            let note = if station.summary.is_some() {
-                found
-            } else {
-                format!("{found}\nNot docked: no stock seen.")
-            };
-            (note, UiColorType::TextMuted)
+            // A station never docked at has no stock block under the note.
+            (found(station.found_at), UiColorType::TextMuted)
         }
         (Some(MapChartMarkType::Wreck(id)), MapPanelField::Note) => (
             chart

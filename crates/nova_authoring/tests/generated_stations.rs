@@ -7,12 +7,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use nova_authoring::{
-    generation::{build_items, build_section_catalog, build_styles},
+    generation::{build_consumables, build_items, build_section_catalog, build_styles},
     lint_walk::repo_ship_part_packs,
 };
 use nova_events::prelude::Meters3;
 use nova_gameplay::prelude::{
-    CivilizationId, GameItems, ItemCategoryType, ItemRoleType, StanceType,
+    CivilizationId, GameConsumables, GameItems, ItemCategoryType, ItemRoleType, StanceType,
 };
 use nova_scenario::prelude::{
     lint_station_design, resolve_ship_design, GameShipDesigns, KnownSections, LintSeverity,
@@ -84,8 +84,14 @@ fn every_base_station_passes_the_station_lint_at_every_advancement() {
                         "{context}: {:?}",
                         layout.clearance
                     );
-                    let design = generated_station(&parts, &items, &layout, &civilization)
-                        .unwrap_or_else(|constraint| panic!("{context}: {constraint}"));
+                    let design = generated_station(
+                        &parts,
+                        &items,
+                        &GameConsumables::new(build_consumables()),
+                        &layout,
+                        &civilization,
+                    )
+                    .unwrap_or_else(|constraint| panic!("{context}: {constraint}"));
                     let errors: Vec<String> = lint_station_design(
                         &context,
                         &design,
@@ -145,8 +151,14 @@ fn a_seeded_station_stocks_its_known_weapons_ammunition_within_its_hold() {
                     };
                     let layout = generate_station(&parts, request)
                         .unwrap_or_else(|failure| panic!("{context}: {failure}"));
-                    let design = generated_station(&parts, &items, &layout, &civilization)
-                        .unwrap_or_else(|constraint| panic!("{context}: {constraint}"));
+                    let design = generated_station(
+                        &parts,
+                        &items,
+                        &GameConsumables::new(build_consumables()),
+                        &layout,
+                        &civilization,
+                    )
+                    .unwrap_or_else(|constraint| panic!("{context}: {constraint}"));
                     for ammunition in &known {
                         assert!(
                             design
@@ -225,8 +237,14 @@ fn every_base_station_stocks_one_recipe_of_every_part_it_builds() {
                     };
                     let layout = generate_station(&parts, request)
                         .unwrap_or_else(|failure| panic!("{context}: {failure}"));
-                    let design = generated_station(&parts, &items, &layout, &civilization)
-                        .unwrap_or_else(|constraint| panic!("{context}: {constraint}"));
+                    let design = generated_station(
+                        &parts,
+                        &items,
+                        &GameConsumables::new(build_consumables()),
+                        &layout,
+                        &civilization,
+                    )
+                    .unwrap_or_else(|constraint| panic!("{context}: {constraint}"));
                     let stock: BTreeMap<&str, u32> = design
                         .stock
                         .stacks()
@@ -289,8 +307,14 @@ fn a_generated_station_builds_what_its_civilization_knows_and_no_more() {
         };
         let layout = generate_station(&parts, request)
             .unwrap_or_else(|failure| panic!("{id} at {advancement}: {failure}"));
-        generated_station(&parts, &items, &layout, &civilization)
-            .unwrap_or_else(|constraint| panic!("{id} at {advancement}: {constraint}"))
+        generated_station(
+            &parts,
+            &items,
+            &GameConsumables::new(build_consumables()),
+            &layout,
+            &civilization,
+        )
+        .unwrap_or_else(|constraint| panic!("{id} at {advancement}: {constraint}"))
     };
 
     let ring0 = station(CIVILIZATIONS[0], 0.0);
@@ -395,8 +419,14 @@ fn generated_stations_build_second_tier_sections_that_swap_for_their_base() {
         };
         let layout = generate_station(&parts, request)
             .unwrap_or_else(|failure| panic!("{id} at 0.5: {failure}"));
-        let design = generated_station(&parts, &items, &layout, &civilization)
-            .unwrap_or_else(|constraint| panic!("{id} at 0.5: {constraint}"));
+        let design = generated_station(
+            &parts,
+            &items,
+            &GameConsumables::new(build_consumables()),
+            &layout,
+            &civilization,
+        )
+        .unwrap_or_else(|constraint| panic!("{id} at 0.5: {constraint}"));
         for (_, variant) in SECOND_TIER {
             if design.builds.iter().any(|built| built == variant) {
                 built.insert(variant);

@@ -13,16 +13,16 @@
 //! 1. press Tab, open the Inventory tab and click Craft at the right end of
 //!    its filter row: the Craft view covers the Inventory pane;
 //! 2. click a tile: the card shows what the hold has of each input, the fee
-//!    of a Station recipe and the time a batch runs;
+//!    of a Station recipe and the time, for the batch count;
 //! 3. set the batches on the slider, or Max for every batch the hold and the
-//!    balance cover, and click Craft;
+//!    balance cover: the card's totals follow; click Craft;
 //! 4. Back or Esc returns to the Inventory view; a tab switch or Tab closes
 //!    the Craft view too;
 //! 5. close Tab: the job runs only while you fly, and the chip under the RCS
 //!    chip shows it. Each batch takes its inputs and fee and adds its output.
 //!
-//! Press D to undock: the Station tiles grey with `Dock at a Craft station`,
-//! and a running Station job stops. The diagnostics layer (F3) is on at
+//! Press D to undock: the Station tiles grey, and a running Station job
+//! stops. The diagnostics layer (F3) is on at
 //! start: a panel line with the hold and the balance, and the running job.
 //!
 //! ```text
@@ -300,8 +300,9 @@ mod smoke {
         info!("craft_sandbox: PASS staged docked with the fixture hold");
     }
 
-    /// The idle tiles: PDC rounds live, the torpedo greyed by its alloy
-    /// plates, and every base recipe shown.
+    /// The idle tiles: PDC rounds and torpedoes each show their name and
+    /// yield line only, and every base recipe shown. The torpedo tile is
+    /// greyed by its alloy plates; the frame shows the tone.
     fn assert_the_tiles(world: &mut World) {
         let rounds = texts_under(world, &tile(PDC_RECIPE));
         assert!(
@@ -310,15 +311,16 @@ mod smoke {
         );
         let torpedo = texts_under(world, &tile(TORPEDO_RECIPE));
         assert!(
-            torpedo.contains(&"Short of alloy plate: 0 of 2".to_string()),
-            "craft_sandbox: the torpedo tile is greyed by its input: {torpedo:?}"
+            torpedo.contains(&"x1  STATION".to_string()) && torpedo.len() == 2,
+            "craft_sandbox: the torpedo tile writes no reason: {torpedo:?}"
         );
         let shown = world
             .query::<&Name>()
             .iter(world)
             .filter(|name| name.as_str().starts_with("CraftTile-"))
             .count();
-        assert_eq!(shown, 6, "craft_sandbox: the six base recipes show");
+        let base = world.resource::<GameRecipes>().0.len();
+        assert_eq!(shown, base, "craft_sandbox: every base recipe shows");
         info!("craft_sandbox: PASS the tiles: {rounds:?}, {torpedo:?}");
     }
 
@@ -343,16 +345,11 @@ mod smoke {
         move_cursor(Vec2::new(x, rect.center().y))(world);
     }
 
-    /// The card at [`BATCHES`]: the count and the Takes and Makes lines
-    /// follow the slider.
+    /// The card at [`BATCHES`]: the count, the output total, each input's
+    /// hold over what the batches take, and the time follow the slider.
     fn assert_the_card(world: &mut World) {
         let card = texts_under(world, "CraftCard");
-        for line in [
-            "2",
-            "of 6",
-            "Takes 2 iron ore, 2 stone ore",
-            "Makes 200 PDC round in 16 s",
-        ] {
+        for line in ["2", "of 6", "PDC round x200", "12 / 2", "6 / 2", "16 s"] {
             assert!(
                 card.contains(&line.to_string()),
                 "craft_sandbox: the card reads {line:?}: {card:?}"

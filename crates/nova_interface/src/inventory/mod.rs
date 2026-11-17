@@ -22,7 +22,10 @@
 //! `To <ship>` Store into it. A partner that is an own ship shows no partner
 //! column and does not trade. The Craft button at the right end of the
 //! filter row opens the Craft view over the pane (`crate::craft`), docked or
-//! not. A derelict station is lootable and offers no service. While undocked
+//! not. A derelict station is lootable and offers no service. The player's
+//! row of an item that has a `Consumable` shows a Use button in the
+//! inspector, docked or not: one click uses one, and it is disabled while
+//! a use would refuse (`use_item`). While undocked
 //! with a live cargo intake, the player's row opens a Jettison form. Confirm writes an
 //! [`InventoryActionCommand`], and [`apply_inventory_action_commands`] moves
 //! the items, and for a trade the credits, by the
@@ -65,10 +68,12 @@
 //! | `app` | The pane body, its refresh, the action form and its handler. |
 //! | `strip` | The strip block, the strip action handler and the strip timer. |
 //! | `market` | The MARKET strip: the trader's leads, restock and refusal. |
+//! | `use_item` | The inspector's Use button for a consumable item. |
 
 mod app;
 mod market;
 mod strip;
+mod use_item;
 
 #[cfg(test)]
 mod tests;
@@ -77,19 +82,21 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::{
     GameItems, ItemCategoryType, ItemDesignId, ItemStorageType, ItemTradeType, ItemTransferType,
 };
+use nova_ship::prelude::ConsumableUseRequest;
 use nova_ui::{
     input_mode::prelude::{in_input_mode, InputMode},
     screen::clamp_stored_scroll,
     widget::DoubleClick,
 };
 
-pub(crate) use self::{app::*, market::*, strip::*};
+pub(crate) use self::{app::*, market::*, strip::*, use_item::*};
 pub use self::{
     app::{INVENTORY_BUY_ALL, INVENTORY_SELL_ALL, INVENTORY_TAKE_ALL},
     market::{INVENTORY_MARKET_REFUSED, INVENTORY_MARKET_STRIP},
     strip::{
         HullStripCommand, INVENTORY_STRIP_BLOCK, INVENTORY_STRIP_BUTTON, INVENTORY_STRIP_PROGRESS,
     },
+    use_item::INVENTORY_USE_BUTTON,
 };
 
 /// Glob-import surface: `use nova_interface::inventory::prelude::*`.
@@ -101,6 +108,7 @@ pub mod prelude {
             HullStripCommand, INVENTORY_STRIP_BLOCK, INVENTORY_STRIP_BUTTON,
             INVENTORY_STRIP_PROGRESS,
         },
+        use_item::INVENTORY_USE_BUTTON,
         InventoryRuntime,
     };
 }
@@ -115,6 +123,9 @@ impl Plugin for InventoryPanePlugin {
         app.add_message::<CreditTakeCommand>();
         app.add_message::<TakeAllCommand>();
         app.add_message::<HullStripCommand>();
+        // Owned by `nova_ship`; registered here as well so the pane stands
+        // alone. A second registration is a no-op.
+        app.add_message::<ConsumableUseRequest>();
         // Every pane system reads the item catalog, which lands only at the mod
         // merge and never on a refused base game; the set runs from boot.
         app.configure_sets(
@@ -133,6 +144,7 @@ impl Plugin for InventoryPanePlugin {
                 advance_hull_strip,
                 type_inventory_draft,
                 update_inventory_panel,
+                update_inventory_use_button,
                 fit_inventory_columns,
                 // Last frame's layout, before the wheel subtracts from it.
                 clamp_stored_scroll::<InventoryColumn>,

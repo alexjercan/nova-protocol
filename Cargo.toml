@@ -191,6 +191,15 @@ name = "craft_sandbox"
 path = "examples/playable/craft_sandbox.rs"
 required-features = ["debug"]
 
+# Consumables by hand: fly with repair kits, boost cells and decoy flares
+# aboard, a damaged hull and a torpedo stand that fires on F. Use them on keys
+# 1/2/3 or from the Inventory pane. Nothing ends it; under NOVA_AUTOPILOT a
+# smoke walk uses each and captures the HUD chips and the Use button.
+[[example]]
+name = "consumables_sandbox"
+path = "examples/playable/consumables_sandbox.rs"
+required-features = ["debug"]
+
 # Second-tier sections by hand: start docked at a generated yard that builds
 # all six, on a shipped hull (--hull picket|tug|warship) with the recipe parts
 # and credits aboard. Swap in the Ship pane, undock and use the part. Nothing
@@ -1010,6 +1019,14 @@ required-features = ["debug"]
 [[example]]
 name = "system_ship_craft"
 path = "examples/systems/system_ship_craft.rs"
+required-features = ["debug"]
+
+# Consumables off the game clock: a repair kit heals a damaged section over
+# time, a boost cell scales thrust, a decoy flare pulls a scripted torpedo off
+# the ship, and a refused use keeps the item.
+[[example]]
+name = "system_ship_consumables"
+path = "examples/systems/system_ship_consumables.rs"
 required-features = ["debug"]
 
 # The stations epic end to end on a generated New Game: a section lost and

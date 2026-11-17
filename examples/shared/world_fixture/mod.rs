@@ -116,6 +116,7 @@ pub fn featured_world_config(
             loaded,
             styles,
             items,
+            &GameConsumables::default(),
             &GameTradeProfiles::default(),
         )
         .unwrap_or_else(|faults| {
@@ -150,17 +151,23 @@ pub fn clustered_world_config(
     styles: &GameStyles,
     items: &GameItems,
 ) -> WorldConfig<ClusteredWorld> {
-    let world = NovaLayeredWorld::from_loaded(loaded, styles, items, &GameTradeProfiles::default())
-        .unwrap_or_else(|faults| {
-            panic!(
-                "world fixture: the loaded catalog does not arm:\n  {}",
-                faults
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n  ")
-            )
-        });
+    let world = NovaLayeredWorld::from_loaded(
+        loaded,
+        styles,
+        items,
+        &GameConsumables::default(),
+        &GameTradeProfiles::default(),
+    )
+    .unwrap_or_else(|faults| {
+        panic!(
+            "world fixture: the loaded catalog does not arm:\n  {}",
+            faults
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n  ")
+        )
+    });
     WorldConfig {
         seed: EXAMPLE_SEED,
         sector_edge: EXAMPLE_SECTOR_EDGE,

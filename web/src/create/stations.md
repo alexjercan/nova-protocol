@@ -158,13 +158,14 @@ over-cap refusal, and finds the storage in the leave save and after a Load.
 
 ## Craft
 
-A ship runs recipes from the **Craft** pane of the TAB interface. A recipe is
-content, see [Content files](../mod-files/#recipes). A `Ship` recipe runs
-anywhere, in flight too. A `Station` recipe runs only while the ship is docked
-to a living station whose `services` list `Craft`, and pays that station its
-fee a batch. The base game authors six recipes: PDC rounds, hull plates and
-section panels on the ship; alloy plates, rail slugs and torpedoes at a
-station.
+A ship runs recipes from the **Craft** view of the TAB interface's Inventory
+pane. A recipe is content, see [Content files](../mod-files/#recipes). A
+`Ship` recipe runs anywhere, in flight too. A `Station` recipe runs only while
+the ship is docked to a living station whose `services` list `Craft`, and pays
+that station its fee a batch. The base game authors eleven recipes: PDC
+rounds, hull plates, section panels, repair kits, boost cells, decoy flares,
+docking collars and actuator packs on the ship; alloy plates, rail slugs and
+torpedoes at a station.
 
 | rule | what happens |
 |---|---|

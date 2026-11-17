@@ -640,7 +640,13 @@ fn generate_row(
             stance: StanceType::Neutral,
             lawful: false,
         };
-        let mut station = match generated_station(snapshot, items, &layout, &keeper) {
+        let mut station = match generated_station(
+            snapshot,
+            items,
+            &GameConsumables::default(),
+            &layout,
+            &keeper,
+        ) {
             Ok(station) => station,
             Err(constraint) => {
                 failures.push(format!(

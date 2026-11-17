@@ -2,7 +2,8 @@
 //!
 //! A lost section is a section of the player ship's design with no live
 //! section of that id. The panel lists each lost section with its design
-//! code, what a rebuild takes or why it cannot, and a Rebuild button. A
+//! code, what a rebuild takes, a short part or balance as have / need, or
+//! the cause of another refusal, and a Rebuild button. A
 //! click raises a [`SectionRebuildCommand`]; [`apply_ship_rebuild_commands`]
 //! plans it with [`plan_section_rebuild`] at the site the ship is at:
 //!
@@ -53,11 +54,13 @@ pub(crate) struct ShipRebuildRows(Vec<RebuildRow>);
 struct RebuildRow {
     section: String,
     code: String,
-    /// What a rebuild takes, or why there is none.
+    /// What a rebuild takes, the short count, or why there is none.
     line: String,
     /// Whether the row offers Rebuild: the plan holds and no field rebuild
     /// runs on the section.
     offered: bool,
+    /// The line is a short count, painted in the danger tone.
+    short: bool,
 }
 
 /// A live section of the player ship, placed in ship-root space.
@@ -396,6 +399,47 @@ fn rebuild_refusal_text(
     }
 }
 
+/// The lost row's line for a refused rebuild. A short part or a short
+/// balance reads as a have / need count under the row's code; the other
+/// refusals name their cause. Returns the line and whether it is a short
+/// count.
+fn rebuild_row_refusal(
+    items: &GameItems,
+    code: &str,
+    field: bool,
+    holds: (&ShipInventory, Option<&ShipInventory>),
+    refusal: &SectionRebuildRefusalType,
+) -> (String, bool) {
+    match refusal {
+        SectionRebuildRefusalType::Payment(RecipePaymentRefusalType::MissingParts {
+            item,
+            short,
+        }) => {
+            let (own, partner) = holds;
+            let have = own.count(item)
+                + partner
+                    .filter(|_| !field)
+                    .map_or(0, |partner| partner.count(item));
+            (
+                format!(
+                    "{} {have} / {}",
+                    items.design(item).name,
+                    have.saturating_add(*short)
+                ),
+                true,
+            )
+        }
+        SectionRebuildRefusalType::Payment(RecipePaymentRefusalType::InsufficientCredits {
+            need,
+            have,
+        }) => (
+            format!("{} / {}", cr_digits(u64::from(*have)), cr_text(*need)),
+            true,
+        ),
+        refusal => (rebuild_refusal_text(items, code, field, refusal), false),
+    }
+}
+
 /// Why a recipe cannot be paid, after the action's prefix; a rebuild and a
 /// swap share it.
 pub(crate) fn payment_refusal_text(
@@ -504,25 +548,33 @@ pub(crate) fn update_ship_rebuild_list(
                     let code = design_section_code(resolved.design, &section.id)
                         .expect("a lost section is a design section");
                     let running = jobs.get(&RepairJobKey::Lost(section.id.clone())).is_some();
+                    // A running field rebuild shows on its Repairs row; its
+                    // lost row keeps only the code.
                     let line = if running {
-                        Err("rebuilding in the field".to_string())
+                        Err((String::new(), false))
                     } else {
                         match resolved.plan(&items, section, &free, own_cr.0, partner) {
                             Ok(_) if resolved.in_field() => Ok(field_rebuild_text(section)),
                             Ok(rebuild) => Ok(rebuild_price_text(&rebuild)),
-                            Err(refusal) => Err(rebuild_refusal_text(
+                            Err(refusal) => Err(rebuild_row_refusal(
                                 &items,
                                 &code,
                                 resolved.in_field(),
+                                (&free, partner.map(|(stock, _)| stock)),
                                 &refusal,
                             )),
                         }
+                    };
+                    let (line, short) = match line {
+                        Ok(line) => (Ok(line), false),
+                        Err((line, short)) => (Err(line), short),
                     };
                     RebuildRow {
                         section: section.id.clone(),
                         code,
                         offered: line.is_ok(),
                         line: line.unwrap_or_else(|line| line),
+                        short,
                     }
                 })
                 .collect()
@@ -551,7 +603,14 @@ pub(crate) fn update_ship_rebuild_list(
                 })
                 .with_children(|cell| {
                     cell.spawn(themed_label(&row.code, 13.0, UiColorType::Text));
-                    cell.spawn(themed_label(&row.line, 12.0, UiColorType::TextBody));
+                    if !row.line.is_empty() {
+                        let tone = if row.short {
+                            UiColorType::Danger
+                        } else {
+                            UiColorType::TextBody
+                        };
+                        cell.spawn(themed_label(&row.line, 12.0, tone));
+                    }
                     if row.offered {
                         cell.spawn((
                             Name::new(format!("ShipRebuild-{}", row.code)),
@@ -662,8 +721,9 @@ pub(crate) fn apply_ship_rebuild_commands(
                 code.clone(),
                 &section.config.base.build,
             );
-            // No duration: the job row owns the time left.
-            runtime.note = Some((format!("rebuilding {code} in the field"), 2.5));
+            // The job row in the Repairs block shows the job; an earlier
+            // refusal's note goes.
+            runtime.note = None;
             match q_jobs.get_mut(resolved.player) {
                 Ok(mut jobs) => jobs.push(job),
                 Err(_) => {

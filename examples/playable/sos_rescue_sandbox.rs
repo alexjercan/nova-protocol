@@ -15,8 +15,8 @@
 //!
 //! What to do:
 //!
-//! 1. press Tab and open the Ship tab: the Distress block names why the ship
-//!    is stranded and what a rescue charges now;
+//! 1. press Tab and open the Ship tab: the Distress block tags why the ship
+//!    is stranded and shows what a rescue charges now;
 //! 2. click Call SOS. The block shows the call, its bar, its time left and
 //!    Cancel;
 //! 3. close Tab. The call runs only while you fly: the chip under the RCS

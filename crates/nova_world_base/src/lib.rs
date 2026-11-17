@@ -53,7 +53,8 @@ use bevy::prelude::*;
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{
-    Chart, GameItems, GameTradeProfiles, JobPostings, Jobs, PlayerSpaceshipMarker, StationVisits,
+    Chart, GameConsumables, GameItems, GameTradeProfiles, JobPostings, Jobs, PlayerSpaceshipMarker,
+    StationVisits,
 };
 use nova_scenario::prelude::{CurrentScenario, OpenWorldSession, ScenarioWorldType};
 use nova_ship::prelude::GameStyles;
@@ -496,6 +497,12 @@ fn sync_open_world(world: &mut World) {
              content merge refused the catalog and logged why"
         );
     };
+    let Some(consumables) = world.get_resource::<GameConsumables>() else {
+        panic!(
+            "nova_world_base: a generated-world scenario is live with no GameConsumables; the \
+             content merge refused the catalog and logged why"
+        );
+    };
     let Some(profiles) = world.get_resource::<GameTradeProfiles>() else {
         panic!(
             "nova_world_base: a generated-world scenario is live with no GameTradeProfiles; the \
@@ -511,8 +518,8 @@ fn sync_open_world(world: &mut World) {
             loaded.digest.0
         ),
         Some(armed) => armed.generator.clone(),
-        None => NovaLayeredWorld::from_loaded(loaded, styles, items, profiles).unwrap_or_else(
-            |faults| {
+        None => NovaLayeredWorld::from_loaded(loaded, styles, items, consumables, profiles)
+            .unwrap_or_else(|faults| {
                 panic!(
                     "nova_world_base: the loaded content does not arm the open world:\n  {}",
                     faults
@@ -521,8 +528,7 @@ fn sync_open_world(world: &mut World) {
                         .collect::<Vec<_>>()
                         .join("\n  ")
                 )
-            },
-        ),
+            }),
     };
     let config = WorldConfig {
         seed,

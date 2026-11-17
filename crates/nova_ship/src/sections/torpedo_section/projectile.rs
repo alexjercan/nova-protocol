@@ -9,7 +9,7 @@
 
 use super::*;
 
-pub(super) fn update_target_position(
+pub(crate) fn update_target_position(
     mut commands: Commands,
     mut q_torpedo: Query<
         (

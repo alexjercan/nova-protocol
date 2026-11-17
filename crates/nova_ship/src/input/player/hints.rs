@@ -152,6 +152,25 @@ pub struct FlightVerbHints {
     /// The RAILGUN verb hint, keyed off the first railgun's own
     /// [`SpaceshipRailgunInputBinding`]; shown on the same terms as FIRE.
     pub railgun: VerbHint,
+    /// The KIT verb hint (use the repair kit), labelled off
+    /// `use_repair_kit`; shown while the hold carries a kit or one runs,
+    /// available while a use would pass (`plan_consumable_use`).
+    pub kit: VerbHint,
+    /// Repair kits in the hold, less what repair jobs hold back.
+    pub kit_held: u32,
+    /// Whether a repair kit runs, so the KIT chip paints hot.
+    pub kit_running: bool,
+    /// The BOOST verb hint (use the boost cell), on the KIT terms.
+    pub boost: VerbHint,
+    /// Boost cells in the hold.
+    pub boost_held: u32,
+    /// Whether a boost runs, so the BOOST chip paints hot.
+    pub boost_running: bool,
+    /// The FLARE verb hint (use the decoy flare), on the KIT terms: lit
+    /// while a torpedo in the flare band homes on the ship.
+    pub flare: VerbHint,
+    /// Decoy flares in the hold.
+    pub flare_held: u32,
     /// Whether any maneuver is engaged right now - explicit, so consumers
     /// (the GOTO cue hides mid-maneuver) do not have to proxy it through
     /// another verb's availability.
@@ -209,6 +228,44 @@ pub(super) struct SectionHintQuery<'w, 's> {
     >,
     hot: Query<'w, 's, &'static WeaponsHot>,
     burn: Query<'w, 's, &'static TriggerState, With<Action<FlightBurnInput>>>,
+    /// The consumable keys' chips read the use's own facts.
+    consumables: Option<Res<'w, GameConsumables>>,
+    holds: Query<
+        'w,
+        's,
+        (
+            &'static ShipInventory,
+            Option<&'static ShipConsumableEffects>,
+        ),
+    >,
+    consumable_facts: ConsumableFactsQuery<'w, 's>,
+}
+
+/// One consumable key's chip, its count, and whether its effect runs.
+fn consumable_hint(
+    sections: &SectionHintQuery,
+    ship: Option<Entity>,
+    slot: ConsumableSlotType,
+    key: String,
+) -> (VerbHint, u32, bool) {
+    let (Some(ship), Some(consumables)) = (ship, sections.consumables.as_deref()) else {
+        return (VerbHint::default(), 0, false);
+    };
+    let (Some(design), Ok((hold, effects))) = (consumables.in_slot(slot), sections.holds.get(ship))
+    else {
+        return (VerbHint::default(), 0, false);
+    };
+    let running = effects.is_some_and(|effects| effects.in_slot(consumables, slot).is_some());
+    let Some((facts, _)) = sections.consumable_facts.facts(ship, design, hold, running) else {
+        return (VerbHint::default(), 0, false);
+    };
+    let hint = VerbHint {
+        shown: !key.is_empty() && (facts.held > 0 || running),
+        available: plan_consumable_use(design, &facts).is_ok(),
+        key,
+        ..default()
+    };
+    (hint, facts.held, running)
 }
 
 /// The keycap a section binding draws: the first source on the device the
@@ -460,6 +517,25 @@ pub(super) fn update_flight_verb_hints(
         }
     };
 
+    let (kit, kit_held, kit_running) = consumable_hint(
+        &sections,
+        ship,
+        ConsumableSlotType::Repair,
+        label(ConsumableSlotType::Repair.action()),
+    );
+    let (boost, boost_held, boost_running) = consumable_hint(
+        &sections,
+        ship,
+        ConsumableSlotType::ThrustBoost,
+        label(ConsumableSlotType::ThrustBoost.action()),
+    );
+    let (flare, flare_held, _) = consumable_hint(
+        &sections,
+        ship,
+        ConsumableSlotType::Flare,
+        label(ConsumableSlotType::Flare.action()),
+    );
+
     let next = FlightVerbHints {
         interface: VerbHint {
             key: label("interface_toggle"),
@@ -587,6 +663,14 @@ pub(super) fn update_flight_verb_hints(
         fire: weapon(section_label(turret_key)),
         torpedo: weapon(section_label(torpedo_key)),
         railgun: weapon(section_label(railgun_key)),
+        kit,
+        kit_held,
+        kit_running,
+        boost,
+        boost_held,
+        boost_running,
+        flare,
+        flare_held,
         engaged,
     };
     // set_if_neq semantics by hand: only dirty the resource on real change.

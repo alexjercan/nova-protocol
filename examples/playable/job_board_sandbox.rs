@@ -164,6 +164,7 @@ fn start_the_world(
     loaded: Res<LoadedSectionPacks>,
     styles: Res<GameStyles>,
     items: Res<GameItems>,
+    consumables: Res<GameConsumables>,
     profiles: Res<GameTradeProfiles>,
     mut mode: ResMut<GameMode>,
     mut pick: ResMut<NewGameScenario>,
@@ -178,6 +179,7 @@ fn start_the_world(
         &loaded,
         &styles,
         &items,
+        &consumables,
         &profiles,
     )
     .unwrap_or_else(|refusal| panic!("job sandbox: seed {SANDBOX_SEED} refused: {refusal}"));

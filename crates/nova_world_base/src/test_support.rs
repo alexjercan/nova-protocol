@@ -135,6 +135,7 @@ pub fn arm_save_fixture(world: &mut World) -> Entity {
         &loaded,
         &fixture_styles(),
         &items,
+        &nova_gameplay::prelude::GameConsumables::default(),
         &GameTradeProfiles::default(),
     )
     .expect("the fixture packs build a snapshot and every role and station archetype has a style");
@@ -186,6 +187,7 @@ pub fn arm_save_fixture(world: &mut World) -> Entity {
     world.init_resource::<GameTradeProfiles>();
     // A Load checks each saved craft job against the recipe catalog.
     world.init_resource::<nova_gameplay::prelude::GameRecipes>();
+    world.init_resource::<nova_gameplay::prelude::GameConsumables>();
     world.init_resource::<CivilizationStances>();
     world.init_resource::<GoalRecord>();
     // The catalog the save names a prototype hull by; the fixture ship is

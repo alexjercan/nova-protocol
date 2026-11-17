@@ -149,6 +149,35 @@ pub(super) fn play_torpedo_closing_tone(
     }
 }
 
+/// The deny chirp on a refused consumable use by the PLAYER ship, once per
+/// frame however many refusals: the same cockpit `radar_deny` as a refused
+/// radar hold, because both say "the ship will not do that". A started use
+/// is silent; the status chip shows it.
+pub(super) fn play_consumable_refused_cue(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    q_player_sounds: PlayerShipSounds,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut used: MessageReader<ConsumableUsed>,
+) {
+    let refused = used
+        .read()
+        .filter(|used| matches!(used.outcome, ConsumableOutcomeType::Refused(_)))
+        .filter(|used| q_player.contains(used.ship))
+        .count()
+        > 0;
+    if !refused {
+        return;
+    }
+    // AUTHORED-OR-SILENT, as every cockpit cue.
+    if let Some(handle) = player_ship_sounds(&q_player_sounds)
+        .and_then(|sounds| sounds.radar_deny.as_ref())
+        .map(|r| r.resolve(&asset_server))
+    {
+        play_cockpit(&mut commands, handle, SoundCategoryType::Cockpit);
+    }
+}
+
 /// The safety re-engage click on the PLAYER's hot -> cold edge (a held burst
 /// must not just silently stop). Changed-gated; the Local remembers the last
 /// seen state so an unrelated change (spawn) cannot click.

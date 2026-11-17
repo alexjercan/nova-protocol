@@ -224,10 +224,7 @@ fn ship_repair_starts_a_plate_job_that_spends_nothing_up_front() {
     repair(&mut app, &[(turret, 1)]);
     assert_eq!(queued(&app), vec![(hull, 1), (turret, 1)]);
     assert_eq!(health(&app, turret), 12.0);
-    assert_eq!(
-        note(&app).as_deref(),
-        Some("repairing PDC-1: 1 hull plate queued")
-    );
+    assert_eq!(note(&app), None, "the job row shows a start");
 
     // A collapse-disabled section with HP left refuses and keeps its marker.
     app.world_mut().entity_mut(ship).insert(stock(5));
@@ -1444,62 +1441,43 @@ fn unknown_health_reads_nominal() {
 #[test]
 fn panel_action_state_gates_repair() {
     let hp = |current, max| Some(Health { current, max });
-    let reason = |a: &PanelActions| a.reason.clone().unwrap_or_default();
 
-    // Damaged hull with plates: repairable, no reason.
+    // Damaged hull with plates: repairable.
     let hull = view_fixture(SectionClass::Hull, hp(80.0, 100.0));
-    let a = panel_action_state(&hull, 1, 12);
-    assert!(a.repair_enabled, "a damaged hull with plates is repairable");
-    assert!(a.reason.is_none(), "no disabled reason: {:?}", a.reason);
-
-    // No plates: refused with a reason.
-    let a = panel_action_state(&hull, 1, 0);
-    assert!(!a.repair_enabled);
-    assert_eq!(
-        reason(&a),
-        "repair: no hull plates selected or free in the hold"
+    assert!(
+        panel_action_state(&hull, 1, 12).repair_enabled,
+        "a damaged hull with plates is repairable"
     );
+
+    // No plates: refused.
+    assert!(!panel_action_state(&hull, 1, 0).repair_enabled);
 
     // Full integrity refuses regardless of stock.
     let full = view_fixture(SectionClass::Hull, hp(100.0, 100.0));
-    let a = panel_action_state(&full, 1, 0);
-    assert!(!a.repair_enabled);
-    assert_eq!(reason(&a), "repair: PDC-1 is at full integrity");
+    assert!(!panel_action_state(&full, 1, 0).repair_enabled);
 
-    // Damaged turret with plates: repairable, no reason.
+    // Damaged turret with plates: repairable up to All, refused past it.
     let turret = view_fixture(SectionClass::Turret, hp(12.0, 60.0));
-    let a = panel_action_state(&turret, 1, 12);
     assert!(
-        a.repair_enabled,
+        panel_action_state(&turret, 1, 12).repair_enabled,
         "a damaged turret with plates is repairable"
     );
-    assert!(a.reason.is_none(), "no disabled reason: {:?}", a.reason);
     assert!(panel_action_state(&turret, 2, 12).repair_enabled);
     let all = plate_repair_limit(turret.health.as_ref(), turret.disabled, 12);
     assert_eq!(all, 3, "All is the affordable missing-integrity limit");
     assert!(panel_action_state(&turret, all, 12).repair_enabled);
-    assert_eq!(
-        reason(&panel_action_state(&turret, 4, 12)),
-        "repair: PDC-1 request exceeds live missing integrity"
-    );
+    assert!(!panel_action_state(&turret, 4, 12).repair_enabled);
 
     // Destroyed at 0 HP, or disabled by a collapse with HP left.
     let dead = view_fixture(SectionClass::Turret, hp(0.0, 60.0));
-    let a = panel_action_state(&dead, 1, 12);
-    assert!(!a.repair_enabled);
-    assert_eq!(reason(&a), "repair: PDC-1 is destroyed");
+    assert!(!panel_action_state(&dead, 1, 12).repair_enabled);
     let mut collapsed = view_fixture(SectionClass::Turret, hp(30.0, 60.0));
     collapsed.disabled = true;
-    assert_eq!(
-        reason(&panel_action_state(&collapsed, 1, 12)),
-        "repair: PDC-1 is destroyed"
-    );
+    assert!(!panel_action_state(&collapsed, 1, 12).repair_enabled);
 
-    // A section with no health at all refuses with a reason.
+    // A section with no health at all refuses.
     let ghost = view_fixture(SectionClass::Turret, None);
-    let a = panel_action_state(&ghost, 1, 12);
-    assert!(!a.repair_enabled);
-    assert_eq!(reason(&a), "repair: PDC-1 has no integrity to restore");
+    assert!(!panel_action_state(&ghost, 1, 12).repair_enabled);
 }
 
 #[test]
@@ -1871,10 +1849,7 @@ fn update_ship_panel_reflects_selection() {
     assert!(app.world().entity(repair).contains::<InteractionDisabled>());
     assert!(app.world().entity(field).contains::<TextFieldError>());
     assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "x");
-    assert_eq!(
-        field_text(&mut app, ShipPanelField::RepairPreview),
-        "Type a whole number"
-    );
+    assert_eq!(field_text(&mut app, ShipPanelField::RepairPreview), "");
 
     app.world_mut().get_mut::<TextFieldValue>(field).unwrap().0 = "1".to_string();
     app.update();
@@ -2006,9 +1981,10 @@ fn update_ship_panel_shows_no_section_without_a_player_inventory() {
 }
 
 #[test]
-fn update_ship_panel_preview_names_the_exact_repair_refusal() {
+fn update_ship_panel_blanks_the_preview_of_a_refused_draft() {
     // A section already at full integrity has no repair form; a damaged one
-    // names the exact refusal of its draft in the form summary.
+    // whose draft is refused keeps its form with a blank summary and Repair
+    // greyed: the stock line beside the count shows the shortfall.
     let items = test_items();
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
@@ -2072,10 +2048,8 @@ fn update_ship_panel_preview_names_the_exact_repair_refusal() {
         .find(|(field, _)| **field == ShipPanelField::RepairPreview)
         .map(|(_, text)| text.0.clone())
         .expect("preview field text");
-    assert_eq!(
-        preview, "repair: HULL-1 request exceeds the free hull plates",
-        "the summary names the exact refusal of the draft"
-    );
+    assert_eq!(preview, "", "a refused draft writes no summary");
+    assert!(!app.world().resource::<ShipRuntime>().panel_repair_enabled);
 }
 
 #[test]

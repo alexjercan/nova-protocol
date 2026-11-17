@@ -66,6 +66,9 @@ pub use frozen::{freeze_torpedo, thaw_torpedo, FrozenTorpedo, SavedTorpedoTarget
 // to prove the blast carries it.
 #[cfg(test)]
 pub(crate) use projectile::torpedo_detonate_system;
+// The consumable use orders itself before the target tracking, so a flared
+// torpedo turns the frame of the press.
+pub(crate) use projectile::update_target_position;
 use projectile::*;
 use render::*;
 use scripted::*;
@@ -730,8 +733,9 @@ pub struct TorpedoTargetEntity(pub Entity);
 /// input targeting system (player crosshair today, spaceship AI later) the first
 /// time it processes a torpedo - together with a [`TorpedoTargetEntity`] when a
 /// lock exists, or alone for a dumb-fire shot. Once present, no targeting system
-/// assigns this torpedo a (new) target: a torpedo keeps its first target for
-/// life (freezing on the last known position if it dies), and a dumb-fired one
+/// assigns this torpedo a (new) target: a torpedo keeps its first target until
+/// that target dies (it then flies to the last known position) or a decoy
+/// flare pulls it off to a lure point (`use_consumables`), and a dumb-fired one
 /// never acquires anything mid-flight - e.g. bullets fired past it.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TorpedoTargetChosen;

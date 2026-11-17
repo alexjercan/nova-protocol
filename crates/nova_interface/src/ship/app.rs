@@ -427,7 +427,7 @@ pub(crate) fn sync_ship_rebind_click_guard(
 
 /// Apply in-app [`SectionRepairCommand`] messages (the `P` action key and the
 /// panel button) to player-ship sections: start a plate repair job by
-/// [`start_plate_repair`], and flash the result on the panel note line. A
+/// [`start_plate_repair`], or flash its refusal on the panel note line. A
 /// target that is not a live section of the player ship is skipped with no
 /// note: every writer takes it from the pane's own list.
 #[expect(
@@ -472,7 +472,7 @@ pub(crate) fn apply_ship_section_commands(
         let free_plates = running
             .free_hold(inventory)
             .count(&ItemDesignId::from(ItemRoleType::HullPlate));
-        let row = match start_plate_repair(
+        match start_plate_repair(
             &code.0,
             command.target,
             health,
@@ -483,18 +483,19 @@ pub(crate) fn apply_ship_section_commands(
             command.requested_plates,
             free_plates,
         ) {
-            Ok((job, row)) => {
+            // The new job row in the Repairs block shows a start; an
+            // earlier refusal's note goes.
+            Ok(job) => {
+                runtime.note = None;
                 running.push(job.clone());
                 started.push(job);
                 play_menu_select(&mut commands, bank.as_deref());
-                row
             }
             Err(row) => {
                 play_menu_deny(&mut commands, bank.as_deref());
-                row
+                runtime.note = Some((row.text, 2.5));
             }
-        };
-        runtime.note = Some((row.text, 2.5));
+        }
     }
     if started.is_empty() {
         return;

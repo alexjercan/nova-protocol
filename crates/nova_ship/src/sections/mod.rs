@@ -11,6 +11,7 @@ pub mod cargo_intake_section;
 pub mod catalog_ids;
 pub mod cell_grid;
 pub mod clearance;
+pub mod consumables;
 pub mod controller_section;
 pub mod craft_job;
 pub mod damage_cracks;
@@ -60,21 +61,22 @@ pub mod prelude {
     pub use super::{
         ammo::prelude::*, ammo_warning::prelude::*, base_section::prelude::*,
         cargo_intake_section::prelude::*, catalog_ids::prelude::*, cell_grid::prelude::*,
-        clearance::prelude::*, controller_section::prelude::*, craft_job::prelude::*,
-        damage_cracks::prelude::*, damage_effects::prelude::*, damage_plume::prelude::*,
-        damage_sparks::prelude::*, design_sections::prelude::*, docking_section::prelude::*,
-        escort_hire::prelude::*, fixture::prelude::*, frozen::prelude::*, frozen_piece::prelude::*,
-        frozen_rounds::prelude::*, greeble_solver::prelude::*, hull_buy::prelude::*,
-        hull_radius::prelude::*, hull_section::prelude::*, integrity::prelude::*,
-        link_points::prelude::*, live_structure_anchor, mining_section::prelude::*,
-        patch::prelude::*, placeholder_art::prelude::*, railgun_section::prelude::*,
-        repair_jobs::prelude::*, rescue_call::prelude::*, section_add::prelude::*,
-        section_animation::prelude::*, section_preview::prelude::*, section_strip::prelude::*,
-        shell_shape::prelude::*, shell_skin::prelude::*, ship_measure::prelude::*,
-        signature::prelude::*, skin_decor::prelude::*, skin_reading::prelude::*,
-        skin_report::prelude::*, skin_style::prelude::*, skin_surface::prelude::*,
-        station_buy::prelude::*, thruster_section::prelude::*, torpedo_section::prelude::*,
-        turret_section::prelude::*, SpaceshipSectionPlugin, SpaceshipSectionSystems,
+        clearance::prelude::*, consumables::prelude::*, controller_section::prelude::*,
+        craft_job::prelude::*, damage_cracks::prelude::*, damage_effects::prelude::*,
+        damage_plume::prelude::*, damage_sparks::prelude::*, design_sections::prelude::*,
+        docking_section::prelude::*, escort_hire::prelude::*, fixture::prelude::*,
+        frozen::prelude::*, frozen_piece::prelude::*, frozen_rounds::prelude::*,
+        greeble_solver::prelude::*, hull_buy::prelude::*, hull_radius::prelude::*,
+        hull_section::prelude::*, integrity::prelude::*, link_points::prelude::*,
+        live_structure_anchor, mining_section::prelude::*, patch::prelude::*,
+        placeholder_art::prelude::*, railgun_section::prelude::*, repair_jobs::prelude::*,
+        rescue_call::prelude::*, section_add::prelude::*, section_animation::prelude::*,
+        section_preview::prelude::*, section_strip::prelude::*, shell_shape::prelude::*,
+        shell_skin::prelude::*, ship_measure::prelude::*, signature::prelude::*,
+        skin_decor::prelude::*, skin_reading::prelude::*, skin_report::prelude::*,
+        skin_style::prelude::*, skin_surface::prelude::*, station_buy::prelude::*,
+        thruster_section::prelude::*, torpedo_section::prelude::*, turret_section::prelude::*,
+        SpaceshipSectionPlugin, SpaceshipSectionSystems,
     };
 }
 
@@ -331,6 +333,22 @@ impl Plugin for SpaceshipSectionPlugin {
             craft_job::advance_ship_craft_jobs
                 .in_set(craft_job::CraftJobSystems)
                 .after(repair_jobs::RepairJobSystems),
+        );
+        // Consumables use and run on the same game clock, after the craft
+        // job: all three write the hold. The use runs before the torpedo
+        // target tracking, so a flared torpedo turns the frame of the press.
+        app.register_type::<consumables::ShipConsumableEffects>();
+        app.add_message::<consumables::ConsumableUseRequest>();
+        app.add_message::<consumables::ConsumableUsed>();
+        app.add_systems(
+            Update,
+            (
+                consumables::use_consumables.before(torpedo_section::update_target_position),
+                consumables::advance_consumable_effects,
+            )
+                .chain()
+                .in_set(consumables::ConsumableSystems)
+                .after(craft_job::CraftJobSystems),
         );
         // The authored-animation rig and driver. Unconditional, not
         // render-gated: the components must exist headless (a server loads

@@ -1226,12 +1226,11 @@ pub(crate) fn update_map_panel(
                     UiColorType::TextMuted,
                 )
             }
-            None => (contact.kind.note().to_string(), UiColorType::TextMuted),
+            // The Kind line names what an unmarked contact is.
+            None => (String::new(), UiColorType::TextMuted),
         },
-        (None, None) => (
-            "Click a contact to select it.".to_string(),
-            UiColorType::TextSecondary,
-        ),
+        // The Code line reads `No contact`.
+        (None, None) => (String::new(), UiColorType::TextMuted),
     };
 
     // A held job's `JOB-n` code and SECTOR block already say what it is and
