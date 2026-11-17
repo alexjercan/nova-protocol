@@ -59,7 +59,7 @@ fn craft_app() -> App {
     app.add_message::<CraftStartCommand>();
     app.add_systems(
         Update,
-        (apply_craft_start_commands, update_craft_pane).chain(),
+        (apply_craft_start_commands, update_craft_view).chain(),
     );
     let root = app.world_mut().spawn(Node::default()).id();
     app.world_mut()
@@ -69,7 +69,7 @@ fn craft_app() -> App {
             },
             root,
         )
-        .expect("building the Craft pane body");
+        .expect("building the Craft view");
     app
 }
 

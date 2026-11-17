@@ -1,6 +1,6 @@
 //! The craft job a ship runs over game time: N batches of one recipe.
 //!
-//! The Craft pane checks a start by [`plan_craft_start`] and inserts
+//! The Craft view checks a start by [`plan_craft_start`] and inserts
 //! [`ShipCraftJob`] on the ship root; a ship runs at most one. Nothing is
 //! taken at the start. [`advance_ship_craft_jobs`] runs the job on the game
 //! clock, so the TAB interface and the pause menu, which stop

@@ -165,7 +165,7 @@ A recipe is content (`Content::Recipe`, `RecipeDesign` in
 `nova_gameplay/src/crafting.rs`), merged into `GameRecipes` by id and linted
 against the merged item catalog by `item_pack_faults`
 (`nova_assets/src/items.rs`), which refuses the pack that owns a broken
-recipe, or the pack that last priced an item until a recipe pays. The Craft pane
+recipe, or the pack that last priced an item until a recipe pays. The Craft view
 (`nova_interface/src/craft.rs`) starts a job: `apply_craft_start_commands`
 checks `plan_craft_start` against the live ship and inserts one
 `ShipCraftJob` (`nova_ship/src/sections/craft_job.rs`) on the ship root; a

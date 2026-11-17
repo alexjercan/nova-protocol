@@ -383,6 +383,39 @@ fn escape_backs_out_of_a_jobs_ask_before_it_closes_the_interface() {
     assert_eq!(pause_state(&app), PauseStates::Unpaused);
 }
 
+/// Escape over the Craft view returns to the Inventory view and leaves the
+/// interface open. With the view closed, the next Escape closes it.
+#[test]
+fn escape_returns_from_the_craft_view_to_the_inventory_before_it_closes_the_interface() {
+    let mut app = escape_rig(crate::pane::InterfacePaneType::Inventory);
+    app.init_resource::<crate::craft::CraftRuntime>();
+    app.world_mut()
+        .resource_mut::<crate::craft::CraftRuntime>()
+        .open();
+
+    press_escape(&mut app);
+    assert!(
+        !app.world()
+            .resource::<crate::craft::CraftRuntime>()
+            .is_open(),
+        "Escape closes the Craft view"
+    );
+    assert_eq!(
+        (
+            pause_state(&app),
+            *app.world().resource::<crate::pane::InterfacePaneType>()
+        ),
+        (
+            PauseStates::Interface,
+            crate::pane::InterfacePaneType::Inventory
+        ),
+        "the press that closes the view leaves the Inventory open"
+    );
+
+    press_escape(&mut app);
+    assert_eq!(pause_state(&app), PauseStates::Unpaused);
+}
+
 /// Escape while a text field has the keyboard belongs to the field, which
 /// reverts and blurs itself: the interface stays open.
 #[test]

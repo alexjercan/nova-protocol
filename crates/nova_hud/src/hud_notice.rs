@@ -31,7 +31,7 @@
 //! A player craft job that ends on its own ([`CraftJobEnded`]) posts how:
 //! `CRAFTED 500 PDC ROUND`, `CRAFT STOPPED: NO STONE ORE, 300 MADE` or
 //! `CRAFT STOPPED: UNDOCKED`. A cancel posts nothing: the player pressed it
-//! in the Ship or Craft pane, which notes it. The player's hold reserve of an ammunition item crossing into
+//! in the Ship pane or the Craft view, which notes it. The player's hold reserve of an ammunition item crossing into
 //! LOW or DRY ([`AmmoReserveCrossed`]) posts `PDC ROUND LOW: 400` or
 //! `TORPEDO DRY`, once per crossing.
 //!

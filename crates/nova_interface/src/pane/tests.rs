@@ -507,6 +507,63 @@ fn the_catalogue_button_opens_the_gallery_and_clicks_once() {
     );
 }
 
+/// Whether the Craft view's host node is in the tree.
+fn craft_view_shown(world: &mut World) -> bool {
+    world
+        .query::<&Name>()
+        .iter(world)
+        .any(|name| name.as_str() == crate::craft::CRAFT_VIEW)
+}
+
+/// A click on the Inventory pane's Craft button opens the Craft view over the
+/// pane body, and a tab switch closes it: the Inventory shows again with no
+/// view over it.
+#[test]
+fn the_craft_button_opens_the_craft_view_and_a_tab_switch_closes_it() {
+    let mut rig = card_rig();
+    rig.app
+        .init_resource::<crate::craft::CraftRuntime>()
+        .add_systems(
+            Update,
+            crate::craft::manage_craft_view.after(rebuild_interface_body),
+        );
+    *rig.app.world_mut().resource_mut::<InterfacePaneType>() = InterfacePaneType::Inventory;
+    settle(&mut rig.app);
+    assert!(!craft_view_shown(rig.app.world_mut()));
+
+    let craft = rect_named(rig.app.world_mut(), crate::craft::INVENTORY_CRAFT).center();
+    click_at(&mut rig, craft);
+    assert!(
+        rig.app
+            .world()
+            .resource::<crate::craft::CraftRuntime>()
+            .is_open(),
+        "the Craft button opens the view"
+    );
+    settle(&mut rig.app);
+    assert!(
+        craft_view_shown(rig.app.world_mut()),
+        "the view covers the Inventory pane body"
+    );
+
+    let jobs = tab_centre(rig.app.world_mut(), InterfacePaneType::Jobs);
+    click_at(&mut rig, jobs);
+    settle(&mut rig.app);
+    assert!(
+        !rig.app
+            .world()
+            .resource::<crate::craft::CraftRuntime>()
+            .is_open(),
+        "a tab switch closes the view"
+    );
+    *rig.app.world_mut().resource_mut::<InterfacePaneType>() = InterfacePaneType::Inventory;
+    settle(&mut rig.app);
+    assert!(
+        !craft_view_shown(rig.app.world_mut()),
+        "the Inventory comes back without the view"
+    );
+}
+
 #[test]
 fn a_rebound_key_moves_its_footer_hint() {
     let mut rig = card_rig();
@@ -894,13 +951,9 @@ fn the_station_tab_shows_only_while_docked_at_a_living_station() {
 }
 
 #[test]
-fn the_next_tab_key_steps_through_craft_and_jobs_always_and_station_only_while_docked() {
+fn the_next_tab_key_steps_through_jobs_always_and_station_only_while_docked() {
     assert_eq!(
         InterfacePaneType::Inventory.next(false),
-        InterfacePaneType::Craft
-    );
-    assert_eq!(
-        InterfacePaneType::Craft.next(false),
         InterfacePaneType::Jobs
     );
     assert_eq!(InterfacePaneType::Jobs.next(false), InterfacePaneType::Map);

@@ -20,10 +20,10 @@
 //! docked partner itself when it is one of them, each with its own capacity.
 //! Its row opens Withdraw from that hold, and the player's row switches to a
 //! `To <ship>` Store into it. A partner that is an own ship shows no partner
-//! column and does not trade. Recipes run from the Craft pane
-//! (`crate::craft`), not from here. A derelict station is lootable and
-//! offers no service. While undocked with a live cargo intake,
-//! the player's row opens a Jettison form. Confirm writes an
+//! column and does not trade. The Craft button at the right end of the
+//! filter row opens the Craft view over the pane (`crate::craft`), docked or
+//! not. A derelict station is lootable and offers no service. While undocked
+//! with a live cargo intake, the player's row opens a Jettison form. Confirm writes an
 //! [`InventoryActionCommand`], and [`apply_inventory_action_commands`] moves
 //! the items, and for a trade the credits, by the
 //! [`plan_item_transfer`](nova_gameplay::prelude::plan_item_transfer),

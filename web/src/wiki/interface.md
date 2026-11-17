@@ -1,6 +1,6 @@
 # Interface
 
-Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</kbd> in flight and a full-screen panel opens over the frozen world with five panes: **Map**, **Ship**, **Inventory**, **Craft** and **Jobs**. Docked at a living station, a sixth pane, **Station**, sells ships, escorts and the station itself. Flight resumes the moment you close it.
+Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</kbd> in flight and a full-screen panel opens over the frozen world with four panes: **Map**, **Ship**, **Inventory** and **Jobs**. Docked at a living station, a fifth pane, **Station**, sells ships, escorts and the station itself. Flight resumes the moment you close it.
 
 <figure class="figure">
     <!-- Capture: assets/wiki-interface-map.png -->
@@ -36,8 +36,8 @@ Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</
 | <kbd>Tab</kbd> (or click the right stick) | The interface opens on the Map pane, or on the pane you last used. It needs a live ship, and it does not open over the pause menu. |
 | <kbd>Tab</kbd> again, or click **Close** in the card's head | Close it and return to flight. The **Close** button and the **Next** hint beside it show the keys or pad buttons you would press now. |
 | <kbd>Esc</kbd> or gamepad Start | Back out one level: put away a held part, close the hull **Info**, cancel a Jobs confirm, clear a trade draft or cancel an armed station buy. With none of those open, close the interface. In a text field, <kbd>Esc</kbd> only leaves the field. |
-| <kbd>M</kbd> (or gamepad <kbd>Y</kbd>) | Step to the next pane: Map, Ship, Inventory, Craft, Jobs, Station while you are docked at a living station, then Map again. While a text field has the caret, such as the Inventory quantity, <kbd>M</kbd> types instead. |
-| Click **Map**, **Ship**, **Inventory**, **Craft**, **Jobs** or **Station** | Switch to that pane. The **Station** tab shows only while you are docked at a living station; undock and the interface opens on Ship instead. |
+| <kbd>M</kbd> (or gamepad <kbd>Y</kbd>) | Step to the next pane: Map, Ship, Inventory, Jobs, Station while you are docked at a living station, then Map again. While a text field has the caret, such as the Inventory quantity, <kbd>M</kbd> types instead. |
+| Click **Map**, **Ship**, **Inventory**, **Jobs** or **Station** | Switch to that pane. The **Station** tab shows only while you are docked at a living station; undock and the interface opens on Ship instead. |
 | <kbd>;</kbd> | Open the [command shell](../commands/) over the pane. Close it and you are back on the same pane, with its camera and selection as you left them. |
 
 <details class="explain">
@@ -431,11 +431,11 @@ Once you close the interface, the intake's door folds open and the canisters lea
 
 ## Crafting
 
-The **Craft** pane turns what your hold carries into ammunition and parts. Each tile is a recipe: its output's icon and name, how many one batch makes and where it runs, `SHIP` or `STATION`. A **SHIP** recipe runs anywhere, in flight too. A **STATION** recipe runs only while you are docked at a living station that offers Craft, and pays that station a fee for each batch. The base waystation offers Craft, and so does a generated station of a civilization at advancement 0.25 or more. The chips over the tiles filter them by category. A tile that cannot start one batch is greyed, with the reason under its name: `Dock at a Craft station`, `Short of stone ore: 0 of 1`, `Short of credits: 20 of 30 cr` or `A craft is running`.
+The **Craft** view turns what your hold carries into ammunition and parts. Open it with **Craft** at the right end of the Inventory pane's filter row, docked or in flight; it covers the Inventory pane. **Back** or <kbd>Esc</kbd> returns to the Inventory, and a pane switch or closing the interface closes it. Each tile is a recipe: its output's icon and name, how many one batch makes and where it runs, `SHIP` or `STATION`. A **SHIP** recipe runs anywhere, in flight too. A **STATION** recipe runs only while you are docked at a living station that offers Craft, and pays that station a fee for each batch. The base waystation offers Craft, and so does a generated station of a civilization at advancement 0.25 or more. The chips over the tiles filter them by category. A tile that cannot start one batch is greyed, with the reason under its name: `Dock at a Craft station`, `Short of stone ore: 0 of 1`, `Short of credits: 20 of 30 cr` or `A craft is running`.
 
 Click a tile to open its card. The card lists each input as what your hold has over what one batch takes, the fee of a STATION recipe and the seconds a batch runs. Set the batches with **-**, **+** or **Max**, which sets every batch your hold and your credits cover. The card states the whole job, such as `Takes 2 iron ore, 2 stone ore` and `Makes 200 PDC round in 16 s`. **Craft** starts it; when the job cannot start, **Craft** is greyed and the reason shows over it. Starting takes nothing.
 
-One craft job runs at a time, and only while you fly: close the interface and the HUD chip over your ship reads `CRAFT PDC ROUND 40%`. At the end of each batch its inputs leave your hold, its output goes in and the fee goes to the station. The pane shows the running job over the tiles: the batch it is on, its bar, the time left and **Cancel**. The HUD notice reads `CRAFTED 200 PDC ROUND` when the job ends. A batch your hold or your credits cannot cover stops the job and keeps the batches already made: `CRAFT STOPPED: NO STONE ORE, 100 MADE`. Undock and a STATION job stops at once. **Cancel** ends the job and keeps the batches already made. A running job is saved with your ship.
+One craft job runs at a time, and only while you fly: close the interface and the HUD chip over your ship reads `CRAFT PDC ROUND 40%`. At the end of each batch its inputs leave your hold, its output goes in and the fee goes to the station. The Craft view shows the running job over the tiles: the batch it is on, its bar, the time left and **Cancel**. The HUD notice reads `CRAFTED 200 PDC ROUND` when the job ends. A batch your hold or your credits cannot cover stops the job and keeps the batches already made: `CRAFT STOPPED: NO STONE ORE, 100 MADE`. Undock and a STATION job stops at once. **Cancel** ends the job and keeps the batches already made. A running job is saved with your ship.
 
 The base recipes:
 
@@ -448,8 +448,9 @@ The base recipes:
 | Rail slug | 2 iron ore, 10 cr | 1 rail slug | 10 s | Station |
 | Torpedo | 2 alloy plates, 1 actuator pack, 9 carbon ore, 40 cr | 1 torpedo | 30 s | Station |
 
-<!-- Pane: crates/nova_interface/src/craft.rs (`update_craft_pane`,
-     `apply_craft_start_commands`, `on_craft_cancel`). Checks and batch plan:
+<!-- View: crates/nova_interface/src/craft.rs (`manage_craft_view`,
+     `update_craft_view`, `apply_craft_start_commands`, `on_craft_cancel`).
+     Esc: crates/nova_interface/src/terminal/input.rs `InterfaceLevels`. Checks and batch plan:
      crates/nova_gameplay/src/crafting.rs `plan_craft_start`,
      `craft_batches_max`, `plan_craft_batch`, `CraftRefusalType::reason`.
      Job: crates/nova_ship/src/sections/craft_job.rs

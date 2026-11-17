@@ -47,8 +47,11 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
     Inputs and fee are taken at the end of each batch. Station recipes stop
     on undock and hold while no Craft dock is present (the Load gap);
     Cancel keeps finished batches. A hull buy or board cancels the job.
-  - UI: a Craft pane in the interface tab row, laid out like the catalogue.
-    The Inventory Refine form and its examples die.
+  - UI: crafting lives in the Inventory pane (owner 2026-11-17, replaces
+    the first-slice Craft tab): a Craft button in the Inventory pane opens
+    the craft view over the pane, the way the Ship pane's Catalogue button
+    opens the catalogue; Esc or Back returns to the Inventory. No Craft tab
+    in the top tab row. The Inventory Refine form and its examples die.
   - Deferred: consumables, sections as items, market and inventory rework,
     catalogue UX, fabricator section, craft queue, `OnCrafted` event.
 

@@ -1,12 +1,18 @@
-//! The TAB interface's Craft pane: the recipes the player ship can run.
+//! The Inventory pane's Craft view: the recipes the player ship can run.
 //!
-//! The pane shows always, because ship recipes run anywhere. From the top:
+//! The Craft button at the right end of the Inventory pane's filter row opens
+//! the view; [`manage_craft_view`] then puts a [`CraftViewHost`] node over the
+//! Inventory pane body, the way the Ship pane's catalogue covers its pane.
+//! The button shows docked and undocked, because ship recipes run anywhere.
+//! Back or Esc returns to the Inventory view; a tab switch or the interface
+//! closing closes the view. From the top:
 //!
 //! - The notice line: the last Craft or Cancel result ([`ActionNotice`]).
 //! - The job row, while the player ship runs a craft job: the output, the
 //!   batch it is on, the progress bar, the time left and Cancel. Cancel
 //!   raises a [`CraftJobCancelRequest`]; the batches finished stay.
-//! - The category row: All, then each category a recipe's output is in.
+//! - The category row: All, then each category a recipe's output is in, and
+//!   Back at its right end.
 //! - The tile grid beside the focus card. A tile shows the output's category
 //!   icon, its name, the count a batch makes and the site (`SHIP` or
 //!   `STATION`). A tile one batch of which would not start is muted and
@@ -21,12 +27,12 @@
 //! Craft writes a [`CraftStartCommand`]; [`apply_craft_start_commands`]
 //! checks it again by [`plan_craft_start`] and inserts the
 //! [`ShipCraftJob`]. The job runs in `nova_ship` on the game clock, which
-//! this pane holds, so a job moves only while the player flies. Recipe
+//! the interface holds, so a job moves only while the player flies. Recipe
 //! inputs are counted from the hold less what running repair jobs hold back,
 //! as the job's batch end counts them.
 //!
-//! Touch this module when changing what the pane shows or how it starts or
-//! cancels a craft.
+//! Touch this module when changing what the Craft view shows, how it opens
+//! and closes, or how it starts or cancels a craft.
 
 use std::collections::BTreeSet;
 
@@ -42,7 +48,9 @@ use nova_sound::prelude::*;
 use nova_ui::{
     screen::drive_wheel_scroll,
     theme::UiColorType,
-    widget::{ButtonCueType, ButtonSpec, ThemedBorder, ThemedFill, ThemedRadius, ThemedText},
+    widget::{
+        button, ButtonCueType, ButtonSpec, ThemedBorder, ThemedFill, ThemedRadius, ThemedText,
+    },
 };
 
 use crate::{
@@ -50,18 +58,26 @@ use crate::{
     inventory::{category_color, category_label, chip_paint, FILTER_ORDER},
     pane::{
         compact_button, control_row, divider, notice_line, panel_paint, refusable_button,
-        side_panel, themed_label, ActionNotice, ActionOutcomeType,
+        side_panel, themed_label, ActionNotice, ActionOutcomeType, InterfacePaneBody,
+        InterfacePaneType,
     },
 };
 
 /// Glob-import surface: `use nova_interface::craft::prelude::*`.
 pub mod prelude {
     pub use super::{
-        craft_tile_name, CraftRuntime, CraftStartCommand, CRAFT_BUTTON, CRAFT_CANCEL,
-        CRAFT_JOB_ROW, CRAFT_MAX, CRAFT_MORE, CRAFT_NOTICE, CRAFT_TILES,
+        craft_tile_name, CraftRuntime, CraftStartCommand, CRAFT_BACK, CRAFT_BUTTON, CRAFT_CANCEL,
+        CRAFT_JOB_ROW, CRAFT_MAX, CRAFT_MORE, CRAFT_NOTICE, CRAFT_TILES, CRAFT_VIEW,
+        INVENTORY_CRAFT,
     };
 }
 
+/// The name of the Inventory pane's Craft button, which opens the view.
+pub const INVENTORY_CRAFT: &str = "InventoryCraft";
+/// The name of the view's host node over the Inventory pane body.
+pub const CRAFT_VIEW: &str = "CraftView";
+/// The name of the view's Back button.
+pub const CRAFT_BACK: &str = "CraftBack";
 /// The name of the notice line.
 pub const CRAFT_NOTICE: &str = "CraftNotice";
 /// The name of the job row.
@@ -82,9 +98,12 @@ pub fn craft_tile_name(recipe: &RecipeDesignId) -> String {
     format!("CraftTile-{recipe}")
 }
 
-/// The Craft pane's state that outlives its body.
+/// The Craft view's state that outlives its host node.
 #[derive(Resource, Debug, Default)]
 pub struct CraftRuntime {
+    /// The view covers the Inventory pane body. Set by the Craft button;
+    /// cleared by Back, Esc, a tab switch and the interface closing.
+    open: bool,
     /// The last Craft or Cancel result, shown on the notice line.
     pub notice: ActionNotice,
     /// The picked recipe; the first shown tile while none is.
@@ -94,11 +113,26 @@ pub struct CraftRuntime {
     /// The category the tiles show; `None` shows every one.
     filter: Option<ItemCategoryType>,
     /// What Max sets: the batches the hold and the balance cover for the
-    /// picked recipe, at least 1. Written each frame the pane draws.
+    /// picked recipe, at least 1. Written each frame the view draws.
     max_batches: u32,
 }
 
 impl CraftRuntime {
+    /// Whether the view covers the Inventory pane body.
+    pub fn is_open(&self) -> bool {
+        self.open
+    }
+
+    /// Open the view over the Inventory pane body.
+    pub(crate) fn open(&mut self) {
+        self.open = true;
+    }
+
+    /// Close the view. Returns whether it was open.
+    pub(crate) fn close(&mut self) -> bool {
+        std::mem::take(&mut self.open)
+    }
+
     /// The picked recipe.
     pub fn selected(&self) -> Option<&RecipeDesignId> {
         self.selected.as_ref()
@@ -119,6 +153,10 @@ pub struct CraftStartCommand {
     /// Batches to run.
     pub batches: u32,
 }
+
+/// Marks the view's host node over the Inventory pane body.
+#[derive(Component)]
+pub(crate) struct CraftViewHost;
 
 /// The notice line.
 #[derive(Component)]
@@ -172,7 +210,7 @@ pub(crate) enum CraftBatchStepType {
     Max,
 }
 
-/// What the pane's checks read off the player ship.
+/// What the view's checks read off the player ship.
 pub(crate) struct CraftSite {
     /// The hold less what running repair jobs hold back.
     hold: ShipInventory,
@@ -339,7 +377,7 @@ fn card_view(
     }
 }
 
-/// The player ship and what the pane reads off it.
+/// The player ship and what the view reads off it.
 type PlayerCraftQuery<'w, 's> = Query<
     'w,
     's,
@@ -372,9 +410,77 @@ fn player_site(
     ))
 }
 
-/// Build the Craft pane body: the notice line, the job row, then the
-/// category row and the tiles beside the focus card. The reconcilers fill
-/// them.
+/// The Inventory pane's Craft button, at the right end of its filter row and
+/// styled as the Ship pane's Catalogue button.
+pub(crate) fn spawn_craft_open_button(bar: &mut ChildSpawnerCommands) {
+    bar.spawn(Node {
+        margin: UiRect::left(Val::Auto),
+        flex_shrink: 0.0,
+        ..default()
+    })
+    .with_children(|slot| {
+        slot.spawn((
+            Name::new(INVENTORY_CRAFT),
+            button(ButtonSpec::new("Craft").fit()),
+        ))
+        .observe(on_craft_open);
+    });
+}
+
+/// Put the view over the Inventory pane body while it is open, and take it
+/// away otherwise. The view closes when the Inventory pane is not shown: a
+/// tab switch despawns the host with the pane body, and the interface
+/// closing despawns the body.
+pub(crate) fn manage_craft_view(
+    mut commands: Commands,
+    mut runtime: ResMut<CraftRuntime>,
+    pane: Res<InterfacePaneType>,
+    q_body: Query<Entity, With<InterfacePaneBody>>,
+    q_host: Query<Entity, With<CraftViewHost>>,
+) {
+    let body = q_body
+        .single()
+        .ok()
+        .filter(|_| *pane == InterfacePaneType::Inventory);
+    if body.is_none() && runtime.open {
+        runtime.open = false;
+    }
+    let Some(body) = body.filter(|_| runtime.open) else {
+        for host in &q_host {
+            commands.entity(host).despawn();
+        }
+        return;
+    };
+    if !q_host.is_empty() {
+        return;
+    }
+    commands
+        .spawn((
+            CraftViewHost,
+            Name::new(CRAFT_VIEW),
+            Node {
+                position_type: PositionType::Absolute,
+                left: px(0),
+                right: px(0),
+                top: px(0),
+                bottom: px(0),
+                flex_direction: FlexDirection::Column,
+                row_gap: px(10),
+                padding: UiRect::all(px(12)),
+                ..default()
+            },
+            // Opaque, so the Inventory view under it does not show through,
+            // and above the Inventory body's children for picking.
+            BackgroundColor(Color::NONE),
+            ThemedFill::new(UiColorType::Surface),
+            ZIndex(10),
+            ChildOf(body),
+        ))
+        .with_children(craft_body);
+}
+
+/// Build the Craft view: the notice line, the job row, then the category row
+/// with Back and the tiles beside the focus card. The reconcilers fill them.
 pub(crate) fn craft_body(body: &mut ChildSpawnerCommands) {
     body.spawn((CraftNoticeMarker, Name::new(CRAFT_NOTICE), notice_line()));
     spawn_job_row(body);
@@ -397,13 +503,22 @@ pub(crate) fn craft_body(body: &mut ChildSpawnerCommands) {
                 ..default()
             })
             .with_children(|left| {
-                left.spawn((
-                    CraftFilterBar::default(),
-                    Node {
-                        column_gap: px(8),
-                        ..control_row(JustifyContent::FlexStart)
-                    },
-                ));
+                left.spawn(Node {
+                    column_gap: px(8),
+                    ..control_row(JustifyContent::FlexStart)
+                })
+                .with_children(|row| {
+                    row.spawn((
+                        CraftFilterBar::default(),
+                        Node {
+                            flex_grow: 1.0,
+                            column_gap: px(8),
+                            ..control_row(JustifyContent::FlexStart)
+                        },
+                    ));
+                    row.spawn((Name::new(CRAFT_BACK), button(ButtonSpec::new("Back").fit())))
+                        .observe(on_craft_back);
+                });
                 left.spawn((
                     CraftTileGrid::default(),
                     Name::new(CRAFT_TILES),
@@ -432,6 +547,16 @@ pub(crate) fn craft_body(body: &mut ChildSpawnerCommands) {
             side_panel(Overflow::clip()),
         ));
     });
+}
+
+/// Open the view over the Inventory pane body.
+fn on_craft_open(_activate: On<Activate>, mut runtime: ResMut<CraftRuntime>) {
+    runtime.open();
+}
+
+/// Return to the Inventory view.
+fn on_craft_back(_activate: On<Activate>, mut runtime: ResMut<CraftRuntime>) {
+    runtime.close();
 }
 
 /// The job row: the label, the time left and Cancel over the progress bar.
@@ -558,14 +683,14 @@ pub(crate) fn update_craft_job_row(
 }
 
 /// Fill the category row, the tiles and the focus card from the recipes and
-/// the player ship, rebuilding each only when what it shows changes. A
-/// container a pane switch respawned starts with nothing drawn, so it fills
+/// the player ship, rebuilding each only when what it shows changes.
+/// A container a new view spawned starts with nothing drawn, so it fills
 /// on its first frame.
 #[expect(
     clippy::too_many_arguments,
     reason = "the catalogs, the ship, the stations and the three containers"
 )]
-pub(crate) fn update_craft_pane(
+pub(crate) fn update_craft_view(
     mut commands: Commands,
     items: Option<Res<GameItems>>,
     recipes: Option<Res<GameRecipes>>,
@@ -1030,39 +1155,41 @@ pub(crate) fn update_craft_notice(
     }
 }
 
-/// Drives the Craft pane.
-pub(crate) struct CraftPanePlugin;
+/// Drives the Craft view.
+pub(crate) struct CraftViewPlugin;
 
-impl Plugin for CraftPanePlugin {
+impl Plugin for CraftViewPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CraftRuntime>();
         app.add_message::<CraftStartCommand>();
-        // Every pane system reads the item and recipe catalogs, which land
+        // Every view system reads the item and recipe catalogs, which land
         // only at the mod merge.
         app.configure_sets(
             Update,
-            CraftPaneSystems
+            CraftViewSystems
                 .run_if(resource_exists::<GameItems>)
                 .run_if(resource_exists::<GameRecipes>),
         );
         app.add_systems(
             Update,
             (
+                manage_craft_view,
                 apply_craft_start_commands,
                 scroll_craft_tiles,
                 update_craft_job_row,
-                update_craft_pane,
+                update_craft_view,
                 update_craft_notice,
             )
                 .chain()
-                .in_set(CraftPaneSystems),
+                .in_set(CraftViewSystems),
         );
     }
 }
 
-/// System set for the Craft pane's per-frame work.
+/// System set for the Craft view's per-frame work. Runs after the interface
+/// builds its pane body (`InterfaceSystems`).
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct CraftPaneSystems;
+pub struct CraftViewSystems;
 
 #[cfg(test)]
 mod tests;

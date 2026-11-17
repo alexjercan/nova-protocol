@@ -893,9 +893,9 @@
         ask_cr: 60,
         bid_cr: 45,
     )),
-    // A NEW recipe id ADDS a recipe to the Craft pane; a base id such as
+    // A NEW recipe id ADDS a recipe to the Craft view; a base id such as
     // "base/pdc_round" replaces that recipe whole. Every field is required.
-    // `inputs` lists each item a batch takes once, in the order the pane shows
+    // `inputs` lists each item a batch takes once, in the order the view shows
     // them; the output is not an input. `duration_secs` is the game seconds a
     // batch runs, above 0. `site: Ship` runs anywhere, in flight too;
     // `site: Station(fee_cr: n)` runs only docked at a living station that

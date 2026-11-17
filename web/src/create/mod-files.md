@@ -296,7 +296,7 @@ Large mods can use one scenario per file and list all of them in `content`.
 
 ### Recipes
 
-A `Recipe` is one row of the Craft pane, see [Craft](../stations/#craft).
+A `Recipe` is one tile of the Craft view, see [Craft](../stations/#craft).
 Every field is required.
 
 | field | meaning |

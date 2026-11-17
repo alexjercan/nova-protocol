@@ -5,7 +5,7 @@
 //! (the hold), a port on its nose and a drive on its tail. THE HOLD AND THE
 //! BALANCE ARE DISCLOSED FIXTURE STATE: two iron ore, one stone ore and
 //! 100 cr. The walk starts one batch of the base `base/pdc_round` recipe
-//! through the Craft pane's command, lets the flight clock run it, then asks
+//! through the Craft view's command, lets the flight clock run it, then asks
 //! for the base `base/rail_slug` Station recipe and finally forces a Station
 //! job onto the undocked ship.
 //!

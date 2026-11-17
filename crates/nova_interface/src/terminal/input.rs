@@ -28,6 +28,7 @@ use nova_ui::{
 
 use super::{components::*, sound::*};
 use crate::{
+    craft::CraftRuntime,
     inventory::InventoryRuntime,
     jobs::JobsRuntime,
     pane::InterfacePaneType,
@@ -49,13 +50,14 @@ pub(crate) struct InterfaceLevels<'w> {
     jobs: Option<ResMut<'w, JobsRuntime>>,
     subject: Option<Res<'w, ShipViewSubject>>,
     inventory: Option<ResMut<'w, InventoryRuntime>>,
+    craft: Option<ResMut<'w, CraftRuntime>>,
     station: Option<ResMut<'w, StationRuntime>>,
 }
 
 impl InterfaceLevels<'_> {
     /// Leave the innermost level the open pane has: a part in hand, a Jobs
-    /// confirm, the hull Info, an Inventory draft, or an armed station buy. Returns whether one was
-    /// left. Each level belongs to one pane, so a stale one on another pane
+    /// confirm, the hull Info, the Craft view over the Inventory, an Inventory
+    /// draft, or an armed station buy. Returns whether one was left. Each level belongs to one pane, so a stale one on another pane
     /// does not eat the press.
     fn leave_one(&mut self) -> bool {
         let Some(pane) = self.pane.as_deref().copied() else {
@@ -80,15 +82,18 @@ impl InterfaceLevels<'_> {
                 false
             }
             InterfacePaneType::Jobs => self.jobs.as_mut().is_some_and(|jobs| jobs.clear_ask()),
-            InterfacePaneType::Inventory => self
-                .inventory
-                .as_mut()
-                .is_some_and(|inventory| inventory.draft.take().is_some()),
+            InterfacePaneType::Inventory => {
+                self.craft.as_mut().is_some_and(|craft| craft.close())
+                    || self
+                        .inventory
+                        .as_mut()
+                        .is_some_and(|inventory| inventory.draft.take().is_some())
+            }
             InterfacePaneType::Station => self
                 .station
                 .as_mut()
                 .is_some_and(|station| std::mem::take(&mut station.confirm_buy)),
-            InterfacePaneType::Map | InterfacePaneType::Craft => false,
+            InterfacePaneType::Map => false,
         }
     }
 }

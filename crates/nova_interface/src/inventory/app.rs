@@ -1,5 +1,5 @@
-//! The Inventory pane body: the category filters, the player and partner
-//! columns and the inspector with its action form; the systems that fill
+//! The Inventory pane body: the category filters with the Craft button, the
+//! player and partner columns and the inspector with its action form; the systems that fill
 //! them from live inventories and apply a confirmed action; and the
 //! observers of the filter, row and form controls.
 //!
@@ -42,6 +42,7 @@ use super::{
     TakeAllCommand,
 };
 use crate::{
+    craft::{spawn_craft_open_button, CraftRuntime},
     icons::{icon_node, InterfaceIcons},
     pane::{
         compact_button, control_row, divider, fixed_cell, side_panel, spawn_credit_figure,
@@ -415,6 +416,7 @@ pub(crate) fn inventory_body(body: &mut ChildSpawnerCommands, icons: &InterfaceI
                         for category in FILTER_ORDER {
                             filter_chip(bar, Some(category), icons);
                         }
+                        spawn_craft_open_button(bar);
                     });
                 stores
                     .spawn((
@@ -1477,7 +1479,8 @@ fn select_inventory_row(
 /// The pane's keys while it owns the interface: `viewer_next` and
 /// `viewer_prev` step the selection through the shown rows, the player's
 /// column first, then the partner's and the storage column, as a click on the row would; `inventory_details` opens or
-/// closes the selected item's full description. Also writes the key cues from
+/// closes the selected item's full description; none of them act while the
+/// Craft view covers the pane. Also writes the key cues from
 /// the live bindings, so a rebind moves them with the key. The plugin runs it
 /// in `InputMode::Normal` only, so the quantity field types the key instead.
 ///
@@ -1492,6 +1495,7 @@ pub(crate) fn inventory_keys(
     ships: InventoryShips,
     items: Res<GameItems>,
     mut runtime: ResMut<InventoryRuntime>,
+    craft: Option<Res<CraftRuntime>>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
     mut q_cue: Query<(&InventoryInspectorField, &mut Text)>,
@@ -1524,7 +1528,11 @@ pub(crate) fn inventory_keys(
             text.0 = wanted;
         }
     }
-    if !input.app_is_active(InterfacePaneType::Inventory) {
+    // The Craft view covers the rows: the keys must not move a selection
+    // the player cannot see.
+    if !input.app_is_active(InterfacePaneType::Inventory)
+        || craft.is_some_and(|craft| craft.is_open())
+    {
         return;
     }
     let forward = input.just_pressed("viewer_next");

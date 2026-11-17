@@ -1,5 +1,5 @@
 //! craft_sandbox: start docked at a station that offers Craft, with ore and
-//! credits aboard, and run recipes from the Craft pane.
+//! credits aboard, and run recipes from the Craft view in the Inventory pane.
 //!
 //! The shipped waystation (`block_waystation`) stands in a void; Craft is
 //! one of its services, so its Station recipes run here as well as the Ship
@@ -10,11 +10,14 @@
 //!
 //! What to do:
 //!
-//! 1. press Tab and open the Craft tab;
+//! 1. press Tab, open the Inventory tab and click Craft at the right end of
+//!    its filter row: the Craft view covers the Inventory pane;
 //! 2. click a tile: the card shows what the hold has of each input, the fee
 //!    of a Station recipe and the time a batch runs;
 //! 3. set the batches with `-`, `+` or Max and click Craft;
-//! 4. close Tab: the job runs only while you fly, and the chip under the RCS
+//! 4. Back or Esc returns to the Inventory view; a tab switch or Tab closes
+//!    the Craft view too;
+//! 5. close Tab: the job runs only while you fly, and the chip under the RCS
 //!    chip shows it. Each batch takes its inputs and fee and adds its output.
 //!
 //! Press D to undock: the Station tiles grey with `Dock at a Craft station`,
@@ -26,10 +29,11 @@
 //! ```
 //!
 //! No deadline ends the run unless `NOVA_AUTOPILOT=1` is set. Then a smoke
-//! walk checks the staging, opens the Craft pane, checks the tiles, starts
-//! two batches of PDC rounds, closes the interface until the first batch
-//! lands, and reopens the pane on the running job. `NOVA_CAPTURE=1` shoots
-//! the idle tiles and the running job.
+//! walk checks the staging, opens the Inventory pane, clicks Craft, checks the
+//! tiles, starts two batches of PDC rounds, presses Esc back to the
+//! Inventory, closes the interface until the first batch lands, and reopens
+//! the Craft view on the running job. `NOVA_CAPTURE=1` shoots the Inventory
+//! with its Craft button, the idle tiles and the running job.
 
 #[expect(dead_code, reason = "this example flies the tender and moors no spar")]
 #[path = "shared/docking_pair.rs"]
@@ -56,7 +60,8 @@ const HOLD: [(&str, u32); 3] = [("IronOre", 12), ("StoneOre", 6), ("CarbonOre", 
 const CREDITS: u32 = 300;
 
 /// The intro line.
-const INTRO: &str = "Docked with ore: Tab, Craft, click a tile, set the batches, Craft, close Tab.";
+const INTRO: &str =
+    "Docked with ore: Tab, Inventory, Craft, click a tile, set the batches, Craft, close Tab.";
 
 fn main() -> bevy::app::AppExit {
     // NovaMenuPlugin explicitly: the interface's clock hold lives in
@@ -180,10 +185,10 @@ fn draw_the_craft(
     if station_void::interface_up(pause.as_deref()) {
         panel.hint("Craft", "click a tile, set the batches, Craft");
     } else if docked {
-        panel.hint("TAB", "Craft");
+        panel.hint("TAB", "Inventory, Craft");
         panel.hint("D", "undock");
     } else {
-        panel.hint("TAB", "Craft: Station tiles grey undocked");
+        panel.hint("TAB", "Inventory, Craft: Station tiles grey undocked");
     }
 }
 
@@ -203,13 +208,14 @@ mod smoke {
     const BEAT_SECS: f32 = 60.0;
     /// Real seconds the first 8 s batch may take under a software renderer.
     const BATCH_SECS: f32 = 240.0;
-    /// Frames the Craft pane gets to build its tiles and card.
+    /// Frames the Craft view gets to build its tiles and card.
     const SETTLE_FRAMES: u32 = 10;
 
     const PDC_RECIPE: &str = "base/pdc_round";
     const TORPEDO_RECIPE: &str = "base/torpedo";
 
     /// The frames the capture path writes.
+    const INVENTORY_SHOT: &str = "craft-sandbox-inventory.png";
     const IDLE_SHOT: &str = "craft-sandbox-idle.png";
     const RUNNING_SHOT: &str = "craft-sandbox-running.png";
 
@@ -311,7 +317,7 @@ mod smoke {
         info!("craft_sandbox: PASS the tiles: {rounds:?}, {torpedo:?}");
     }
 
-    /// The pane started two batches of PDC rounds and took nothing yet.
+    /// The view started two batches of PDC rounds and took nothing yet.
     fn assert_the_job(world: &mut World) {
         let job = job(world).expect("craft_sandbox: a job runs");
         assert_eq!(
@@ -324,11 +330,11 @@ mod smoke {
             12,
             "craft_sandbox: a start takes nothing"
         );
-        info!("craft_sandbox: PASS the pane started 2 batches of PDC rounds");
+        info!("craft_sandbox: PASS the view started 2 batches of PDC rounds");
     }
 
     /// One batch landed: its inputs left the hold and its rounds entered it,
-    /// and the pane shows the second batch running.
+    /// and the view shows the second batch running.
     fn assert_the_first_batch(world: &mut World) {
         assert_eq!(
             held(world, "IronOre"),
@@ -369,14 +375,32 @@ mod smoke {
             .on_enter(assert_the_staging)
             .until(frames(SETTLE_FRAMES))
             .add()
-            .step("craft sandbox: open the Craft pane")
+            .step("craft sandbox: open the Inventory pane")
             .on_enter(|world: &mut World| {
-                station_void::open_pane(world, InterfacePaneType::Craft);
+                station_void::open_pane(world, InterfacePaneType::Inventory);
             })
+            .until(ui_node_present(INVENTORY_CRAFT))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("craft sandbox: settle the Inventory pane")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("craft sandbox: shoot the Inventory with its Craft button")
+            .on_enter(|world: &mut World| shoot(world, INVENTORY_SHOT))
+            .until(shot_written(INVENTORY_SHOT))
+            .deadline(SHOT_DEADLINE_SECS)
+            .add()
+            .click_named(
+                "craft sandbox: open the Craft view",
+                INVENTORY_CRAFT,
+                when(|world| world.resource::<CraftRuntime>().is_open()),
+                BEAT_SECS,
+            )
+            .step("craft sandbox: the Craft view covers the Inventory")
             .until(ui_node_present(tile(TORPEDO_RECIPE)))
             .deadline(BEAT_SECS)
             .add()
-            .step("craft sandbox: settle the pane")
+            .step("craft sandbox: settle the view")
             .until(frames(SETTLE_FRAMES))
             .add()
             .step("craft sandbox: check the tiles")
@@ -419,6 +443,31 @@ mod smoke {
             .on_enter(assert_the_job)
             .until(frames(1))
             .add()
+            .step("craft sandbox: Esc returns to the Inventory")
+            .on_enter(press_key(KeyCode::Escape))
+            .until(when(|world| {
+                !world.resource::<CraftRuntime>().is_open()
+                    && *world.resource::<InterfacePaneType>() == InterfacePaneType::Inventory
+                    && station_void::interface_up(world.get_resource::<State<PauseStates>>())
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("craft sandbox: let Esc up")
+            .on_enter(release_key(KeyCode::Escape))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("craft sandbox: the Esc left the Inventory open")
+            .on_enter(|world: &mut World| {
+                assert!(
+                    station_void::interface_up(world.get_resource::<State<PauseStates>>())
+                        && *world.resource::<InterfacePaneType>() == InterfacePaneType::Inventory
+                        && !world.resource::<CraftRuntime>().is_open(),
+                    "craft_sandbox: Esc closes the Craft view, not the interface"
+                );
+                info!("craft_sandbox: PASS Esc returned to the Inventory");
+            })
+            .until(frames(1))
+            .add()
             .step("craft sandbox: close the interface until the first batch lands")
             .on_enter(|world: &mut World| {
                 world
@@ -428,10 +477,20 @@ mod smoke {
             .until(when(|world| job(world).is_some_and(|job| job.done >= 1)))
             .deadline(BATCH_SECS)
             .add()
-            .step("craft sandbox: reopen the Craft pane")
+            .step("craft sandbox: reopen the Inventory pane")
             .on_enter(|world: &mut World| {
-                station_void::open_pane(world, InterfacePaneType::Craft);
+                station_void::open_pane(world, InterfacePaneType::Inventory);
             })
+            .until(ui_node_present(INVENTORY_CRAFT))
+            .deadline(BEAT_SECS)
+            .add()
+            .click_named(
+                "craft sandbox: reopen the Craft view",
+                INVENTORY_CRAFT,
+                when(|world| world.resource::<CraftRuntime>().is_open()),
+                BEAT_SECS,
+            )
+            .step("craft sandbox: the Craft view is back")
             .until(ui_node_present(tile(TORPEDO_RECIPE)))
             .deadline(BEAT_SECS)
             .add()
