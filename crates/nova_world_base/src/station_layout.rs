@@ -122,10 +122,13 @@ const GOODS: [(ItemRoleType, f32); 7] = [
 ];
 
 /// The PDC rounds a newly generated station that stocks them opens with at
-/// least: a lot of 100 rounds prices below a credit's worth each, and a
-/// fight spends rounds by the hundred. Raises only the PDC stack; the hold
-/// check still refuses a station whose stock outweighs its hull.
-const PDC_OPENING_ROUNDS: u32 = 2_000;
+/// least. One start-band escort can spend a 2-PDC hull's whole 2,000-round
+/// load (magazines and hold), so this refills a dry hull at one dock and
+/// keeps as much again for the next buyer. The opening stock is the
+/// trader's restock target (`sector_ships::trader_market`), so a thaw
+/// brings a bought-out station back to it. Raises only the PDC stack; the
+/// hold check still refuses a station whose stock outweighs its hull.
+const PDC_OPENING_ROUNDS: u32 = 4_000;
 
 /// The grams a station stores for the ships that dock with it, at
 /// advancement 0 and at advancement 1.
@@ -2147,10 +2150,11 @@ mod tests {
     /// A station whose civilization fields a PDC opens with at least
     /// [`PDC_OPENING_ROUNDS`] rounds, however small its share, and the floor
     /// takes nothing from the other goods: they match a station whose PDC
-    /// share passes the floor on its own.
+    /// share passes the floor on its own. A buyer who empties its PDC stack
+    /// finds the floor again after a thaw of one full recovery.
     #[test]
-    fn a_station_that_stocks_pdc_rounds_opens_with_two_thousand() {
-        use nova_gameplay::prelude::ItemDesign;
+    fn a_station_that_stocks_pdc_rounds_opens_with_the_floor_and_restocks_to_it() {
+        use nova_gameplay::prelude::{restocked_count, ClusterType, ItemDesign, RestockRule};
         use nova_ship::prelude::{AmmoCapacity, ReloadConfig, SectionReloadConfig};
 
         use crate::civilizations::CivilizationStatusType;
@@ -2209,6 +2213,20 @@ mod tests {
         let (heavy, heavy_g) = stock(1_000);
         let (light, _) = stock(1);
         assert_eq!(heavy[round], PDC_OPENING_ROUNDS, "{heavy:?}");
+        let station =
+            generated_station(&parts, &items(1_000), &layout, &living).expect("the stock fits");
+        let market =
+            crate::sector_ships::trader_market(ClusterType::RockOnly, &living, &station.stock);
+        let rule = RestockRule {
+            recovery_seconds: 100.0,
+        };
+        let target = market.target[&ItemDesignId::from(round)];
+        assert!(target >= PDC_OPENING_ROUNDS, "target {target}");
+        assert!(
+            restocked_count(0, target, f64::from(rule.recovery_seconds), rule)
+                >= PDC_OPENING_ROUNDS,
+            "a bought-out station restocks to the floor"
+        );
         assert!(light[round] > PDC_OPENING_ROUNDS, "{light:?}");
         let others = |stacks: &BTreeMap<String, u32>| {
             let mut stacks = stacks.clone();

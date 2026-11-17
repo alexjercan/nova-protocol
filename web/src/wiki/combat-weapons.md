@@ -159,6 +159,14 @@ Every weapon with a magazine refills it on its own. A magazine is a **rate limit
 
 Your ship warns before that. When the hold holds less than one full magazine of an item your weapons load (at least 2), the [HUD](../hud/) posts `PDC ROUND LOW: 400` with one cockpit cue and tags the gauge `LOW`; when it holds none, it posts `PDC ROUND DRY` and the tag reads `DRY`. The rounds already in the magazines are then all you have. Buying back over the line clears the tag and arms the warning again.
 
+**Getting rounds back.** A start hull with point-defense mounts carries **3,000** PDC rounds in its hold, on top of its full magazines. Past that, there are three ways to refill:
+
+- **Buy them.** Every generated station whose civilization fields a PDC sells PDC rounds and opens with at least **4,000**, enough to refill a dry two-gun ship and keep as much again. A station you buy out restocks toward that while its sector is unloaded: empty to full in **30 minutes** of play. See [Buy and sell](../interface/#buy-and-sell).
+- **Make them.** The **PDC round** recipe turns 1 iron ore and 1 stone ore into 100 rounds in 8 seconds, in flight, with no station. Mine the ore or buy it, then start the job in the [Craft pane](../interface/#crafting).
+- **Take them.** A neutralized or derelict ship can be [looted](../interface/#take-and-give), and an armed one often carries rounds.
+
+<!-- Verified against crates/nova_authoring/src/base_content/start_roles.rs (PdcRound 3,000 in the scavenger, bounty_hunter, military and pirate kits), crates/nova_world_base/src/station_layout.rs (PDC_OPENING_ROUNDS 4,000, raised only when a known weapon reloads from PdcRound), crates/nova_world_base/src/sector_ships.rs trader_market (the opening stock is the restock target), crates/nova_gameplay/src/market.rs restocked_count with crates/nova_authoring/src/base_content/market.rs RESTOCK_RECOVERY_SECONDS 1,800 and crates/nova_world_base/src/economy.rs (restock runs on a thaw), crates/nova_authoring/src/base_content/recipes.rs (base/pdc_round). -->
+
 A station's point-defense turrets are the exception. They draw only on the station's own reserve of **10,000** rounds, never on the hold it sells from, so buying every PDC round off its market does not disarm it, and an empty reserve leaves its guns dry beside a full hold. A living station refills that reserve at a steady rate, empty to full in **30 minutes** of play, and the time its sector stood unloaded counts too. A dead station's reserve never refills. Its other weapons, and every ship's, draw on the hold as above.
 
 <!-- Verified against crates/nova_ship/src/sections/ammo.rs (StationPdcReserve, STATION_PDC_RESERVE_CAPACITY 10,000, STATION_PDC_RESERVE_RECHARGE_SECONDS 1,800; tick_section_reload draws a station's PdcRound turret from the reserve only; recharge_station_pdc_reserve skips DerelictShipMarker and NeutralizedMarker) and crates/nova_world_base/src/pdc_reserve.rs (thaw catch-up by ThawedAfter). -->

@@ -1,6 +1,6 @@
 # Ammo: stop running dry, warn before the reserve is empty
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.19.0, combat, economy
 
@@ -85,3 +85,23 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
   read. Not verified live: audio output, torpedo lines, re-arm by a market buy.
 - Measured: `MEASURE.md`. Supply, not price, is the limit. Resupply approach
   waits on the owner (Delivery step 2).
+
+## Delivery record (2026-11-17)
+- Option 6: the Ship recipe `base/pdc_round` (1 IronOre + 1 StoneOre ->
+  100 PdcRound, 8 s) landed with crafting (task 20261116-132140).
+- Option 2: `PDC_OPENING_ROUNDS` 2,000 -> 4,000
+  (`crates/nova_world_base/src/station_layout.rs`). A station restocks to
+  its opening stock, so a bought-out station comes back to at least 4,000,
+  over 1,800 s and only while its sector is unloaded. Not a hard floor
+  while docked: a full buy-out empties it until its sector reloads.
+- Option 3: scavenger, bounty_hunter, military and pirate kits carry 3,000
+  PdcRound (was 1,000); industrial and transport hulls mount no weapon and
+  keep their kits. Builders, `content -- gen`, lint 0 errors.
+- Proof: `a_station_that_stocks_pdc_rounds_opens_with_the_floor_and_restocks_to_it`;
+  nova_world_base station tests, nova_authoring generated_stations and
+  generated_traders, web ci, workspace check pass. After table in
+  `MEASURE.md` (computed from the earlier measured spend, no new fights).
+- Done when: the warning ships with proof (Progress above); a 2-PDC role
+  now holds two or more start-band fights, refills at any PDC station
+  (>= 4,000) or crafts rounds from ore in flight.
+- Not verified: new live fight measurements; workspace tests and clippy.

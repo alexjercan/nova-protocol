@@ -24,6 +24,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Crafting: recipes run as timed jobs on the game clock. Ship recipes (PDC rounds, hull plates, section panels) run in flight; Station recipes need a docked station that offers Craft.
 - Refine is replaced by Craft: alloy plates, rail slugs and torpedoes are crafted at a Craft station for a fee a batch. Stations that offered Refine now offer Craft.
 
+### Combat & Weapons
+
+- PDC-armed start roles (scavenger, bounty hunter, military, pirate) carry 3,000 PDC rounds, up from 1,000.
+- A generated station that sells PDC rounds opens with at least 4,000, up from 2,000, and restocks back to it.
+
 ### Ships & Sections
 
 - Undocked, a lost section rebuilds in the field from its recipe parts in the hold, with no credits, 5 s a part (20 s at least). A lost docking port no longer ends docking for good.

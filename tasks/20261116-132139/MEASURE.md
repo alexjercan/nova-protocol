@@ -152,3 +152,45 @@ Separately, the 5-9 % autopilot hit share is a likely root cause of the
 large spend. An older telemetry run found the muzzle off target in 22 of 22
 samples (`tasks/20261026-003806/TASK.md:21`). Measure the hit share of
 human or bench play before any retune of rounds per fight.
+
+## After: options 2, 3 and 6 (2026-11-17)
+
+Implemented on top of `c876b6454`. No new fight was run: the change moves
+supply only, so rounds per fight and the per-fight cost stay as measured
+above. The numbers below are derived from the content and the code.
+
+- Option 2: a generated station whose civilization knows a PDC opens with at
+  least 4000 PdcRound (`PDC_OPENING_ROUNDS`,
+  `crates/nova_world_base/src/station_layout.rs:124-131`). The opening stock
+  is the trader's restock target (`sector_ships.rs` `trader_market`), so a
+  bought-out station returns to at least 4000 after a thaw of 1800 s of play
+  (`market.rs` `restocked_count`: drift = target x elapsed / recovery, so
+  1800 s is the time from 0 to full). Restock runs on a thaw only
+  (`economy.rs`), not while the player stays in the sector.
+- Option 3: the scavenger, bounty_hunter, military and pirate kits carry 3000
+  PdcRound (`crates/nova_authoring/src/base_content/start_roles.rs`). The
+  industrial (mining_tug) and transport (light_freighter) hulls mount no
+  weapon and keep no rounds.
+- Option 6: the Ship recipe `base/pdc_round` (1 IronOre + 1 StoneOre -> 100
+  PdcRound, 8 s, in flight) landed in `c876b6454`. 20 kg of ore makes 20 kg
+  of rounds, so a hold of mined ore converts at no mass cost.
+- Hold fit: a sweep of 3024 generated stations (12 civilizations, 3
+  archetypes, 7 advancements, 12 seeds) refused none, with at least 4094 kg
+  free after the 4000 rounds. Content lint passes every kit against its hold.
+
+| Role (hull, guns) | Usable PDC at start (magazines + hold) | Fights per kit (582-1971 rds measured) | Buyable at one station | Cost per fight / pay per job | Full refill of a dry hull |
+|---|---|---|---|---|---|
+| military (patrol_picket, 2 PDC + torpedo bay) | 1000 + 3000 = **4000** (was 2000) | **2.0-6.9** (was 1.0-3.4) | **>= 4000** (was >= 2000) | 65-217 cr / Escort 778 measured (8-28 %), unchanged | 4000 rds, about 440 cr at 11 cr/100: 57 % of a 778 cr escort |
+| bounty_hunter (interceptor, 2 PDC) | **4000** (was 2000) | about 2.9 Neutralize at the derived >= 1400 (was about 1) | **>= 4000** | 150-290 cr derived / Neutralize 500-900 | as military |
+| pirate (raider, 2 PDC) | **4000** (was 2000) | unmeasured | **>= 4000** | unmeasured / hold loot + 95-380 cr | as military |
+| scavenger (salvage_hauler, 1 PDC) | 500 + 3000 = **3500** (was 1500) | 3.6-12 derived (290-985 rds) (was 1.5-5) | **>= 4000** | 32-108 cr derived / Escort 350-1600 | 3500 rds, about 385 cr |
+
+- Back to full fire after one fight: the measured worst fight (1971 rounds)
+  leaves 2029 in the kit, four magazine loads. Buying back that one fight
+  leaves at least 2029 at a floor station for the next buyer.
+- Limit that stays: a hull that runs fully dry and buys back the whole 4000
+  takes a floor station to 0 until its sector thaws again. Crafting from
+  ore (100 rounds per 8 s) and loot cover that gap.
+- Rounds in reserve now weigh 600 kg (was 200 kg). The picket had 1316 kg
+  free at run 1's hand-in with about 1400 rounds aboard, so about 1000 kg
+  stays free (derived).

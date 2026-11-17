@@ -4,8 +4,10 @@
 //! `assets/base/roles/base.content.ron`. A kit's worth at ask is its credits
 //! plus its items at their base `ask_cr`: 3,000 cr for an unarmed kit, and
 //! 2,000 to 2,200 cr for a PDC-armed kit without its rounds. A PDC-armed hull
-//! also carries 1,000 PDC rounds in its shared hold, not per mount: 10 whole
-//! lots of 100 at 10 cr, so 100 cr at ask and 2,100 to 2,300 cr in all.
+//! also carries 3,000 PDC rounds in its shared hold, not per mount: 30 whole
+//! lots of 100 at 10 cr, so 300 cr at ask and 2,300 to 2,500 cr in all. One
+//! start-band escort can empty a 2-PDC hull's 2,000-round load, so 3,000 in
+//! the hold is two such fights or more before the first station Buy.
 //!
 //! Goals are the roles' finite milestones over saved facts. Every role's
 //! progress opens with the same first line, one owned station, a rule in
@@ -57,7 +59,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             SALVAGE_HAULER_SHIP_ID,
             1_800,
             &[
-                (ItemRoleType::PdcRound, 1_000),
+                (ItemRoleType::PdcRound, 3_000),
                 (ItemRoleType::HullPlate, 10),
             ],
             JobMixType::Salvage,
@@ -93,7 +95,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             INTERCEPTOR_SHIP_ID,
             1_600,
             &[
-                (ItemRoleType::PdcRound, 1_000),
+                (ItemRoleType::PdcRound, 3_000),
                 (ItemRoleType::HullPlate, 10),
             ],
             JobMixType::Combat,
@@ -113,7 +115,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             1_000,
             &[
                 (ItemRoleType::Torpedo, 2),
-                (ItemRoleType::PdcRound, 1_000),
+                (ItemRoleType::PdcRound, 3_000),
                 (ItemRoleType::HullPlate, 10),
             ],
             JobMixType::Combat,
@@ -132,7 +134,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             RAIDER_SHIP_ID,
             1_800,
             &[
-                (ItemRoleType::PdcRound, 1_000),
+                (ItemRoleType::PdcRound, 3_000),
                 (ItemRoleType::HullPlate, 10),
             ],
             JobMixType::Combat,
