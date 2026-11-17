@@ -14,7 +14,8 @@
 //!    its filter row: the Craft view covers the Inventory pane;
 //! 2. click a tile: the card shows what the hold has of each input, the fee
 //!    of a Station recipe and the time a batch runs;
-//! 3. set the batches with `-`, `+` or Max and click Craft;
+//! 3. set the batches on the slider, or Max for every batch the hold and the
+//!    balance cover, and click Craft;
 //! 4. Back or Esc returns to the Inventory view; a tab switch or Tab closes
 //!    the Craft view too;
 //! 5. close Tab: the job runs only while you fly, and the chip under the RCS
@@ -30,10 +31,11 @@
 //!
 //! No deadline ends the run unless `NOVA_AUTOPILOT=1` is set. Then a smoke
 //! walk checks the staging, opens the Inventory pane, clicks Craft, checks the
-//! tiles, starts two batches of PDC rounds, presses Esc back to the
-//! Inventory, closes the interface until the first batch lands, and reopens
-//! the Craft view on the running job. `NOVA_CAPTURE=1` shoots the Inventory
-//! with its Craft button, the idle tiles and the running job.
+//! tiles, clicks the batch slider at two batches, starts them, presses Esc
+//! back to the Inventory, closes the interface until the first batch lands,
+//! and reopens the Craft view on the running job. `NOVA_CAPTURE=1` shoots the
+//! Inventory with its Craft button, the card at two batches and the running
+//! job.
 
 #[expect(dead_code, reason = "this example flies the tender and moors no spar")]
 #[path = "shared/docking_pair.rs"]
@@ -195,6 +197,7 @@ fn draw_the_craft(
 mod smoke {
     use std::sync::Arc;
 
+    use bevy::ui_widgets::SliderRange;
     use nova_protocol::{
         nova_debug::harness::{AutopilotPlugin, Predicate, SHOT_DEADLINE_SECS},
         nova_interface::{craft::prelude::*, pane::InterfacePaneType},
@@ -212,6 +215,8 @@ mod smoke {
     const SETTLE_FRAMES: u32 = 10;
 
     const PDC_RECIPE: &str = "base/pdc_round";
+    /// The batches the walk sets on the slider and starts.
+    const BATCHES: u32 = 2;
     const TORPEDO_RECIPE: &str = "base/torpedo";
 
     /// The frames the capture path writes.
@@ -317,12 +322,51 @@ mod smoke {
         info!("craft_sandbox: PASS the tiles: {rounds:?}, {torpedo:?}");
     }
 
+    /// Put the pointer on the batch slider's track where it reads
+    /// [`BATCHES`], from the slider's laid-out box and its range: 12 iron ore
+    /// and 6 stone ore cover 6 batches of PDC rounds.
+    fn aim_the_slider(world: &mut World) {
+        let rect =
+            ui_node_rect(world, CRAFT_SLIDER).expect("craft_sandbox: the slider is laid out");
+        let range = world
+            .query::<(&Name, &SliderRange)>()
+            .iter(world)
+            .find(|(name, _)| name.as_str() == CRAFT_SLIDER)
+            .map(|(_, range)| *range)
+            .expect("craft_sandbox: the slider carries its range");
+        assert_eq!(
+            range,
+            SliderRange::new(1.0, 6.0),
+            "craft_sandbox: the hold covers 6 batches of PDC rounds"
+        );
+        let x = rect.min.x + rect.width() * range.thumb_position(BATCHES as f32);
+        move_cursor(Vec2::new(x, rect.center().y))(world);
+    }
+
+    /// The card at [`BATCHES`]: the count and the Takes and Makes lines
+    /// follow the slider.
+    fn assert_the_card(world: &mut World) {
+        let card = texts_under(world, "CraftCard");
+        for line in [
+            "2",
+            "of 6",
+            "Takes 2 iron ore, 2 stone ore",
+            "Makes 200 PDC round in 16 s",
+        ] {
+            assert!(
+                card.contains(&line.to_string()),
+                "craft_sandbox: the card reads {line:?}: {card:?}"
+            );
+        }
+        info!("craft_sandbox: PASS the slider set {BATCHES} batches: {card:?}");
+    }
+
     /// The view started two batches of PDC rounds and took nothing yet.
     fn assert_the_job(world: &mut World) {
         let job = job(world).expect("craft_sandbox: a job runs");
         assert_eq!(
             (job.recipe, job.queued, job.done),
-            (RecipeDesignId::from(PDC_RECIPE), 2, 0),
+            (RecipeDesignId::from(PDC_RECIPE), BATCHES, 0),
             "craft_sandbox: two batches of PDC rounds run"
         );
         assert_eq!(
@@ -419,19 +463,40 @@ mod smoke {
             .step("craft sandbox: settle the card")
             .until(frames(SETTLE_FRAMES))
             .add()
-            .step("craft sandbox: shoot the idle tiles")
+            .step("craft sandbox: the batch slider is up")
+            .until(ui_node_present(CRAFT_SLIDER))
+            .diagnose(ui_node_diagnosis(CRAFT_SLIDER))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("craft sandbox: aim at two batches on the slider")
+            .on_enter(aim_the_slider)
+            .until(pointer_over_node(CRAFT_SLIDER))
+            .diagnose(pointer_hover_diagnosis(CRAFT_SLIDER))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("craft sandbox: press the slider track")
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(when(|world| {
+                world.resource::<CraftRuntime>().batches() == BATCHES
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("craft sandbox: let the slider go")
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(pointer_released())
+            .deadline(BEAT_SECS)
+            .add()
+            .step("craft sandbox: settle the card at two batches")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("craft sandbox: check the card")
+            .on_enter(assert_the_card)
+            .until(frames(1))
+            .add()
+            .step("craft sandbox: shoot the card at two batches")
             .on_enter(|world: &mut World| shoot(world, IDLE_SHOT))
             .until(shot_written(IDLE_SHOT))
             .deadline(SHOT_DEADLINE_SECS)
-            .add()
-            .click_named(
-                "craft sandbox: one batch more",
-                CRAFT_MORE,
-                when(|world| world.resource::<CraftRuntime>().batches() == 2),
-                BEAT_SECS,
-            )
-            .step("craft sandbox: settle the card at two batches")
-            .until(frames(SETTLE_FRAMES))
             .add()
             .click_named(
                 "craft sandbox: craft",

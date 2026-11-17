@@ -158,3 +158,58 @@ fn craft_starts_a_ship_recipe_in_flight_and_refuses_a_station_recipe_undocked() 
     let tile = texts_under(app.world_mut(), &craft_tile_name(&ship_rounds().id));
     assert!(tile.contains(&"A craft is running".to_string()), "{tile:?}");
 }
+
+/// The entity named `name`.
+fn named(world: &mut World, name: &str) -> Entity {
+    world
+        .query::<(Entity, &Name)>()
+        .iter(world)
+        .find(|(_, each)| each.as_str() == name)
+        .map(|(entity, _)| entity)
+        .unwrap_or_else(|| panic!("a node named {name}"))
+}
+
+/// The slider runs from 1 to the batches the hold covers; its value sets the
+/// count, the Takes and Makes lines and the batches Craft starts, and a value
+/// past the top is held at it.
+#[test]
+fn the_batch_slider_sets_the_batches_a_craft_click_starts() {
+    let mut app = craft_app();
+    let ship = spawn_player(app.world_mut());
+    app.update();
+    let slider = named(app.world_mut(), CRAFT_SLIDER);
+    assert_eq!(
+        app.world().get::<SliderRange>(slider),
+        Some(&SliderRange::new(1.0, 2.0)),
+        "2 stone ore cover 2 batches of PDC rounds"
+    );
+
+    app.world_mut().trigger(ValueChange {
+        source: slider,
+        value: 9.0_f32,
+        is_final: true,
+    });
+    app.update();
+    assert_eq!(app.world().resource::<CraftRuntime>().batches(), 2);
+    assert_eq!(
+        app.world().get::<SliderValue>(slider),
+        Some(&SliderValue(2.0))
+    );
+    let form = texts_under(app.world_mut(), "CraftCard");
+    for line in [
+        "2",
+        "of 2",
+        "Takes 2 iron ore, 2 stone ore",
+        "Makes 200 PDC round in 16 s",
+    ] {
+        assert!(form.contains(&line.to_string()), "{line:?} in {form:?}");
+    }
+
+    let craft = named(app.world_mut(), CRAFT_BUTTON);
+    app.world_mut().trigger(Activate { entity: craft });
+    app.update();
+    assert_eq!(
+        app.world().get::<ShipCraftJob>(ship),
+        Some(&ShipCraftJob::new(ship_rounds().id, 2))
+    );
+}

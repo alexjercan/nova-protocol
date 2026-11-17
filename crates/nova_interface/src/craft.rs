@@ -19,10 +19,12 @@
 //!   names why: `Dock at a Craft station`, `Short of stone ore: 0 of 1`, `A
 //!   craft is running`.
 //! - The focus card, for the picked tile: each input as what the hold has
-//!   over what a batch takes, the fee of a station recipe, the seconds a
-//!   batch runs, the batch count with `-`, `+` and Max (what the hold and the
-//!   balance cover), what the batches take and make, and Craft. A refused
-//!   start greys Craft and shows the reason under the summary.
+//!   over what a batch takes, the fee of a station recipe and the seconds a
+//!   batch runs; under it the batch form: the batch count over the most the
+//!   hold and the balance cover with Max, the batch slider from 1 to that
+//!   most, what the batches take and make, and Craft. A refused start greys
+//!   Craft and shows the reason under the summary. The form is spawned once
+//!   and written in place, so a rebuild cannot drop the slider mid-drag.
 //!
 //! Craft writes a [`CraftStartCommand`]; [`apply_craft_start_commands`]
 //! checks it again by [`plan_craft_start`] and inserts the
@@ -40,7 +42,11 @@ use bevy::{
     input::mouse::MouseWheel,
     picking::hover::Hovered,
     prelude::*,
-    ui_widgets::{Activate, Button},
+    ui::InteractionDisabled,
+    ui_widgets::{
+        Activate, Button, Slider, SliderPrecision, SliderRange, SliderStep, SliderValue,
+        TrackClick, ValueChange,
+    },
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
@@ -49,7 +55,8 @@ use nova_ui::{
     screen::drive_wheel_scroll,
     theme::UiColorType,
     widget::{
-        button, ButtonCueType, ButtonSpec, ThemedBorder, ThemedFill, ThemedRadius, ThemedText,
+        button, slider_track, ButtonCueType, ButtonSpec, ThemedBorder, ThemedFill, ThemedRadius,
+        ThemedText, Tooltip,
     },
 };
 
@@ -66,9 +73,9 @@ use crate::{
 /// Glob-import surface: `use nova_interface::craft::prelude::*`.
 pub mod prelude {
     pub use super::{
-        craft_tile_name, CraftRuntime, CraftStartCommand, CRAFT_BACK, CRAFT_BUTTON, CRAFT_CANCEL,
-        CRAFT_JOB_ROW, CRAFT_MAX, CRAFT_MORE, CRAFT_NOTICE, CRAFT_TILES, CRAFT_VIEW,
-        INVENTORY_CRAFT,
+        craft_tile_name, CraftRuntime, CraftStartCommand, CRAFT_BACK, CRAFT_BATCHES, CRAFT_BUTTON,
+        CRAFT_CANCEL, CRAFT_JOB_ROW, CRAFT_MAX, CRAFT_NOTICE, CRAFT_SLIDER, CRAFT_TILES,
+        CRAFT_VIEW, INVENTORY_CRAFT,
     };
 }
 
@@ -88,9 +95,11 @@ pub const CRAFT_CANCEL: &str = "CraftCancel";
 pub const CRAFT_TILES: &str = "CraftTiles";
 /// The name of the focus card's Craft button.
 pub const CRAFT_BUTTON: &str = "CraftStart";
-/// The name of the focus card's `+` button.
-pub const CRAFT_MORE: &str = "CraftMore";
-/// The name of the focus card's Max button.
+/// The name of the batch form's count label.
+pub const CRAFT_BATCHES: &str = "CraftBatches";
+/// The name of the batch form's slider.
+pub const CRAFT_SLIDER: &str = "CraftBatchSlider";
+/// The name of the batch form's Max button.
 pub const CRAFT_MAX: &str = "CraftMax";
 
 /// The name of the tile of `recipe`.
@@ -108,12 +117,13 @@ pub struct CraftRuntime {
     pub notice: ActionNotice,
     /// The picked recipe; the first shown tile while none is.
     selected: Option<RecipeDesignId>,
-    /// The batch count the focus card shows, at least 1.
+    /// The batch count the batch form shows, from 1 to `max_batches`.
     batches: u32,
     /// The category the tiles show; `None` shows every one.
     filter: Option<ItemCategoryType>,
-    /// What Max sets: the batches the hold and the balance cover for the
-    /// picked recipe, at least 1. Written each frame the view draws.
+    /// The slider's top and what Max sets: the batches the hold and the
+    /// balance cover for the picked recipe, at most [`CRAFT_BATCHES_MAX`] and
+    /// at least 1. Written each frame the view draws.
     max_batches: u32,
 }
 
@@ -138,14 +148,14 @@ impl CraftRuntime {
         self.selected.as_ref()
     }
 
-    /// The batch count the focus card shows.
+    /// The batch count the batch form shows.
     pub fn batches(&self) -> u32 {
         self.batches.max(1)
     }
 }
 
 /// Start `batches` batches of `recipe` on the player ship, written by the
-/// focus card's Craft and applied by [`apply_craft_start_commands`].
+/// batch form's Craft and applied by [`apply_craft_start_commands`].
 #[derive(Message, Clone, Debug, PartialEq, Eq)]
 pub struct CraftStartCommand {
     /// The recipe.
@@ -195,20 +205,38 @@ pub(crate) struct CraftTileGrid(Option<Vec<CraftTileView>>);
 #[derive(Component, Clone)]
 pub(crate) struct CraftTile(RecipeDesignId);
 
-/// The focus card, and the card it was built for.
+/// The focus card's recipe rows, and the card they were built for.
 #[derive(Component, Default)]
 pub(crate) struct CraftFocusCard(Option<Option<CraftCardView>>);
 
-/// A focus card batch button.
+/// The batch form under the focus card's recipe rows, hidden while no recipe
+/// is picked.
+#[derive(Component)]
+pub(crate) struct CraftBatchForm;
+
+/// A live text of the batch form.
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CraftBatchStepType {
-    /// One batch fewer, down to 1.
-    Less,
-    /// One batch more, up to [`CRAFT_BATCHES_MAX`].
-    More,
-    /// What the hold and the balance cover.
-    Max,
+pub(crate) enum CraftBatchField {
+    /// The batch count: `3`.
+    Count,
+    /// The slider's top: `of 6`.
+    Most,
+    /// What the batches take.
+    Takes,
+    /// What the batches make.
+    Makes,
+    /// Why Craft is refused, or nothing.
+    Refusal,
 }
+
+/// The batch form's slider, from 1 to the batches the hold and the balance
+/// cover.
+#[derive(Component)]
+pub(crate) struct CraftBatchSlider;
+
+/// The batch form's Craft button.
+#[derive(Component)]
+pub(crate) struct CraftStartButton;
 
 /// What the view's checks read off the player ship.
 pub(crate) struct CraftSite {
@@ -235,10 +263,9 @@ pub(crate) struct CraftTileView {
     selected: bool,
 }
 
-/// The focus card as drawn.
+/// The focus card's recipe rows as drawn.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct CraftCardView {
-    recipe: RecipeDesignId,
     /// `PDC round x100`.
     title: String,
     /// `SHIP` or `STATION`.
@@ -249,7 +276,14 @@ pub(crate) struct CraftCardView {
     fee: Option<String>,
     /// `8 s a batch`.
     duration: String,
+}
+
+/// The batch form as written.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CraftBatchView {
     batches: u32,
+    /// The slider's top.
+    most: u32,
     /// `Takes 5 iron ore, 5 stone ore` and, for a station recipe, the fee.
     takes: String,
     /// `Makes 500 PDC round in 40 s`.
@@ -317,13 +351,37 @@ fn tile_view(
     }
 }
 
-/// The focus card of `batches` batches of `recipe` at `site`.
-fn card_view(
+/// The focus card's recipe rows of `recipe` at `site`.
+fn card_view(recipe: &RecipeDesign, items: &GameItems, site: &CraftSite) -> CraftCardView {
+    let output = items.design(recipe.output_item());
+    let fee_cr = recipe.site.fee_cr();
+    CraftCardView {
+        title: format!("{} x{}", output.name, recipe.output_count()),
+        site: recipe.site.tag(),
+        inputs: recipe
+            .inputs
+            .iter()
+            .map(|(item, count)| {
+                (
+                    items.design(item).name.clone(),
+                    format!("{} / {count}", site.hold.count(item)),
+                )
+            })
+            .collect(),
+        fee: (fee_cr > 0).then(|| format!("{} a batch", cr_text(u64::from(fee_cr)))),
+        duration: format!("{} s a batch", recipe.duration_secs),
+    }
+}
+
+/// The batch form of `batches` batches of `recipe` at `site`, on a slider
+/// up to `most`.
+fn batch_view(
     recipe: &RecipeDesign,
     items: &GameItems,
     site: &CraftSite,
     batches: u32,
-) -> CraftCardView {
+    most: u32,
+) -> CraftBatchView {
     let output = items.design(recipe.output_item());
     let fee_cr = recipe.site.fee_cr();
     let mut takes: Vec<String> = recipe
@@ -340,23 +398,9 @@ fn card_view(
     if fee_cr > 0 {
         takes.push(cr_text(u64::from(fee_cr) * u64::from(batches)));
     }
-    CraftCardView {
-        recipe: recipe.id.clone(),
-        title: format!("{} x{}", output.name, recipe.output_count()),
-        site: recipe.site.tag(),
-        inputs: recipe
-            .inputs
-            .iter()
-            .map(|(item, count)| {
-                (
-                    items.design(item).name.clone(),
-                    format!("{} / {count}", site.hold.count(item)),
-                )
-            })
-            .collect(),
-        fee: (fee_cr > 0).then(|| format!("{} a batch", cr_text(u64::from(fee_cr)))),
-        duration: format!("{} s a batch", recipe.duration_secs),
+    CraftBatchView {
         batches,
+        most,
         takes: format!("Takes {}", takes.join(", ")),
         makes: format!(
             "Makes {} {} in {} s",
@@ -480,7 +524,8 @@ pub(crate) fn manage_craft_view(
 }
 
 /// Build the Craft view: the notice line, the job row, then the category row
-/// with Back and the tiles beside the focus card. The reconcilers fill them.
+/// with Back and the tiles beside the focus card, its recipe rows over the
+/// batch form. The reconcilers fill them.
 pub(crate) fn craft_body(body: &mut ChildSpawnerCommands) {
     body.spawn((CraftNoticeMarker, Name::new(CRAFT_NOTICE), notice_line()));
     spawn_job_row(body);
@@ -541,11 +586,90 @@ pub(crate) fn craft_body(body: &mut ChildSpawnerCommands) {
                     Hovered::default(),
                 ));
             });
-        split.spawn((
-            CraftFocusCard::default(),
-            Name::new("CraftCard"),
-            side_panel(Overflow::clip()),
-        ));
+        split
+            .spawn((Name::new("CraftCard"), side_panel(Overflow::clip())))
+            .with_children(|card| {
+                card.spawn((
+                    CraftFocusCard::default(),
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        row_gap: px(10),
+                        flex_shrink: 0.0,
+                        ..default()
+                    },
+                ));
+                spawn_batch_form(card);
+            });
+    });
+}
+
+/// The batch form: the count over the slider's top with Max, the slider,
+/// what the batches take and make, the refusal and Craft. Spawned once and
+/// written in place by [`update_craft_view`], so a drag keeps its slider.
+fn spawn_batch_form(card: &mut ChildSpawnerCommands) {
+    card.spawn((
+        CraftBatchForm,
+        Node {
+            display: Display::None,
+            flex_direction: FlexDirection::Column,
+            row_gap: px(10),
+            flex_shrink: 0.0,
+            ..default()
+        },
+    ))
+    .with_children(|form| {
+        form.spawn(divider());
+        form.spawn(Node {
+            column_gap: px(8),
+            ..control_row(JustifyContent::FlexStart)
+        })
+        .with_children(|row| {
+            row.spawn(themed_label("Batches", 12.0, UiColorType::TextBody));
+            row.spawn((
+                Name::new(CRAFT_BATCHES),
+                CraftBatchField::Count,
+                themed_label("1", 15.0, UiColorType::Text),
+                TextLayout::new(Justify::Left, LineBreak::NoWrap),
+            ));
+            row.spawn((
+                CraftBatchField::Most,
+                themed_label("", 15.0, UiColorType::Text),
+                TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                Node {
+                    flex_grow: 1.0,
+                    ..default()
+                },
+            ));
+            row.spawn((
+                Name::new(CRAFT_MAX),
+                compact_button(ButtonSpec::new("Max").fit().ghost()),
+            ))
+            .observe(on_craft_max);
+        });
+        form.spawn((
+            Name::new(CRAFT_SLIDER),
+            CraftBatchSlider,
+            Slider {
+                track_click: TrackClick::Snap,
+                ..default()
+            },
+            SliderValue(1.0),
+            SliderRange::new(1.0, 1.0),
+            SliderStep(1.0),
+            SliderPrecision(0),
+            slider_track(0.0),
+        ))
+        .observe(on_craft_slider);
+        for (field, color) in [
+            (CraftBatchField::Takes, UiColorType::TextBody),
+            (CraftBatchField::Makes, UiColorType::Text),
+            (CraftBatchField::Refusal, UiColorType::Danger),
+        ] {
+            form.spawn((field, themed_label("", 12.0, color)));
+        }
+        refusable_button(form, CRAFT_BUTTON.to_string(), "Craft", None)
+            .insert(CraftStartButton)
+            .observe(on_craft_start);
     });
 }
 
@@ -682,13 +806,14 @@ pub(crate) fn update_craft_job_row(
     }
 }
 
-/// Fill the category row, the tiles and the focus card from the recipes and
-/// the player ship, rebuilding each only when what it shows changes.
+/// Fill the category row, the tiles and the focus card's recipe rows from
+/// the recipes and the player ship, rebuilding each only when what it shows
+/// changes, and write the batch form in place.
 /// A container a new view spawned starts with nothing drawn, so it fills
 /// on its first frame.
 #[expect(
     clippy::too_many_arguments,
-    reason = "the catalogs, the ship, the stations and the three containers"
+    reason = "the catalogs, the ship, the stations, the three containers and the batch form"
 )]
 pub(crate) fn update_craft_view(
     mut commands: Commands,
@@ -701,6 +826,7 @@ pub(crate) fn update_craft_view(
     mut q_bar: Query<(Entity, &mut CraftFilterBar)>,
     mut q_grid: Query<(Entity, &mut CraftTileGrid)>,
     mut q_card: Query<(Entity, &mut CraftFocusCard)>,
+    form: CraftBatchFormParts,
 ) {
     let (Some(items), Some(recipes)) = (items.as_deref(), recipes.as_deref()) else {
         return;
@@ -728,10 +854,10 @@ pub(crate) fn update_craft_view(
         .selected
         .as_ref()
         .map(|selected| recipes.design(selected));
-    runtime.batches = runtime.batches.clamp(1, CRAFT_BATCHES_MAX);
     runtime.max_batches = picked.map_or(1, |recipe| {
         craft_batches_max(recipe, &site.hold, site.own_cr).max(1)
     });
+    runtime.batches = runtime.batches.clamp(1, runtime.max_batches);
 
     for (bar, mut drawn) in &mut q_bar {
         let key = categories.clone();
@@ -768,7 +894,7 @@ pub(crate) fn update_craft_view(
             drawn.0 = Some(tiles.clone());
         }
     }
-    let card = picked.map(|recipe| card_view(recipe, items, &site, runtime.batches));
+    let card = picked.map(|recipe| card_view(recipe, items, &site));
     for (panel, mut drawn) in &mut q_card {
         if drawn.0.as_ref() != Some(&card) {
             commands.entity(panel).despawn_children();
@@ -783,6 +909,107 @@ pub(crate) fn update_craft_view(
                 }
             });
             drawn.0 = Some(card.clone());
+        }
+    }
+    let batch =
+        picked.map(|recipe| batch_view(recipe, items, &site, runtime.batches, runtime.max_batches));
+    write_batch_form(&mut commands, form, batch.as_ref());
+}
+
+/// The batch form's nodes [`write_batch_form`] writes.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(crate) struct CraftBatchFormParts<'w, 's> {
+    forms: Query<'w, 's, &'static mut Node, (With<CraftBatchForm>, Without<CraftBatchSlider>)>,
+    fields: Query<'w, 's, (&'static CraftBatchField, &'static mut Text)>,
+    sliders: Query<
+        'w,
+        's,
+        (
+            Entity,
+            &'static SliderValue,
+            &'static SliderRange,
+            &'static mut Node,
+        ),
+        (With<CraftBatchSlider>, Without<CraftBatchForm>),
+    >,
+    buttons: Query<
+        'w,
+        's,
+        (Entity, Has<InteractionDisabled>, Option<&'static Tooltip>),
+        With<CraftStartButton>,
+    >,
+}
+
+/// Show the batch form for `batch`, or hide it with no recipe picked. Each
+/// part is written only on a difference, so the slider does not fight a
+/// drag. The slider hides while one batch is the most, where it could not
+/// move; Max and Craft still work.
+fn write_batch_form(
+    commands: &mut Commands,
+    mut form: CraftBatchFormParts,
+    batch: Option<&CraftBatchView>,
+) {
+    let display = if batch.is_some() {
+        Display::Flex
+    } else {
+        Display::None
+    };
+    for mut node in &mut form.forms {
+        if node.display != display {
+            node.display = display;
+        }
+    }
+    let Some(batch) = batch else {
+        return;
+    };
+    for (field, mut text) in &mut form.fields {
+        let value = match field {
+            CraftBatchField::Count => batch.batches.to_string(),
+            CraftBatchField::Most => format!("of {}", batch.most),
+            CraftBatchField::Takes => batch.takes.clone(),
+            CraftBatchField::Makes => batch.makes.clone(),
+            CraftBatchField::Refusal => batch.refusal.clone().unwrap_or_default(),
+        };
+        if text.0 != value {
+            text.0 = value;
+        }
+    }
+    for (slider, value, range, mut node) in &mut form.sliders {
+        let display = if batch.most > 1 {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        if node.display != display {
+            node.display = display;
+        }
+        let wanted = SliderRange::new(1.0, batch.most as f32);
+        if *range != wanted {
+            commands.entity(slider).insert(wanted);
+        }
+        let shown = batch.batches as f32;
+        if value.0 != shown {
+            commands.entity(slider).insert(SliderValue(shown));
+        }
+    }
+    for (button, disabled, tooltip) in &form.buttons {
+        match &batch.refusal {
+            Some(why) => {
+                if !disabled {
+                    commands.entity(button).insert(InteractionDisabled);
+                }
+                if tooltip.is_none_or(|tooltip| tooltip.0 != *why) {
+                    commands.entity(button).insert(Tooltip(why.clone()));
+                }
+            }
+            None => {
+                if disabled {
+                    commands.entity(button).remove::<InteractionDisabled>();
+                }
+                if tooltip.is_some() {
+                    commands.entity(button).remove::<Tooltip>();
+                }
+            }
         }
     }
 }
@@ -890,7 +1117,7 @@ fn spawn_tile(grid: &mut ChildSpawnerCommands, tile: &CraftTileView, icons: &Int
     });
 }
 
-/// The focus card's rows for `card`.
+/// The focus card's recipe rows for `card`.
 fn spawn_card(panel: &mut ChildSpawnerCommands, card: &CraftCardView) {
     panel
         .spawn(control_row(JustifyContent::SpaceBetween))
@@ -911,58 +1138,6 @@ fn spawn_card(panel: &mut ChildSpawnerCommands, card: &CraftCardView) {
         panel.spawn(themed_label(fee, 12.0, UiColorType::TextBody));
     }
     panel.spawn(themed_label(&card.duration, 12.0, UiColorType::TextBody));
-    panel.spawn(divider());
-    panel
-        .spawn(control_row(JustifyContent::FlexStart))
-        .with_children(|row| {
-            row.spawn(themed_label("Batches", 12.0, UiColorType::TextBody));
-            for (step, label, name) in [
-                (CraftBatchStepType::Less, "-", "CraftLess"),
-                (CraftBatchStepType::More, "+", CRAFT_MORE),
-                (CraftBatchStepType::Max, "Max", CRAFT_MAX),
-            ] {
-                if step == CraftBatchStepType::More {
-                    row.spawn((
-                        themed_label(&card.batches.to_string(), 13.0, UiColorType::Text),
-                        TextLayout::new(Justify::Center, LineBreak::NoWrap),
-                        Node {
-                            min_width: px(28),
-                            justify_content: JustifyContent::Center,
-                            ..default()
-                        },
-                    ));
-                }
-                row.spawn((
-                    Name::new(name),
-                    step,
-                    compact_button(ButtonSpec::new(label).fit().ghost()),
-                ))
-                .observe(on_craft_batch_step);
-            }
-        });
-    panel.spawn(themed_label(&card.takes, 12.0, UiColorType::TextBody));
-    panel.spawn(themed_label(&card.makes, 12.0, UiColorType::Text));
-    panel.spawn(themed_label(
-        card.refusal.as_deref().unwrap_or(""),
-        12.0,
-        UiColorType::Danger,
-    ));
-    let recipe = card.recipe.clone();
-    let batches = card.batches;
-    refusable_button(
-        panel,
-        CRAFT_BUTTON.to_string(),
-        "Craft",
-        card.refusal.as_deref(),
-    )
-    .observe(
-        move |_: On<Activate>, mut starts: MessageWriter<CraftStartCommand>| {
-            starts.write(CraftStartCommand {
-                recipe: recipe.clone(),
-                batches,
-            });
-        },
-    );
 }
 
 /// Show the category a chip picks.
@@ -1000,22 +1175,50 @@ fn on_craft_tile(
     }
 }
 
-/// Step the batch count: `-` down to 1, `+` up to [`CRAFT_BATCHES_MAX`],
-/// Max to what the hold and the balance cover.
-fn on_craft_batch_step(
-    activate: On<Activate>,
-    q_step: Query<&CraftBatchStepType>,
+/// Take the slider's value as the batch count, a whole number from 1 to
+/// the most the hold and the balance cover. A drag reports every frame it
+/// moves; only a new count ticks.
+fn on_craft_slider(
+    change: On<ValueChange<f32>>,
     mut runtime: ResMut<CraftRuntime>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
 ) {
-    let Ok(step) = q_step.get(activate.entity) else {
+    let batches = (change.value.round().max(1.0) as u32).min(runtime.max_batches.max(1));
+    if runtime.batches != batches {
+        runtime.batches = batches;
+        if let Some(bank) = bank.as_deref() {
+            commands.trigger(PlaySound::ui(
+                bank.get(UiSfx::UiTick),
+                SoundCategoryType::UiTick,
+            ));
+        }
+    }
+}
+
+/// Set the batch count to what the hold and the balance cover.
+fn on_craft_max(_activate: On<Activate>, mut runtime: ResMut<CraftRuntime>) {
+    runtime.batches = runtime.max_batches.max(1);
+}
+
+/// Start the batch form's count of the picked recipe. A disabled Craft
+/// starts nothing; the button widget drops a press on it, and this guard
+/// also drops an `Activate` triggered directly.
+fn on_craft_start(
+    activate: On<Activate>,
+    q_disabled: Query<(), With<InteractionDisabled>>,
+    runtime: Res<CraftRuntime>,
+    mut starts: MessageWriter<CraftStartCommand>,
+) {
+    if q_disabled.contains(activate.entity) {
         return;
-    };
-    let batches = runtime.batches();
-    runtime.batches = match step {
-        CraftBatchStepType::Less => batches.saturating_sub(1).max(1),
-        CraftBatchStepType::More => (batches + 1).min(CRAFT_BATCHES_MAX),
-        CraftBatchStepType::Max => runtime.max_batches.max(1),
-    };
+    }
+    if let Some(recipe) = runtime.selected.clone() {
+        starts.write(CraftStartCommand {
+            recipe,
+            batches: runtime.batches(),
+        });
+    }
 }
 
 /// Cancel the player ship's craft job and say what it made.
