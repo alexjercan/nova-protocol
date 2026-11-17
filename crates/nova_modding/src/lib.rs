@@ -189,14 +189,14 @@ pub enum Content {
     /// until a recipe of another pack pays is the mod refused.
     Recipe(RecipeDesign),
     /// A [`ConsumableDesign`] - registers into `GameConsumables` keyed by its
-    /// item id. Makes an item usable in flight: one use takes one item and
-    /// starts a repair, a thrust boost or a torpedo flare.
+    /// item id. Makes an item usable from the Inventory pane: one use takes
+    /// one item and starts a repair over time.
     ///
     /// A mod makes any item usable by declaring a consumable for it, and
     /// replaces a base one by declaring the same item, like a recipe. An
-    /// unknown item, an item engine code spends, a bad number, a flare lure
-    /// inside the largest torpedo blast and two consumables of one effect
-    /// type fail at lint and refuse the owning mod at load.
+    /// unknown item, an item engine code spends, a bad number and a second
+    /// consumable of one item in a pack fail at lint and refuse the owning
+    /// mod at load.
     Consumable(ConsumableDesign),
 }
 

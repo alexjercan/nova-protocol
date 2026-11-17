@@ -40,7 +40,7 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 - **Structural depth** - how far into a hull a blast reaches. A section that survives its pressure stops the wave; a destroyed one passes 65 percent on. See [What a warhead does to a hull](../sections/torpedo-bay/#what-a-warhead-does-to-a-hull).
 - **Wreck** - a healthy piece of hull that a cut disconnected from the controller. It keeps drifting, keeps its shape and still takes damage, but nothing aboard flies or fires it. See [Taking a ship apart](../ships/#taking-a-ship-apart).
 - **Neutralized** - out of the fight for good. An armed ship that loses its last working gun, or the flight computer it had, stops fighting; an unarmed ship that ever had a thruster goes the same way once the last working one dies. Either way the hull survives: the [viewfinder](../hud/#target-viewfinder) tags the wreck NEUTRALIZED, its mounts stop answering, and it stays rather than despawning. A non-player ship drops its order and brakes to a stop on its own RCS while it can, then drifts. See [Taking a ship apart](../ships/#taking-a-ship-apart).
-- **Consumable** - a hold item you use for one effect: a repair kit, a boost cell or a decoy flare, on keys 1 to 3. See [Crafting and consumables](../crafting/#consumables).
+- **Consumable** - a hold item you use for one effect. The base game has one, the repair kit: select it in the Inventory pane and press **Use**. See [Crafting and consumables](../crafting/#consumables).
 
 ## Targeting
 

@@ -79,6 +79,18 @@ pub(super) fn chip_layout_app() -> App {
     app
 }
 
+/// Lay the rig out on a `width` px wide target from the next frame, for a
+/// screen narrower than [`RIG_TARGET`].
+pub(super) fn set_rig_width(app: &mut App, width: u32) {
+    let mut cameras = app.world_mut().query::<&mut Camera>();
+    for mut camera in cameras.iter_mut(app.world_mut()) {
+        camera.computed.target_info = Some(RenderTargetInfo {
+            physical_size: UVec2::new(width, RIG_TARGET.y),
+            scale_factor: 1.0,
+        });
+    }
+}
+
 /// Decode a real PNG from the repo's `assets/` tree straight into
 /// `Assets<Image>` and return its handle.
 ///

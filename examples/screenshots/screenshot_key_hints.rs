@@ -11,8 +11,8 @@
 //! - `key-hints-weapons.png`: the stance key held. The row adds FIRE,
 //!   TORPEDO and RAILGUN with the keys of their sections.
 //! - `key-hints-every-chip.png`: the stance key held and every verb under
-//!   the scenario spotlight, so all eighteen chips draw. At 1280 px one line
-//!   cannot hold them: the right chips wrap onto a line above the row.
+//!   the scenario spotlight, so all fifteen chips draw whole on screen, and
+//!   no two overlap.
 //! - `key-hints-match-chord.png`: the RCS modifier held. The STOP chip reads
 //!   `MATCH` and the RCS chip is lit.
 //! - `key-hints-match-flying-chord.png`: MATCH engaged, the modifier still

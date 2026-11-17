@@ -1,59 +1,46 @@
-//! system_ship_consumables: each base consumable does what it says, and a
-//! refused use keeps the item.
+//! system_ship_consumables: a repair kit heals over time, and a refused use
+//! keeps the item.
 //!
-//! The player's hull floats alone with a torpedo stand 2000 m off its nose:
-//! a controller over a hull block (the hold), a port on its nose and a drive
-//! on its tail. THE HOLD AND THE HULL DAMAGE ARE DISCLOSED FIXTURE STATE: two
-//! repair kits, two boost cells and two decoy flares, and the hold section
+//! The player's hull floats alone: a controller over a hull block (the
+//! hold), a port on its nose and a drive on its tail. THE HOLD AND THE HULL
+//! DAMAGE ARE DISCLOSED FIXTURE STATE: two repair kits, and the hold section
 //! set 60 HP below its maximum. The walk writes the same
-//! [`ConsumableUseRequest`] the flight keys 1/2/3 and the Inventory Use
-//! button write. The stand has no controller; a scripted order fires one
-//! torpedo at the player.
+//! [`ConsumableUseRequest`] the Inventory Use button writes.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 0 | `outcome: a repair kit heals over time` | the kit started and took one kit; a second kit while it ran was refused `Running` and kept the item; the hold section came back to full health and the effect ended |
-//! | 1 | `outcome: a boost cell scales thrust` | the cell started and took one cell; the ship's thrust factor read 1.5; a second cell while it ran was refused `Running` and kept the item |
-//! | 2 | `outcome: a decoy flare pulls a torpedo off` | the flare decoyed the one homing torpedo and took one flare; the torpedo lost its lock and flew to a point; it fuzed there and no player section lost health |
-//! | 3 | `outcome: a flare with no torpedo is refused` | a second flare with no torpedo in its band was refused `NoTorpedo` and kept the item |
+//! | 1 | `outcome: a kit with nothing to repair is refused` | a kit on the healed ship was refused `NothingToRepair` and kept the item |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example system_ship_consumables --features debug
-//! # look for: `ship consumables probe: PASS` (four lines),
+//! # look for: `ship consumables probe: PASS` (two lines),
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
 use bevy::prelude::*;
 use clap::Parser;
-use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
 #[command(name = "system_ship_consumables")]
 #[command(version = "1.0.0")]
-#[command(about = "A repair kit heals, a boost cell scales thrust, a decoy flare pulls a torpedo off, and a refused use keeps the item. Autopilot-only correctness range", long_about = None)]
+#[command(about = "A repair kit heals over time, and a refused use keeps the item. Autopilot-only correctness range", long_about = None)]
 struct Cli;
 
 /// The scenario id the void loads under.
 const SCENARIO_ID: &str = "ship_consumables_rig";
 /// The player object id.
 const PLAYER_ID: &str = "player_spaceship";
-/// The torpedo stand's object id.
-const STAND_ID: &str = "torpedo_stand";
 
-/// The base consumable items.
+/// The base repair kit item.
 const KIT: &str = "RepairKit";
-const CELL: &str = "BoostCell";
-const FLARE: &str = "DecoyFlare";
 
-/// The disclosed fixture: two of each consumable, and the hold section
-/// 60 HP down, under the kit's 80 HP.
-const HOLD_EACH: u32 = 2;
+/// The disclosed fixture: two kits, and the hold section 60 HP down, under
+/// the kit's 80 HP.
+const HOLD_KITS: u32 = 2;
 const HULL_DAMAGE: f32 = 60.0;
-
-/// The torpedo stand's range, inside the base flare band of 400 to 3000 m.
-const STAND_RANGE: Meters = Meters(2000.0);
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -78,31 +65,18 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), setup_void);
 }
 
-fn setup_void(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
-    let placed =
-        |id: &str, name: &str, position: Meters3, ship: SpaceshipConfig| ScenarioObjectConfig {
-            base: BaseScenarioObjectConfig {
-                id: id.to_string(),
-                name: name.to_string(),
-                position,
-                rotation: Quat::IDENTITY,
-            },
-            kind: ScenarioObjectKind::Spaceship(ship),
-        };
-    let player = placed(PLAYER_ID, "Player", Meters3::ZERO, player_ship());
-    // A lone bay with no controller: the scripted order is its whole brain.
-    let stand = placed(
-        STAND_ID,
-        "Torpedo Stand",
-        Meters3(Vec3::new(0.0, 0.0, -STAND_RANGE.0)),
-        fixtures::ship(
-            &sections,
-            SpaceshipController::None,
-            &[SectionSpec::new("bay", "torpedo_section", Vec3::ZERO)],
-        ),
-    );
+fn setup_void(mut commands: Commands, game_assets: Res<GameAssets>) {
+    let player = ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: PLAYER_ID.to_string(),
+            name: "Player".to_string(),
+            position: Meters3::ZERO,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Spaceship(player_ship()),
+    };
     commands.trigger(LoadScenario(ScenarioConfig {
-        description: "A lone player ship with consumables aboard, and a torpedo stand.".to_string(),
+        description: "A lone player ship with repair kits aboard.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             position: None,
@@ -110,10 +84,7 @@ fn setup_void(mut commands: Commands, game_assets: Res<GameAssets>, sections: Re
             once: false,
             filters: vec![],
             actions: [
-                vec![
-                    EventActionConfig::SpawnScenarioObject(player),
-                    EventActionConfig::SpawnScenarioObject(stand),
-                ],
+                vec![EventActionConfig::SpawnScenarioObject(player)],
                 ThreePointRig::around("rig", Meters3::ZERO, 1.0).actions(),
             ]
             .concat(),
@@ -158,11 +129,7 @@ fn player_ship() -> SpaceshipConfig {
             ],
             ..default()
         }),
-        inventory: ShipInventoryStock::new([
-            (KIT.into(), HOLD_EACH),
-            (CELL.into(), HOLD_EACH),
-            (FLARE.into(), HOLD_EACH),
-        ]),
+        inventory: ShipInventoryStock::new([(KIT.into(), HOLD_KITS)]),
         ..default()
     }
 }
@@ -182,16 +149,11 @@ mod walk {
     #[derive(Resource, Default, Debug)]
     struct ConsumableWatch(Vec<ConsumableUsed>);
 
-    /// The player's summed section health when the flare went off.
-    #[derive(Resource, Default, Debug)]
-    struct HealthAtFlare(f32);
-
     pub(super) struct ConsumableWatchPlugin;
 
     impl Plugin for ConsumableWatchPlugin {
         fn build(&self, app: &mut App) {
             app.init_resource::<ConsumableWatch>();
-            app.init_resource::<HealthAtFlare>();
             app.add_systems(
                 Update,
                 (|mut uses: MessageReader<ConsumableUsed>, mut watch: ResMut<ConsumableWatch>| {
@@ -209,98 +171,74 @@ mod walk {
         Arc::new(check)
     }
 
-    fn ship_by_id(world: &World, id: &str) -> Option<Entity> {
+    fn player_ship(world: &World) -> Option<Entity> {
         let mut ships =
             world.try_query_filtered::<(Entity, &EntityId), With<SpaceshipRootMarker>>()?;
         ships
             .iter(world)
-            .find(|(_, entity_id)| ***entity_id == *id)
+            .find(|(_, entity_id)| ***entity_id == *PLAYER_ID)
             .map(|(entity, _)| entity)
     }
 
     fn player(world: &World) -> Entity {
-        ship_by_id(world, PLAYER_ID).expect("ship consumables probe: the player is up")
+        player_ship(world).expect("ship consumables probe: the player is up")
     }
 
-    /// The player's repair kits, boost cells and decoy flares.
-    fn hold(world: &World) -> (u32, u32, u32) {
-        let hold = world
+    /// The player's repair kits.
+    fn kits(world: &World) -> u32 {
+        world
             .get::<ShipInventory>(player(world))
-            .expect("ship consumables probe: every ship carries a hold");
-        (
-            hold.count(&KIT.into()),
-            hold.count(&CELL.into()),
-            hold.count(&FLARE.into()),
-        )
-    }
-
-    /// The player's sections, by section id.
-    fn sections(world: &World) -> Vec<(String, Entity, Health)> {
-        let Some(children) = world.get::<Children>(player(world)) else {
-            return Vec::new();
-        };
-        children
-            .iter()
-            .filter_map(|child| {
-                let id = world.get::<EntityId>(child)?;
-                let health = world.get::<Health>(child)?;
-                Some((id.0.clone(), child, health.clone()))
-            })
-            .collect()
+            .expect("ship consumables probe: every ship carries a hold")
+            .count(&KIT.into())
     }
 
     fn hold_section(world: &World) -> (Entity, Health) {
-        sections(world)
-            .into_iter()
-            .find(|(id, _, _)| id == "hold")
-            .map(|(_, entity, health)| (entity, health))
+        let children = world
+            .get::<Children>(player(world))
+            .expect("ship consumables probe: the player has sections");
+        children
+            .iter()
+            .find_map(|child| {
+                let id = world.get::<EntityId>(child)?;
+                if id.0 != "hold" {
+                    return None;
+                }
+                Some((child, world.get::<Health>(child)?.clone()))
+            })
             .expect("ship consumables probe: the hold section is up")
     }
 
-    fn health_sum(world: &World) -> f32 {
-        sections(world)
-            .iter()
-            .map(|(_, _, health)| health.current)
-            .sum()
-    }
-
-    fn running(world: &World, slot: ConsumableSlotType) -> Option<f32> {
-        let consumables = world.resource::<GameConsumables>();
-        world
-            .get::<ShipConsumableEffects>(player(world))?
-            .remaining_secs(consumables, slot)
+    fn running(world: &World) -> bool {
+        world.get::<ShipConsumableEffect>(player(world)).is_some()
     }
 
     fn uses(world: &World) -> usize {
         world.resource::<ConsumableWatch>().0.len()
     }
 
-    fn last_use(world: &World) -> ConsumableUsed {
-        world
-            .resource::<ConsumableWatch>()
-            .0
-            .last()
-            .cloned()
-            .expect("ship consumables probe: a use was answered")
-    }
-
-    fn use_slot(slot: ConsumableSlotType) -> impl Fn(&mut World) + Send + Sync + 'static {
-        move |world: &mut World| {
-            let ship = player(world);
-            world.write_message(ConsumableUseRequest { ship, slot });
-        }
+    fn use_kit(world: &mut World) {
+        let ship = player(world);
+        world.write_message(ConsumableUseRequest {
+            ship,
+            item: KIT.into(),
+        });
     }
 
     fn answered(count: usize) -> Arc<Predicate> {
         when(move |world| uses(world) >= count)
     }
 
-    fn assert_use(world: &World, item: &str, outcome: ConsumableOutcomeType) {
-        let used = last_use(world);
+    fn assert_use(world: &World, outcome: ConsumableOutcomeType) {
+        let used = world
+            .resource::<ConsumableWatch>()
+            .0
+            .last()
+            .cloned()
+            .expect("ship consumables probe: a use was answered");
         assert_eq!(
             (used.ship, used.item, used.outcome),
-            (player(world), ItemDesignId::from(item), outcome),
-            "ship consumables probe: the use of {item}"
+            (player(world), ItemDesignId::from(KIT), outcome),
+            "ship consumables probe: the use of a kit"
         );
     }
 
@@ -312,9 +250,9 @@ mod walk {
     }
 
     fn assert_the_fixture(world: &mut World) {
-        assert_eq!(hold(world), (HOLD_EACH, HOLD_EACH, HOLD_EACH));
+        assert_eq!(kits(world), HOLD_KITS);
         assert!(
-            world.get::<ShipConsumableEffects>(player(world)).is_none(),
+            !running(world),
             "ship consumables probe: nothing runs at the start"
         );
         let (_, health) = hold_section(world);
@@ -333,24 +271,23 @@ mod walk {
     }
 
     fn assert_the_kit_started(world: &mut World) {
-        assert_use(world, KIT, ConsumableOutcomeType::Started);
+        assert_use(world, ConsumableOutcomeType::Started);
         assert_eq!(
-            hold(world).0,
-            HOLD_EACH - 1,
+            kits(world),
+            HOLD_KITS - 1,
             "ship consumables probe: one kit spent"
         );
-        assert!(running(world, ConsumableSlotType::Repair).is_some());
+        assert!(running(world), "ship consumables probe: the kit runs");
     }
 
     fn assert_the_kit_refused(world: &mut World) {
         assert_use(
             world,
-            KIT,
             ConsumableOutcomeType::Refused(ConsumableRefusalType::Running),
         );
         assert_eq!(
-            hold(world).0,
-            HOLD_EACH - 1,
+            kits(world),
+            HOLD_KITS - 1,
             "ship consumables probe: the refused kit kept"
         );
     }
@@ -362,7 +299,7 @@ mod walk {
             (health.max - health.current).abs() < 1e-3,
             "ship consumables probe: the hold section healed to full, read {health:?}"
         );
-        assert!(running(world, ConsumableSlotType::Repair).is_none());
+        assert!(!running(world), "ship consumables probe: the kit ended");
         info!(
             "ship consumables probe: PASS a repair kit healed the hold section to {}",
             health.current
@@ -374,167 +311,21 @@ mod walk {
         );
     }
 
-    fn assert_the_boost_started(world: &mut World) {
-        assert_use(world, CELL, ConsumableOutcomeType::Started);
-        assert_eq!(
-            hold(world).1,
-            HOLD_EACH - 1,
-            "ship consumables probe: one cell spent"
-        );
-        assert!(
-            world.get::<Autopilot>(player(world)).is_none(),
-            "ship consumables probe: the player flies by hand"
-        );
-        let factor = world
-            .get::<ShipConsumableEffects>(player(world))
-            .expect("ship consumables probe: the boost runs")
-            .thrust_factor(world.resource::<GameConsumables>());
-        assert_eq!(factor, 1.5, "ship consumables probe: the base boost factor");
-    }
-
-    /// Claim 1: the second cell was refused and kept.
-    fn assert_the_boost_refused(world: &mut World) {
+    /// Claim 1: a kit on the healed ship was refused and kept.
+    fn assert_nothing_to_repair(world: &mut World) {
         assert_use(
             world,
-            CELL,
-            ConsumableOutcomeType::Refused(ConsumableRefusalType::Running),
+            ConsumableOutcomeType::Refused(ConsumableRefusalType::NothingToRepair),
         );
         assert_eq!(
-            hold(world).1,
-            HOLD_EACH - 1,
-            "ship consumables probe: the refused cell kept"
+            kits(world),
+            HOLD_KITS - 1,
+            "ship consumables probe: the refused kit kept"
         );
-        info!("ship consumables probe: PASS a boost cell scaled thrust by 1.5");
+        info!("ship consumables probe: PASS a kit with nothing to repair was refused and kept");
         marker(
             world,
-            "outcome: a boost cell scales thrust",
-            serde_json::json!({ "factor": 1.5 }),
-        );
-    }
-
-    fn order_torpedo(world: &mut World) {
-        let target = player(world);
-        let stand = ship_by_id(world, STAND_ID).expect("ship consumables probe: the stand is up");
-        let bays: Vec<Entity> = world
-            .query_filtered::<(Entity, &ChildOf), With<TorpedoSectionMarker>>()
-            .iter(world)
-            .filter(|(_, parent)| parent.parent() == stand)
-            .map(|(bay, _)| bay)
-            .collect();
-        assert_eq!(
-            bays.len(),
-            1,
-            "ship consumables probe: the stand has one bay"
-        );
-        world
-            .entity_mut(bays[0])
-            .insert(ScriptedTorpedoOrder { target });
-    }
-
-    /// The torpedoes homing on the player, with their distance in meters.
-    fn homing(world: &World) -> Vec<(Entity, Meters)> {
-        let player = player(world);
-        let Some(at) = world.get::<Transform>(player).map(|pose| pose.translation) else {
-            return Vec::new();
-        };
-        world
-            .try_query_filtered::<(Entity, &Transform, &TorpedoTargetEntity), With<TorpedoProjectileMarker>>()
-            .map(|mut torpedoes| {
-                torpedoes
-                    .iter(world)
-                    .filter(|(_, _, target)| ***target == player)
-                    .map(|(torpedo, pose, _)| {
-                        (torpedo, Meters::from_engine(pose.translation.distance(at)))
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-
-    fn torpedoes(world: &World) -> usize {
-        world
-            .try_query_filtered::<Entity, With<TorpedoProjectileMarker>>()
-            .map(|mut query| query.iter(world).count())
-            .unwrap_or_default()
-    }
-
-    fn a_torpedo_in_band() -> Arc<Predicate> {
-        when(|world| {
-            homing(world)
-                .iter()
-                .any(|(_, distance)| distance.0 > 400.0 && distance.0 < 3000.0)
-        })
-    }
-
-    fn record_health(world: &mut World) {
-        let sum = health_sum(world);
-        world.resource_mut::<HealthAtFlare>().0 = sum;
-    }
-
-    fn fire_flare(world: &mut World) {
-        record_health(world);
-        use_slot(ConsumableSlotType::Flare)(world);
-    }
-
-    fn assert_the_decoy(world: &mut World) {
-        assert_use(
-            world,
-            FLARE,
-            ConsumableOutcomeType::Decoyed { torpedoes: 1 },
-        );
-        assert_eq!(
-            hold(world).2,
-            HOLD_EACH - 1,
-            "ship consumables probe: one flare spent"
-        );
-        assert!(
-            homing(world).is_empty(),
-            "ship consumables probe: no torpedo homes on the player after the flare"
-        );
-        let mut decoyed = world.query_filtered::<(), (
-            With<TorpedoProjectileMarker>,
-            With<TorpedoTargetPosition>,
-            Without<TorpedoTargetEntity>,
-        )>();
-        assert_eq!(
-            decoyed.iter(world).count(),
-            1,
-            "ship consumables probe: the torpedo flies to a point"
-        );
-    }
-
-    /// Claim 2: the decoyed torpedo fuzed away from the ship.
-    fn assert_the_miss(world: &mut World) {
-        let before = world.resource::<HealthAtFlare>().0;
-        let after = health_sum(world);
-        assert!(
-            (after - before).abs() < 1e-3,
-            "ship consumables probe: no player section lost health, {before} then {after}"
-        );
-        info!("ship consumables probe: PASS a decoy flare pulled a torpedo off the ship");
-        marker(
-            world,
-            "outcome: a decoy flare pulls a torpedo off",
-            serde_json::json!({ "health": after }),
-        );
-    }
-
-    /// Claim 3: a flare with no torpedo in its band was refused and kept.
-    fn assert_the_flare_refused(world: &mut World) {
-        assert_use(
-            world,
-            FLARE,
-            ConsumableOutcomeType::Refused(ConsumableRefusalType::NoTorpedo),
-        );
-        assert_eq!(
-            hold(world).2,
-            HOLD_EACH - 1,
-            "ship consumables probe: the refused flare kept"
-        );
-        info!("ship consumables probe: PASS a flare with no torpedo was refused and kept");
-        marker(
-            world,
-            "outcome: a flare with no torpedo is refused",
+            "outcome: a kit with nothing to repair is refused",
             serde_json::json!({}),
         );
     }
@@ -546,13 +337,12 @@ mod walk {
             .step("ship consumables: load the void")
             .enter(GameStates::Loading)
             .until(when(|world| {
-                ship_by_id(world, STAND_ID).is_some()
-                    && ship_by_id(world, PLAYER_ID).is_some_and(|player| {
-                        world.get::<ShipInventory>(player).is_some()
-                            && world
-                                .get::<Children>(player)
-                                .is_some_and(|children| children.len() >= 4)
-                    })
+                player_ship(world).is_some_and(|player| {
+                    world.get::<ShipInventory>(player).is_some()
+                        && world
+                            .get::<Children>(player)
+                            .is_some_and(|children| children.len() >= 4)
+                })
             }))
             .deadline(SESSION_SECS)
             .add()
@@ -565,7 +355,7 @@ mod walk {
             .until(frames(1))
             .add()
             .step("ship consumables: use a repair kit")
-            .on_enter(use_slot(ConsumableSlotType::Repair))
+            .on_enter(use_kit)
             .until(answered(1))
             .deadline(SESSION_SECS)
             .add()
@@ -574,7 +364,7 @@ mod walk {
             .until(frames(1))
             .add()
             .step("ship consumables: use a second kit while it runs")
-            .on_enter(use_slot(ConsumableSlotType::Repair))
+            .on_enter(use_kit)
             .until(answered(2))
             .deadline(SESSION_SECS)
             .add()
@@ -583,62 +373,20 @@ mod walk {
             .until(frames(1))
             .add()
             .step("ship consumables: run the repair on the flight clock")
-            .until(when(|world| {
-                running(world, ConsumableSlotType::Repair).is_none()
-            }))
+            .until(when(|world| !running(world)))
             .deadline(SESSION_SECS)
             .add()
             .step("ship consumables: check the repair")
             .on_enter(assert_the_repair)
             .until(frames(1))
             .add()
-            .step("ship consumables: use a boost cell")
-            .on_enter(use_slot(ConsumableSlotType::ThrustBoost))
+            .step("ship consumables: use a kit with nothing to repair")
+            .on_enter(use_kit)
             .until(answered(3))
             .deadline(SESSION_SECS)
             .add()
-            .step("ship consumables: check the boost started")
-            .on_enter(assert_the_boost_started)
-            .until(frames(1))
-            .add()
-            .step("ship consumables: use a second cell while it runs")
-            .on_enter(use_slot(ConsumableSlotType::ThrustBoost))
-            .until(answered(4))
-            .deadline(SESSION_SECS)
-            .add()
-            .step("ship consumables: check the second cell was refused")
-            .on_enter(assert_the_boost_refused)
-            .until(frames(1))
-            .add()
-            .step("ship consumables: fire a torpedo at the player")
-            .on_enter(order_torpedo)
-            .until(a_torpedo_in_band())
-            .deadline(SESSION_SECS)
-            .add()
-            .step("ship consumables: fire a decoy flare")
-            .on_enter(fire_flare)
-            .until(answered(5))
-            .deadline(SESSION_SECS)
-            .add()
-            .step("ship consumables: check the decoy")
-            .on_enter(assert_the_decoy)
-            .until(frames(1))
-            .add()
-            .step("ship consumables: the decoyed torpedo fuzes")
-            .until(when(|world| torpedoes(world) == 0))
-            .deadline(SESSION_SECS)
-            .add()
-            .step("ship consumables: check the miss")
-            .on_enter(assert_the_miss)
-            .until(frames(1))
-            .add()
-            .step("ship consumables: fire a flare with no torpedo")
-            .on_enter(use_slot(ConsumableSlotType::Flare))
-            .until(answered(6))
-            .deadline(SESSION_SECS)
-            .add()
-            .step("ship consumables: check the refused flare")
-            .on_enter(assert_the_flare_refused)
+            .step("ship consumables: check the refused kit")
+            .on_enter(assert_nothing_to_repair)
             .add()
     }
 }

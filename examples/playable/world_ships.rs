@@ -52,7 +52,7 @@
 //!
 //! | key | what it does |
 //! | - | - |
-//! | 5 / 6 / 7 / 8 | low advancement / high advancement / WFC / wrecks view; 1-3 are the consumable keys of a piloted ship |
+//! | 1 / 2 / 3 / 4 | low advancement / high advancement / WFC / wrecks view |
 //! | C | clad or strip every ship |
 //! | P | pilot the first matrix ship |
 //! | N | pilot the next matrix ship |
@@ -978,13 +978,13 @@ fn switch_scene_on_key(
     let next = if keyboard.just_pressed(KeyCode::KeyC) {
         *skin = skin.toggled();
         *scene
-    } else if keyboard.just_pressed(KeyCode::Digit5) {
+    } else if keyboard.just_pressed(KeyCode::Digit1) {
         SceneType::View(ViewType::Low)
-    } else if keyboard.just_pressed(KeyCode::Digit6) {
+    } else if keyboard.just_pressed(KeyCode::Digit2) {
         SceneType::View(ViewType::High)
-    } else if keyboard.just_pressed(KeyCode::Digit7) {
+    } else if keyboard.just_pressed(KeyCode::Digit3) {
         SceneType::View(ViewType::Wfc)
-    } else if keyboard.just_pressed(KeyCode::Digit8) {
+    } else if keyboard.just_pressed(KeyCode::Digit4) {
         SceneType::View(ViewType::Wrecks)
     } else if keyboard.just_pressed(KeyCode::KeyP) && flown > 0 {
         SceneType::Pilot(0)

@@ -211,7 +211,6 @@ pub fn register_bundles(
                         _ => None,
                     })
                     .collect(),
-                torpedo_blast: crate::items::largest_torpedo_blast(content.iter().copied()),
             })
         })
         .collect();

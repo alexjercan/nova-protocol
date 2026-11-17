@@ -335,15 +335,14 @@ impl Plugin for SpaceshipSectionPlugin {
                 .after(repair_jobs::RepairJobSystems),
         );
         // Consumables use and run on the same game clock, after the craft
-        // job: all three write the hold. The use runs before the torpedo
-        // target tracking, so a flared torpedo turns the frame of the press.
-        app.register_type::<consumables::ShipConsumableEffects>();
+        // job: all three write the hold.
+        app.register_type::<consumables::ShipConsumableEffect>();
         app.add_message::<consumables::ConsumableUseRequest>();
         app.add_message::<consumables::ConsumableUsed>();
         app.add_systems(
             Update,
             (
-                consumables::use_consumables.before(torpedo_section::update_target_position),
+                consumables::use_consumables,
                 consumables::advance_consumable_effects,
             )
                 .chain()

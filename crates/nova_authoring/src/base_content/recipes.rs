@@ -4,7 +4,7 @@
 //! `assets/base/recipes/base.content.ron`. Ship recipes run on every player
 //! hull, anywhere; station recipes run docked at a living station that
 //! offers Craft, for a fee per batch. The inputs and outputs are the base
-//! catalog's (`super::items`); three ship recipes make the consumables
+//! catalog's (`super::items`); one ship recipe makes the repair kit
 //! (`super::consumables`), and two make the dock parts a lost docking port
 //! rebuilds from in the field.
 //!
@@ -17,17 +17,13 @@ use nova_gameplay::prelude::{
     CraftSiteType, ItemDesignId, ItemRoleType, RecipeDesign, RecipeDesignId,
 };
 
-use super::items::{
-    ACTUATOR_PACK, ALLOY_PLATE, BOOST_CELL, DECOY_FLARE, DOCKING_COLLAR, REPAIR_KIT, SECTION_PANEL,
-};
+use super::items::{ACTUATOR_PACK, ALLOY_PLATE, DOCKING_COLLAR, REPAIR_KIT, SECTION_PANEL};
 
 /// The base game's recipes, in the order the file carries them: the ship
 /// recipes, then the station recipes.
 pub(crate) fn recipe_catalog() -> Vec<RecipeDesign> {
     use CraftSiteType::{Ship, Station};
-    use ItemRoleType::{
-        CarbonOre, HullPlate, IronOre, PdcRound, RailSlug, StoneOre, Torpedo, WaterIce,
-    };
+    use ItemRoleType::{CarbonOre, HullPlate, IronOre, PdcRound, RailSlug, StoneOre, Torpedo};
     let recipe = |id: &str,
                   inputs: &[(&str, u32)],
                   output: (&str, u32),
@@ -67,26 +63,12 @@ pub(crate) fn recipe_catalog() -> Vec<RecipeDesign> {
             6.0,
             Ship,
         ),
-        // The consumables are field supply, so all three craft on the ship.
+        // The repair kit is field supply, so it crafts on the ship.
         recipe(
             "base/repair_kit",
             &[(HullPlate.id(), 2), (SECTION_PANEL, 1)],
             (REPAIR_KIT, 1),
             12.0,
-            Ship,
-        ),
-        recipe(
-            "base/boost_cell",
-            &[(WaterIce.id(), 1), (CarbonOre.id(), 1)],
-            (BOOST_CELL, 1),
-            8.0,
-            Ship,
-        ),
-        recipe(
-            "base/decoy_flare",
-            &[(IronOre.id(), 1), (CarbonOre.id(), 1)],
-            (DECOY_FLARE, 1),
-            6.0,
             Ship,
         ),
         // A docking port field rebuild takes a collar and an actuator pack;

@@ -121,7 +121,7 @@ const WIKI_PAGES = [
         category: "World",
         tags: ["combat"],
         summary:
-            "The rules every weapon shares: turrets, torpedoes and the railgun on one reach ladder, cover, damage types and closing speed, how far a round travels, magazines, point defense and decoy flares.",
+            "The rules every weapon shares: turrets, torpedoes and the railgun on one reach ladder, cover, damage types and closing speed, how far a round travels, magazines, and point defense.",
         related: [
             "sections/turret",
             "sections/torpedo-bay",
@@ -138,7 +138,6 @@ const WIKI_PAGES = [
             "Magazines",
             "Point defense",
             "Your own battery",
-            "Decoy flares",
         ],
     },
     {
@@ -148,14 +147,14 @@ const WIKI_PAGES = [
         category: "World",
         tags: ["ships", "combat"],
         summary:
-            "The loop from ore to a fixed hull: get material, craft on the ship or at a station, use a repair kit, boost cell or decoy flare on keys 1 to 3, and repair or rebuild in the field.",
+            "The loop from ore to a fixed hull: get material, craft on the ship or at a station, use a repair kit from the Inventory pane, and repair or rebuild in the field.",
         related: ["interface", "combat-weapons", "keybinds", "hud"],
         headings: [
             "The loop",
             "Consumables",
             "Recipes",
             "Fixing the ship",
-            "Where consumables come from",
+            "Where repair kits come from",
         ],
     },
     {

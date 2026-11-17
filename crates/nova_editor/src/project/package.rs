@@ -17,7 +17,7 @@ use std::collections::{HashMap, HashSet};
 
 use bevy::{ecs::system::RunSystemOnce, prelude::*, ui_widgets::Activate};
 use nova_assets::{
-    items::{item_pack_faults, largest_torpedo_blast, ItemPack},
+    items::{item_pack_faults, ItemPack},
     merge_bundles,
     mod_cache::prelude::is_safe_id,
     mod_refs::prelude::{bare_asset_refs, resource_ref_violations, DEP_SCHEME, SELF_SCHEME},
@@ -421,7 +421,6 @@ fn item_findings(own: &str, data: &ProjectData, packs: &[VisiblePack]) -> Vec<Pr
                     _ => None,
                 })
                 .collect(),
-            torpedo_blast: largest_torpedo_blast(content.iter().copied()),
         })
         .collect();
     item_pack_faults(&packs)

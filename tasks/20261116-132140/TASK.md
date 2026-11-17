@@ -88,6 +88,19 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
     consumables. Never: sections as items (field rebuild already takes
     hold parts), ammo packs, shield cells or heat sinks.
 
+- Owner revision after play (2026-11-17), replaces parts of the second
+  slice:
+  - Keep only the repair kit. Boost cell and decoy flare are removed
+    (items, recipes, effects, stock, kits, lint). Owner: "flares are bad,
+    I don't like them, at least right now"; boost "kind of pointless".
+  - No flight keys for consumables: "I don't really want to be able to
+    use them from the world ... meh to add that many keybinds". The
+    Inventory Use button is the only way to use one; keys 1, 2, 3, their
+    dock chips and the section-key lint on 1-3 are removed.
+  - Owner ideas, not scheduled: a distress beacon item ("sounds good"),
+    and a tractor that pulls canisters in, as a section rather than a
+    consumable.
+
 ## Agent findings
 - 23 items in six categories (`assets/base/items/base.content.ron:3-236`,
   `crates/nova_gameplay/src/inventory.rs:391-406`); builders in
@@ -184,3 +197,8 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
   and Market rework (after task 20261116-133436), decoy against AI
   targeting, AI use of consumables, per-item use sounds, lure puff VFX,
   Inventory pane text pass.
+- Owner revision landed (2026-11-17): boost cell, decoy flare, keys 1-3,
+  their dock chips and the section-key lint removed; the repair kit stays,
+  used from the Inventory Use button only (`ConsumableType::Repair`, one
+  variant). Verified: targeted tests, content lint, workspace check, live
+  `consumables_sandbox` and `system_ship_consumables` PASS, frames read.

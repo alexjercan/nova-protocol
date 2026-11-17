@@ -195,7 +195,7 @@ pub fn build_recipe_content() -> Vec<Content> {
     build_recipes().into_iter().map(Content::Recipe).collect()
 }
 
-/// The base game's consumables, in key order.
+/// The base game's consumables.
 pub fn build_consumables() -> Vec<ConsumableDesign> {
     base_content::build().consumables
 }

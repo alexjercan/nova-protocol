@@ -335,33 +335,28 @@ on.
 
 <!-- Format and rules: crates/nova_gameplay/src/consumable.rs
      (`ConsumableDesign`, `ConsumableType`, `consumable_faults`,
-     CONSUMABLE_DURATION_MAX_SECS 60, THRUST_BOOST_FACTOR_MAX 3); merged-catalog
-     rules: crates/nova_assets/src/items.rs `item_pack_faults`; base:
-     assets/base/consumables/base.content.ron; key reservation:
-     crates/nova_ship/src/input/bindings.rs `flight_bindings`,
-     `flight_rig_reserved_sources`, checked by
-     crates/nova_authoring/src/lint_walk.rs `scenario_input_overlaps`. -->
+     CONSUMABLE_DURATION_MAX_SECS 60); merged-catalog rules:
+     crates/nova_assets/src/items.rs `item_pack_faults`; base:
+     assets/base/consumables/base.content.ron. -->
 
-A `Consumable` makes an item usable in flight: one use takes one item and
-starts its effect. Its key is `item`. Every field is required.
+A `Consumable` makes an item usable from the Inventory pane's **Use** button:
+one use takes one item and starts its effect. There is no flight key. Its key
+is `item`. Every field is required.
 
 | field | meaning |
 |---|---|
 | `item` | the item id a use takes one of |
-| `effect` | one of the three effects below |
+| `effect` | the effect below |
 
-| effect | fields | does | flight key |
-|---|---|---|---|
-| `Repair` | `health`, `duration_secs` | heals `health` over `duration_secs`, each tick to the live, enabled section with the lowest health share. Never a lost section. Ends early when nothing is damaged | <kbd>1</kbd> |
-| `ThrustBoost` | `factor`, `duration_secs` | multiplies every thruster impulse by `factor` while no autopilot verb flies. Its clock runs either way. Refused docked or with no live thruster | <kbd>2</kbd> |
-| `Flare` | `near_m`, `far_m`, `lure_m` | at once: every torpedo homing on the ship from `near_m` to `far_m` away drops its lock and flies to a point `lure_m` to one side, where it fuzes | <kbd>3</kbd> |
+| effect | fields | does |
+|---|---|---|
+| `Repair` | `health`, `duration_secs` | heals `health` over `duration_secs` on the game clock, each tick to the live, enabled section with the lowest health share. Never a lost section. Ends early when nothing is damaged, and the rest is lost |
 
-The base game makes `RepairKit` (`Repair`, 80 HP over 10 s), `BoostCell`
-(`ThrustBoost`, 1.5 for 8 s) and `DecoyFlare` (`Flare`, 400 m, 3,000 m,
-800 m) usable. A consumable for an item another pack already made usable
-replaces it whole, as the example above does. Each effect type owns one
-flight key, so the merged catalog holds one consumable per type: to change
-a base effect, replace its consumable.
+The base game makes `RepairKit` usable:
+`Consumable((item: "RepairKit", effect: Repair(health: 80.0, duration_secs: 10.0)))`.
+A consumable for an item another pack already made usable replaces it whole,
+as the example above does. A mod may make several items repair consumables;
+a ship runs one repair at a time.
 
 Lint, then load, refuse a pack whose consumable:
 
@@ -370,35 +365,16 @@ Lint, then load, refuse a pack whose consumable:
   (see [Content files](#content-files));
 - runs a `duration_secs` that is not above 0 and at most 60;
 - heals a `health` that is not finite or not above 0;
-- boosts by a `factor` that is not above 1 and at most 3;
-- has a `near_m` that is not above 0, or a `far_m` that is not above
-  `near_m`;
-- has a `lure_m` that is not above 1.5 times the largest torpedo
-  `blast_radius` the loaded content writes in a section, an inline bay or a
-  patch (450 m in base, so 675 m), so a lured blast would reach the ship: a
-  lured torpedo fuzes up to half its blast radius short of the lure point.
-  Of the flare's pack and each pack whose torpedo blast reaches the lure,
-  the pack that depends on the others is refused, so a mod that adds a
-  larger warhead is the one refused;
-- shares an effect type with another pack's consumable. Of the two, the pack
-  that depends on the other is refused; two unrelated packs are both
-  refused;
 - is defined twice in one pack.
 
 The rules run on the merged catalog, so a refused pack is switched off with
 every pack that depends on it, as for an item error.
 
-Generated stations stock every consumable item as a trade good, mod
-consumables included, except a `Contraband` item at a lawful station. A running repair or boost is saved with the ship by
-item; a save whose effect names an item the catalog does not make usable is
-refused on open.
-
-#### Keys 1, 2 and 3 are flight keys
-
-<kbd>1</kbd>, <kbd>2</kbd> and <kbd>3</kbd> are the consumable flight
-actions. A player ship's `input_mapping` that binds a section to one of them
-fails lint with an `input-overlap` error, as for every other flight key. See
-[The controller](../objects/#the-controller).
+Generated stations stock every consumable item as a trade good where the
+market deals in it, mod consumables included: a lawful station does not
+stock a `Contraband` item. A running repair is saved with the ship by item,
+and resumes on Load. Load refuses a save whose running repair names an item
+the catalog does not make usable, or whose clock is outside its duration.
 
 ## The content chapters
 
@@ -434,8 +410,8 @@ fails lint with an `input-overlap` error, as for every other flight key. See
   what it weighs, and what a trader pays for it.
 - A [recipe](#recipes) turns hold items into another item, on the ship or at
   a station.
-- A [consumable](#consumables) makes an item usable in flight for a repair,
-  a thrust boost or a torpedo flare.
+- A [consumable](#consumables) makes an item usable from the Inventory pane,
+  such as a repair kit.
 
 ## Paths and dependencies
 

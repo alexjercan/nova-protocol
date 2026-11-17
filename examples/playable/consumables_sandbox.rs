@@ -1,72 +1,54 @@
-//! consumables_sandbox: fly with repair kits, boost cells and decoy flares
-//! aboard, a damaged hull and a torpedo stand that fires at you, and use them
-//! on keys 1/2/3 or from the Inventory pane.
+//! consumables_sandbox: fly with repair kits aboard and a damaged hull, and
+//! use a kit from the Inventory pane.
 //!
-//! The player's ship floats in a void with a controller-less torpedo stand
-//! 2000 m off its right flank, inside the base flare band of 400 to 3000 m. THE
-//! HOLD AND THE HULL DAMAGE ARE DISCLOSED FIXTURE STATE: three of each
-//! consumable, and the hold section set 60 HP below its maximum. The stand
-//! fires one torpedo at the player every 20 s while none flies.
+//! The player's ship floats in a void. THE HOLD AND THE HULL DAMAGE ARE
+//! DISCLOSED FIXTURE STATE: three repair kits, and the hold section set 60 HP
+//! below its maximum.
 //!
 //! What to do:
 //!
-//! 1. read the keybind dock: `KIT 3`, `BOOST 3` and `FLARE 3` with their
-//!    keys. A chip is lit while a use would pass; `FLARE` stays dark until a
-//!    torpedo homes on you inside its band;
-//! 2. press 1: the repair kit heals the hold section over 10 s. The status
-//!    chip shows `KIT n S`; the `KIT` chip inverts while it runs. A second 1
-//!    is refused with the deny cue and keeps the kit;
-//! 3. press 2 and hold the main drive: the boost scales thrust by 1.5 for
-//!    8 s while you fly by hand;
-//! 4. when a torpedo flies, press 3: it drops its lock and fuzes 800 m aside;
-//!    the HUD posts `FLARE: 1 DECOYED`;
-//! 5. press Tab, open Inventory and click a consumable row: the inspector's
-//!    Use button uses one; it is disabled while a use would be refused.
+//! 1. press Tab, open Inventory and click the repair kit row: the inspector
+//!    shows Use. It is enabled while a use would pass;
+//! 2. click Use: one kit leaves the hold. Close the interface; the interface
+//!    holds the clock, so the repair runs once it closes;
+//! 3. read the status chip: `KIT n S` while the kit heals the hold section
+//!    over 10 s;
+//! 4. open the Inventory again while the kit runs, or once the hull is whole:
+//!    Use is greyed, and a press plays the deny cue.
 //!
-//! The diagnostics layer (F3) is on at start: panel lines with the held
-//! consumables, the running effects, the torpedoes and the damaged section's
-//! health, and a detail line per other section.
+//! The diagnostics layer (F3) is on at start: panel lines with the held kits,
+//! the running effect and the damaged section's health, and a detail line per
+//! other section.
 //!
 //! ```text
 //! nix develop --command cargo run --example consumables_sandbox --features debug
 //! ```
 //!
-//! No deadline ends the run unless `NOVA_AUTOPILOT=1` is set. Then the stand
-//! holds fire until the walk asks, and a smoke walk uses a kit on key 1 and a
-//! boost cell on key 2 under the main drive, brakes, waits out the repair,
-//! fires one torpedo and decoys it on key 3, then damages the hold again and
-//! uses a kit from the Inventory pane's Use button. `NOVA_CAPTURE=1` shoots
-//! the dock chips at the start, the running effects under the drive, the
-//! healed hull, the flare notice and the Use button.
+//! No deadline ends the run unless `NOVA_AUTOPILOT=1` is set. Then a smoke
+//! walk opens the Inventory, picks the kit row, clicks Use, closes the
+//! interface, waits out the repair and opens the Inventory again to find Use
+//! greyed. `NOVA_CAPTURE=1` shoots the dock at the start, the Use button, the
+//! `KIT` status chip, the healed hull and the greyed Use button.
 
 use bevy::prelude::*;
 use diagnostics::{DiagnosticsPanel, DiagnosticsSystems};
 use nova_protocol::{nova_debug::diagnostics, prelude::*};
 
-/// The player and stand scenario ids.
+/// The player scenario id.
 const PLAYER_ID: &str = "player_spaceship";
-const STAND_ID: &str = "torpedo_stand";
 /// The section the fixture damages.
 const DAMAGED_SECTION: &str = "hold";
 
-/// The base consumable items.
+/// The base repair kit item.
 const KIT: &str = "RepairKit";
-const CELL: &str = "BoostCell";
-const FLARE: &str = "DecoyFlare";
 
-/// The fixture hold: three of each consumable.
-const HOLD_EACH: u32 = 3;
+/// The fixture hold: three repair kits.
+const HOLD_KITS: u32 = 3;
 /// The fixture damage on the hold section, under one kit's 80 HP.
 const HULL_DAMAGE: f32 = 60.0;
-/// The stand's range off the player's flank, inside the base flare band.
-/// A flank stand stays in the band while the player flies along its nose.
-const STAND_RANGE: Meters = Meters(2000.0);
-/// Seconds between the stand's torpedoes while none flies.
-const STAND_INTERVAL_SECS: f32 = 20.0;
 
 /// The intro line.
-const INTRO: &str =
-    "1 repair kit, 2 boost cell, 3 decoy flare when a torpedo flies; Tab, Inventory, Use.";
+const INTRO: &str = "Tab, Inventory, pick the repair kit, Use; close the interface to run it.";
 
 fn main() -> bevy::app::AppExit {
     // NovaMenuPlugin explicitly: the interface's clock hold lives in
@@ -85,14 +67,7 @@ fn main() -> bevy::app::AppExit {
             .run_if(in_state(GameStates::Playing)),
     );
 
-    let autopilot = std::env::var_os("NOVA_AUTOPILOT").is_some();
-    // The walk fires the stand when it is ready for the torpedo; a hand run
-    // has the stand fire on its own clock.
-    app.insert_resource(StandFire {
-        armed: !autopilot,
-        next_in_secs: STAND_INTERVAL_SECS,
-    });
-    if autopilot {
+    if std::env::var_os("NOVA_AUTOPILOT").is_some() {
         app.insert_resource(bevy::ecs::error::FallbackErrorHandler(
             bevy::ecs::error::panic,
         ));
@@ -108,41 +83,19 @@ fn consumables_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_the_void);
     app.add_systems(
         Update,
-        (stage_the_damage, fire_the_stand).run_if(in_state(GameStates::Playing)),
+        stage_the_damage.run_if(in_state(GameStates::Playing)),
     );
 }
 
-fn load_the_void(
-    mut commands: Commands,
-    game_assets: Res<GameAssets>,
-    sections: Res<GameSections>,
-) {
-    let placed =
-        |id: &str, name: &str, position: Meters3, ship: SpaceshipConfig| ScenarioObjectConfig {
-            base: BaseScenarioObjectConfig {
-                id: id.to_string(),
-                name: name.to_string(),
-                position,
-                rotation: Quat::IDENTITY,
-            },
-            kind: ScenarioObjectKind::Spaceship(ship),
-        };
-    let bay = sections
-        .get_section("torpedo_section")
-        .expect("consumables_sandbox: the base torpedo bay")
-        .clone();
-    let stand = SpaceshipConfig {
-        controller: SpaceshipController::None,
-        design: ShipDesignSource::Inline(ShipDesign {
-            sections: vec![SpaceshipSectionConfig {
-                id: "bay".to_string(),
-                position: Vec3::ZERO,
-                rotation: Quat::IDENTITY,
-                source: SectionSource::Inline(bay),
-            }],
-            ..default()
-        }),
-        ..default()
+fn load_the_void(mut commands: Commands, game_assets: Res<GameAssets>) {
+    let player = ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: PLAYER_ID.to_string(),
+            name: "Player".to_string(),
+            position: Meters3::ZERO,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Spaceship(player_ship()),
     };
     commands.trigger(LoadScenario(ScenarioConfig {
         description: "Consumables Sandbox".to_string(),
@@ -153,20 +106,7 @@ fn load_the_void(
             once: false,
             filters: vec![],
             actions: [
-                vec![
-                    EventActionConfig::SpawnScenarioObject(placed(
-                        PLAYER_ID,
-                        "Player",
-                        Meters3::ZERO,
-                        player_ship(),
-                    )),
-                    EventActionConfig::SpawnScenarioObject(placed(
-                        STAND_ID,
-                        "Torpedo Stand",
-                        Meters3(Vec3::new(STAND_RANGE.0, 0.0, 0.0)),
-                        stand,
-                    )),
-                ],
+                vec![EventActionConfig::SpawnScenarioObject(player)],
                 ThreePointRig::around("rig", Meters3::ZERO, 1.0).actions(),
             ]
             .concat(),
@@ -179,9 +119,8 @@ fn load_the_void(
     }));
 }
 
-/// The player's hull: a controller between two hull blocks (the damaged
-/// `hold` below), a port on its nose and a drive on its tail, with the
-/// fixture hold.
+/// The player's hull: a controller over a hull block (the damaged `hold`), a
+/// port on its nose and a drive on its tail, with the fixture hold.
 fn player_ship() -> SpaceshipConfig {
     let section = |id: &str, prototype: &str, position: Vec3| SpaceshipSectionConfig {
         id: id.to_string(),
@@ -195,19 +134,12 @@ fn player_ship() -> SpaceshipConfig {
             sections: vec![
                 section("controller", BASIC_CONTROLLER_SECTION_ID, Vec3::ZERO),
                 section(DAMAGED_SECTION, REINFORCED_HULL_SECTION_ID, Vec3::NEG_Y),
-                // A second hull block: one hull's 100 kg hold is short of
-                // three of each consumable.
-                section("spine", REINFORCED_HULL_SECTION_ID, Vec3::Y),
                 section("port", DOCKING_PORT_SECTION_ID, Vec3::NEG_Z),
                 section("drive", BASIC_THRUSTER_SECTION_ID, Vec3::Z),
             ],
             ..default()
         }),
-        inventory: ShipInventoryStock::new([
-            (KIT.into(), HOLD_EACH),
-            (CELL.into(), HOLD_EACH),
-            (FLARE.into(), HOLD_EACH),
-        ]),
+        inventory: ShipInventoryStock::new([(KIT.into(), HOLD_KITS)]),
         ..default()
     }
 }
@@ -216,13 +148,6 @@ fn player_ship() -> SpaceshipConfig {
 #[derive(Resource, Default)]
 struct Staging {
     damaged: bool,
-}
-
-/// The stand's fire clock. Disarmed, it holds fire.
-#[derive(Resource)]
-struct StandFire {
-    armed: bool,
-    next_in_secs: f32,
 }
 
 /// The player root, once it has spawned.
@@ -241,112 +166,45 @@ fn player_section(world: &World, id: &str) -> Option<Entity> {
     })
 }
 
-/// Set the hold section [`HULL_DAMAGE`] below its maximum.
-fn damage_the_hold(world: &mut World) -> bool {
-    let Some(section) = player_section(world, DAMAGED_SECTION) else {
-        return false;
-    };
-    let Some(mut health) = world.get_mut::<Health>(section) else {
-        return false;
-    };
-    health.current = health.max - HULL_DAMAGE;
-    true
-}
-
-/// Put the fixture damage on the hull once its sections are up.
+/// Put the fixture damage on the hull once its sections are up: the hold
+/// section [`HULL_DAMAGE`] below its maximum.
 fn stage_the_damage(world: &mut World) {
     if world.resource::<Staging>().damaged {
         return;
     }
-    if damage_the_hold(world) {
-        world.resource_mut::<Staging>().damaged = true;
-        info!("consumables_sandbox: the hold section is {HULL_DAMAGE} HP down");
-    }
-}
-
-/// Fire one torpedo from the stand at the player whenever the clock runs
-/// out and none flies.
-fn fire_the_stand(
-    time: Res<Time>,
-    mut fire: ResMut<StandFire>,
-    mut commands: Commands,
-    q_player: Query<Entity, With<PlayerSpaceshipMarker>>,
-    q_stand: Query<(Entity, &EntityId), With<SpaceshipRootMarker>>,
-    q_bay: Query<(Entity, &ChildOf), (With<TorpedoSectionMarker>, Without<ScriptedTorpedoOrder>)>,
-    q_torpedo: Query<(), With<TorpedoProjectileMarker>>,
-) {
-    if !fire.armed || !q_torpedo.is_empty() {
-        return;
-    }
-    fire.next_in_secs -= time.delta_secs();
-    if fire.next_in_secs > 0.0 {
-        return;
-    }
-    let (Ok(target), Some(stand)) = (
-        q_player.single(),
-        q_stand
-            .iter()
-            .find(|(_, id)| id.0 == STAND_ID)
-            .map(|(stand, _)| stand),
-    ) else {
+    let Some(section) = player_section(world, DAMAGED_SECTION) else {
         return;
     };
-    if let Some((bay, _)) = q_bay.iter().find(|(_, parent)| parent.parent() == stand) {
-        commands.entity(bay).insert(ScriptedTorpedoOrder { target });
-        fire.next_in_secs = STAND_INTERVAL_SECS;
-        info!("consumables_sandbox: the stand fires a torpedo");
-    }
+    let Some(mut health) = world.get_mut::<Health>(section) else {
+        return;
+    };
+    health.current = health.max - HULL_DAMAGE;
+    world.resource_mut::<Staging>().damaged = true;
+    info!("consumables_sandbox: the hold section is {HULL_DAMAGE} HP down");
 }
 
-/// The panel: the held consumables, the running effects and each section.
+/// The panel: the held kits, the running effect and each section.
 fn draw_the_consumables(
     mut panel: ResMut<DiagnosticsPanel>,
     consumables: Res<GameConsumables>,
-    fire: Res<StandFire>,
     q_player: Query<
-        (&ShipInventory, Option<&ShipConsumableEffects>, &Children),
+        (&ShipInventory, Option<&ShipConsumableEffect>, &Children),
         With<PlayerSpaceshipMarker>,
     >,
     q_section: Query<(&EntityId, &Health), With<SectionMarker>>,
-    q_torpedo: Query<Has<TorpedoTargetEntity>, With<TorpedoProjectileMarker>>,
 ) {
-    let Ok((hold, effects, children)) = q_player.single() else {
+    let Ok((hold, effect, children)) = q_player.single() else {
         return;
     };
-    panel.line(format!(
-        "Held: {} kits, {} cells, {} flares",
-        hold.count(&KIT.into()),
-        hold.count(&CELL.into()),
-        hold.count(&FLARE.into())
-    ));
-    let running: Vec<String> = ConsumableSlotType::ALL
-        .into_iter()
-        .filter_map(|slot| {
-            let left = effects?.remaining_secs(&consumables, slot)?;
-            Some(format!("{} {left:.1} s", slot.word()))
-        })
-        .collect();
-    let factor = effects.map_or(1.0, |effects| effects.thrust_factor(&consumables));
-    panel.line(format!(
-        "Running: {}; thrust x{factor:.1}",
-        if running.is_empty() {
-            "none".to_string()
-        } else {
-            running.join(", ")
-        }
-    ));
-    let torpedoes: Vec<&str> = q_torpedo
-        .iter()
-        .map(|homing| if homing { "homing" } else { "decoyed" })
-        .collect();
-    panel.line(format!(
-        "Torpedoes: {}",
-        if torpedoes.is_empty() {
-            "none".to_string()
-        } else {
-            torpedoes.join(", ")
-        }
-    ));
+    panel.line(format!("Held: {} kits", hold.count(&KIT.into())));
+    panel.line(match effect {
+        Some(effect) => format!(
+            "Running: {} {:.1} s",
+            effect.item,
+            effect.remaining_secs(&consumables)
+        ),
+        None => "Running: none".to_string(),
+    });
     for (id, health) in children
         .iter()
         .filter_map(|child| q_section.get(child).ok())
@@ -362,22 +220,14 @@ fn draw_the_consumables(
             panel.detail(line);
         }
     }
-    panel.hint("1 2 3", "kit, boost, flare");
-    if fire.armed {
-        panel.hint(
-            "STAND",
-            format!("fires in {:.0} s", fire.next_in_secs.max(0.0)),
-        );
-    }
+    panel.hint("TAB", "Inventory, repair kit, Use");
 }
 
 mod smoke {
     use std::sync::Arc;
 
     use nova_protocol::{
-        nova_debug::harness::{
-            press_action, release_action, AutopilotPlugin, Predicate, SHOT_DEADLINE_SECS,
-        },
+        nova_debug::harness::{AutopilotPlugin, Predicate, SHOT_DEADLINE_SECS},
         nova_interface::{inventory::INVENTORY_USE_BUTTON, pane::InterfacePaneType},
     };
 
@@ -394,10 +244,10 @@ mod smoke {
 
     /// The frames the capture path writes.
     const FLIGHT_SHOT: &str = "consumables-sandbox-flight.png";
+    const USE_SHOT: &str = "consumables-sandbox-use.png";
     const RUNNING_SHOT: &str = "consumables-sandbox-running.png";
     const HEALED_SHOT: &str = "consumables-sandbox-healed.png";
-    const FLARE_SHOT: &str = "consumables-sandbox-flare.png";
-    const USE_SHOT: &str = "consumables-sandbox-use.png";
+    const REFUSED_SHOT: &str = "consumables-sandbox-refused.png";
 
     /// The Inventory row of the player's repair kits.
     const KIT_ROW: &str = "InventoryRowOwnRepairKit";
@@ -410,27 +260,15 @@ mod smoke {
         player_root(world).expect("consumables_sandbox: a player")
     }
 
-    fn held(world: &World, id: &str) -> u32 {
+    fn kits(world: &World) -> u32 {
         world
             .get::<ShipInventory>(player(world))
             .expect("consumables_sandbox: the player carries a hold")
-            .count(&ItemDesignId::from(id))
+            .count(&ItemDesignId::from(KIT))
     }
 
-    fn running(world: &World, slot: ConsumableSlotType) -> bool {
-        world
-            .get::<ShipConsumableEffects>(player(world))
-            .and_then(|effects| effects.remaining_secs(world.resource::<GameConsumables>(), slot))
-            .is_some()
-    }
-
-    /// The player's speed, m/s.
-    fn speed(world: &World) -> f32 {
-        world
-            .get::<avian3d::prelude::LinearVelocity>(player(world))
-            .map_or(f32::INFINITY, |velocity| {
-                MetersPerSecond3::from_engine(velocity.0).0.length()
-            })
+    fn running(world: &World) -> bool {
+        world.get::<ShipConsumableEffect>(player(world)).is_some()
     }
 
     fn hold_health(world: &World) -> Health {
@@ -442,88 +280,63 @@ mod smoke {
             .clone()
     }
 
-    /// The torpedoes homing on the player, and their distance in meters.
-    fn homing(world: &World) -> Vec<Meters> {
-        let player = player(world);
-        let Some(at) = world.get::<Transform>(player).map(|pose| pose.translation) else {
-            return Vec::new();
-        };
-        world
-            .try_query_filtered::<(&Transform, &TorpedoTargetEntity), With<TorpedoProjectileMarker>>()
-            .map(|mut torpedoes| {
-                torpedoes
-                    .iter(world)
-                    .filter(|(_, target)| ***target == player)
-                    .map(|(pose, _)| Meters::from_engine(pose.translation.distance(at)))
-                    .collect()
-            })
-            .unwrap_or_default()
+    fn pause_is(state: PauseStates) -> Arc<Predicate> {
+        when(move |world| {
+            world
+                .get_resource::<State<PauseStates>>()
+                .is_some_and(|pause| *pause.get() == state)
+        })
     }
 
-    fn decoyed(world: &World) -> usize {
-        world
-            .try_query_filtered::<(), (
-                With<TorpedoProjectileMarker>,
-                With<TorpedoTargetPosition>,
-                Without<TorpedoTargetEntity>,
-            )>()
-            .map(|mut query| query.iter(world).count())
-            .unwrap_or_default()
-    }
-
-    /// The dock chip of `verb`'s state, while it is on screen.
-    fn chip(world: &World, verb: &str) -> Option<DockChipState> {
-        let index = DOCK_VERBS.iter().position(|each| *each == verb)?;
-        let mut chips = world.try_query::<(&DockChip, &DockChipState, &Visibility)>()?;
-        chips
+    /// The Use button is shown, and whether it is enabled.
+    fn use_button(world: &World) -> Option<bool> {
+        let mut query = world.try_query::<(&Name, &Node, Has<bevy::ui::InteractionDisabled>)>()?;
+        query
             .iter(world)
-            .find(|(chip, _, visibility)| chip.0 == index && **visibility != Visibility::Hidden)
-            .map(|(_, state, _)| *state)
-    }
-
-    /// The KIT, BOOST and FLARE chips read `states`.
-    fn assert_chips(
-        states: [DockChipState; 3],
-        beat: &'static str,
-    ) -> impl Fn(&mut World) + Send + Sync + 'static {
-        move |world: &mut World| {
-            let read = ["KIT", "BOOST", "FLARE"].map(|verb| chip(world, verb));
-            assert_eq!(
-                read,
-                states.map(Some),
-                "consumables_sandbox: the KIT, BOOST and FLARE chips {beat}"
-            );
-            info!("consumables_sandbox: PASS the chips {beat}: {read:?}");
-        }
-    }
-
-    /// The Use button is shown and enabled.
-    fn use_enabled(world: &World) -> bool {
-        world
-            .try_query::<(&Name, &Node, Has<bevy::ui::InteractionDisabled>)>()
-            .is_some_and(|mut query| {
-                query.iter(world).any(|(name, node, disabled)| {
-                    name.as_str() == INVENTORY_USE_BUTTON
-                        && node.display != Display::None
-                        && !disabled
-                })
+            .find(|(name, node, _)| {
+                name.as_str() == INVENTORY_USE_BUTTON && node.display != Display::None
             })
+            .map(|(_, _, disabled)| !disabled)
+    }
+
+    fn open_the_inventory(world: &mut World) {
+        *world.resource_mut::<InterfacePaneType>() = InterfacePaneType::Inventory;
+        world
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Interface);
+    }
+
+    fn close_the_interface(world: &mut World) {
+        world
+            .resource_mut::<NextState<PauseStates>>()
+            .set(PauseStates::Unpaused);
     }
 
     fn assert_the_staging(world: &mut World) {
-        for item in [KIT, CELL, FLARE] {
-            assert_eq!(
-                held(world, item),
-                HOLD_EACH,
-                "consumables_sandbox: {item} aboard"
-            );
-        }
+        assert_eq!(kits(world), HOLD_KITS, "consumables_sandbox: kits aboard");
         let health = hold_health(world);
         assert!(
             (health.max - health.current - HULL_DAMAGE).abs() < 1e-3,
             "consumables_sandbox: the hold section is {HULL_DAMAGE} HP down: {health:?}"
         );
-        info!("consumables_sandbox: PASS staged with three of each and a damaged hold");
+        assert!(
+            !running(world),
+            "consumables_sandbox: nothing runs at the start"
+        );
+        info!("consumables_sandbox: PASS staged with three kits and a damaged hold");
+    }
+
+    fn assert_the_use(world: &mut World) {
+        assert!(
+            running(world),
+            "consumables_sandbox: the Use button started a repair"
+        );
+        assert_eq!(
+            use_button(world),
+            Some(false),
+            "consumables_sandbox: Use is greyed while the kit runs"
+        );
+        info!("consumables_sandbox: PASS the Use button used one kit");
     }
 
     fn assert_the_repair(world: &mut World) {
@@ -533,24 +346,14 @@ mod smoke {
             "consumables_sandbox: the kit healed the hold section: {health:?}"
         );
         assert_eq!(
-            held(world, KIT),
-            HOLD_EACH - 1,
+            kits(world),
+            HOLD_KITS - 1,
             "consumables_sandbox: one kit spent"
         );
         info!(
-            "consumables_sandbox: PASS key 1 healed the hold section to {}",
+            "consumables_sandbox: PASS the kit healed the hold section to {}",
             health.current
         );
-    }
-
-    fn arm_the_stand(world: &mut World) {
-        let mut fire = world.resource_mut::<StandFire>();
-        fire.armed = true;
-        fire.next_in_secs = 0.0;
-    }
-
-    fn disarm_the_stand(world: &mut World) {
-        world.resource_mut::<StandFire>().armed = false;
     }
 
     /// The smoke walk. Inert unless `NOVA_AUTOPILOT` is set.
@@ -572,141 +375,20 @@ mod smoke {
             .on_enter(assert_the_staging)
             .until(frames(1))
             .add()
-            .step("consumables sandbox: check the chips at the start")
-            .on_enter(assert_chips(
-                [
-                    DockChipState::Available,
-                    DockChipState::Available,
-                    DockChipState::Dim,
-                ],
-                "at the start",
-            ))
-            .until(frames(1))
-            .add()
-            .step("consumables sandbox: shoot the dock chips")
+            .step("consumables sandbox: shoot the dock")
             .on_enter(|world: &mut World| shoot(world, FLIGHT_SHOT))
             .until(shot_written(FLIGHT_SHOT))
             .deadline(SHOT_DEADLINE_SECS)
             .add()
-            .step("consumables sandbox: press 1 for a repair kit")
-            .on_enter(press_action(ConsumableSlotType::Repair.action()))
-            .until(when(|world| running(world, ConsumableSlotType::Repair)))
-            .deadline(BEAT_SECS)
-            .add()
-            .step("consumables sandbox: let 1 up")
-            .on_enter(release_action(ConsumableSlotType::Repair.action()))
-            .until(frames(2))
-            .add()
-            .step("consumables sandbox: press 2 for a boost cell")
-            .on_enter(press_action(ConsumableSlotType::ThrustBoost.action()))
-            .until(when(|world| {
-                running(world, ConsumableSlotType::ThrustBoost)
-            }))
-            .deadline(BEAT_SECS)
-            .add()
-            .step("consumables sandbox: let 2 up, hold the main drive")
-            .on_enter(|world: &mut World| {
-                release_action(ConsumableSlotType::ThrustBoost.action())(world);
-                press_action("main_drive")(world);
-            })
-            .until(frames(SETTLE_FRAMES))
-            .add()
-            .step("consumables sandbox: check the chips while both run")
-            .on_enter(assert_chips(
-                [DockChipState::Hot, DockChipState::Hot, DockChipState::Dim],
-                "while both run",
-            ))
-            .until(frames(1))
-            .add()
-            .step("consumables sandbox: shoot the running effects under the drive")
-            .on_enter(|world: &mut World| shoot(world, RUNNING_SHOT))
-            .until(shot_written(RUNNING_SHOT))
-            .deadline(SHOT_DEADLINE_SECS)
-            .add()
-            .step("consumables sandbox: let the drive go, brake")
-            .on_enter(|world: &mut World| {
-                release_action("main_drive")(world);
-                press_action("autopilot_stop")(world);
-            })
-            .until(when(|world| speed(world) < 5.0))
-            .deadline(BEAT_SECS)
-            .add()
-            // The boost starts a few frames after the repair, and a lavapipe
-            // frame can be long, so the boost may outlast the repair.
-            .step("consumables sandbox: run the repair and the boost out")
-            .on_enter(release_action("autopilot_stop"))
-            .until(when(|world| {
-                !running(world, ConsumableSlotType::Repair)
-                    && !running(world, ConsumableSlotType::ThrustBoost)
-            }))
-            .deadline(REPAIR_SECS)
-            .add()
-            .step("consumables sandbox: check the repair")
-            .on_enter(assert_the_repair)
-            .until(frames(SETTLE_FRAMES))
-            .add()
-            .step("consumables sandbox: check the chips on a healed hull")
-            .on_enter(assert_chips(
-                [
-                    DockChipState::Dim,
-                    DockChipState::Available,
-                    DockChipState::Dim,
-                ],
-                "on a healed hull",
-            ))
-            .until(frames(1))
-            .add()
-            .step("consumables sandbox: shoot the healed hull")
-            .on_enter(|world: &mut World| shoot(world, HEALED_SHOT))
-            .until(shot_written(HEALED_SHOT))
-            .deadline(SHOT_DEADLINE_SECS)
-            .add()
-            .step("consumables sandbox: the stand fires one torpedo")
-            .on_enter(arm_the_stand)
-            .until(when(|world| {
-                homing(world)
-                    .iter()
-                    .any(|distance| distance.0 > 400.0 && distance.0 < 3000.0)
-            }))
-            .deadline(BEAT_SECS)
-            .add()
-            .step("consumables sandbox: press 3 for a decoy flare")
-            .on_enter(|world: &mut World| {
-                disarm_the_stand(world);
-                press_action(ConsumableSlotType::Flare.action())(world);
-            })
-            .until(when(|world| {
-                decoyed(world) == 1 && homing(world).is_empty() && held(world, FLARE) == 2
-            }))
-            .deadline(BEAT_SECS)
-            .add()
-            .step("consumables sandbox: let 3 up")
-            .on_enter(release_action(ConsumableSlotType::Flare.action()))
-            .until(frames(SETTLE_FRAMES))
-            .add()
-            .step("consumables sandbox: shoot the flare notice")
-            .on_enter(|world: &mut World| {
-                info!("consumables_sandbox: PASS key 3 decoyed the torpedo");
-                shoot(world, FLARE_SHOT);
-            })
-            .until(shot_written(FLARE_SHOT))
-            .deadline(SHOT_DEADLINE_SECS)
-            .add()
-            .step("consumables sandbox: damage the hold again, open the Inventory")
-            .on_enter(|world: &mut World| {
-                assert!(damage_the_hold(world));
-                *world.resource_mut::<InterfacePaneType>() = InterfacePaneType::Inventory;
-                world
-                    .resource_mut::<NextState<PauseStates>>()
-                    .set(PauseStates::Interface);
-            })
+            .step("consumables sandbox: open the Inventory")
+            .on_enter(open_the_inventory)
             .until(ui_node_present(KIT_ROW))
             .deadline(BEAT_SECS)
             .add()
             .click_named(
                 "consumables sandbox: pick the repair kit row",
                 KIT_ROW,
-                when(use_enabled),
+                when(|world| use_button(world) == Some(true)),
                 BEAT_SECS,
             )
             .step("consumables sandbox: settle the inspector")
@@ -720,18 +402,67 @@ mod smoke {
             .click_named(
                 "consumables sandbox: use a kit",
                 INVENTORY_USE_BUTTON,
-                when(|world| held(world, KIT) == HOLD_EACH - 2),
+                when(|world| kits(world) == HOLD_KITS - 1 && use_button(world) == Some(false)),
                 BEAT_SECS,
             )
             .step("consumables sandbox: check the Use")
+            .on_enter(assert_the_use)
+            .until(frames(1))
+            .add()
+            .step("consumables sandbox: close the interface")
+            .on_enter(close_the_interface)
+            .until(pause_is(PauseStates::Unpaused))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("consumables sandbox: settle the status chip")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("consumables sandbox: shoot the KIT status chip")
             .on_enter(|world: &mut World| {
                 assert!(
-                    running(world, ConsumableSlotType::Repair),
-                    "consumables_sandbox: the Use button started a repair"
+                    running(world),
+                    "consumables_sandbox: the kit runs in flight"
                 );
-                info!("consumables_sandbox: PASS the Use button used one kit");
+                shoot(world, RUNNING_SHOT);
             })
-            .until(frames(1))
+            .until(shot_written(RUNNING_SHOT))
+            .deadline(SHOT_DEADLINE_SECS)
+            .add()
+            .step("consumables sandbox: run the repair out")
+            .until(when(|world| !running(world)))
+            .deadline(REPAIR_SECS)
+            .add()
+            .step("consumables sandbox: check the repair")
+            .on_enter(assert_the_repair)
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("consumables sandbox: shoot the healed hull")
+            .on_enter(|world: &mut World| shoot(world, HEALED_SHOT))
+            .until(shot_written(HEALED_SHOT))
+            .deadline(SHOT_DEADLINE_SECS)
+            .add()
+            // The inspector keeps the kit row picked while the interface is
+            // closed, so Use shows again at once.
+            .step("consumables sandbox: open the Inventory on a whole hull")
+            .on_enter(open_the_inventory)
+            .until(when(|world| use_button(world) == Some(false)))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("consumables sandbox: settle the greyed Use")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("consumables sandbox: shoot the greyed Use")
+            .on_enter(|world: &mut World| {
+                assert_eq!(
+                    kits(world),
+                    HOLD_KITS - 1,
+                    "consumables_sandbox: no kit spent"
+                );
+                info!("consumables_sandbox: PASS Use is greyed with nothing to repair");
+                shoot(world, REFUSED_SHOT);
+            })
+            .until(shot_written(REFUSED_SHOT))
+            .deadline(SHOT_DEADLINE_SECS)
             .add()
     }
 }

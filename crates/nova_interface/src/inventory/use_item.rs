@@ -1,18 +1,17 @@
 //! The inspector's `Use` button: one click on the player's own row of an item
 //! that has a `Consumable` uses one, docked or not.
 //!
-//! The click writes the same [`ConsumableUseRequest`] the flight key writes,
-//! so the use passes or refuses by the same rule (`use_consumables`). The
-//! button is disabled while that rule would refuse, read off the same facts
-//! ([`ConsumableFactsQuery`]), so a press never does nothing. The row's count
-//! drops by one on a use. The interface holds the game clock, so a repair or
-//! boost started here runs once the interface closes.
+//! The click writes a [`ConsumableUseRequest`], which passes or refuses by
+//! `use_consumables`. The button is disabled while that rule would refuse,
+//! read off the same facts ([`ConsumableFactsQuery`]), so a press never does
+//! nothing. The row's count drops by one on a use. The interface holds the
+//! game clock, so a repair started here runs once the interface closes.
 
 use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
 use nova_gameplay::prelude::{
     plan_consumable_use, GameConsumables, ItemDesignId, PlayerSpaceshipMarker, ShipInventory,
 };
-use nova_ship::prelude::{ConsumableFactsQuery, ConsumableUseRequest, ShipConsumableEffects};
+use nova_ship::prelude::{ConsumableFactsQuery, ConsumableUseRequest};
 use nova_ui::widget::{ButtonCueType, ButtonSpec};
 
 use super::{InventoryRuntime, InventorySideType};
@@ -53,12 +52,7 @@ fn selected_consumable<'a>(
 pub(crate) fn update_inventory_use_button(
     runtime: Res<InventoryRuntime>,
     consumables: Option<Res<GameConsumables>>,
-    player: Option<
-        Single<
-            (Entity, &ShipInventory, Option<&ShipConsumableEffects>),
-            With<PlayerSpaceshipMarker>,
-        >,
-    >,
+    player: Option<Single<(Entity, &ShipInventory), With<PlayerSpaceshipMarker>>>,
     q_facts: ConsumableFactsQuery,
     mut q_button: Query<(Entity, &mut Node, Has<InteractionDisabled>), With<InventoryUseButton>>,
     mut commands: Commands,
@@ -66,10 +60,8 @@ pub(crate) fn update_inventory_use_button(
     let usable = consumables.as_deref().and_then(|consumables| {
         let item = selected_consumable(&runtime, consumables)?;
         let design = consumables.design(item);
-        let (ship, hold, effects) = *player.as_deref()?;
-        let running = effects
-            .is_some_and(|effects| effects.in_slot(consumables, design.effect.slot()).is_some());
-        let (facts, _) = q_facts.facts(ship, design, hold, running)?;
+        let (ship, hold) = *player.as_deref()?;
+        let facts = q_facts.facts(ship, design, hold)?;
         Some(plan_consumable_use(design, &facts).is_ok())
     });
     let display = if usable.is_some() {
@@ -95,7 +87,7 @@ pub(crate) fn update_inventory_use_button(
 
 /// Ask to use one of the selected consumable item on the player ship. The
 /// button widget drops a press on a disabled button; a refusal that slips
-/// past it in the same frame keeps the item, as the key's does.
+/// past it in the same frame keeps the item and plays the deny cue.
 fn on_inventory_use_button(
     activate: On<Activate>,
     q_button: Query<Has<InteractionDisabled>, With<InventoryUseButton>>,
@@ -115,6 +107,6 @@ fn on_inventory_use_button(
     };
     requests.write(ConsumableUseRequest {
         ship: *player,
-        slot: consumables.design(item).effect.slot(),
+        item: item.clone(),
     });
 }

@@ -9,7 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use nova_assets::items::{item_pack_faults, largest_torpedo_blast, ItemPack};
+use nova_assets::items::{item_pack_faults, ItemPack};
 use nova_gameplay::prelude::{
     price_table_faults, trade_profile_faults, ConsumableDesign, GameItems, GameTradeProfiles,
     ItemDesign, PriceTable, RecipeDesign, SectionClass, TradeProfileDesign,
@@ -1134,7 +1134,6 @@ fn build_report(
             items: walked.items.iter().collect(),
             recipes: walked.recipes.iter().collect(),
             consumables: walked.consumables.iter().collect(),
-            torpedo_blast: largest_torpedo_blast(walked.content.iter().map(|(_, item)| item)),
         })
         .collect();
     let item_faults: Vec<(String, String)> = item_pack_faults(&packs)

@@ -77,39 +77,6 @@ pub(super) struct DockInput;
 #[action_output(bool)]
 pub(super) struct DockHelmInput;
 
-/// Use the repair kit consumable.
-#[derive(InputAction)]
-#[action_output(bool)]
-pub(super) struct UseRepairKitInput;
-
-/// Use the boost cell consumable.
-#[derive(InputAction)]
-#[action_output(bool)]
-pub(super) struct UseBoostInput;
-
-/// Use the decoy flare consumable.
-#[derive(InputAction)]
-#[action_output(bool)]
-pub(super) struct UseFlareInput;
-
-/// A flight action that uses the consumable of one slot.
-pub(super) trait ConsumableKeyInput: InputAction {
-    /// The slot the key uses.
-    const SLOT: ConsumableSlotType;
-}
-
-impl ConsumableKeyInput for UseRepairKitInput {
-    const SLOT: ConsumableSlotType = ConsumableSlotType::Repair;
-}
-
-impl ConsumableKeyInput for UseBoostInput {
-    const SLOT: ConsumableSlotType = ConsumableSlotType::ThrustBoost;
-}
-
-impl ConsumableKeyInput for UseFlareInput {
-    const SLOT: ConsumableSlotType = ConsumableSlotType::Flare;
-}
-
 /// The RCS fine-adjust modifier: held (SHIFT) to enter the docking translation
 /// mode. A plain Down action read as a held modifier (the `action_held` pattern,
 /// not a binding Chord - see `modal-input-observer-dispatch`), whose Start/Stop
@@ -262,33 +229,6 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
                         ..default()
                     },
                     bindings.bundle("dock_helm"),
-                ),
-                (
-                    Name::new("Input: Use Repair Kit"),
-                    Action::<UseRepairKitInput>::new(),
-                    ActionSettings {
-                        consume_input: false,
-                        ..default()
-                    },
-                    bindings.bundle(ConsumableSlotType::Repair.action()),
-                ),
-                (
-                    Name::new("Input: Use Boost Cell"),
-                    Action::<UseBoostInput>::new(),
-                    ActionSettings {
-                        consume_input: false,
-                        ..default()
-                    },
-                    bindings.bundle(ConsumableSlotType::ThrustBoost.action()),
-                ),
-                (
-                    Name::new("Input: Use Decoy Flare"),
-                    Action::<UseFlareInput>::new(),
-                    ActionSettings {
-                        consume_input: false,
-                        ..default()
-                    },
-                    bindings.bundle(ConsumableSlotType::Flare.action()),
                 ),
                 (
                     // The radar hold: Start = search opens (slot latched),
@@ -937,25 +877,6 @@ pub(super) fn on_dock_helm_input(
         return;
     }
     helm.press();
-}
-
-/// Ask to use the consumable of `A`'s slot on the player ship. The use
-/// checks and refusals are `use_consumables`'; a docked hull may repair, so
-/// the helm does not gate the key.
-pub(super) fn on_consumable_input<A: ConsumableKeyInput>(
-    _: On<Start<A>>,
-    ship: Single<Entity, With<PlayerSpaceshipMarker>>,
-    pause: Res<State<nova_gameplay::PauseStates>>,
-    control: Option<Res<PlayerControlSuspended>>,
-    mut requests: MessageWriter<ConsumableUseRequest>,
-) {
-    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
-        return;
-    }
-    requests.write(ConsumableUseRequest {
-        ship: *ship,
-        slot: A::SLOT,
-    });
 }
 
 /// Enter RCS fine-adjust mode: while SHIFT is held on a ship whose controller

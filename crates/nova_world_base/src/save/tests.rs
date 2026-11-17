@@ -5510,39 +5510,24 @@ fn a_saved_job_on_a_section_the_design_lacks_or_of_an_unknown_recipe_is_refused_
     }
 }
 
-/// A saved consumable effect of an item no repair or boost consumable
-/// takes, a second effect of one slot, or a clock at or past its duration
-/// refuses the load, naming the ship and the item.
+/// A saved consumable effect of an item no consumable takes, or a clock at
+/// or past its duration, refuses the load, naming the ship and the item.
 #[test]
-fn a_saved_consumable_effect_unknown_doubled_or_past_its_duration_is_refused_on_open() {
+fn a_saved_consumable_effect_unknown_or_past_its_duration_is_refused_on_open() {
     use nova_gameplay::prelude::{ConsumableDesign, ConsumableType};
-    use nova_ship::prelude::{RunningConsumable, ShipConsumableEffects};
+    use nova_ship::prelude::ShipConsumableEffect;
 
     let root = tempfile::tempdir().unwrap();
     let (folder, lock) = create_world(root.path(), "Effects").unwrap();
     drop(lock);
-    let consumables = GameConsumables::new([
-        ConsumableDesign {
-            item: "RepairKit".into(),
-            effect: ConsumableType::Repair {
-                health: 80.0,
-                duration_secs: 10.0,
-            },
+    let consumables = GameConsumables::new([ConsumableDesign {
+        item: "RepairKit".into(),
+        effect: ConsumableType::Repair {
+            health: 80.0,
+            duration_secs: 10.0,
         },
-        ConsumableDesign {
-            item: "DecoyFlare".into(),
-            effect: ConsumableType::Flare {
-                near_m: nova_events::prelude::Meters(400.0),
-                far_m: nova_events::prelude::Meters(3000.0),
-                lure_m: nova_events::prelude::Meters(800.0),
-            },
-        },
-    ]);
-    let running = |item: &str, elapsed_secs: f32| RunningConsumable {
-        item: item.into(),
-        elapsed_secs,
-    };
-    let player_with = |effects: Vec<RunningConsumable>| {
+    }]);
+    let player_with = |item: &str, elapsed_secs: f32| {
         let mut world = World::new();
         let ship = world
             .spawn((
@@ -5550,7 +5535,10 @@ fn a_saved_consumable_effect_unknown_doubled_or_past_its_duration_is_refused_on_
                 ShipInventory::new(&items(), 10_000, []),
                 DamageMarks::default(),
                 RcsBudget::default(),
-                ShipConsumableEffects(effects),
+                ShipConsumableEffect {
+                    item: item.into(),
+                    elapsed_secs,
+                },
             ))
             .id();
         SavedPlayer {
@@ -5560,21 +5548,12 @@ fn a_saved_consumable_effect_unknown_doubled_or_past_its_duration_is_refused_on_
     };
     let cases = [
         (
-            player_with(vec![running("BoostCell", 1.0)]),
-            "the player ship 'player' runs a consumable effect of 'BoostCell', which no repair \
-             or boost consumable takes",
+            player_with("Medkit", 1.0),
+            "the player ship 'player' runs a consumable effect of 'Medkit', which no consumable \
+             takes",
         ),
         (
-            player_with(vec![running("DecoyFlare", 0.0)]),
-            "the player ship 'player' runs a consumable effect of 'DecoyFlare', which no repair \
-             or boost consumable takes",
-        ),
-        (
-            player_with(vec![running("RepairKit", 1.0), running("RepairKit", 2.0)]),
-            "the player ship 'player' runs two KIT consumable effects",
-        ),
-        (
-            player_with(vec![running("RepairKit", 10.0)]),
+            player_with("RepairKit", 10.0),
             "the player ship 'player' runs a consumable effect of 'RepairKit' at 10 s of 10 s, \
              which no session wrote",
         ),

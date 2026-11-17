@@ -1199,8 +1199,8 @@ fn design_section_ids(
 /// chain on sections its design names and it lost, at most one job a
 /// section, a craft job of a loaded recipe below its batch count of at
 /// most `CRAFT_BATCHES_MAX`, a station recipe only on the player ship saved
-/// docked, at most one running consumable effect a slot, each of a loaded
-/// repair or boost consumable, and finite clocks within their spans. Only
+/// docked, a running consumable effect of a loaded consumable, and finite
+/// clocks within their spans. Only
 /// the read path checks:
 /// Load runs
 /// it on open, so a job naming a section the design lacks or a recipe the
@@ -1244,32 +1244,22 @@ fn check_saved_jobs(
                 ));
             }
         }
-        let mut slots = BTreeSet::new();
-        for running in ship.consumable_effects() {
-            let Some(duration) = consumables
-                .get(&running.item)
-                .and_then(|design| Some((design.effect.slot(), design.effect.duration_secs()?)))
-            else {
+        if let Some(running) = ship.consumable_effect() {
+            let Some(design) = consumables.get(&running.item) else {
                 return Err(format!(
-                    "{owner} runs a consumable effect of '{}', which no repair or boost \
-                     consumable takes",
+                    "{owner} runs a consumable effect of '{}', which no consumable takes",
                     running.item
                 ));
             };
-            if !slots.insert(duration.0) {
-                return Err(format!(
-                    "{owner} runs two {} consumable effects",
-                    duration.0.word()
-                ));
-            }
+            let duration = design.effect.duration_secs();
             if !running.elapsed_secs.is_finite()
                 || running.elapsed_secs < 0.0
-                || running.elapsed_secs >= duration.1
+                || running.elapsed_secs >= duration
             {
                 return Err(format!(
-                    "{owner} runs a consumable effect of '{}' at {} s of {} s, which no \
+                    "{owner} runs a consumable effect of '{}' at {} s of {duration} s, which no \
                      session wrote",
-                    running.item, running.elapsed_secs, duration.1
+                    running.item, running.elapsed_secs
                 ));
             }
         }

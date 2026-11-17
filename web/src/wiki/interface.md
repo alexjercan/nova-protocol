@@ -353,10 +353,10 @@ The Inventory pane lists what your ship carries in the left column and, while yo
 | --- | --- |
 | **All** | Every item. |
 | **Food** | Provisions carried for trade. |
-| **Ammo** | Weapon magazine supply, and decoy flares. |
+| **Ammo** | Weapon magazine supply. |
 | **Repair** | Material a repair or a rescue consumes: hull plates, repair kits and medkits. |
 | **Raw** | Mined or salvaged bulk material. |
-| **Parts** | Section build parts, boost cells and scavenged objects for a story, an objective or trade. |
+| **Parts** | Section build parts and scavenged objects for a story, an objective or trade. |
 | **Contraband** | Goods a lawful station's market does not buy or sell. See [Buy and sell](#buy-and-sell). |
 
 Click an item to inspect it, or step through the shown items with <kbd>[</kbd> / <kbd>]</kbd>, your column first; a step opens the same form a click does. The inspector shows its category, what it is, how many the selected ship carries and the weight of one item. A PDC round weighs 0.2 kg. While a Take, Give, Buy, Sell or Jettison is open, **Total weight** shows the weight of the quantity you chose: 2 hull plates read 20 kg however many you carry. The description keeps four lines, so the rows under it stay in place as you change items. A longer one is cut off with an `I Full text` cue: point at it, or press <kbd>I</kbd>, to read all of it. <kbd>I</kbd> again, or another item, closes it. You can rebind <kbd>I</kbd> as **Item Details** in **Settings > Controls > INVENTORY**.
@@ -423,13 +423,13 @@ Double-click an item to move its whole stack at once: the double click confirms 
 
 The Give, Sell, Store and To buttons stay as you set them from item to item, so after one click on **Store**, each double click stores. A quick move is refused exactly as **Confirm** would refuse it, with a deny sound, and nothing changes: double-clicking a stack the storage cannot take leaves the form open with its total weight red, such as `120 kg  100 kg free`. Jettison has no quick move. Two clicks count as a double click when they land on the same item within half a second.
 
-### Using a consumable
+### Using a repair kit
 
 <!-- Button: crates/nova_interface/src/inventory/use_item.rs
      (`update_inventory_use_button`, `on_inventory_use_button`); the use
      itself: crates/nova_ship/src/sections/consumables.rs `use_consumables`. -->
 
-Select a repair kit, boost cell or decoy flare in your own column and the inspector shows **Use**, docked or not. One click uses one, the same as its flight key. **Use** is greyed while the use would be refused, such as a boost while docked. The interface holds the game clock, so a kit or boost runs once you close it. A flare acts at once. See [Consumables](../crafting/#consumables).
+Select a repair kit in your own column and the inspector shows **Use**, docked or not. It is the only way to use one: there is no flight key. One click takes one kit. **Use** is greyed while the use would be refused: none held (kits a running repair job holds back do not count), a kit already runs, or no live section is damaged. A refused use plays the deny cue. The interface holds the game clock, so the kit runs once you close it. See [Consumables](../crafting/#consumables).
 
 ### Jettison and pickup
 
@@ -439,7 +439,7 @@ Once you close the interface, the intake's door folds open and the canisters lea
 
 ## Crafting
 
-The **Craft** view turns what your hold carries into ammunition, parts and consumables. Open it with **Craft** at the right end of the Inventory pane's filter row, docked or in flight; it covers the Inventory pane. **Back** or <kbd>Esc</kbd> returns to the Inventory, and a pane switch or closing the interface closes it. Each tile is a recipe: its output's icon and name, how many one batch makes and where it runs, `SHIP` or `STATION`. A **SHIP** recipe runs anywhere, in flight too. A **STATION** recipe runs only while you are docked at a living station that offers Craft, and pays that station a fee for each batch. The base waystation offers Craft, and so does a generated station of a civilization at advancement 0.25 or more. The chips over the tiles filter them by category. A tile that cannot start one batch is greyed: a STATION recipe while you are undocked, a recipe your hold or credits cannot cover, and every tile while a job runs.
+The **Craft** view turns what your hold carries into ammunition, parts and repair kits. Open it with **Craft** at the right end of the Inventory pane's filter row, docked or in flight; it covers the Inventory pane. **Back** or <kbd>Esc</kbd> returns to the Inventory, and a pane switch or closing the interface closes it. Each tile is a recipe: its output's icon and name, how many one batch makes and where it runs, `SHIP` or `STATION`. A **SHIP** recipe runs anywhere, in flight too. A **STATION** recipe runs only while you are docked at a living station that offers Craft, and pays that station a fee for each batch. The base waystation offers Craft, and so does a generated station of a civilization at advancement 0.25 or more. The chips over the tiles filter them by category. A tile that cannot start one batch is greyed: a STATION recipe while you are undocked, a recipe your hold or credits cannot cover, and every tile while a job runs.
 
 Click a tile to open its card. Set the batches on the slider, from 1 to every batch your hold and your credits cover; the count shows beside **Max**, which sets that most. The card shows the whole job for that count: the output and how many the batches make, such as `PDC round x200`, each input as what your hold has over what the batches take, such as `12 / 2`, the fee of a STATION recipe as your credits over the fee, such as `300 / 60 cr`, and the time the batches run. A count you are short of turns red. **Craft** starts the job, and is greyed when it cannot start. Starting takes nothing.
 

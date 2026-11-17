@@ -31,9 +31,7 @@
 //! A player craft job that ends on its own ([`CraftJobEnded`]) posts how:
 //! `CRAFTED 500 PDC ROUND`, `CRAFT STOPPED: NO STONE ORE, 300 MADE` or
 //! `CRAFT STOPPED: UNDOCKED`. A cancel posts nothing: the player pressed it
-//! in the Ship pane or the Craft view, where its row goes. A player decoy
-//! flare that pulls torpedoes off ([`ConsumableUsed`]) posts
-//! `FLARE: 2 DECOYED`. The player's hold reserve of an ammunition item crossing into
+//! in the Ship pane or the Craft view, where its row goes. The player's hold reserve of an ammunition item crossing into
 //! LOW or DRY ([`AmmoReserveCrossed`]) posts `PDC ROUND LOW: 400` or
 //! `TORPEDO DRY`, once per crossing.
 //!
@@ -53,9 +51,9 @@ use nova_ship::{
     flight::prelude::{MatchRefusal, MatchRefusalType},
     input::prelude::FlightVerbHints,
     sections::prelude::{
-        AmmoReserveCrossed, AmmoReserveWarningType, ConsumableOutcomeType, ConsumableUsed,
-        CraftJobEndType, CraftJobEnded, DockClamped, DockPressRefusal, DockPressRefusalType,
-        DockReleased, RepairJobEndType, RepairJobEnded, RescueCallEnded, RescueEndType,
+        AmmoReserveCrossed, AmmoReserveWarningType, CraftJobEndType, CraftJobEnded, DockClamped,
+        DockPressRefusal, DockPressRefusalType, DockReleased, RepairJobEndType, RepairJobEnded,
+        RescueCallEnded, RescueEndType,
     },
 };
 use nova_sound::prelude::*;
@@ -198,7 +196,7 @@ impl HudNoticeKeepOut<'_, '_> {
 /// held job's done, a refused supply dock and a player repair job's end to
 /// it, and runs `post_dock_refusal_notice`, `post_match_refusal_notice`,
 /// `post_dock_press_notice`, `post_repair_job_notice`, `post_rescue_notice`,
-/// `post_craft_job_notice`, `post_consumable_notice`, `show_hud_notice` and
+/// `post_craft_job_notice`, `show_hud_notice` and
 /// `paint_hud_notice` chained
 /// in Update within [`NovaHudSystems`]. The box itself is a player-scoped
 /// widget spawned by `NovaHudPlugin`.
@@ -215,7 +213,6 @@ impl Plugin for HudNoticePlugin {
         app.add_message::<RepairJobEnded>();
         app.add_message::<RescueCallEnded>();
         app.add_message::<CraftJobEnded>();
-        app.add_message::<ConsumableUsed>();
         app.init_resource::<ShownNotice>();
         app.register_type::<HudNoticeMarker>();
         app.register_type::<HudNoticeText>();
@@ -233,7 +230,6 @@ impl Plugin for HudNoticePlugin {
                 post_repair_job_notice,
                 post_rescue_notice,
                 post_craft_job_notice,
-                post_consumable_notice,
                 show_hud_notice,
                 paint_hud_notice,
             )
@@ -353,26 +349,6 @@ fn post_craft_job_notice(
             continue;
         };
         if let Some(line) = craft_job_end_line(items, recipes.design(&ended.recipe), &ended.end) {
-            debug!("hud_notice: {line}");
-            notices.write(HudNotice(line));
-        }
-    }
-}
-
-/// Post a player ship's flare result, `FLARE: 2 DECOYED`: nothing else
-/// shows it. A refused use is the cockpit deny cue and the dim KIT, BOOST or
-/// FLARE chip; a started repair or boost shows on the status chip.
-fn post_consumable_notice(
-    mut used: MessageReader<ConsumableUsed>,
-    q_player: Query<(), With<PlayerSpaceshipMarker>>,
-    mut notices: MessageWriter<HudNotice>,
-) {
-    for used in used.read() {
-        if !q_player.contains(used.ship) {
-            continue;
-        }
-        if let ConsumableOutcomeType::Decoyed { torpedoes } = used.outcome {
-            let line = format!("FLARE: {torpedoes} DECOYED");
             debug!("hud_notice: {line}");
             notices.write(HudNotice(line));
         }

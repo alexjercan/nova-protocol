@@ -35,8 +35,6 @@
 //! a tutorial can point at a key BEFORE it applies: the spotlight pulses the
 //! dim chip in the unavailable alpha band.
 
-use std::borrow::Cow;
-
 use bevy::{platform::collections::HashSet, prelude::*, ui::UiSystems};
 use nova_ship::input::prelude::*;
 use nova_ui::hud as chip;
@@ -142,7 +140,7 @@ const DOCK_CHIP_GAP_PX: f32 = 7.0;
 /// The verb names, in dock display order (left to right): the core group,
 /// then the situational group, then the weapon group. The first
 /// [`DOCK_CORE_LEN`] sit left of the centre line; the rest grow right of it.
-pub const DOCK_VERBS: [&str; 18] = [
+pub const DOCK_VERBS: [&str; 15] = [
     "INTERFACE",
     "DRIVE",
     "STOP",
@@ -154,9 +152,6 @@ pub const DOCK_VERBS: [&str; 18] = [
     "DOCK",
     "HELM",
     "MINE",
-    "KIT",
-    "BOOST",
-    "FLARE",
     "AIM",
     "FIRE",
     "TORPEDO",
@@ -367,7 +362,7 @@ pub fn keybind_dock_hud() -> impl Bundle {
             Node {
                 display: Display::None,
                 // A chip keeps its content width: a squeezed chip breaks its
-                // word ("KIT 3" onto two lines), and `wrap_dock_row` measures
+                // word onto two lines, and `wrap_dock_row` measures
                 // these widths to decide the wrap.
                 flex_shrink: 0.0,
                 align_items: AlignItems::Center,
@@ -701,9 +696,6 @@ fn verb_hint(hints: &FlightVerbHints, index: usize) -> &VerbHint {
         "DOCK" => &hints.dock,
         "HELM" => &hints.helm,
         "MINE" => &hints.mine,
-        "KIT" => &hints.kit,
-        "BOOST" => &hints.boost,
-        "FLARE" => &hints.flare,
         "AIM" => &hints.aim,
         "FIRE" => &hints.fire,
         "TORPEDO" => &hints.torpedo,
@@ -755,10 +747,6 @@ fn chip_state(hints: &FlightVerbHints, situations: &HudSituations, index: usize)
         "RCS" => hints.rcs_held && hint.available,
         "AIM" => situations.weapons_hot,
         "FIRE" => situations.firing,
-        // A running kit or boost is what the ship is doing; a second press
-        // is refused until it ends.
-        "KIT" => hints.kit_running,
-        "BOOST" => hints.boost_running,
         _ => false,
     };
     if hot {
@@ -1050,7 +1038,7 @@ fn update_dock(
                 color.set_if_neq(TextColor(text_color));
             }
             if let Ok(mut label) = q_label.get_mut(child) {
-                if label.0 != *word {
+                if label.0 != word {
                     label.0 = word.to_string();
                 }
             }
@@ -1060,15 +1048,11 @@ fn update_dock(
 
 /// The word chip `index` shows. STOP reads MATCH while the RCS modifier is
 /// held, because the key press is then the MATCH chord; the chip index and its
-/// emphasis name do not change. A consumable chip carries the hold's count,
-/// `KIT 3`.
-fn chip_word(hints: &FlightVerbHints, index: usize) -> Cow<'static, str> {
+/// emphasis name do not change.
+fn chip_word(hints: &FlightVerbHints, index: usize) -> &'static str {
     match (dock_verb(index), hints.stop_verb) {
-        ("STOP", StopVerbType::Match) => Cow::Borrowed("MATCH"),
-        ("KIT", _) => Cow::Owned(format!("KIT {}", hints.kit_held)),
-        ("BOOST", _) => Cow::Owned(format!("BOOST {}", hints.boost_held)),
-        ("FLARE", _) => Cow::Owned(format!("FLARE {}", hints.flare_held)),
-        (verb, _) => Cow::Borrowed(verb),
+        ("STOP", StopVerbType::Match) => "MATCH",
+        (verb, _) => verb,
     }
 }
 
@@ -1266,8 +1250,8 @@ mod tests {
     }
 
     /// The fixture dock: the core group and GOTO, ORBIT, CANCEL and DOCK on
-    /// the row, with STOP, RADAR, INTERFACE and DRIVE lit; HELM, MINE, the
-    /// consumable keys and the weapon verbs off the row.
+    /// the row, with STOP, RADAR, INTERFACE and DRIVE lit; HELM, MINE and the
+    /// weapon verbs off the row.
     pub(super) fn hints(
         orbit_available: bool,
         engaged: bool,
@@ -1296,14 +1280,6 @@ mod tests {
             fire: hint("LMB", false, false),
             torpedo: hint("F", false, false),
             railgun: hint("R", false, false),
-            kit: hint("1", false, false),
-            kit_held: 0,
-            kit_running: false,
-            boost: hint("2", false, false),
-            boost_held: 0,
-            boost_running: false,
-            flare: hint("3", false, false),
-            flare_held: 0,
             helm_held: false,
             helm_fault: false,
             helm_station: false,
@@ -1344,9 +1320,6 @@ mod tests {
             "DOCK" => &mut hints.dock,
             "HELM" => &mut hints.helm,
             "MINE" => &mut hints.mine,
-            "KIT" => &mut hints.kit,
-            "BOOST" => &mut hints.boost,
-            "FLARE" => &mut hints.flare,
             "AIM" => &mut hints.aim,
             "FIRE" => &mut hints.fire,
             "TORPEDO" => &mut hints.torpedo,
@@ -1730,8 +1703,7 @@ mod tests {
         assert_eq!(chips.len(), DOCK_VERBS.len(), "one chip per verb");
 
         let expected_key = [
-            "Tab", "W", "X", "SHIFT", "CTRL", "G", "O", "Z", "D", "H", "V", "1", "2", "3", "RMB",
-            "LMB", "F", "R",
+            "Tab", "W", "X", "SHIFT", "CTRL", "G", "O", "Z", "D", "H", "V", "RMB", "LMB", "F", "R",
         ];
         for (index, verb) in DOCK_VERBS.iter().enumerate() {
             let stem = key_glyph_stem(expected_key[index]).unwrap();
@@ -2466,8 +2438,7 @@ mod tests {
     #[test]
     fn every_dock_verb_has_a_keycap_for_its_live_key() {
         for key in [
-            "Tab", "W", "X", "SHIFT", "CTRL", "G", "O", "Z", "D", "H", "V", "1", "2", "3", "RMB",
-            "LMB", "F", "R",
+            "Tab", "W", "X", "SHIFT", "CTRL", "G", "O", "Z", "D", "H", "V", "RMB", "LMB", "F", "R",
         ] {
             assert!(
                 key_glyph_stem(key).is_some(),
@@ -2497,7 +2468,9 @@ pub(crate) mod keycap_sizing_tests {
         *,
     };
     use crate::{
-        chip_layout_rig::{chip_layout_app, load_png, measure, only_descendant_with, settle},
+        chip_layout_rig::{
+            chip_layout_app, load_png, measure, only_descendant_with, set_rig_width, settle,
+        },
         key_glyphs::prelude::{trimmed_cap, KeyGlyphs, KEY_GLYPH_DIR, KEY_GLYPH_FILES},
     };
 
@@ -2664,50 +2637,107 @@ pub(crate) mod keycap_sizing_tests {
     /// The centre-line rule gives way only when the right groups need more
     /// than their half of the screen: the whole row then moves left by the
     /// overflow, so the last chip ends at the side margin and no chip is cut.
-    /// A row no one line holds wraps the right chips onto a line above, inside
-    /// both margins. With the row short again the core group is back on the
-    /// centre line.
+    /// With the row short again the core group is back on the centre line.
     #[test]
     fn a_right_half_wider_than_half_the_screen_moves_the_row_left_uncut() {
-        // Every verb shown: thirteen chips right of the core group.
+        // Every verb shown: ten chips right of the core group.
         let (mut app, chips) = dock_app();
         // The rig lays out a 1280 px wide target.
         let view = 1280.0;
         let centre = view / 2.0;
         let rect = |app: &App, verb: &str| measure(app, chip_of(&chips, verb)).rect;
-        let shown = |app: &App, verbs: &[&str]| -> Vec<(&'static str, Rect)> {
-            DOCK_VERBS
+
+        let every: Vec<(&str, Rect)> = DOCK_VERBS
+            .iter()
+            .map(|verb| (*verb, rect(&app, verb)))
+            .collect();
+        let radar = rect(&app, "RADAR");
+        let goto = rect(&app, "GOTO");
+        let railgun = rect(&app, "RAILGUN");
+        assert!(
+            railgun.max.x - goto.min.x + DOCK_CHIP_GAP_PX / 2.0 > centre - DOCK_SIDE_PX,
+            "delivery guard: the right chips need more than their half: {goto:?} to {railgun:?}"
+        );
+        assert_uncut(&every, view, "every chip shown");
+        assert!(
+            every
                 .iter()
-                .filter(|verb| !verbs.contains(verb))
-                .map(|verb| (*verb, rect(app, verb)))
-                .collect()
-        };
-        let assert_uncut = |rects: &[(&str, Rect)], beat: &str| {
-            for (verb, chip) in rects {
+                .all(|(_, chip)| (chip.max.y - radar.max.y).abs() <= 1.0),
+            "one line holds the row: {every:?}"
+        );
+        assert!(
+            (railgun.max.x - (view - DOCK_SIDE_PX)).abs() <= 1.0,
+            "the last chip ends at the side margin, whole: {railgun:?}"
+        );
+        assert!(
+            radar.max.x < centre - DOCK_CHIP_GAP_PX,
+            "the core group gave way, left of the centre line: {radar:?}"
+        );
+        assert!(
+            (goto.min.x - radar.max.x - DOCK_CHIP_GAP_PX).abs() <= 1.0,
+            "the gap between the halves is still the chip gap: {radar:?} vs {goto:?}"
+        );
+
+        // The weapon group leaves: the right chips fit their half again.
+        let mut short = all_available_hints();
+        for verb in ["AIM", "FIRE", "TORPEDO", "RAILGUN"] {
+            verb_hint_mut(&mut short, verb).shown = false;
+        }
+        app.insert_resource(short);
+        settle(&mut app);
+        let radar = rect(&app, "RADAR");
+        let mine = rect(&app, "MINE");
+        assert!(
+            mine.max.x < view - DOCK_SIDE_PX - 1.0,
+            "delivery guard: the short row has room on the right: {mine:?}"
+        );
+        assert!(
+            (radar.max.x + DOCK_CHIP_GAP_PX / 2.0 - centre).abs() <= 1.0,
+            "the core group is back on the centre line: {radar:?}"
+        );
+    }
+
+    /// Every shown chip in `rects` stands inside both side margins of a
+    /// `view` px wide screen, and no two overlap.
+    fn assert_uncut(rects: &[(&str, Rect)], view: f32, beat: &str) {
+        for (verb, chip) in rects {
+            assert!(
+                chip.min.x >= DOCK_SIDE_PX - 1.0 && chip.max.x <= view - DOCK_SIDE_PX + 1.0,
+                "{beat}: {verb} stands inside both margins: {chip:?}"
+            );
+        }
+        for (index, (verb, chip)) in rects.iter().enumerate() {
+            for (other, next) in &rects[index + 1..] {
+                let overlap = chip.intersect(*next);
                 assert!(
-                    chip.min.x >= DOCK_SIDE_PX - 1.0 && chip.max.x <= view - DOCK_SIDE_PX + 1.0,
-                    "{beat}: {verb} stands inside both margins: {chip:?}"
+                    overlap.width() <= 0.5 || overlap.height() <= 0.5,
+                    "{beat}: {verb} overlaps {other}: {chip:?} vs {next:?}"
                 );
             }
-            for (index, (verb, chip)) in rects.iter().enumerate() {
-                for (other, next) in &rects[index + 1..] {
-                    let overlap = chip.intersect(*next);
-                    assert!(
-                        overlap.width() <= 0.5 || overlap.height() <= 0.5,
-                        "{beat}: {verb} overlaps {other}: {chip:?} vs {next:?}"
-                    );
-                }
-            }
-        };
+        }
+    }
 
-        // Every chip: one line cannot hold the row, so it wraps.
-        let every = shown(&app, &[]);
+    /// A screen too narrow for the row on one line keeps the core group at
+    /// the left margin and wraps the last right chips onto a line above the
+    /// row, every chip inside both margins.
+    #[test]
+    fn a_row_no_line_holds_wraps_the_right_chips_above_it() {
+        let (mut app, chips) = dock_app();
+        let view = 960.0;
+        set_rig_width(&mut app, 960);
+        settle(&mut app);
+        let rect = |app: &App, verb: &str| measure(app, chip_of(&chips, verb)).rect;
+
+        let every: Vec<(&str, Rect)> = DOCK_VERBS
+            .iter()
+            .map(|verb| (*verb, rect(&app, verb)))
+            .collect();
         let widths: f32 = every.iter().map(|(_, chip)| chip.width()).sum();
         assert!(
             widths > view - 2.0 * DOCK_SIDE_PX,
             "delivery guard: every chip is wider than one line: {widths}"
         );
-        assert_uncut(&every, "every chip shown");
+        assert_uncut(&every, view, "every chip shown");
         let interface = rect(&app, "INTERFACE");
         let radar = rect(&app, "RADAR");
         let goto = rect(&app, "GOTO");
@@ -2728,58 +2758,6 @@ pub(crate) mod keycap_sizing_tests {
         assert!(
             above.contains(&"RAILGUN") && !above.contains(&"GOTO"),
             "the last right chips wrap onto a line above the row: {above:?}"
-        );
-
-        // The weapon group leaves: one line holds the row again, moved left.
-        let mut no_weapons = all_available_hints();
-        for verb in ["AIM", "FIRE", "TORPEDO", "RAILGUN"] {
-            verb_hint_mut(&mut no_weapons, verb).shown = false;
-        }
-        app.insert_resource(no_weapons.clone());
-        settle(&mut app);
-        let line = shown(&app, &["AIM", "FIRE", "TORPEDO", "RAILGUN"]);
-        let radar = rect(&app, "RADAR");
-        let goto = rect(&app, "GOTO");
-        let flare = rect(&app, "FLARE");
-        assert!(
-            flare.max.x - goto.min.x + DOCK_CHIP_GAP_PX / 2.0 > centre - DOCK_SIDE_PX,
-            "delivery guard: the right chips need more than their half: {goto:?} to {flare:?}"
-        );
-        assert_uncut(&line, "the weapon group gone");
-        assert!(
-            line.iter()
-                .all(|(_, chip)| (chip.max.y - radar.max.y).abs() <= 1.0),
-            "one line holds the row: {line:?}"
-        );
-        assert!(
-            (flare.max.x - (view - DOCK_SIDE_PX)).abs() <= 1.0,
-            "the last chip ends at the side margin, whole: {flare:?}"
-        );
-        assert!(
-            radar.max.x < centre - DOCK_CHIP_GAP_PX,
-            "the core group gave way, left of the centre line: {radar:?}"
-        );
-        assert!(
-            (goto.min.x - radar.max.x - DOCK_CHIP_GAP_PX).abs() <= 1.0,
-            "the gap between the halves is still the chip gap: {radar:?} vs {goto:?}"
-        );
-
-        // The consumables leave too: the right chips fit their half again.
-        let mut short = no_weapons;
-        for verb in ["KIT", "BOOST", "FLARE"] {
-            verb_hint_mut(&mut short, verb).shown = false;
-        }
-        app.insert_resource(short);
-        settle(&mut app);
-        let radar = rect(&app, "RADAR");
-        let mine = rect(&app, "MINE");
-        assert!(
-            mine.max.x < view - DOCK_SIDE_PX - 1.0,
-            "delivery guard: the short row has room on the right: {mine:?}"
-        );
-        assert!(
-            (radar.max.x + DOCK_CHIP_GAP_PX / 2.0 - centre).abs() <= 1.0,
-            "the core group is back on the centre line: {radar:?}"
         );
     }
 

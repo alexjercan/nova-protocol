@@ -67,16 +67,6 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
         // On a pad it is the chord `rcs_modifier` + `autopilot_orbit`
         // (L3 + A), for the reason `dock` gives.
         ActionBinding::new("dock_helm", "FLIGHT", "Helm").keyboard([Keyboard(KeyCode::KeyH)]),
-        // The consumables, one key per effect type (`ConsumableSlotType`).
-        // The digits hold no section default, and being Flight actions they
-        // are reserved against every section `input_mapping`. No pad button:
-        // every one flight can reach is spoken for.
-        ActionBinding::new("use_repair_kit", "FLIGHT", "Use Repair Kit")
-            .keyboard([Keyboard(KeyCode::Digit1)]),
-        ActionBinding::new("use_boost", "FLIGHT", "Use Boost Cell")
-            .keyboard([Keyboard(KeyCode::Digit2)]),
-        ActionBinding::new("use_flare", "FLIGHT", "Use Decoy Flare")
-            .keyboard([Keyboard(KeyCode::Digit3)]),
         // Hold and tap share the key and the threshold constant so the
         // boundary frame cannot fall between them. `radar_clear` FOLLOWS the
         // hold: one settings row, one rebind, and the tap cannot be left

@@ -68,44 +68,6 @@
         site: Ship,
     )),
     Recipe((
-        id: "base/boost_cell",
-        inputs: [
-            (
-                "WaterIce",
-                1,
-            ),
-            (
-                "CarbonOre",
-                1,
-            ),
-        ],
-        output: (
-            "BoostCell",
-            1,
-        ),
-        duration_secs: 8.0,
-        site: Ship,
-    )),
-    Recipe((
-        id: "base/decoy_flare",
-        inputs: [
-            (
-                "IronOre",
-                1,
-            ),
-            (
-                "CarbonOre",
-                1,
-            ),
-        ],
-        output: (
-            "DecoyFlare",
-            1,
-        ),
-        duration_secs: 6.0,
-        site: Ship,
-    )),
-    Recipe((
         id: "base/docking_collar",
         inputs: [
             (

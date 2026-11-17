@@ -675,9 +675,9 @@ struct FrozenShipState {
     rescue: Option<ShipRescueCall>,
     /// The craft job running at the freeze, required like `repairs`.
     craft: Option<ShipCraftJob>,
-    /// The consumable effects running at the freeze, by item, required like
-    /// `repairs`.
-    effects: Vec<RunningConsumable>,
+    /// The consumable effect running at the freeze, by item, required like
+    /// `craft`.
+    consumable: Option<ShipConsumableEffect>,
 }
 
 /// The RCS magazine a ship root froze with: delta-v spent and seconds idle,
@@ -762,11 +762,11 @@ impl FrozenShip {
         self.state.craft.as_ref()
     }
 
-    /// The consumable effects the ship froze with, as the save checks their
-    /// items against the catalog.
+    /// The consumable effect the ship froze with, as the save checks its
+    /// item against the catalog.
     #[must_use]
-    pub fn consumable_effects(&self) -> &[RunningConsumable] {
-        &self.state.effects
+    pub fn consumable_effect(&self) -> Option<&ShipConsumableEffect> {
+        self.state.consumable.as_ref()
     }
 
     /// This record as a parked hull keeps it: nobody drives it, it is
@@ -790,7 +790,7 @@ impl FrozenShip {
                 repairs: Vec::new(),
                 rescue: None,
                 craft: None,
-                effects: Vec::new(),
+                consumable: None,
                 ..self.state
             },
             ..self
@@ -897,7 +897,7 @@ pub(crate) fn rehull_ship(
         ShipRepairJobs,
         ShipRescueCall,
         ShipCraftJob,
-        ShipConsumableEffects,
+        ShipConsumableEffect,
     )>();
     root.insert((
         SpaceshipDesign(design),
@@ -1077,10 +1077,7 @@ pub fn freeze_ship(world: &World, ship: Entity) -> Result<FrozenShip, UnsettledB
                 .collect(),
             rescue: root.get::<ShipRescueCall>().cloned(),
             craft: root.get::<ShipCraftJob>().cloned(),
-            effects: root
-                .get::<ShipConsumableEffects>()
-                .map(|effects| effects.0.clone())
-                .unwrap_or_default(),
+            consumable: root.get::<ShipConsumableEffect>().cloned(),
         },
     })
 }
@@ -2179,9 +2176,8 @@ fn insert_spaceship_sections(
         if let Some(job) = state.craft.take() {
             root.insert(job);
         }
-        let effects = std::mem::take(&mut state.effects);
-        if !effects.is_empty() {
-            root.insert(ShipConsumableEffects(effects));
+        if let Some(effect) = state.consumable.take() {
+            root.insert(effect);
         }
     }
 
@@ -2799,15 +2795,15 @@ mod tests {
             done: 1,
             elapsed_secs: recipe.duration_secs - PLATE_REPAIR_SECS,
         };
-        let effects = ShipConsumableEffects(vec![RunningConsumable {
-            item: ItemDesignId::from("BoostCell"),
+        let effect = ShipConsumableEffect {
+            item: ItemDesignId::from("RepairKit"),
             elapsed_secs: 3.5,
-        }]);
+        };
         world.entity_mut(ship).insert((
             ShipRepairJobs(vec![job]),
             call.clone(),
             craft.clone(),
-            effects.clone(),
+            effect.clone(),
         ));
 
         let frozen = freeze_ship(world, ship).expect("a settled ship freezes");
@@ -2837,7 +2833,7 @@ mod tests {
         assert_eq!(jobs.0[0].elapsed_secs, 1.0);
         assert_eq!(world.get::<ShipRescueCall>(thawed), Some(&call));
         assert_eq!(world.get::<ShipCraftJob>(thawed), Some(&craft));
-        assert_eq!(world.get::<ShipConsumableEffects>(thawed), Some(&effects));
+        assert_eq!(world.get::<ShipConsumableEffect>(thawed), Some(&effect));
 
         // The first frame's delta is zero; the next fits the last plate.
         app.update();
