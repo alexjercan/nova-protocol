@@ -120,6 +120,7 @@
         duration_secs: 10.0,
         site: Station(
             fee_cr: 30,
+            advancement: 0.25,
         ),
     )),
     Recipe((
@@ -137,6 +138,7 @@
         duration_secs: 10.0,
         site: Station(
             fee_cr: 10,
+            advancement: 0.5,
         ),
     )),
     Recipe((
@@ -162,6 +164,7 @@
         duration_secs: 30.0,
         site: Station(
             fee_cr: 40,
+            advancement: 0.25,
         ),
     )),
 ]

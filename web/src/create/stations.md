@@ -51,6 +51,7 @@ capability set) off it.
             ),
             services: [Trade, Storage],
             builds: [],
+            advancement: 0.0,
             storage_cap_g: 50000,
             stock: {"HullPlate": 4},
             credits: 1000,
@@ -71,6 +72,7 @@ Every field is required. `id`, `name` and `about` name the catalog entry;
 | `hull` | design | the same fields a [ship design](../ships/#the-design) takes: `sections`, `integrity`, `presentation`. It must hold a `Docking` section and a `Controller` section and no `Thruster` section, and author `integrity.collapse_threshold`: the share of its hull a station collapses at, see below |
 | `services` | list | what a docked ship may do here, from the closed set `Rebuild`, `Refit`, `Trade`, `Storage`, `Craft`, `Jobs`, `Roster`. At least one |
 | `builds` | list | the section prototype ids this station crafts, each listed once. Nonempty exactly when `services` lists `Refit` or `Rebuild`, empty otherwise |
+| `advancement` | number | the station's tier, in [0, 1]. It runs a `Station` recipe only when this is at least the recipe's `advancement` (see [Craft](#craft)). A generated station takes its civilization's advancement; the base waystation is 0.25 |
 | `storage_cap_g` | whole number | how many grams the station's storage takes. Above zero exactly when `services` lists `Storage` |
 | `stock` | stock | what the hull's own hold opens with, in the [stock format](../objects/#inventory). It must fit the hull's hold (100 kg per hull section) |
 | `credits` | whole number | the credits the station trades with at spawn |
@@ -161,20 +163,22 @@ over-cap refusal, and finds the storage in the leave save and after a Load.
 A ship runs recipes from the **Craft** view of the TAB interface's Inventory
 pane. A recipe is content, see [Content files](../mod-files/#recipes). A
 `Ship` recipe runs anywhere, in flight too. A `Station` recipe runs only while
-the ship is docked to a living station whose `services` list `Craft`, and pays
-that station its fee a batch. The base game authors nine recipes: PDC
-rounds, hull plates, section panels, repair kits, docking collars and actuator
-packs on the ship; alloy plates, rail slugs and torpedoes at a station.
+the ship is docked to a living station whose `services` list `Craft` and whose
+`advancement` is at least the recipe's, and pays that station its fee a batch.
+Docked at a Craft station below a recipe's advancement, the recipe has no
+tile. The base game authors nine recipes: PDC rounds, hull plates, section
+panels, repair kits, docking collars and actuator packs on the ship; alloy
+plates (0.25), rail slugs (0.5) and torpedoes (0.25) at a station.
 
 | rule | what happens |
 |---|---|
-| the start | the pane checks, in this order: a craft job already runs, batches outside 1 to 999, a `Station` recipe not docked at a Craft station, an input the hold is short of for every batch (the first in authored order), too few credits for every fee. A refused tile is greyed with the reason. A start takes nothing |
+| the start | the pane checks, in this order: a craft job already runs, batches outside 1 to 999, a `Station` recipe not docked at a Craft station of its advancement, an input the hold is short of for every batch (the first in authored order), too few credits for every fee. A refused tile is greyed with the reason. A start takes nothing |
 | the job | one job a ship. It runs on the game clock, so it stands still while the TAB interface or the menu is open. The flight HUD shows `CRAFT <output> <share>%` |
 | a batch | at the end of each batch the checks run again for one batch. Its inputs leave the hold, its output enters it, and a `Station` fee moves from the ship to the station. An output never weighs more than its inputs, so it always fits |
 | a stop | a failed batch check ends the job, keeps the batches already made and posts `CRAFT STOPPED: <why>` on the HUD. Undocking ends a `Station` job at once. Cancel on the pane ends the job the same way |
 | hold use | inputs that running repair jobs hold back are not counted |
 | events | a `Station` batch raises one `OnCreditsChanged` per party with `cause: Craft`, see [Hold events](../events/#hold-events) |
-| a saved world | the running job is saved with the ship and resumes on load. A save whose job names a recipe the catalog lacks is refused on open |
+| a saved world | the running job is saved with the ship and resumes on load. A save whose job names a recipe the catalog lacks, or a `Station` job docked at a station below its advancement, is refused on open |
 
 The proofs are `system_ship_craft`, where a `Ship` recipe crafts in flight and
 a `Station` recipe is refused undocked, and the `craft_sandbox` walk.

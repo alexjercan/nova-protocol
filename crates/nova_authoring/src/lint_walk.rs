@@ -1111,8 +1111,8 @@ fn build_report(
         });
     }
 
-    // 1c. Items, recipes and consumables: the rule the merge applies, over every walked
-    // pack at once, since a player may enable any of them together and the
+    // 1c. Items, recipes, consumables and the ammo floor of station recipes:
+    // the rule the merge applies, over every walked pack at once, since a player may enable any of them together and the
     // merge then refuses both packs of an unrelated duplicate, or the mod
     // that cheapens a base recipe input. A fault is reported against
     // the pack the rule refuses, when a reported bundle loads that pack.
@@ -1134,6 +1134,7 @@ fn build_report(
             items: walked.items.iter().collect(),
             recipes: walked.recipes.iter().collect(),
             consumables: walked.consumables.iter().collect(),
+            sections: walked.sections.iter().collect(),
         })
         .collect();
     let item_faults: Vec<(String, String)> = item_pack_faults(&packs)

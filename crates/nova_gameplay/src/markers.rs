@@ -29,10 +29,10 @@ pub mod prelude {
         station_offers, ControllerSectionMarker, DerelictShipMarker, GunRoundMarker,
         LawfulStationMarker, OwnedShipMarker, OwnedStationMarker, PlayerFleetMarker,
         PlayerSpaceshipMarker, RailgunSectionMarker, RailgunSlugProjectileMarker,
-        SectionInactiveMarker, SectionMarker, SpaceshipRootMarker, StationBuilds, StationDesignId,
-        StationMarker, StationServiceType, StationServices, ThrusterSectionMarker,
-        TorpedoProjectileMarker, TorpedoSectionMarker, TurretBulletProjectileMarker,
-        TurretSectionMarker,
+        SectionInactiveMarker, SectionMarker, SpaceshipRootMarker, StationAdvancement,
+        StationBuilds, StationDesignId, StationMarker, StationServiceType, StationServices,
+        ThrusterSectionMarker, TorpedoProjectileMarker, TorpedoSectionMarker,
+        TurretBulletProjectileMarker, TurretSectionMarker,
     };
 }
 
@@ -226,6 +226,18 @@ impl StationServices {
 /// non-hidden catalog part.
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
 pub struct StationBuilds(pub Vec<String>);
+
+/// The advancement of a station root, in `[0, 1]`: the tier of what it
+/// knows. A docked ship crafts a station recipe only at a station whose
+/// advancement reaches the recipe's floor
+/// ([`CraftSiteType::Station`](crate::crafting::CraftSiteType::Station)).
+///
+/// Inserted beside [`StationBuilds`] by the spawn from its design (a
+/// generated station writes its civilization's advancement) and by the thaw
+/// from its frozen record; a station root without it is invalid, and the
+/// site that reads it panics.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
+pub struct StationAdvancement(pub f32);
 
 /// Whether a docked partner offers `service` now: it is a living station
 /// whose design lists it. `services` is the partner's [`StationServices`],

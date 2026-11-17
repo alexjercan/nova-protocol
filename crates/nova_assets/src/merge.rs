@@ -211,6 +211,13 @@ pub fn register_bundles(
                         _ => None,
                     })
                     .collect(),
+                sections: content
+                    .iter()
+                    .filter_map(|item| match item {
+                        Content::Section(config) => Some(config.as_ref()),
+                        _ => None,
+                    })
+                    .collect(),
             })
         })
         .collect();

@@ -35,8 +35,8 @@ use nova_scenario::prelude::{
     freeze_asteroid, freeze_fleet, freeze_ore_drop, freeze_ship, freeze_station,
     spaceship_scenario_object, AsteroidKind, AsteroidKindId, AsteroidMarker, AsteroidRadius,
     AsteroidSeed, AsteroidTexture, CurrentScenario, GameShipDesigns, GameStartRoles,
-    MinedCanisterQueue, MinedOre, MinedOreDrop, SpaceshipConfig, StartingStation, StationBuilds,
-    StationMarker, StationServices, StationStorage,
+    MinedCanisterQueue, MinedOre, MinedOreDrop, SpaceshipConfig, StartingStation,
+    StationAdvancement, StationBuilds, StationMarker, StationServices, StationStorage,
 };
 use nova_ship::prelude::{
     cargo_canister, docking_section, freeze_canister, freeze_wreck_fragment,
@@ -142,8 +142,8 @@ const FIXTURE_PROFILE: &str = "fixture_profile";
 
 /// The recipe catalog every opened world is checked against: the ship
 /// recipe [`FIXTURE_RECIPE`], 8 s a batch, and the station recipe
-/// [`FIXTURE_STATION_RECIPE`], 10 s a batch with no fee. Both make a hull
-/// plate from an iron ore.
+/// [`FIXTURE_STATION_RECIPE`], 10 s a batch with no fee at a station of
+/// advancement 0.25 or more. Both make a hull plate from an iron ore.
 fn recipes() -> GameRecipes {
     let recipe = |id: &str, duration_secs, site| nova_gameplay::prelude::RecipeDesign {
         id: id.into(),
@@ -161,7 +161,10 @@ fn recipes() -> GameRecipes {
         recipe(
             FIXTURE_STATION_RECIPE,
             10.0,
-            nova_gameplay::prelude::CraftSiteType::Station { fee_cr: 0 },
+            nova_gameplay::prelude::CraftSiteType::Station {
+                fee_cr: 0,
+                advancement: 0.25,
+            },
         ),
     ])
 }
@@ -1354,6 +1357,78 @@ fn a_load_restores_the_player_s_dock_and_refuses_one_whose_port_is_taken() {
         .is_none());
 }
 
+/// A station craft job saved docked at a station below the recipe's
+/// advancement refuses the world, naming the recipe and both advancements;
+/// docked at a station at the floor it passes.
+#[test]
+fn a_station_craft_job_saved_at_a_station_below_its_advancement_is_refused() {
+    let saved_at = |advancement: f32| {
+        let mut world = World::new();
+        let station = world
+            .spawn((
+                spaceship_scenario_object(SpaceshipConfig::default()),
+                ShipInventory::new(&items(), 10_000, []),
+                DamageMarks::default(),
+                RcsBudget::default(),
+                StationMarker,
+                StationPost::Fixed {
+                    position: Vec3::ZERO,
+                },
+                StationServices(vec![StationServiceType::Craft]),
+                StationBuilds(Vec::new()),
+                StationAdvancement(advancement),
+                StationPdcReserve::full(),
+                StationStorage::new(0),
+            ))
+            .id();
+        let station = FrozenBodyType::Station(
+            Box::new(freeze_station(&world, station).expect("a bare station is settled")),
+            Vec::new(),
+        );
+        let ship = world
+            .spawn((
+                spaceship_scenario_object(SpaceshipConfig::default()),
+                ShipInventory::new(&items(), 10_000, []),
+                DamageMarks::default(),
+                RcsBudget::default(),
+                nova_ship::prelude::ShipCraftJob::new(FIXTURE_STATION_RECIPE.into(), 1),
+            ))
+            .id();
+        let mut state = WorldSaveState {
+            player: SavedPlayer {
+                ship: freeze_ship(&world, ship).expect("a bare ship is settled"),
+                ..state(1, 750).player
+            },
+            sectors: ledger_holding(SectorCoord::new(1, 0, 0), Some("yard"), &station),
+            ..state(1, 750)
+        };
+        let frame = SavedJointFrame {
+            anchor: Vec3::ZERO,
+            basis: Quat::IDENTITY,
+        };
+        state.player.controls.dock = Some(SavedDock {
+            partner: SavedBodyRef(EntityId("yard".to_string())),
+            player_first: true,
+            player_port: EntityId("port".to_string()),
+            partner_port: EntityId("port".to_string()),
+            helm: SavedDockHelm::Neutral,
+            player_frame: frame,
+            partner_frame: frame,
+        });
+        super::check_saved_jobs(&state, &designs(), &recipes(), &GameConsumables::default())
+    };
+    assert_eq!(
+        saved_at(0.2),
+        Err(
+            "the player ship 'player' runs a craft job of the station recipe \
+             'fixture_station_recipe', which needs station advancement 0.25, docked at a \
+             station of 0.2"
+                .to_string()
+        )
+    );
+    assert_eq!(saved_at(0.25), Ok(()));
+}
+
 /// A station craft job saved docked resumes on Load: the ship thaws before
 /// its dock is rebuilt, and the job holds over those frames rather than
 /// stop, then finishes its batch at the station from the saved clock.
@@ -1439,6 +1514,7 @@ fn a_station_craft_job_saved_docked_resumes_and_finishes() {
     world.entity_mut(tender).insert((
         StationMarker,
         StationServices(vec![StationServiceType::Craft]),
+        StationAdvancement(0.25),
         ShipCredits(0),
         nova_gameplay::prelude::ShipInventoryReports::default(),
     ));
@@ -4402,6 +4478,7 @@ fn frozen_item_holders(item: &ItemDesignId) -> Vec<(Option<&'static str>, Frozen
             },
             StationServices(vec![StationServiceType::Storage]),
             StationBuilds(Vec::new()),
+            StationAdvancement(0.0),
             StationPdcReserve::full(),
             ron::from_str::<StationStorage>(&format!(
                 "(cap_g: 10000, items: {{{}: 1}})",
@@ -4762,6 +4839,7 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
                 },
                 StationServices(vec![StationServiceType::Storage]),
                 StationBuilds(Vec::new()),
+                StationAdvancement(0.0),
                 StationPdcReserve::full(),
                 ron::from_str::<StationStorage>(&format!(
                     "(cap_g: {cap_g}, items: {{{iron}: {ore}}})"
@@ -4888,6 +4966,7 @@ fn a_load_refuses_a_living_trade_station_with_no_market_or_an_unpriceable_one() 
                 },
                 StationServices(vec![StationServiceType::Trade]),
                 StationBuilds(Vec::new()),
+                StationAdvancement(0.0),
                 StationPdcReserve::full(),
                 StationStorage::default(),
             ))
@@ -5170,6 +5249,7 @@ fn a_saved_station_pdc_reserve_opens_as_it_froze_and_a_malformed_one_is_refused(
                 },
                 StationServices(Vec::new()),
                 StationBuilds(Vec::new()),
+                StationAdvancement(0.0),
                 StationStorage::new(0),
                 reserve,
             ))
@@ -5290,6 +5370,7 @@ fn a_world_whose_parked_escort_moves_non_finite_is_refused_on_open() {
             },
             StationServices(Vec::new()),
             StationBuilds(Vec::new()),
+            StationAdvancement(0.0),
             StationStorage::new(0),
             StationPdcReserve::full(),
         ))
@@ -5880,6 +5961,7 @@ fn a_load_restores_a_real_station_dock_through_a_real_physics_tick() {
                 StationPost::Fixed { position },
                 StationServices(Vec::new()),
                 StationBuilds(Vec::new()),
+                StationAdvancement(0.0),
                 StationStorage::new(0),
                 StationPdcReserve::full(),
             ))
@@ -6177,6 +6259,7 @@ fn a_load_refuses_a_station_dock_that_names_a_port_its_ship_lacks() {
             },
             StationServices(Vec::new()),
             StationBuilds(Vec::new()),
+            StationAdvancement(0.0),
             StationStorage::new(0),
             StationPdcReserve::full(),
             ChildOf(home),

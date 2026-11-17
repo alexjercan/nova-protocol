@@ -40,8 +40,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - `OnRepaired` now fires when a repair job ends, with every plate it fitted. `OnRebuilt` also fires for a field rebuild, with `price_cr: 0` and no `OnCreditsChanged`.
 - `OnCreditsChanged` gains cause `Rescue`: an SOS rescue takes its charge in one change at the answer. Its `OnRebuilt` events carry hold parts and each section's share.
-- **(breaking)** Recipes are content: `Recipe((id, inputs, output, duration_secs, site))`, with `site: Ship` or `Station(fee_cr: n)`. The item `refine` field is gone.
+- **(breaking)** Recipes are content: `Recipe((id, inputs, output, duration_secs, site))`, with `site: Ship` or `Station(fee_cr: n, advancement: a)`. The item `refine` field is gone.
 - Consumables are content: `Consumable((item, effect))`, effect `Repair`. Lint refuses bad numbers, an unknown or engine item, and a duplicate item.
+- **(breaking)** Station designs need `advancement` in [0, 1]. A station runs a Station recipe only at or above its `advancement`; lint refuses ammo below the weapons that fire it.
 - **(breaking)** The station service `Refine` is now `Craft`, and the `OnCreditsChanged` cause `Refine` is now `Craft`: one per party for each Station recipe batch.
 
 ### Interface & HUD

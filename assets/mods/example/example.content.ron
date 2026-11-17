@@ -898,10 +898,13 @@
     // `inputs` lists each item a batch takes once, in the order the view shows
     // them; the output is not an input. `duration_secs` is the game seconds a
     // batch runs, above 0. `site: Ship` runs anywhere, in flight too;
-    // `site: Station(fee_cr: n)` runs only docked at a living station that
-    // offers Craft and pays it n cr a batch. Lint refuses a recipe whose
-    // inputs at ask plus the fee cost less than its output sells for at bid,
-    // or whose output weighs more than its inputs.
+    // `site: Station(fee_cr: n, advancement: a)` runs only docked at a living
+    // station that offers Craft with an advancement of at least a, in [0, 1],
+    // and pays it n cr a batch. Lint refuses a recipe whose inputs at ask plus
+    // the fee cost less than its output sells for at bid, whose output weighs
+    // more than its inputs, or whose Station advancement is below the lowest
+    // advancement of a section that reloads its output (no rail slugs below
+    // the railgun's 0.5).
     Recipe((
         id: "example/survey_core",
         inputs: [
@@ -1598,7 +1601,9 @@
     // `services` is the closed set Rebuild, Refit, Trade, Storage, Craft,
     // Jobs, Roster; at least one, each once. Craft runs the Station recipes. `builds` lists the section prototype
     // ids the station crafts (swap, add, rebuild): nonempty exactly when
-    // Refit or Rebuild is listed, each a known id, each once. `storage_cap_g`
+    // Refit or Rebuild is listed, each a known id, each once. `advancement`
+    // is the station's tier in [0, 1]: it runs a Station recipe only at or
+    // above the recipe's advancement. `storage_cap_g`
     // is above zero exactly when Storage is listed. `stock` seeds the hull's
     // own hold (four plates here = 400 kg) and `credits` is what it trades
     // with. The hull takes the same fields a `Ship` design does, and on a
@@ -1654,6 +1659,7 @@
             ),
             services: [Trade, Storage],
             builds: [],
+            advancement: 0.0,
             storage_cap_g: 50000,
             stock: {"example_survey_core": 4},
             credits: 1000,

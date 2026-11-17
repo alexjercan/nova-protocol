@@ -25,7 +25,8 @@
 //! save reaches a saved ship's repair jobs, rescue call or craft job. A
 //! loaded job is checked like every other record: one naming a section the
 //! ship's design lacks, a recipe the loaded catalog lacks, or a station
-//! recipe on a ship not saved docked refuses the world. Native only: the
+//! recipe on a ship not saved docked, or docked at a station below the
+//! recipe's advancement, refuses the world. Native only: the
 //! web build has no saved worlds.
 //!
 //! The state carries the scenario ([`SavedScenario`]) beside the sectors: a
@@ -1199,7 +1200,8 @@ fn design_section_ids(
 /// chain on sections its design names and it lost, at most one job a
 /// section, a craft job of a loaded recipe below its batch count of at
 /// most `CRAFT_BATCHES_MAX`, a station recipe only on the player ship saved
-/// docked, a running consumable effect of a loaded consumable, and finite
+/// docked, and at a saved station of at least the recipe's advancement when
+/// the dock is with one, a running consumable effect of a loaded consumable, and finite
 /// clocks within their spans. Only
 /// the read path checks:
 /// Load runs
@@ -1214,8 +1216,24 @@ fn check_saved_jobs(
     consumables: &GameConsumables,
 ) -> Result<(), String> {
     // `docked`: the ship was saved in a dock, the one place a station
-    // recipe runs. Only the player ship saves its dock.
-    let check = |ship: &FrozenShip, owner: &str, docked: bool| -> Result<(), String> {
+    // recipe runs, with the advancement of the partner when the save holds
+    // it as a station. Only the player ship saves its dock.
+    let station_advancement = |id: &str| {
+        state.sectors.iter().find_map(|(_, record)| {
+            record
+                .each_body()
+                .find_map(|body| match (body.id(), body.body()) {
+                    (Some(found), FrozenBodyType::Station(station, _)) if found == id => {
+                        Some(station.advancement())
+                    }
+                    _ => None,
+                })
+        })
+    };
+    let check = |ship: &FrozenShip,
+                 owner: &str,
+                 docked: Option<Option<f32>>|
+     -> Result<(), String> {
         if let Some(job) = ship.craft_job() {
             let Some(recipe) = recipes.get(&job.recipe) else {
                 return Err(format!(
@@ -1223,12 +1241,24 @@ fn check_saved_jobs(
                     job.recipe
                 ));
             };
-            if matches!(recipe.site, CraftSiteType::Station { .. }) && !docked {
-                return Err(format!(
-                    "{owner} runs a craft job of the station recipe '{}' but was not saved \
-                     docked",
-                    job.recipe
-                ));
+            if let CraftSiteType::Station { advancement, .. } = recipe.site {
+                match docked {
+                    None => {
+                        return Err(format!(
+                            "{owner} runs a craft job of the station recipe '{}' but was not \
+                             saved docked",
+                            job.recipe
+                        ));
+                    }
+                    Some(Some(station)) if station < advancement => {
+                        return Err(format!(
+                            "{owner} runs a craft job of the station recipe '{}', which needs \
+                             station advancement {advancement}, docked at a station of {station}",
+                            job.recipe
+                        ));
+                    }
+                    Some(_) => {}
+                }
             }
             if job.queued == 0
                 || job.queued > CRAFT_BATCHES_MAX
@@ -1352,19 +1382,20 @@ fn check_saved_jobs(
     check(
         &state.player.ship,
         &format!("the player ship '{}'", state.player.id.0),
-        state.player.controls.dock.is_some(),
+        state
+            .player
+            .controls
+            .dock
+            .as_ref()
+            .map(|dock| station_advancement(&dock.partner.0 .0)),
     )?;
     for escort in &state.player.fleet {
-        check(
-            &escort.ship,
-            &format!("the escort '{}'", escort.id.0),
-            false,
-        )?;
+        check(&escort.ship, &format!("the escort '{}'", escort.id.0), None)?;
     }
     for (_, record) in state.sectors.iter() {
         for body in record.each_body() {
             if let FrozenBodyType::Ship(ship) = body.body() {
-                check(ship, &format!("'{}'", body.id().unwrap_or("a ship")), false)?;
+                check(ship, &format!("'{}'", body.id().unwrap_or("a ship")), None)?;
             }
         }
     }

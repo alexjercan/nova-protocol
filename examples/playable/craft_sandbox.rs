@@ -2,8 +2,9 @@
 //! credits aboard, and run recipes from the Craft view in the Inventory pane.
 //!
 //! The shipped waystation (`block_waystation`) stands in a void; Craft is
-//! one of its services, so its Station recipes run here as well as the Ship
-//! recipes. The player's hull is the tender from `shared/docking_pair.rs`.
+//! one of its services, so its Station recipes at or below its advancement
+//! (0.25) run here as well as the Ship recipes; rail slugs (0.5) have no
+//! tile. The player's hull is the tender from `shared/docking_pair.rs`.
 //! THE HOLD AND THE BALANCE ARE DISCLOSED FIXTURE STATE: 12 iron ore, 6
 //! stone ore, 6 carbon ore and 300 cr, and no alloy plate, so the torpedo
 //! tile is greyed by its input.
@@ -218,6 +219,8 @@ mod smoke {
     /// The batches the walk sets on the slider and starts.
     const BATCHES: u32 = 2;
     const TORPEDO_RECIPE: &str = "base/torpedo";
+    /// Needs station advancement 0.5, above the waystation's 0.25.
+    const RAIL_SLUG_RECIPE: &str = "base/rail_slug";
 
     /// The frames the capture path writes.
     const INVENTORY_SHOT: &str = "craft-sandbox-inventory.png";
@@ -301,8 +304,10 @@ mod smoke {
     }
 
     /// The idle tiles: PDC rounds and torpedoes each show their name and
-    /// yield line only, and every base recipe shown. The torpedo tile is
-    /// greyed by its alloy plates; the frame shows the tone.
+    /// yield line only, and every base recipe the docked station's
+    /// advancement runs shows: at the waystation's 0.25 the rail slug, at
+    /// 0.5, has no tile. The torpedo tile is greyed by its alloy plates; the
+    /// frame shows the tone.
     fn assert_the_tiles(world: &mut World) {
         let rounds = texts_under(world, &tile(PDC_RECIPE));
         assert!(
@@ -319,8 +324,28 @@ mod smoke {
             .iter(world)
             .filter(|name| name.as_str().starts_with("CraftTile-"))
             .count();
-        let base = world.resource::<GameRecipes>().0.len();
-        assert_eq!(shown, base, "craft_sandbox: every base recipe shows");
+        let advancement = world
+            .query_filtered::<&StationAdvancement, With<StationMarker>>()
+            .single(world)
+            .expect("craft_sandbox: one station")
+            .0;
+        let runs = world
+            .resource::<GameRecipes>()
+            .0
+            .values()
+            .filter(|recipe| recipe.site.runs_at(Some(advancement)))
+            .count();
+        assert_eq!(
+            shown, runs,
+            "craft_sandbox: every base recipe the station runs shows"
+        );
+        assert!(
+            world
+                .query::<&Name>()
+                .iter(world)
+                .all(|name| name.as_str() != tile(RAIL_SLUG_RECIPE)),
+            "craft_sandbox: the waystation at {advancement} shows no rail slug tile"
+        );
         info!("craft_sandbox: PASS the tiles: {rounds:?}, {torpedo:?}");
     }
 

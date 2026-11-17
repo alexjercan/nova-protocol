@@ -110,6 +110,15 @@ pub fn lint_station_design(
             format!("station '{id}': services is empty; a station offers at least one"),
         ));
     }
+    if !(0.0..=1.0).contains(&design.advancement) {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "station '{id}': advancement must be a finite number in [0, 1], got {}",
+                design.advancement
+            ),
+        ));
+    }
     let mut seen = HashSet::new();
     for service in &design.services {
         if !seen.insert(service) {
@@ -285,6 +294,7 @@ mod tests {
             },
             services: vec![StationServiceType::Trade, StationServiceType::Storage],
             builds: Vec::new(),
+            advancement: 0.0,
             storage_cap_g: 100_000,
             stock: ShipInventoryStock::new([(ItemDesignId::from("crate"), 1)]),
             credits: 100,

@@ -23,7 +23,7 @@ Ore and salvage become parts, ammunition and repair kits. You craft on the ship 
 | Step | Where | How |
 | --- | --- | --- |
 | Get material | anywhere | Cut ore with a [mining beam](../sections/mining-beam/), [buy](../interface/#buy-and-sell) it, or [take](../interface/#take-and-give) it from a wreck. |
-| Craft | Ship recipe: anywhere. Station recipe: docked at a station that offers Craft | The [Craft view](../interface/#crafting) of the Inventory pane. One job at a time, on the game clock. |
+| Craft | Ship recipe: anywhere. Station recipe: docked at a station that offers Craft and is advanced enough | The [Craft view](../interface/#crafting) of the Inventory pane. One job at a time, on the game clock. |
 | Use | the Inventory pane, docked or not | Select your repair kit row and press **Use**. |
 | Repair and rebuild | in flight, or docked | Hull plates, repair kits and [field rebuilds](../interface/#the-ship) from hold parts. |
 
@@ -71,9 +71,11 @@ The kit gives its health evenly over its 10 s. Each moment's share goes to the l
 | Repair kit | 2 hull plates, 1 section panel | 1 repair kit | 12 s | Ship |
 | Docking collar | 1 alloy plate, 5 iron ore | 1 docking collar | 20 s | Ship |
 | Actuator pack | 4 iron ore | 1 actuator pack | 10 s | Ship |
-| Alloy plate | 2 iron ore, 1 carbon ore, 30 cr | 1 alloy plate | 10 s | Station |
-| Rail slug | 2 iron ore, 10 cr | 1 rail slug | 10 s | Station |
-| Torpedo | 2 alloy plates, 1 actuator pack, 9 carbon ore, 40 cr | 1 torpedo | 30 s | Station |
+| Alloy plate | 2 iron ore, 1 carbon ore, 30 cr | 1 alloy plate | 10 s | Station, advancement 0.25 |
+| Rail slug | 2 iron ore, 10 cr | 1 rail slug | 10 s | Station, advancement 0.5 |
+| Torpedo | 2 alloy plates, 1 actuator pack, 9 carbon ore, 40 cr | 1 torpedo | 30 s | Station, advancement 0.25 |
+
+A station crafts a Station recipe only at or above its advancement. Rail slugs need 0.5, where railguns open: a station that cannot build a railgun cannot make its slugs. A station below a recipe hides its tile. Every Craft station is at 0.25 or more, so alloy plates and torpedoes craft at all of them.
 
 ## Fixing the ship
 

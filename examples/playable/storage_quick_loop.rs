@@ -270,10 +270,12 @@ fn stage_the_docks(world: &mut World) {
         };
         let services = StationServices(waystation.design.services.clone());
         let builds = StationBuilds(waystation.design.builds.clone());
+        let advancement = StationAdvancement(waystation.design.advancement);
         world.entity_mut(depot).insert((
             StationMarker,
             services,
             builds,
+            advancement,
             StationStorage::new(STORAGE_CAP_G),
         ));
         world.entity_mut(hauler).insert(OwnedShipMarker);

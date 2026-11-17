@@ -16,7 +16,7 @@ use nova_ship::prelude::{
     BASIC_CONTROLLER_SECTION_ID, BASIC_THRUSTER_SECTION_ID, DOCKING_PORT_SECTION_ID,
     LIGHT_HULL_SECTION_ID, PDC_KINETIC_TURRET_SECTION_ID, TORPEDO_SECTION_ID,
 };
-use nova_world_base::prelude::BLOCK_WAYSTATION_STATION_ID;
+use nova_world_base::prelude::{BLOCK_WAYSTATION_STATION_ID, CRAFT_ADVANCEMENT};
 
 use super::{
     assets::BaseContentAssets,
@@ -71,7 +71,10 @@ fn waystation(assets: &BaseContentAssets) -> StationDesignPrototype {
 }
 
 /// The waystation's design: the block hull, the five dock services, the
-/// advancement-0 sections it builds and a repair and trade stock.
+/// advancement-0 sections it builds and a repair and trade stock. It offers
+/// Craft, so it stands at [`CRAFT_ADVANCEMENT`], where a generated station
+/// starts to: it crafts alloy plates and torpedoes, and no rail slugs, as it
+/// builds no railgun.
 fn waystation_design(assets: &BaseContentAssets) -> StationDesign {
     StationDesign {
         hull: ShipDesign {
@@ -88,6 +91,7 @@ fn waystation_design(assets: &BaseContentAssets) -> StationDesign {
             StationServiceType::Craft,
         ],
         builds: WAYSTATION_BUILDS.iter().map(ToString::to_string).collect(),
+        advancement: CRAFT_ADVANCEMENT,
         storage_cap_g: WAYSTATION_STORAGE_CAP_G,
         // Repair and rescue stock, the two trade goods and enough section
         // parts to rebuild a PDC, a small drive, a controller and a few hull

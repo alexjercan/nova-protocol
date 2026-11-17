@@ -11,7 +11,9 @@
 //!
 //! Recipes and consumables are judged here too, against the item catalog
 //! the merge keeps, since a pack that replaces an item can break a recipe or
-//! a consumable another pack owns.
+//! a consumable another pack owns. A station recipe of ammo is judged
+//! against the sections the merge keeps, since a pack that raises a weapon's
+//! advancement can put a recipe's floor below it.
 //!
 //! The runtime merge (`register_bundles`) and the `content lint` walk both
 //! call [`item_pack_faults`], so a pack lint passes is a pack the game loads.
@@ -19,11 +21,12 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use nova_gameplay::prelude::{
-    consumable_faults, recipe_shape_faults, recipe_value_faults, ConsumableDesign, GameItems,
-    ItemDesign, ItemRoleType, RecipeDesign, CARGO_CANISTER_MAX_MASS_G,
+    consumable_faults, recipe_floor_fault, recipe_shape_faults, recipe_value_faults,
+    ConsumableDesign, GameItems, ItemDesign, ItemRoleType, RecipeDesign, CARGO_CANISTER_MAX_MASS_G,
 };
 use nova_mod_format::deps::{transitive_deps, DepGraph};
 use nova_modding::prelude::BASE_MOD_ID;
+use nova_ship::prelude::SectionConfig;
 
 /// Glob-import surface: `use nova_assets::items::prelude::*` re-exports the
 /// public API of this module.
@@ -44,6 +47,9 @@ pub struct ItemPack<'a> {
     pub recipes: Vec<&'a RecipeDesign>,
     /// Every consumable it defines, in authored order.
     pub consumables: Vec<&'a ConsumableDesign>,
+    /// Every section it defines, in authored order: what fires the ammo a
+    /// station recipe makes.
+    pub sections: Vec<&'a SectionConfig>,
 }
 
 /// Every fault the item rule finds, by the pack it refuses, in pack id order.
@@ -60,6 +66,12 @@ pub struct ItemPack<'a> {
 /// batch that pays, an output heavier than its inputs), the last pack that
 /// set the recipe or the price or mass of one of its items is refused: a
 /// pack that cheapens a base input is refused, and the base game stays.
+///
+/// A station recipe is judged against the sections the merge keeps, the
+/// last definition of each id in `packs` order: for a [`recipe_floor_fault`]
+/// (a floor below the lowest advancement of a section that fires its
+/// output), the last pack that set the recipe or one of those sections is
+/// refused.
 ///
 /// A consumable is judged against the same catalog: the pack that set the
 /// consumable the merge keeps is refused for each [`consumable_faults`]
@@ -148,8 +160,38 @@ pub fn item_pack_faults(packs: &[ItemPack<'_>]) -> BTreeMap<String, Vec<String>>
         })
         .collect();
     let catalog = GameItems::new(effective.values().map(|(_, item)| (*item).clone()));
+    // The sections the merge keeps, by id, with the pack that set each.
+    let mut sections: BTreeMap<&str, (&str, &SectionConfig)> = BTreeMap::new();
+    for pack in packs {
+        for section in &pack.sections {
+            sections.insert(section.base.id.as_str(), (pack.id, section));
+        }
+    }
     for pack in packs {
         for recipe in &pack.recipes {
+            let firing: Vec<(&str, f32)> = sections
+                .values()
+                .filter(|(_, section)| {
+                    section
+                        .kind
+                        .reload_item()
+                        .is_some_and(|role| role.id() == recipe.output_item().as_str())
+                })
+                .map(|(owner, section)| (*owner, section.base.advancement))
+                .collect();
+            let tier = firing.iter().map(|(_, tier)| *tier).reduce(f32::min);
+            if let Some(message) = recipe_floor_fault(recipe, tier) {
+                let set_by: BTreeSet<&str> = firing
+                    .iter()
+                    .map(|(owner, _)| *owner)
+                    .chain(std::iter::once(pack.id))
+                    .collect();
+                for owner in &set_by {
+                    if !set_by.iter().any(|later| depends(later, owner)) {
+                        fault(owner, message.clone());
+                    }
+                }
+            }
             for message in recipe_shape_faults(recipe, &catalog) {
                 fault(pack.id, message);
             }
@@ -294,10 +336,12 @@ mod tests {
             items: items.iter().collect(),
             recipes: Vec::new(),
             consumables: Vec::new(),
+            sections: Vec::new(),
         }
     }
 
-    /// A station recipe that makes one `output` from `inputs` for `fee_cr`.
+    /// A station recipe at advancement 0 that makes one `output` from
+    /// `inputs` for `fee_cr`.
     fn recipe(id: &str, inputs: &[(&str, u32)], output: &str, fee_cr: u32) -> RecipeDesign {
         RecipeDesign {
             id: RecipeDesignId::from(id),
@@ -307,7 +351,10 @@ mod tests {
                 .collect(),
             output: (ItemDesignId::from(output), 1),
             duration_secs: 10.0,
-            site: CraftSiteType::Station { fee_cr },
+            site: CraftSiteType::Station {
+                fee_cr,
+                advancement: 0.0,
+            },
         }
     }
 
@@ -486,6 +533,75 @@ mod tests {
                 "odd".to_string(),
                 vec!["the recipe 'odd/core' takes 'Unobtainium', which is no item".to_string()]
             )])
+        );
+    }
+
+    /// A railgun section `id` at `advancement` that reloads rail slugs from
+    /// the hold.
+    fn railgun(id: &str, advancement: f32) -> SectionConfig {
+        use nova_ship::prelude::{
+            AmmoCapacity, BaseSectionConfig, RailgunSectionConfig, ReloadConfig, SectionKind,
+            SectionReloadConfig,
+        };
+        SectionConfig {
+            base: BaseSectionConfig {
+                id: id.to_string(),
+                advancement,
+                ..Default::default()
+            },
+            kind: SectionKind::Railgun(RailgunSectionConfig {
+                ammunition: AmmoCapacity::Limited(1),
+                reload: ReloadConfig::Batch(SectionReloadConfig {
+                    delay: 4.0,
+                    amount: 1,
+                }),
+                ..Default::default()
+            }),
+        }
+    }
+
+    /// A station recipe of rail slugs below the lowest railgun that fires
+    /// them refuses its pack; at that floor it loads. A dependent pack that
+    /// raises the railgun above a base recipe's floor is the one refused.
+    #[test]
+    fn a_station_ammo_recipe_below_the_weapons_that_fire_it_refuses_the_pack_that_broke_it() {
+        let base_items = base_items();
+        let slugs = |floor| RecipeDesign {
+            site: CraftSiteType::Station {
+                fee_cr: 60,
+                advancement: floor,
+            },
+            ..recipe(
+                "base/rail_slug",
+                &[(ItemRoleType::IronOre.id(), 2)],
+                ItemRoleType::RailSlug.id(),
+                60,
+            )
+        };
+        let (lance, heavy) = (railgun("lance", 0.5), railgun("heavy", 0.6));
+        let low = slugs(0.25);
+        let mut base = pack(BASE_MOD_ID, &[], &base_items);
+        base.recipes = vec![&low];
+        base.sections = vec![&lance, &heavy];
+        let faults = item_pack_faults(&[base.clone()]);
+        assert_eq!(faults.len(), 1, "{faults:?}");
+        assert!(
+            faults[BASE_MOD_ID][0].contains("at station advancement 0.25, below 0.5"),
+            "{faults:?}"
+        );
+
+        let floor = slugs(0.5);
+        base.recipes = vec![&floor];
+        assert!(item_pack_faults(&[base.clone()]).is_empty());
+
+        let raised = railgun("lance", 0.7);
+        let mut late = pack("late-lance", &[], &[]);
+        late.sections = vec![&raised];
+        let faults = item_pack_faults(&[base, late]);
+        assert_eq!(
+            faults.keys().collect::<Vec<_>>(),
+            ["late-lance"],
+            "{faults:?}"
         );
     }
 

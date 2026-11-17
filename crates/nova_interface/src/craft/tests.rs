@@ -18,15 +18,42 @@ fn ship_rounds() -> RecipeDesign {
     }
 }
 
-/// A station recipe: 2 iron ore make 1 rail slug in 10 s for a 10 cr fee.
+/// A station recipe: 2 iron ore make 1 rail slug in 10 s for a 10 cr fee,
+/// at a station of advancement 0.5 or more.
 fn station_slug() -> RecipeDesign {
     RecipeDesign {
         id: RecipeDesignId::from("test/rail_slug"),
         inputs: vec![(ItemDesignId::from(ItemRoleType::IronOre), 2)],
         output: (ItemDesignId::from(ItemRoleType::RailSlug), 1),
         duration_secs: 10.0,
-        site: CraftSiteType::Station { fee_cr: 10 },
+        site: CraftSiteType::Station {
+            fee_cr: 10,
+            advancement: 0.5,
+        },
     }
+}
+
+/// Docked at a Craft station below a station recipe's advancement, the
+/// recipe has no tile; at the floor and undocked it shows.
+#[test]
+fn a_station_recipe_the_docked_station_cannot_craft_is_hidden() {
+    let items = test_items();
+    let recipes = GameRecipes::new([ship_rounds(), station_slug()]);
+    let site = |station| CraftSite {
+        hold: ShipInventory::new(&items, 400_000, []),
+        own_cr: 100,
+        station,
+        running: false,
+    };
+    let ids = |site: &CraftSite| -> Vec<RecipeDesignId> {
+        shown_recipes(&recipes, &items, site, None)
+            .into_iter()
+            .map(|recipe| recipe.id.clone())
+            .collect()
+    };
+    assert_eq!(ids(&site(Some(0.25))), [ship_rounds().id]);
+    assert_eq!(ids(&site(Some(0.5))), [ship_rounds().id, station_slug().id]);
+    assert_eq!(ids(&site(None)), [ship_rounds().id, station_slug().id]);
 }
 
 /// An undocked player ship with 4 iron ore, 2 stone ore and 100 cr.

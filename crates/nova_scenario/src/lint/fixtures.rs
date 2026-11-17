@@ -129,6 +129,7 @@ pub(crate) fn stations(ids: &[&str]) -> KnownStationDesigns {
                 },
                 services: vec![StationServiceType::Trade],
                 builds: Vec::new(),
+                advancement: 0.0,
                 storage_cap_g: 0,
                 stock: ShipInventoryStock::default(),
                 credits: 0,

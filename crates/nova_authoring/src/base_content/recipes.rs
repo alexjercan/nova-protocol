@@ -3,7 +3,10 @@
 //! `content gen` serializes this builder into
 //! `assets/base/recipes/base.content.ron`. Ship recipes run on every player
 //! hull, anywhere; station recipes run docked at a living station that
-//! offers Craft, for a fee per batch. The inputs and outputs are the base
+//! offers Craft and stands at or above the recipe's advancement, for a fee
+//! per batch. A station recipe's floor is the lowest advancement of a
+//! section that fires its output (`recipe_floor_fault`), or the Craft
+//! service's own [`CRAFT_ADVANCEMENT`] when nothing asks more. The inputs and outputs are the base
 //! catalog's (`super::items`); one ship recipe makes the repair kit
 //! (`super::consumables`), and two make the dock parts a lost docking port
 //! rebuilds from in the field.
@@ -16,8 +19,14 @@
 use nova_gameplay::prelude::{
     CraftSiteType, ItemDesignId, ItemRoleType, RecipeDesign, RecipeDesignId,
 };
+use nova_world_base::prelude::CRAFT_ADVANCEMENT;
 
 use super::items::{ACTUATOR_PACK, ALLOY_PLATE, DOCKING_COLLAR, REPAIR_KIT, SECTION_PANEL};
+
+/// The rail slug's station floor: the railgun lance's advancement, the
+/// lowest of a section that fires slugs. A station that builds no railgun
+/// makes no slugs.
+const RAIL_SLUG_ADVANCEMENT: f32 = 0.5;
 
 /// The base game's recipes, in the order the file carries them: the ship
 /// recipes, then the station recipes.
@@ -88,27 +97,39 @@ pub(crate) fn recipe_catalog() -> Vec<RecipeDesign> {
             10.0,
             Ship,
         ),
+        // The lowest section that spends an alloy plate, the Dart torpedo
+        // bay, opens at the Craft floor.
         recipe(
             "base/alloy_plate",
             &[(IronOre.id(), 2), (CarbonOre.id(), 1)],
             (ALLOY_PLATE, 1),
             10.0,
-            Station { fee_cr: 30 },
+            Station {
+                fee_cr: 30,
+                advancement: CRAFT_ADVANCEMENT,
+            },
         ),
         recipe(
             "base/rail_slug",
             &[(IronOre.id(), 2)],
             (RailSlug.id(), 1),
             10.0,
-            Station { fee_cr: 10 },
+            Station {
+                fee_cr: 10,
+                advancement: RAIL_SLUG_ADVANCEMENT,
+            },
         ),
-        // The deliberate, expensive ammo stays station-made.
+        // The deliberate, expensive ammo stays station-made. Torpedo bays
+        // open at advancement 0, so the Craft floor is the one that binds.
         recipe(
             "base/torpedo",
             &[(ALLOY_PLATE, 2), (ACTUATOR_PACK, 1), (CarbonOre.id(), 9)],
             (Torpedo.id(), 1),
             30.0,
-            Station { fee_cr: 40 },
+            Station {
+                fee_cr: 40,
+                advancement: CRAFT_ADVANCEMENT,
+            },
         ),
     ]
 }

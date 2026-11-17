@@ -421,6 +421,13 @@ fn item_findings(own: &str, data: &ProjectData, packs: &[VisiblePack]) -> Vec<Pr
                     _ => None,
                 })
                 .collect(),
+            sections: content
+                .iter()
+                .filter_map(|item| match item {
+                    Content::Section(config) => Some(config.as_ref()),
+                    _ => None,
+                })
+                .collect(),
         })
         .collect();
     item_pack_faults(&packs)

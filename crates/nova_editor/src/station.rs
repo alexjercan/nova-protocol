@@ -111,6 +111,9 @@ pub(crate) fn station_design(
                 .filter(|section| !section.base.hide_in_editor)
                 .map(|section| section.base.id.clone())
                 .collect(),
+            // Every part it builds may be fired from its hold, so it crafts
+            // every station recipe.
+            advancement: 1.0,
             storage_cap_g: STORAGE_CAP_G,
             stock: stock_within(u64::from(resolved.cargo_capacity_g()), items),
             credits: CREDITS,

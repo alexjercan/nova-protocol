@@ -14,7 +14,9 @@
 //!   Back at its right end.
 //! - The tile grid beside the focus card. A tile shows the output's category
 //!   icon, its name, the count a batch makes and the site (`SHIP` or
-//!   `STATION`). A tile one batch of which would not start is muted.
+//!   `STATION`). A tile one batch of which would not start is muted. A
+//!   station recipe the docked Craft station is below the advancement of has
+//!   no tile.
 //! - The focus card, for the picked tile and the batch count: the output
 //!   and the count the batches make, then each input as what the hold has
 //!   over what the batches take, the fee of a station recipe as the balance
@@ -235,8 +237,9 @@ pub(crate) struct CraftSite {
     hold: ShipInventory,
     /// The ship's balance.
     own_cr: u32,
-    /// Docked at a living station that offers Craft.
-    at_station: bool,
+    /// The advancement of the living station that offers Craft the ship is
+    /// docked at; `None` when it is docked at none.
+    station: Option<f32>,
     /// A craft job runs.
     running: bool,
 }
@@ -286,10 +289,23 @@ pub(crate) struct CraftBatchView {
     refused: bool,
 }
 
-/// The categories, in filter order, the outputs of `recipes` are in.
-fn craft_categories(recipes: &GameRecipes, items: &GameItems) -> Vec<ItemCategoryType> {
+/// Whether the view shows `recipe` at `site`: every recipe but a station
+/// recipe the docked Craft station is below the advancement of, which is
+/// hidden. Undocked, a station recipe shows muted.
+fn shown_at(recipe: &RecipeDesign, site: &CraftSite) -> bool {
+    site.station.is_none() || recipe.site.runs_at(site.station)
+}
+
+/// The categories, in filter order, the outputs of the `recipes` shown at
+/// `site` are in.
+fn craft_categories(
+    recipes: &GameRecipes,
+    items: &GameItems,
+    site: &CraftSite,
+) -> Vec<ItemCategoryType> {
     let present: BTreeSet<usize> = recipes
         .iter()
+        .filter(|recipe| shown_at(recipe, site))
         .filter_map(|recipe| {
             let category = items.design(recipe.output_item()).category;
             FILTER_ORDER.iter().position(|each| *each == category)
@@ -301,15 +317,17 @@ fn craft_categories(recipes: &GameRecipes, items: &GameItems) -> Vec<ItemCategor
         .collect()
 }
 
-/// The recipes the tiles show, ship recipes first, each by id: those whose
-/// output is in `filter`, or every one.
+/// The recipes the tiles show at `site`, ship recipes first, each by id:
+/// those whose output is in `filter`, or every one.
 fn shown_recipes<'a>(
     recipes: &'a GameRecipes,
     items: &GameItems,
+    site: &CraftSite,
     filter: Option<ItemCategoryType>,
 ) -> Vec<&'a RecipeDesign> {
     let mut shown: Vec<&RecipeDesign> = recipes
         .iter()
+        .filter(|recipe| shown_at(recipe, site))
         .filter(|recipe| {
             filter.is_none_or(|category| items.design(recipe.output_item()).category == category)
         })
@@ -335,7 +353,7 @@ fn tile_view(
             recipe,
             1,
             site.running,
-            site.at_station,
+            site.station,
             &site.hold,
             site.own_cr,
         )
@@ -404,7 +422,7 @@ fn batch_view(recipe: &RecipeDesign, site: &CraftSite, batches: u32, most: u32) 
             recipe,
             batches,
             site.running,
-            site.at_station,
+            site.station,
             &site.hold,
             site.own_cr,
         )
@@ -439,7 +457,9 @@ fn player_site(
         CraftSite {
             hold: repairs.map_or_else(|| hold.clone(), |repairs| repairs.free_hold(hold)),
             own_cr: credits.0,
-            at_station: stations.docked_at(ship, docked).is_some(),
+            station: stations
+                .docked_at(ship, docked)
+                .map(|(_, advancement)| advancement),
             running: craft.is_some(),
         },
     ))
@@ -817,14 +837,14 @@ pub(crate) fn update_craft_view(
     let Some((_, site)) = player_site(&q_player, &stations) else {
         return;
     };
-    let categories = craft_categories(recipes, items);
+    let categories = craft_categories(recipes, items, &site);
     if runtime
         .filter
         .is_some_and(|filter| !categories.contains(&filter))
     {
         runtime.filter = None;
     }
-    let shown = shown_recipes(recipes, items, runtime.filter);
+    let shown = shown_recipes(recipes, items, &site, runtime.filter);
     if !runtime
         .selected
         .as_ref()
@@ -1218,7 +1238,7 @@ pub(crate) fn apply_craft_start_commands(
             recipe,
             start.batches,
             site.running,
-            site.at_station,
+            site.station,
             &site.hold,
             site.own_cr,
         ) {

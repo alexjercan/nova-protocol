@@ -6,10 +6,12 @@
 //! seconds a batch runs and its site: [`CraftSiteType::Ship`] runs on any
 //! player hull anywhere, [`CraftSiteType::Station`] only while the ship is
 //! docked at a living station that offers
-//! [`StationServiceType::Craft`](crate::markers::StationServiceType::Craft),
-//! which takes the recipe's fee per batch. The mod merge publishes the
-//! effective recipes as [`GameRecipes`]; [`recipe_faults`] is the rule the
-//! merge and content lint share.
+//! [`StationServiceType::Craft`](crate::markers::StationServiceType::Craft)
+//! and whose [`StationAdvancement`](crate::markers::StationAdvancement)
+//! reaches the recipe's floor, which takes the recipe's fee per batch. The
+//! mod merge publishes the effective recipes as [`GameRecipes`];
+//! [`recipe_faults`] and [`recipe_floor_fault`] are the rules the merge and
+//! content lint share.
 //!
 //! A craft is a timed job of N batches (`nova_ship`'s `ShipCraftJob`).
 //! [`plan_craft_start`] checks a start against the whole job and takes
@@ -26,9 +28,9 @@ use crate::inventory::prelude::{GameItems, ItemDesign, ItemDesignId, ShipInvento
 /// Glob-import surface: `use nova_gameplay::crafting::prelude::*`.
 pub mod prelude {
     pub use super::{
-        craft_batches_max, plan_craft_batch, plan_craft_start, recipe_faults, recipe_shape_faults,
-        recipe_value_faults, CraftBatch, CraftRefusalType, CraftSiteType, GameRecipes,
-        RecipeDesign, RecipeDesignId, CRAFT_BATCHES_MAX,
+        craft_batches_max, plan_craft_batch, plan_craft_start, recipe_faults, recipe_floor_fault,
+        recipe_shape_faults, recipe_value_faults, CraftBatch, CraftRefusalType, CraftSiteType,
+        CraftStationSite, GameRecipes, RecipeDesign, RecipeDesignId, CRAFT_BATCHES_MAX,
     };
 }
 
@@ -63,17 +65,24 @@ impl From<&str> for RecipeDesignId {
 }
 
 /// Where a recipe runs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum CraftSiteType {
     /// On the ship itself: every player hull runs it, anywhere, docked or
-    /// not. No fee.
+    /// not. No fee and no advancement floor.
     Ship,
-    /// Docked at a living station that offers Craft, which takes `fee_cr`
-    /// from the ship per batch.
+    /// Docked at a living station that offers Craft and whose advancement is
+    /// at least `advancement`; the station takes `fee_cr` from the ship per
+    /// batch.
     Station {
         /// Credits the station takes per finished batch.
         fee_cr: u32,
+        /// The lowest station advancement, in `[0, 1]`, that crafts the
+        /// recipe. A recipe whose output is ammo starts at the lowest
+        /// advancement among the sections that fire it
+        /// ([`recipe_floor_fault`]), so a station that cannot build a
+        /// railgun cannot make its slugs.
+        advancement: f32,
     },
 }
 
@@ -82,7 +91,20 @@ impl CraftSiteType {
     pub fn fee_cr(self) -> u32 {
         match self {
             Self::Ship => 0,
-            Self::Station { fee_cr } => fee_cr,
+            Self::Station { fee_cr, .. } => fee_cr,
+        }
+    }
+
+    /// Whether the recipe runs with `station`, the advancement of the living
+    /// Craft station the ship is docked at, `None` when it is docked at none:
+    /// a ship recipe always does, a station recipe at a station whose
+    /// advancement reaches its floor.
+    pub fn runs_at(self, station: Option<f32>) -> bool {
+        match self {
+            Self::Ship => true,
+            Self::Station { advancement, .. } => {
+                station.is_some_and(|station| station >= advancement)
+            }
         }
     }
 
@@ -219,7 +241,36 @@ pub fn recipe_shape_faults(recipe: &RecipeDesign, items: &GameItems) -> Vec<Stri
             recipe.duration_secs
         ));
     }
+    if let CraftSiteType::Station { advancement, .. } = recipe.site {
+        if !(0.0..=1.0).contains(&advancement) {
+            faults.push(format!(
+                "the recipe '{id}' needs station advancement {advancement}; it must be a \
+                 finite number in [0, 1]"
+            ));
+        }
+    }
     faults
+}
+
+/// The fault of a station recipe whose floor is below `fired_from`: the
+/// lowest advancement among the sections that fire its output from the
+/// hold, `None` when no section fires it. A station that could not build
+/// such a section must not make its ammo, so rail slugs need a station that
+/// builds railguns. `None` for a ship recipe, which has no floor.
+pub fn recipe_floor_fault(recipe: &RecipeDesign, fired_from: Option<f32>) -> Option<String> {
+    let CraftSiteType::Station { advancement, .. } = recipe.site else {
+        return None;
+    };
+    let tier = fired_from?;
+    (advancement < tier).then(|| {
+        format!(
+            "the recipe '{}' makes '{}' at station advancement {advancement}, below {tier}, the \
+             lowest advancement of a section that fires it; a station must not make ammo for a \
+             section it cannot build",
+            recipe.id,
+            recipe.output_item()
+        )
+    })
 }
 
 /// The faults of `recipe` that the prices and masses of its items cause:
@@ -328,7 +379,9 @@ pub enum CraftRefusalType {
     /// A batch count of zero, or above [`CRAFT_BATCHES_MAX`].
     BadBatches,
     /// A station recipe, and the ship is not docked at a living station that
-    /// offers Craft.
+    /// offers Craft and whose advancement reaches the recipe's floor. One
+    /// reason for both: the view hides a station recipe the docked station
+    /// cannot craft, and a job runs only at the station it started at.
     NotAtCraftStation,
     /// The hold carries fewer of an input than the batches take.
     ShortInput {
@@ -369,15 +422,16 @@ fn short_input(
 }
 
 /// Check a start of `batches` batches of `recipe`. `running` is whether the
-/// ship already runs a craft job, `at_craft_station` whether it is docked at
-/// a living station that offers Craft, `hold` the hold less what running
-/// repair jobs hold back and `own_cr` its balance. Checks run in
-/// [`CraftRefusalType`] order; a start takes nothing.
+/// ship already runs a craft job, `station` the advancement of the living
+/// station that offers Craft the ship is docked at (`None` when it is docked
+/// at none), `hold` the hold less what running repair jobs hold back and
+/// `own_cr` its balance. Checks run in [`CraftRefusalType`] order; a start
+/// takes nothing.
 pub fn plan_craft_start(
     recipe: &RecipeDesign,
     batches: u32,
     running: bool,
-    at_craft_station: bool,
+    station: Option<f32>,
     hold: &ShipInventory,
     own_cr: u32,
 ) -> Result<(), CraftRefusalType> {
@@ -387,7 +441,7 @@ pub fn plan_craft_start(
     if batches == 0 || batches > CRAFT_BATCHES_MAX {
         return Err(CraftRefusalType::BadBatches);
     }
-    if matches!(recipe.site, CraftSiteType::Station { .. }) && !at_craft_station {
+    if !recipe.site.runs_at(station) {
         return Err(CraftRefusalType::NotAtCraftStation);
     }
     if let Some(short) = short_input(recipe, batches, hold) {
@@ -438,22 +492,33 @@ pub struct CraftBatch {
     pub station_cr: Option<u32>,
 }
 
-/// Plan the end of one batch of `recipe`. `station_cr` is the balance of
-/// the living Craft station the ship is docked at, `None` when it is not
-/// docked at one. Re-checks the site, the inputs in `hold` and the fee
-/// against `own_cr`, in [`CraftRefusalType`] order. A refusal stops the job
-/// and takes nothing.
+/// The living station that offers Craft a ship is docked at, as a batch
+/// end reads it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CraftStationSite {
+    /// Its [`StationAdvancement`](crate::markers::StationAdvancement).
+    pub advancement: f32,
+    /// Its balance.
+    pub credits: u32,
+}
+
+/// Plan the end of one batch of `recipe`. `station` is the living Craft
+/// station the ship is docked at, `None` when it is not docked at one.
+/// Re-checks the site and the station's advancement, the inputs in `hold`
+/// and the fee against `own_cr`, in [`CraftRefusalType`] order. A refusal
+/// stops the job and takes nothing.
 pub fn plan_craft_batch(
     recipe: &RecipeDesign,
-    station_cr: Option<u32>,
+    station: Option<CraftStationSite>,
     hold: &ShipInventory,
     own_cr: u32,
 ) -> Result<CraftBatch, CraftRefusalType> {
+    if !recipe.site.runs_at(station.map(|site| site.advancement)) {
+        return Err(CraftRefusalType::NotAtCraftStation);
+    }
     let station = match recipe.site {
         CraftSiteType::Ship => None,
-        CraftSiteType::Station { .. } => {
-            Some(station_cr.ok_or(CraftRefusalType::NotAtCraftStation)?)
-        }
+        CraftSiteType::Station { .. } => station.map(|site| site.credits),
     };
     if let Some(short) = short_input(recipe, 1, hold) {
         return Err(short);
@@ -519,14 +584,40 @@ mod tests {
         )
     }
 
-    /// The base alloy plate: two iron and one carbon ore and 30 cr.
+    /// The base alloy plate: two iron and one carbon ore and 30 cr, at a
+    /// station of advancement 0.25 or more.
     fn alloy() -> RecipeDesign {
         recipe(
             "base/alloy_plate",
             &[("IronOre", 2), ("CarbonOre", 1)],
             ("AlloyPlate", 1),
-            CraftSiteType::Station { fee_cr: 30 },
+            CraftSiteType::Station {
+                fee_cr: 30,
+                advancement: 0.25,
+            },
         )
+    }
+
+    /// The base rail slug: two iron ore and 10 cr, at a station of
+    /// advancement 0.5 or more, the railgun lance's.
+    fn slug() -> RecipeDesign {
+        recipe(
+            "base/rail_slug",
+            &[("IronOre", 2)],
+            ("RailSlug", 1),
+            CraftSiteType::Station {
+                fee_cr: 10,
+                advancement: 0.5,
+            },
+        )
+    }
+
+    /// A living Craft station of advancement 0.25 holding `credits`.
+    fn station(credits: u32) -> Option<CraftStationSite> {
+        Some(CraftStationSite {
+            advancement: 0.25,
+            credits,
+        })
     }
 
     fn hold(stacks: &[(&str, u32)]) -> ShipInventory {
@@ -598,7 +689,10 @@ mod tests {
     fn a_recipe_that_costs_less_than_its_output_sells_for_is_refused() {
         let items = test_items();
         let cheap = RecipeDesign {
-            site: CraftSiteType::Station { fee_cr: 27 },
+            site: CraftSiteType::Station {
+                fee_cr: 27,
+                advancement: 0.25,
+            },
             ..alloy()
         };
         assert_eq!(
@@ -610,7 +704,10 @@ mod tests {
             ]
         );
         let even = RecipeDesign {
-            site: CraftSiteType::Station { fee_cr: 28 },
+            site: CraftSiteType::Station {
+                fee_cr: 28,
+                advancement: 0.25,
+            },
             ..alloy()
         };
         assert!(recipe_faults(&even, &items).is_empty());
@@ -654,32 +751,32 @@ mod tests {
         use CraftRefusalType::*;
         let ore = hold(&[("IronOre", 4), ("StoneOre", 2), ("CarbonOre", 1)]);
         assert_eq!(
-            plan_craft_start(&pdc(), 1, true, true, &ore, 0),
+            plan_craft_start(&pdc(), 1, true, Some(0.25), &ore, 0),
             Err(Running)
         );
         assert_eq!(
-            plan_craft_start(&pdc(), 0, false, true, &ore, 0),
+            plan_craft_start(&pdc(), 0, false, Some(0.25), &ore, 0),
             Err(BadBatches)
         );
         assert_eq!(
-            plan_craft_start(&pdc(), CRAFT_BATCHES_MAX + 1, false, true, &ore, 0),
+            plan_craft_start(&pdc(), CRAFT_BATCHES_MAX + 1, false, Some(0.25), &ore, 0),
             Err(BadBatches)
         );
         assert_eq!(
-            plan_craft_start(&alloy(), 1, false, false, &ore, 1_000),
+            plan_craft_start(&alloy(), 1, false, None, &ore, 1_000),
             Err(NotAtCraftStation)
         );
         assert_eq!(
-            plan_craft_start(&pdc(), 3, false, false, &ore, 0),
+            plan_craft_start(&pdc(), 3, false, None, &ore, 0),
             Err(ShortInput {
                 item: ItemDesignId::from("StoneOre"),
                 need: 3,
                 have: 2
             })
         );
-        assert_eq!(plan_craft_start(&pdc(), 2, false, false, &ore, 0), Ok(()));
+        assert_eq!(plan_craft_start(&pdc(), 2, false, None, &ore, 0), Ok(()));
         assert_eq!(
-            plan_craft_start(&alloy(), 2, false, true, &ore, 1_000),
+            plan_craft_start(&alloy(), 2, false, Some(0.25), &ore, 1_000),
             Err(ShortInput {
                 item: ItemDesignId::from("CarbonOre"),
                 need: 2,
@@ -687,10 +784,13 @@ mod tests {
             })
         );
         assert_eq!(
-            plan_craft_start(&alloy(), 1, false, true, &ore, 29),
+            plan_craft_start(&alloy(), 1, false, Some(0.25), &ore, 29),
             Err(ShortCredits { need: 30, have: 29 })
         );
-        assert_eq!(plan_craft_start(&alloy(), 1, false, true, &ore, 30), Ok(()));
+        assert_eq!(
+            plan_craft_start(&alloy(), 1, false, Some(0.25), &ore, 30),
+            Ok(())
+        );
     }
 
     #[test]
@@ -728,7 +828,7 @@ mod tests {
             Err(NotAtCraftStation)
         );
         assert_eq!(
-            plan_craft_batch(&alloy(), Some(10), &hold(&[("IronOre", 2)]), 100),
+            plan_craft_batch(&alloy(), station(10), &hold(&[("IronOre", 2)]), 100),
             Err(ShortInput {
                 item: ItemDesignId::from("CarbonOre"),
                 need: 1,
@@ -736,17 +836,86 @@ mod tests {
             })
         );
         assert_eq!(
-            plan_craft_batch(&alloy(), Some(10), &ore, 29),
+            plan_craft_batch(&alloy(), station(10), &ore, 29),
             Err(ShortCredits { need: 30, have: 29 })
         );
         assert_eq!(
-            plan_craft_batch(&alloy(), Some(u32::MAX), &ore, 30),
+            plan_craft_batch(&alloy(), station(u32::MAX), &ore, 30),
             Err(CreditOverflow)
         );
-        let batch = plan_craft_batch(&alloy(), Some(10), &ore, 100).unwrap();
+        let batch = plan_craft_batch(&alloy(), station(10), &ore, 100).unwrap();
         assert_eq!(
             (batch.fee_cr, batch.own_cr, batch.station_cr),
             (30, 70, Some(40))
         );
+    }
+
+    /// A station below a recipe's advancement crafts it neither at the start
+    /// nor at a batch end, and the refusal takes nothing; a station at the
+    /// floor crafts it. A ship recipe has no floor.
+    #[test]
+    fn a_station_below_a_recipes_advancement_refuses_its_start_and_its_batches() {
+        use CraftRefusalType::NotAtCraftStation;
+        let ore = hold(&[("IronOre", 4)]);
+        let at = |advancement| CraftStationSite {
+            advancement,
+            credits: 0,
+        };
+        assert_eq!(
+            plan_craft_start(&slug(), 1, false, Some(0.49), &ore, 100),
+            Err(NotAtCraftStation)
+        );
+        assert_eq!(
+            plan_craft_batch(&slug(), Some(at(0.49)), &ore, 100),
+            Err(NotAtCraftStation)
+        );
+        assert_eq!(
+            plan_craft_start(&slug(), 1, false, Some(0.5), &ore, 100),
+            Ok(())
+        );
+        assert!(plan_craft_batch(&slug(), Some(at(0.5)), &ore, 100).is_ok());
+        let rounds = hold(&[("IronOre", 1), ("StoneOre", 1)]);
+        assert_eq!(
+            plan_craft_start(&pdc(), 1, false, Some(0.0), &rounds, 0),
+            Ok(())
+        );
+    }
+
+    /// A station recipe of ammo starts at the lowest advancement among the
+    /// sections that fire it: slugs below the railgun's 0.5 are refused, at
+    /// it they pass. A ship recipe and an output no section fires have no
+    /// floor to meet, and a floor outside [0, 1] is a shape fault.
+    #[test]
+    fn a_station_ammo_recipe_below_the_sections_that_fire_it_is_refused() {
+        let low = RecipeDesign {
+            site: CraftSiteType::Station {
+                fee_cr: 10,
+                advancement: 0.25,
+            },
+            ..slug()
+        };
+        assert_eq!(
+            recipe_floor_fault(&low, Some(0.5)).as_deref(),
+            Some(
+                "the recipe 'base/rail_slug' makes 'RailSlug' at station advancement 0.25, below \
+                 0.5, the lowest advancement of a section that fires it; a station must not make \
+                 ammo for a section it cannot build"
+            )
+        );
+        assert_eq!(recipe_floor_fault(&slug(), Some(0.5)), None);
+        assert_eq!(recipe_floor_fault(&low, None), None);
+        assert_eq!(recipe_floor_fault(&pdc(), Some(0.5)), None);
+        let unbounded = RecipeDesign {
+            site: CraftSiteType::Station {
+                fee_cr: 10,
+                advancement: 1.5,
+            },
+            ..slug()
+        };
+        assert!(recipe_faults(&unbounded, &test_items()).contains(
+            &"the recipe 'base/rail_slug' needs station advancement 1.5; it must be a finite \
+              number in [0, 1]"
+                .to_string()
+        ));
     }
 }

@@ -312,7 +312,7 @@ Every field is required.
 | `inputs` | `(item, count)` pairs one batch takes, in the order the pane shows them |
 | `output` | the `(item, count)` one batch makes |
 | `duration_secs` | game seconds one batch runs |
-| `site` | `Ship`: runs anywhere, in flight too. `Station(fee_cr: n)`: runs only docked at a living station that offers `Craft`, and pays it `n` credits a batch |
+| `site` | `Ship`: runs anywhere, in flight too. `Station(fee_cr: n, advancement: a)`: runs only docked at a living station that offers `Craft` and whose `advancement` is at least `a` (in [0, 1]), and pays it `n` credits a batch. A docked station below `a` has no tile for the recipe |
 
 Lint, then load, refuse a recipe that:
 
@@ -325,11 +325,15 @@ Lint, then load, refuse a recipe that:
   fee must be at least the output's `bid_cr`, each price as the share of its
   `price_lot`. Otherwise a player buys the inputs, crafts and sells at a
   profit from reference prices alone;
-- makes an output heavier than its inputs, so a batch always fits the hold.
+- makes an output heavier than its inputs, so a batch always fits the hold;
+- has a `Station` `advancement` outside [0, 1], or below the lowest
+  `advancement` of a section that reloads its output from the hold. A station
+  that cannot build a railgun must not make rail slugs: the base rail slug
+  needs 0.5, the railgun lance's advancement.
 
-The price and mass rules read the merged catalog. When a mod replaces an input
-or the output and breaks a rule, that mod is refused, not the pack it depends
-on.
+The price, mass and advancement rules read the merged catalog. When a mod
+replaces an input, the output or a section that fires the output and breaks a
+rule, that mod is refused, not the pack it depends on.
 
 ### Consumables
 

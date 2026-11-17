@@ -13,7 +13,10 @@
 //! [`CreditChangeCauseType::Craft`] change. A refusal stops the job with the
 //! reason; finished batches stay. A station recipe runs only while the ship
 //! is docked at a living station that offers Craft ([`CraftStations`]); at
-//! any other time its batch holds. The undock itself (the ship's
+//! any other time its batch holds. A batch end at such a station below the
+//! recipe's advancement floor stops the job: a start there is refused and the
+//! save check refuses a Load that would dock one there, so only a broken
+//! world reaches it. The undock itself (the ship's
 //! [`DockedShip`] going away while the ship stays) stops it. A Load spawns
 //! the ship before it rebuilds the dock, so the job holds over those frames
 //! and runs on once the dock is back; a poll for the dock would stop it
@@ -32,10 +35,10 @@
 
 use bevy::{ecs::system::SystemParam, prelude::*};
 use nova_gameplay::prelude::{
-    plan_craft_batch, station_offers, CraftRefusalType, CraftSiteType, CreditChangeCauseType,
-    DerelictShipMarker, GameItems, GameRecipes, RecipeDesign, RecipeDesignId, ShipCredits,
-    ShipInventory, ShipInventoryReports, SpaceshipRootMarker, StationMarker, StationServiceType,
-    StationServices,
+    plan_craft_batch, station_offers, CraftRefusalType, CraftSiteType, CraftStationSite,
+    CreditChangeCauseType, DerelictShipMarker, GameItems, GameRecipes, RecipeDesign,
+    RecipeDesignId, ShipCredits, ShipInventory, ShipInventoryReports, SpaceshipRootMarker,
+    StationAdvancement, StationMarker, StationServiceType, StationServices,
 };
 
 use super::prelude::{DockedShip, DockingConnection, ShipRepairJobs};
@@ -94,22 +97,42 @@ impl ShipCraftJob {
 #[derive(SystemParam)]
 pub struct CraftStations<'w, 's> {
     connections: Query<'w, 's, &'static DockingConnection>,
-    stations:
-        Query<'w, 's, (&'static StationServices, Has<DerelictShipMarker>), With<StationMarker>>,
+    stations: Query<
+        'w,
+        's,
+        (
+            &'static StationServices,
+            Option<&'static StationAdvancement>,
+            Has<DerelictShipMarker>,
+        ),
+        With<StationMarker>,
+    >,
 }
 
 impl CraftStations<'_, '_> {
-    /// The station `ship` is docked at when it is a living station that
-    /// offers Craft. `docked` is the ship's [`DockedShip`].
-    pub fn docked_at(&self, ship: Entity, docked: Option<&DockedShip>) -> Option<Entity> {
+    /// The station `ship` is docked at, with its advancement, when it is a
+    /// living station that offers Craft. `docked` is the ship's
+    /// [`DockedShip`].
+    ///
+    /// # Panics
+    ///
+    /// When that station carries no [`StationAdvancement`]: every station
+    /// root spawns and thaws with one.
+    pub fn docked_at(&self, ship: Entity, docked: Option<&DockedShip>) -> Option<(Entity, f32)> {
         let connection = self.connections.get(docked?.connection).ok()?;
         let partner = if connection.first_ship == ship {
             connection.second_ship
         } else {
             connection.first_ship
         };
-        let (services, derelict) = self.stations.get(partner).ok()?;
-        station_offers(Some(services), derelict, StationServiceType::Craft).then_some(partner)
+        let (services, advancement, derelict) = self.stations.get(partner).ok()?;
+        if !station_offers(Some(services), derelict, StationServiceType::Craft) {
+            return None;
+        }
+        let Some(advancement) = advancement else {
+            panic!("station {partner:?} offers Craft but carries no StationAdvancement");
+        };
+        Some((partner, advancement.0))
     }
 }
 
@@ -221,9 +244,13 @@ pub fn advance_ship_craft_jobs(
                 Some(repairs) => repairs.free_hold(&hold),
                 None => hold.clone(),
             };
-            let station_cr =
-                station.and_then(|station| q_station.get(station).ok().map(|(cr, _)| cr.0));
-            match plan_craft_batch(recipe, station_cr, &free, credits.0) {
+            let site = station.and_then(|(station, advancement)| {
+                q_station.get(station).ok().map(|(cr, _)| CraftStationSite {
+                    advancement,
+                    credits: cr.0,
+                })
+            });
+            match plan_craft_batch(recipe, site, &free, credits.0) {
                 Ok(batch) => {
                     for (item, count) in &batch.inputs {
                         hold.remove(item, *count);
@@ -234,7 +261,7 @@ pub fn advance_ship_craft_jobs(
                         batch.own_cr,
                         CreditChangeCauseType::Craft,
                     );
-                    if let (Some(station), Some(station_cr)) = (station, batch.station_cr) {
+                    if let (Some((station, _)), Some(station_cr)) = (station, batch.station_cr) {
                         let (mut station_credits, mut station_reports) = q_station
                             .get_mut(station)
                             .expect("craft job: the Craft station was read this batch");
@@ -369,7 +396,10 @@ mod tests {
                 &[("IronOre", 2), ("CarbonOre", 1)],
                 ("AlloyPlate", 1),
                 10.0,
-                CraftSiteType::Station { fee_cr: 30 },
+                CraftSiteType::Station {
+                    fee_cr: 30,
+                    advancement: 0.25,
+                },
             ),
         ])
     }
@@ -512,15 +542,16 @@ mod tests {
         );
     }
 
-    /// Docks `ship` at a new living Craft station with 1000 cr; returns the
-    /// station.
-    fn dock_at_craft_station(app: &mut App, ship: Entity) -> Entity {
+    /// Docks `ship` at a new living Craft station of `advancement` with
+    /// 1000 cr; returns the station.
+    fn dock_at_craft_station(app: &mut App, ship: Entity, advancement: f32) -> Entity {
         let station = app
             .world_mut()
             .spawn((
                 SpaceshipRootMarker,
                 StationMarker,
                 StationServices(vec![StationServiceType::Craft]),
+                StationAdvancement(advancement),
                 ShipCredits(1_000),
             ))
             .id();
@@ -548,7 +579,7 @@ mod tests {
     #[test]
     fn a_station_recipe_pays_the_station_and_stops_on_undock() {
         let (mut app, ship) = craft_app(10.0, &[("IronOre", 6), ("CarbonOre", 3)]);
-        let station = dock_at_craft_station(&mut app, ship);
+        let station = dock_at_craft_station(&mut app, ship, 0.25);
         start(&mut app, ship, "base/alloy_plate", 3);
         app.update();
         assert_eq!(count(&app, ship, "AlloyPlate"), 1);
@@ -591,12 +622,39 @@ mod tests {
             Some(7.0)
         );
         assert!(ends(&mut app).is_empty());
-        dock_at_craft_station(&mut app, ship);
+        dock_at_craft_station(&mut app, ship, 0.25);
         app.update();
         assert_eq!(count(&app, ship, "AlloyPlate"), 1);
         assert_eq!(
             ends(&mut app),
             vec![CraftJobEndType::Crafted { batches: 1 }]
+        );
+    }
+
+    /// A station job docked at a station below the recipe's advancement
+    /// stops at its batch end and takes nothing: no input, no fee.
+    #[test]
+    fn a_station_job_at_a_station_below_its_advancement_stops_and_takes_nothing() {
+        let (mut app, ship) = craft_app(10.0, &[("IronOre", 6), ("CarbonOre", 3)]);
+        let station = dock_at_craft_station(&mut app, ship, 0.2);
+        start(&mut app, ship, "base/alloy_plate", 2);
+        app.update();
+        assert_eq!(count(&app, ship, "AlloyPlate"), 0);
+        assert_eq!(count(&app, ship, "IronOre"), 6);
+        assert_eq!(
+            app.world().get::<ShipCredits>(ship),
+            Some(&ShipCredits(100))
+        );
+        assert_eq!(
+            app.world().get::<ShipCredits>(station),
+            Some(&ShipCredits(1_000))
+        );
+        assert_eq!(
+            ends(&mut app),
+            vec![CraftJobEndType::Stopped {
+                batches: 0,
+                reason: CraftRefusalType::NotAtCraftStation,
+            }]
         );
     }
 }

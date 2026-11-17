@@ -227,6 +227,7 @@ fn station(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorSta
         },
         services: vec![StationServiceType::Trade, StationServiceType::Refit],
         builds: vec![prototype.to_string()],
+        advancement: 0.0,
         storage_cap_g: 0,
         stock: ShipInventoryStock::default(),
         credits: 0,
