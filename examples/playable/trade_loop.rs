@@ -18,9 +18,9 @@
 //! 2. press the dock key.
 //! 3. press TAB and pick Inventory.
 //! 4. click Rations on the trader's side and Confirm: you pay 8 cr.
-//! 5. click Hull plate on your side, pick Sell, All and Confirm: you earn
+//! 5. click Hull plate on your side, pick Sell, Max and Confirm: you earn
 //!    120 cr.
-//! 6. click Salvaged parts on the trader's side and All: 240 cr is more than
+//! 6. click Salvaged parts on the trader's side and Max: 240 cr is more than
 //!    you hold, so the price shows red, Confirm is disabled, and a click on
 //!    it moves nothing.
 //!
@@ -494,7 +494,7 @@ fn trade_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .add();
     let script = shoot_result(script, "Buy", BUY_SHOT);
 
-    // SELL: the tender's row opens Give; the chip switches it to Sell and All
+    // SELL: the tender's row opens Give; the chip switches it to Sell and Max
     // takes the whole stock of four.
     let script = script
         .click_named(
@@ -510,8 +510,8 @@ fn trade_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
             STEP_DEADLINE,
         )
         .click_named(
-            "sell: take all",
-            "InventoryDraftAll",
+            "sell: max",
+            "InventoryDraftMax",
             pointer_released(),
             STEP_DEADLINE,
         );
@@ -522,8 +522,8 @@ fn trade_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .add();
     let script = shoot_result(script, "Sell", SELL_SHOT);
 
-    // REFUSED: All asks for both Salvaged parts, 240 cr against 212. One
-    // part, 120 cr, is affordable, so the red 240 cr price is the proof All
+    // REFUSED: Max asks for both Salvaged parts, 240 cr against 212. One
+    // part, 120 cr, is affordable, so the red 240 cr price is the proof Max
     // set the quantity to two. The refusal disables Confirm; a real click on
     // it must send nothing.
     let script = script
@@ -534,8 +534,8 @@ fn trade_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
             STEP_DEADLINE,
         )
         .click_named(
-            "refused: take all",
-            "InventoryDraftAll",
+            "refused: max",
+            "InventoryDraftMax",
             and(
                 price_refused(REFUSED_PRICE),
                 std::sync::Arc::new(confirm_disabled),

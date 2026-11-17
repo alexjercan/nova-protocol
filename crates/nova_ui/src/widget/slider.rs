@@ -170,9 +170,12 @@ pub fn slider_track(fraction: f32) -> impl Bundle {
 
 /// Where a slider's value sits in its range, as `[0, 1]`. A slider with no
 /// `SliderRange` is read as an already-normalized value (the pre-range
-/// behaviour), so an existing bare `SliderValue` keeps working.
+/// behaviour), so an existing bare `SliderValue` keeps working. A range of
+/// one value reads full: an amount row of `1 / 1` sits at its most, where
+/// `thumb_position` would put it half way.
 fn slider_fraction(value: &SliderValue, range: Option<&SliderRange>) -> f32 {
     match range {
+        Some(range) if range.end() <= range.start() => 1.0,
         Some(range) => range.thumb_position(value.0).clamp(0.0, 1.0),
         None => value.0.clamp(0.0, 1.0),
     }
@@ -600,5 +603,13 @@ mod tests {
 
         select(&mut app, HARDWARE_THEME_ID);
         app.update();
+    }
+
+    #[test]
+    fn a_one_value_range_reads_full() {
+        let one = SliderRange::new(1.0, 1.0);
+        assert_eq!(slider_fraction(&SliderValue(1.0), Some(&one)), 1.0);
+        let six = SliderRange::new(1.0, 6.0);
+        assert_eq!(slider_fraction(&SliderValue(1.0), Some(&six)), 0.0);
     }
 }

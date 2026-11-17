@@ -168,7 +168,7 @@ mod economics {
     use serde_json::{json, Value};
 
     const INVENTORY_TAB: &str = "InterfaceTabInventory";
-    const QUANTITY_FIELD: &str = "InventoryDraftQuantity";
+    const QUANTITY_FIELD: &str = "InventoryDraftField";
     const CONFIRM: &str = "InventoryDraftConfirm";
     const DRAFT_SHOT: &str = "ammo-economics-buy-draft.png";
     const BOUGHT_SHOT: &str = "ammo-economics-bought.png";

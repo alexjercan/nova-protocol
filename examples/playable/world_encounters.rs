@@ -1881,7 +1881,7 @@ fn take_all(script: Script, item: &'static str, count: u32) -> Script {
         )
         .click_named(
             &format!("beat 14: set All {label}"),
-            "InventoryDraftAll",
+            "InventoryDraftMax",
             pointer_released(),
             STEP_DEADLINE_SECS,
         )

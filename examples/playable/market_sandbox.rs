@@ -518,7 +518,7 @@ mod smoke {
             )
             .click_named(
                 &format!("market sandbox: sell all at the {label} station"),
-                "InventoryDraftAll",
+                "InventoryDraftMax",
                 pointer_released(),
                 BEAT_SECS,
             )

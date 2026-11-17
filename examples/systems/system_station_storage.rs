@@ -151,7 +151,7 @@ mod walk {
     const LOAD_BUTTON: &str = "Load Button";
     const LOAD_WORLD_BUTTON: &str = "Load World Button";
 
-    const QUANTITY_FIELD: &str = "InventoryDraftQuantity";
+    const QUANTITY_FIELD: &str = "InventoryDraftField";
     const TOTAL_WEIGHT: &str = "InventoryTotalWeight";
     const CONFIRM: &str = "InventoryDraftConfirm";
 
@@ -1255,7 +1255,7 @@ mod walk {
         let script = pick_row(script, &format!("InventoryRowStorage{PANEL}"));
         let script = script.click_named(
             "station storage: withdraw every panel",
-            "InventoryDraftAll",
+            "InventoryDraftMax",
             frames(SETTLE_FRAMES),
             BEAT_SECS,
         );

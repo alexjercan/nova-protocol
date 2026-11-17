@@ -445,7 +445,7 @@ mod walk {
         )
         .click_named(
             "hold_events: buy: all",
-            "InventoryDraftAll",
+            "InventoryDraftMax",
             pointer_released(),
             SESSION_SECS,
         )
@@ -543,7 +543,7 @@ mod walk {
         )
         .click_named(
             "hold_events: jettison: all",
-            "InventoryDraftAll",
+            "InventoryDraftMax",
             pointer_released(),
             SESSION_SECS,
         )

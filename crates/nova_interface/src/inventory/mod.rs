@@ -23,10 +23,13 @@
 //! column and does not trade. The Craft button at the right end of the
 //! filter row opens the Craft view over the pane (`crate::craft`), docked or
 //! not. A derelict station is lootable and offers no service. The player's
-//! row of an item that has a `Consumable` shows a Use button in the
+//! row of an item that has a `Consumable` shows a Use verb in the
 //! inspector, docked or not: one click uses one, and it is disabled while
 //! a use would refuse (`use_item`). While undocked
-//! with a live cargo intake, the player's row opens a Jettison form. Confirm writes an
+//! with a live cargo intake, the player's row opens a Jettison form. The form
+//! is a block titled by its action: the action chips, one amount row (the
+//! field, "/ stock", the slider and Max), the total weight, the price of a
+//! trade, and the verbs at its bottom right. Confirm writes an
 //! [`InventoryActionCommand`], and [`apply_inventory_action_commands`] moves
 //! the items, and for a trade the credits, by the
 //! [`plan_item_transfer`](nova_gameplay::prelude::plan_item_transfer),
@@ -37,9 +40,10 @@
 //!
 //! The pane writes no result or refusal line. A move shows in the rows and
 //! the balances and closes the form. The form names no refusal: Confirm is
-//! greyed and the number that blocks it turns to the danger tone, the source
-//! stock, the total weight with the target's free room beside it, or the
-//! price of a trade the buyer cannot pay or the partner does not deal in.
+//! greyed and the number that blocks it turns to the danger tone, the "/
+//! stock" of the amount row, the target's free room over the total weight,
+//! or the price of a trade the buyer cannot pay or the partner does not deal
+//! in. A verb that does not apply is hidden and takes no space.
 //! Confirm and a refusal play the outcome cue. The partner column's Credits
 //! row also carries a
 //! separate Take credits button, shown only while the partner is neutralized
@@ -157,8 +161,8 @@ impl Plugin for InventoryPanePlugin {
                 apply_hull_strip_commands,
                 // Runs with the pane shut too: a strip goes on in flight.
                 advance_hull_strip,
-                type_inventory_draft,
                 update_inventory_panel,
+                title_inventory_draft,
                 update_inventory_use_button,
                 fit_inventory_columns,
                 // Last frame's layout, before the wheel subtracts from it.
@@ -168,7 +172,6 @@ impl Plugin for InventoryPanePlugin {
                 update_market_strip,
                 update_strip_block,
                 update_inventory_about,
-                sync_inventory_draft_controls,
             )
                 .chain()
                 .in_set(InventoryPaneSystems),
@@ -286,10 +289,9 @@ pub(crate) struct InventoryDraft {
     pub(crate) action: InventoryActionType,
     /// The item to move.
     pub(crate) item: ItemDesignId,
-    /// The one quantity the wheel, the slider, the field and All set. `None`
-    /// while the field holds text that is not a
-    /// whole number, which Confirm refuses.
-    pub(crate) quantity: Option<u32>,
+    /// The quantity the amount row sets, from one to the source stock when
+    /// it was set. The stock can fall under it afterwards.
+    pub(crate) quantity: u32,
 }
 
 /// A confirmed action on the player ship's inventory, written only by the
@@ -300,8 +302,8 @@ pub(crate) struct InventoryActionCommand {
     pub(crate) action: InventoryActionType,
     /// The item to move.
     pub(crate) item: ItemDesignId,
-    /// The quantity; `None` when the typed text is not a whole number.
-    pub(crate) quantity: Option<u32>,
+    /// The quantity.
+    pub(crate) quantity: u32,
 }
 
 /// Take the docked partner's whole credit balance, written only by the

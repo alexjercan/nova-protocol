@@ -374,7 +374,7 @@ mod smoke {
     /// hold over what the batches take, and the time follow the slider.
     fn assert_the_card(world: &mut World) {
         let card = texts_under(world, "CraftCard");
-        for line in ["2", "of 6", "PDC round x200", "12 / 2", "6 / 2", "16 s"] {
+        for line in ["2", "/ 6", "PDC round x200", "12 / 2", "6 / 2", "16 s"] {
             assert!(
                 card.contains(&line.to_string()),
                 "craft_sandbox: the card reads {line:?}: {card:?}"

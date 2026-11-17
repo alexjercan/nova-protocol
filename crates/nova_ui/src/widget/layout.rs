@@ -371,6 +371,11 @@ pub fn spawn_kv<'a>(
 #[derive(Component)]
 pub struct BlockHead;
 
+/// Marks a block's title text, so a block whose title follows its state (an
+/// Inventory draft names its action) can write it.
+#[derive(Component)]
+pub struct BlockTitle;
+
 /// A section block: a column [`GAP`] between rows, under its own top rule and
 /// [`GAP_L`] of space. The rule belongs to the block, so a hidden block takes
 /// its rule with it. The first row is a [`ROW_H`] header: `title` as a
@@ -408,7 +413,7 @@ pub fn spawn_block<'a>(
                     Pickable::IGNORE,
                 ))
                 .with_children(|head| {
-                    head.spawn(text(title, TextRole::Heading));
+                    head.spawn((BlockTitle, text(title, TextRole::Heading)));
                     head.spawn((
                         BlockHead,
                         Node {

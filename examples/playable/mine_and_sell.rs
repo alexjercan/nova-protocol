@@ -21,7 +21,7 @@
 //! 3. fly the port collar onto the trader's port, lock the trader and
 //!    press the dock key.
 //! 4. press TAB, pick Inventory, click Stone ore on your side, pick Sell and
-//!    All, and Confirm.
+//!    Max, and Confirm.
 //!
 //! ```text
 //! cargo run --example mine_and_sell --features debug
@@ -1015,7 +1015,7 @@ mod walk {
             )
             .click_named(
                 "sell: take all",
-                "InventoryDraftAll",
+                "InventoryDraftMax",
                 pointer_released(),
                 STEP_DEADLINE,
             )

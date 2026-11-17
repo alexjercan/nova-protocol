@@ -192,34 +192,40 @@ fn named(world: &mut World, name: &str) -> Entity {
         .unwrap_or_else(|| panic!("a node named {name}"))
 }
 
-/// The slider runs from 1 to the batches the hold covers; its value sets the
-/// count, the card's totals and the batches Craft starts, and a value past
-/// the top is held at it.
+/// The batch amount row runs from 1 to the batches the hold covers; a move
+/// of it sets the count, the card's totals and the batches Craft starts.
 #[test]
-fn the_batch_slider_sets_the_batches_a_craft_click_starts() {
+fn the_batch_amount_sets_the_batches_a_craft_click_starts() {
     let mut app = craft_app();
     let ship = spawn_player(app.world_mut());
     app.update();
-    let slider = named(app.world_mut(), CRAFT_SLIDER);
+    let row = app
+        .world_mut()
+        .query_filtered::<Entity, With<CraftBatchAmount>>()
+        .single(app.world())
+        .expect("the Batches block has one amount row");
     assert_eq!(
-        app.world().get::<SliderRange>(slider),
-        Some(&SliderRange::new(1.0, 2.0)),
+        app.world().get::<Amount>(row),
+        Some(&Amount {
+            value: 1,
+            min: 1,
+            max: 2
+        }),
         "2 stone ore cover 2 batches of PDC rounds"
     );
 
-    app.world_mut().trigger(ValueChange {
-        source: slider,
-        value: 9.0_f32,
-        is_final: true,
+    app.world_mut().trigger(AmountChanged {
+        entity: row,
+        value: 2,
     });
     app.update();
     assert_eq!(app.world().resource::<CraftRuntime>().batches(), 2);
     assert_eq!(
-        app.world().get::<SliderValue>(slider),
-        Some(&SliderValue(2.0))
+        app.world().get::<Amount>(row).map(|amount| amount.value),
+        Some(2)
     );
     let form = texts_under(app.world_mut(), "CraftCard");
-    for line in ["2", "of 2", "PDC round x200", "4 / 2", "2 / 2", "16 s"] {
+    for line in ["PDC round x200", "4 / 2", "2 / 2", "16 s"] {
         assert!(form.contains(&line.to_string()), "{line:?} in {form:?}");
     }
 
@@ -230,4 +236,168 @@ fn the_batch_slider_sets_the_batches_a_craft_click_starts() {
         app.world().get::<ShipCraftJob>(ship),
         Some(&ShipCraftJob::new(ship_rounds().id, 2))
     );
+}
+
+/// The Craft view laid out by bevy_ui under both shipped themes: the batch
+/// amount row is one line, every shown verb and chip is one control high,
+/// the tiles share the grid's width evenly, and the Running block takes no
+/// space until a job runs, then shows inside the card.
+#[test]
+fn the_craft_view_lays_out_on_the_kit() {
+    use bevy::ui::{ComputedNode, UiGlobalTransform};
+    use nova_ui::{
+        prelude::{metrics::CONTROL_H, AmountMax, AmountSlider, AmountTop},
+        theme::{
+            base::base_ui_themes, GameUiThemes, SelectedUiTheme, HARDWARE_THEME_ID,
+            PHOSPHOR_THEME_ID,
+        },
+        widget::ThemedButton,
+        NovaUiPlugin,
+    };
+
+    use crate::pointer_rig::{pane_pointer_rig, settle};
+
+    for theme in [PHOSPHOR_THEME_ID, HARDWARE_THEME_ID] {
+        let mut rig = pane_pointer_rig();
+        rig.app.add_plugins(NovaUiPlugin);
+        rig.app.insert_resource(GameUiThemes(base_ui_themes()));
+        rig.app.insert_resource(SelectedUiTheme(theme.to_string()));
+        rig.app.insert_resource(InterfaceIcons::blank());
+        rig.app.insert_resource(test_items());
+        rig.app
+            .insert_resource(GameRecipes::new([ship_rounds(), station_slug()]));
+        rig.app.init_resource::<CraftRuntime>();
+        rig.app.add_message::<CraftStartCommand>();
+        rig.app.add_systems(
+            Update,
+            (
+                apply_craft_start_commands,
+                update_craft_job_row,
+                update_craft_view,
+            )
+                .chain(),
+        );
+        let ship = spawn_player(rig.app.world_mut());
+        let root = rig.content_root;
+        rig.app
+            .world_mut()
+            .run_system_once_with(
+                |parent: In<Entity>, mut commands: Commands| {
+                    commands.entity(*parent).with_children(craft_body);
+                },
+                root,
+            )
+            .expect("building the Craft view");
+        settle(&mut rig.app);
+
+        let size = |world: &World, entity: Entity| {
+            world
+                .get::<ComputedNode>(entity)
+                .expect("a laid-out node")
+                .size()
+        };
+        let centre_y = |world: &World, entity: Entity| {
+            let node = world.get::<ComputedNode>(entity).unwrap();
+            world
+                .get::<UiGlobalTransform>(entity)
+                .unwrap()
+                .translation
+                .y
+                * node.inverse_scale_factor()
+        };
+        let only = |world: &mut World, name: &str| named(world, name);
+        let control_high = |world: &mut World| {
+            let buttons: Vec<(Entity, Option<String>)> = world
+                .query_filtered::<(Entity, Option<&Name>), With<ThemedButton>>()
+                .iter(world)
+                .map(|(entity, name)| (entity, name.map(|name| name.to_string())))
+                .collect();
+            let mut shown = Vec::new();
+            for (button, name) in buttons {
+                let height = size(world, button).y;
+                if height > 0.0 {
+                    assert!(
+                        (height - CONTROL_H).abs() <= 0.5,
+                        "{theme}: verb {name:?} is {height} px high"
+                    );
+                    shown.extend(name);
+                }
+            }
+            shown
+        };
+
+        let world = rig.app.world_mut();
+        let row = world
+            .query_filtered::<Entity, With<CraftBatchAmount>>()
+            .single(world)
+            .unwrap();
+        let row_centre = centre_y(world, row);
+        assert!(size(world, row).y > 0.0, "{theme}: the amount row shows");
+        for part in [
+            world
+                .query_filtered::<Entity, With<AmountField>>()
+                .single(world)
+                .unwrap(),
+            world
+                .query_filtered::<Entity, With<AmountTop>>()
+                .single(world)
+                .unwrap(),
+            world
+                .query_filtered::<Entity, With<AmountSlider>>()
+                .single(world)
+                .unwrap(),
+            world
+                .query_filtered::<Entity, With<AmountMax>>()
+                .single(world)
+                .unwrap(),
+        ] {
+            let centre = centre_y(world, part);
+            assert!(
+                (centre - row_centre).abs() <= 0.5,
+                "{theme}: a part centres at {centre}, the row at {row_centre}"
+            );
+        }
+        let shown = control_high(world);
+        for name in [CRAFT_BACK, CRAFT_BUTTON, CRAFT_MAX, "CraftFilterAll"] {
+            assert!(
+                shown.iter().any(|shown| shown == name),
+                "{theme}: {name} is laid out ({shown:?})"
+            );
+        }
+
+        let widths: Vec<f32> = [ship_rounds().id, station_slug().id]
+            .iter()
+            .map(|recipe| {
+                let tile = only(world, &craft_tile_name(recipe));
+                size(world, tile).x
+            })
+            .collect();
+        assert!(
+            widths
+                .iter()
+                .all(|width| (width - widths[0]).abs() <= 1.0 && *width >= TILE_PX),
+            "{theme}: tiles share one width of at least {TILE_PX}: {widths:?}"
+        );
+
+        let running = only(world, CRAFT_JOB_ROW);
+        assert_eq!(
+            size(world, running),
+            Vec2::ZERO,
+            "{theme}: no job, no block"
+        );
+        world
+            .entity_mut(ship)
+            .insert(ShipCraftJob::new(ship_rounds().id, 2));
+        settle(&mut rig.app);
+        let world = rig.app.world_mut();
+        assert!(
+            size(world, running).y > 0.0,
+            "{theme}: a job shows its block"
+        );
+        let shown = control_high(world);
+        assert!(
+            shown.iter().any(|shown| shown == CRAFT_CANCEL),
+            "{theme}: Cancel is laid out ({shown:?})"
+        );
+    }
 }

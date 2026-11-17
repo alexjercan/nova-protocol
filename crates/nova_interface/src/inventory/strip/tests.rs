@@ -576,7 +576,7 @@ fn the_strip_block_counts_sections_and_parts_and_names_a_held_strip() {
         ("Held".to_string(), UiColorType::Danger)
     );
     let (hold_text, hold_color) = block_text(&mut app, StripBlockField::Hold);
-    assert!(hold_text.contains("needs"), "{hold_text}");
+    assert!(hold_text.contains("  +"), "{hold_text}");
     assert_eq!(hold_color, UiColorType::Danger);
     let mut q = app.world_mut().query::<(&StripBlockFill, &ThemedFill)>();
     let hold_fill = q

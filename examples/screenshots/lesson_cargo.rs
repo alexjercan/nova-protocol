@@ -20,7 +20,7 @@
 //! ## The three sheets
 //!
 //! - `interface_cargo_transfer`: the pane docked to the derelict; the
-//!   derelict's hull plates selected, All, Confirm, and the plates move into
+//!   derelict's hull plates selected, Max, Confirm, and the plates move into
 //!   the tug's column.
 //! - `interface_jettison`: from the door half open, the intake's door folding
 //!   the rest of the way and the canister of plates leaving it. The camera
@@ -649,7 +649,7 @@ mod walk {
             ui_node_present("InventoryRowPartnerHullPlate"),
             STEP_DEADLINE,
         )
-        // The pick and All land before the sheet opens: on the sheet they
+        // The pick and Max land before the sheet opens: on the sheet they
         // took 18 of the 20 cells, which left two for the moved plates.
         .click_named(
             "take: pick the derelict's hull plates",
@@ -659,7 +659,7 @@ mod walk {
         )
         .click_named(
             "take: all",
-            "InventoryDraftAll",
+            "InventoryDraftMax",
             pointer_released(),
             STEP_DEADLINE,
         )
@@ -707,7 +707,7 @@ mod walk {
         )
         .click_named(
             "jettison: all",
-            "InventoryDraftAll",
+            "InventoryDraftMax",
             pointer_released(),
             STEP_DEADLINE,
         )

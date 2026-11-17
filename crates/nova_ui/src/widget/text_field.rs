@@ -472,9 +472,14 @@ pub(super) fn paint_text_fields(
             hovered.get(),
         ));
         let ink = paint.text;
-        border.set_all(paint.border);
-        *background = paint.fill.base.into();
-        node.border_radius = BorderRadius::all(px(radius));
+        // Runs every frame, so each part is written only on a difference:
+        // an idle field changes nothing a change detector sees.
+        border.set_if_neq(BorderColor::all(paint.border));
+        background.set_if_neq(paint.fill.base.into());
+        let rounded = BorderRadius::all(px(radius));
+        if node.border_radius != rounded {
+            node.border_radius = rounded;
+        }
 
         for child in children.iter() {
             let Ok((mut text, mut color, error_display, mut visibility)) = q_display.get_mut(child)
@@ -482,28 +487,31 @@ pub(super) fn paint_text_fields(
                 continue;
             };
             if error_display.is_some() {
-                *color = TextColor(error_ink);
-                if let Some(error) = error {
-                    text.0.clone_from(&error.0);
-                    *visibility = Visibility::Inherited;
-                } else {
-                    text.0.clear();
-                    *visibility = Visibility::Hidden;
+                color.set_if_neq(TextColor(error_ink));
+                let (shown, seen) = match error {
+                    Some(error) => (error.0.as_str(), Visibility::Inherited),
+                    None => ("", Visibility::Hidden),
+                };
+                if text.0 != shown {
+                    text.0 = shown.to_string();
                 }
+                visibility.set_if_neq(seen);
                 continue;
             }
-            *visibility = Visibility::Inherited;
+            visibility.set_if_neq(Visibility::Inherited);
             let mut shown = if value.0.is_empty() && focus.is_none() {
-                color.0 = ink.with_alpha(ink.alpha() * 0.42);
+                color.set_if_neq(TextColor(ink.with_alpha(ink.alpha() * 0.42)));
                 config.placeholder.clone()
             } else {
-                color.0 = ink;
+                color.set_if_neq(TextColor(ink));
                 value.0.clone()
             };
             if let Some(focus) = focus {
                 shown.insert(focus.caret, '|');
             }
-            text.0 = shown;
+            if text.0 != shown {
+                text.0 = shown;
+            }
         }
     }
 }

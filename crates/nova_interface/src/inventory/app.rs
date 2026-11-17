@@ -13,11 +13,7 @@ use bevy::{
     input::mouse::MouseWheel,
     picking::hover::Hovered,
     prelude::*,
-    ui::InteractionDisabled,
-    ui_widgets::{
-        Activate, Button, Slider, SliderPrecision, SliderRange, SliderStep, SliderValue,
-        TrackClick, ValueChange,
-    },
+    ui_widgets::{Activate, Button},
     window::PrimaryWindow,
 };
 use nova_gameplay::prelude::*;
@@ -27,13 +23,17 @@ use nova_ship::prelude::{
 };
 use nova_sound::prelude::*;
 use nova_ui::{
-    prelude::{button, cell, control_row, divider, inspector, metrics, text, text_toned, TextRole},
+    prelude::{
+        amount_row, button, cell, chip, chip_bar, control_row, divider, inspector, metrics,
+        preview_frame, spawn_block, spawn_kv, text, text_toned, verb_row, Amount, AmountChanged,
+        AmountField, AmountSpec, AmountTop, BlockTitle, RowAlign, Selected, Short, TextRole,
+        VerbGate,
+    },
     screen::{drive_wheel_scroll, EllipsisText},
     theme::UiColorType,
     widget::{
-        slider_track, tag, text_field, ButtonCueType, ButtonSpec, TextFieldError, TextFieldFocused,
-        TextFieldSpec, TextFieldValue, ThemedBorder, ThemedFill, ThemedImageTint, ThemedRadius,
-        ThemedText,
+        ButtonCueType, ButtonSpec, TextFieldFocused, ThemedBorder, ThemedFill, ThemedImageTint,
+        ThemedRadius, ThemedText,
     },
 };
 
@@ -50,17 +50,17 @@ use crate::{
     viewer::cycle_index,
 };
 
-/// Height of one inventory row, in logical px.
-pub(crate) const ROW_PX: f32 = 28.0;
 /// Width of the quantity column, in logical px: `x99999` at 13 px.
 const QTY_PX: f32 = 40.0;
 /// Width of the `Price` column, in logical px: a four-digit price and a
 /// `/ 100` lot at 12 px.
 const PRICE_PX: f32 = 72.0;
-/// Width of the `Deal` column, in logical px: the `+100%` pill.
+/// Width of the `Deal` column, in logical px: `+100%` at 12 px.
 const DEAL_PX: f32 = 44.0;
 /// Gap between the cells of a row and of its heading line, in logical px.
 const CELL_GAP_PX: f32 = 6.0;
+/// Width of a row's category stripe on its left edge, in logical px.
+const ROW_STRIPE_PX: f32 = 3.0;
 /// UI width ([`ui_width`]), in logical px, from which the Inventory stores lay out
 /// Own, Partner and Storage as three equal columns. Under it, with Storage
 /// drawn beside the partner, Storage stacks under Partner so the priced
@@ -131,7 +131,8 @@ pub(crate) enum InventoryColumnFactType {
 /// The partner column's Take credits button, in its Credits row: a click
 /// moves its whole balance in one confirmation, no item and no quantity.
 /// Shown only while the partner is eligible (neutralized or lootable) and
-/// holds a credit above zero, so it offers the action even with an empty hold.
+/// holds a credit above zero, so it offers the action even with an empty hold;
+/// disabled while the player's balance would overflow.
 #[derive(Component, Clone, Copy, Debug)]
 pub(crate) struct InventoryTakeCreditsButton;
 
@@ -147,12 +148,12 @@ pub const INVENTORY_SELL_ALL: &str = "InventorySellAll";
 /// The name of the form's price text, shown for a Buy or a Sell.
 pub const INVENTORY_DRAFT_PRICE: &str = "InventoryDraftPrice";
 
-/// The name of the form's total weight text, with the room left beside it
-/// in the danger tone when the move does not fit.
+/// The name of the form's total weight text: the mass the quantity moves, or
+/// the target's free room over it in the danger tone when it does not fit.
 pub const INVENTORY_TOTAL_WEIGHT: &str = "InventoryTotalWeight";
 
-/// The form's Buy all or Sell all button beside Confirm: one click confirms
-/// the open Buy or Sell draft at the whole source stack. Shown only while a
+/// The form's Buy all or Sell all verb before Confirm: one click confirms
+/// the open Buy or Sell draft at the whole source stack. Hidden unless a
 /// draft of its trade is open, disabled while a trade of the whole stack
 /// would be refused.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
@@ -185,11 +186,10 @@ pub(crate) struct InventoryRow {
     pub(crate) item: ItemDesignId,
 }
 
-/// A part of the inspector that shows with the selection or without it.
+/// A part of the inspector that shows with the selection or the draft, and
+/// takes no space while hidden.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum InspectorPart {
-    /// The selection key cue, with nothing selected.
-    Hint,
     /// The selected item.
     Item,
     /// The transfer form, while a draft is open.
@@ -222,8 +222,6 @@ pub(crate) enum InventoryInspectorField {
     About,
     /// What the item is, in full, in the [`InspectorPart::AboutFull`] overlay.
     AboutFull,
-    /// The key that selects the next or previous row, from the live bindings.
-    SelectCue,
     /// The key that shows the full description, from the live bindings.
     DetailsCue,
     /// How many the selected side carries, and which ship that is.
@@ -233,11 +231,6 @@ pub(crate) enum InventoryInspectorField {
     /// The mass of the draft's quantity, in the danger tone with the room
     /// left while the target has too little.
     TotalWeight,
-    /// Which way the open draft moves items, and with which ship.
-    DraftTitle,
-    /// How many the draft's source ship carries, in the danger tone while the
-    /// quantity is more.
-    DraftStock,
     /// What the draft's trade pays or earns, in the danger tone while the
     /// buyer cannot pay it or the partner does not deal in the item.
     DraftPrice,
@@ -271,17 +264,14 @@ pub(crate) struct InventoryDraftActionChip(pub(crate) InventoryActionType);
 #[derive(Component, Clone, PartialEq, Eq, Debug)]
 pub(crate) struct InventoryActionChips(Vec<InventoryActionType>);
 
-/// The draft's quantity row: the wheel over it steps the quantity by one.
+/// The draft's amount row, from one to the source stock. Its "/ max" is
+/// painted Danger while the source holds fewer than the quantity.
 #[derive(Component)]
-pub(crate) struct InventoryDraftWheel;
+pub(crate) struct InventoryDraftAmount;
 
-/// The draft's quantity slider, from zero to the source stock.
+/// The draft block, whose title names the open draft's action.
 #[derive(Component)]
-pub(crate) struct InventoryDraftSlider;
-
-/// The draft's typed quantity.
-#[derive(Component)]
-pub(crate) struct InventoryDraftField;
+pub(crate) struct InventoryDraftForm;
 
 /// The draft's Confirm, disabled while the draft would be refused.
 #[derive(Component)]
@@ -370,21 +360,51 @@ pub(crate) fn category_color(category: ItemCategoryType) -> UiColorType {
     }
 }
 
-/// Fill and border alpha of a row, selected or not.
-fn row_alphas(selected: bool) -> (f32, f32) {
+/// The fill of a row, selected or not: a quiet neutral wash, and the
+/// category tone under the selected row. The category stripe on the left
+/// edge stays in the category tone either way.
+fn row_fill(selected: bool, tone: UiColorType) -> (UiColorType, f32) {
     if selected {
-        (0.32, 1.0)
+        (tone, 0.22)
     } else {
-        (0.1, 0.6)
+        (UiColorType::TextSecondary, 0.05)
     }
 }
 
-/// Colour, fill alpha and border alpha of a filter chip, current or not.
-pub(crate) fn chip_paint(current: bool) -> (UiColorType, f32, f32) {
-    if current {
-        (UiColorType::Accent, 0.25, 1.0)
+/// Alpha of a row's category stripe, selected or not.
+fn row_stripe(selected: bool) -> f32 {
+    if selected {
+        1.0
     } else {
-        (UiColorType::TextSecondary, 0.08, 0.4)
+        0.7
+    }
+}
+
+/// One chip of a category filter bar: the category icon and word, or `All`
+/// for `None`, named `{prefix}{word}`. The Inventory and Craft filter bars
+/// both build their chips here; the caller adds its value, its observer and
+/// [`Selected`] on the current chip through [`select_chip`].
+pub(crate) fn category_chip(
+    prefix: &str,
+    category: Option<ItemCategoryType>,
+    icons: &InterfaceIcons,
+) -> impl Bundle {
+    let label = category.map_or("All", category_label);
+    (
+        Name::new(format!("{prefix}{label}")),
+        chip(label, category.map(|category| icons.category(category))),
+        // The current chip again changes nothing, so the handler cues.
+        ButtonCueType::Owned,
+    )
+}
+
+/// Put [`Selected`] on a chip while it is `current`, and take it off
+/// otherwise; only a change touches the chip.
+pub(crate) fn select_chip(commands: &mut Commands, chip: Entity, selected: bool, current: bool) {
+    if current && !selected {
+        commands.entity(chip).insert(Selected);
+    } else if !current && selected {
+        commands.entity(chip).remove::<Selected>();
     }
 }
 
@@ -412,18 +432,16 @@ pub(crate) fn inventory_body(body: &mut ChildSpawnerCommands, icons: &InterfaceI
                 ..default()
             })
             .with_children(|stores| {
-                stores
-                    .spawn(Node {
-                        column_gap: px(8),
-                        ..control_row(JustifyContent::FlexStart)
-                    })
-                    .with_children(|bar| {
-                        filter_chip(bar, None, icons);
-                        for category in FILTER_ORDER {
-                            filter_chip(bar, Some(category), icons);
-                        }
-                        spawn_craft_open_button(bar);
-                    });
+                stores.spawn(chip_bar()).with_children(|bar| {
+                    for category in std::iter::once(None).chain(FILTER_ORDER.map(Some)) {
+                        bar.spawn((
+                            category_chip("InventoryFilter", category, icons),
+                            InventoryFilterChip(category),
+                        ))
+                        .observe(on_inventory_filter_chip);
+                    }
+                    spawn_craft_open_button(bar);
+                });
                 stores
                     .spawn((
                         InventoryColumnsRow,
@@ -448,48 +466,6 @@ pub(crate) fn inventory_body(body: &mut ChildSpawnerCommands, icons: &InterfaceI
                 spawn_market_strip(stores);
             });
         spawn_inspector(split, icons);
-    });
-}
-
-/// One filter button: the category icon and word, or `All`.
-fn filter_chip(
-    bar: &mut ChildSpawnerCommands,
-    chip: Option<ItemCategoryType>,
-    icons: &InterfaceIcons,
-) {
-    let label = chip.map_or("All", category_label);
-    let (color, fill, border) = chip_paint(chip.is_none());
-    bar.spawn((
-        Name::new(format!("InventoryFilter{label}")),
-        Button,
-        // The current filter again changes nothing, so the handler cues.
-        ButtonCueType::Owned,
-        InventoryFilterChip(chip),
-        Node {
-            height: px(26),
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            column_gap: px(4),
-            padding: UiRect::axes(px(8), px(0)),
-            border: UiRect::all(px(1)),
-            ..default()
-        },
-        BackgroundColor(Color::NONE),
-        ThemedFill::alpha(color, fill),
-        BorderColor::all(Color::NONE),
-        ThemedBorder::alpha(color, border),
-        ThemedRadius::control(),
-    ))
-    .observe(on_inventory_filter_chip)
-    .with_children(|chip_node| {
-        if let Some(category) = chip {
-            chip_node.spawn(icon_node(
-                icons.category(category),
-                category_color(category),
-                16.0,
-            ));
-        }
-        chip_node.spawn((text(label, TextRole::Body), Pickable::IGNORE));
     });
 }
 
@@ -604,6 +580,7 @@ fn inventory_column(
                                     InventoryTakeAllButton,
                                     button(ButtonSpec::control("Take all")),
                                     ButtonCueType::Owned,
+                                    VerbGate::Hidden,
                                 ))
                                 .observe(on_take_all_button);
                                 take.spawn((
@@ -611,6 +588,7 @@ fn inventory_column(
                                     InventoryTakeCreditsButton,
                                     button(ButtonSpec::control("Take credits").ghost()),
                                     ButtonCueType::Owned,
+                                    VerbGate::Hidden,
                                 ))
                                 .observe(on_take_credits_button);
                             });
@@ -782,60 +760,28 @@ pub(crate) fn scroll_inventory_columns(
     drive_wheel_scroll(wheel, q_list);
 }
 
-/// The inspector: the selection key cue with nothing selected, else the item's icon, name,
-/// category, description and stock, beside the stores. Each part keeps its
-/// height as the selection changes: the name and the stock clip on one line,
-/// the description clips to [`ABOUT_LINES`], and rows that come and go with
-/// the draft hide without giving up their space.
+/// The inspector beside the stores: empty with nothing selected, else the
+/// item's icon, name, category, description, stock and weight, the Use verb
+/// of a consumable, the Price block while the partner trades, and the draft
+/// block while the row opens one. A hidden part takes no space.
 fn spawn_inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     split
         .spawn((Name::new("InventoryInspector"), inspector(Overflow::clip())))
         .with_children(|panel| {
             panel
                 .spawn((
-                    InspectorPart::Hint,
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        row_gap: px(4),
-                        ..default()
-                    },
-                ))
-                .with_children(|hint| {
-                    hint.spawn((
-                        InventoryInspectorField::SelectCue,
-                        text("", TextRole::Label),
-                    ));
-                });
-            panel
-                .spawn((
                     InspectorPart::Item,
                     Node {
                         display: Display::None,
                         flex_direction: FlexDirection::Column,
-                        row_gap: px(10),
+                        row_gap: px(metrics::GAP),
                         ..default()
                     },
                 ))
                 .with_children(|item| {
                     item.spawn(control_row(JustifyContent::FlexStart))
                         .with_children(|head| {
-                            head.spawn((
-                                Node {
-                                    width: px(56),
-                                    height: px(56),
-                                    flex_shrink: 0.0,
-                                    align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                    border: UiRect::all(px(1)),
-                                    ..default()
-                                },
-                                BackgroundColor(Color::NONE),
-                                ThemedFill::alpha(UiColorType::Surface, 0.6),
-                                BorderColor::all(Color::NONE),
-                                ThemedBorder::new(UiColorType::TextSecondary),
-                                ThemedRadius::control(),
-                            ))
-                            .with_children(|frame| {
+                            head.spawn(preview_frame()).with_children(|frame| {
                                 frame.spawn((
                                     InventoryInspectorIcon,
                                     icon_node(
@@ -849,7 +795,7 @@ fn spawn_inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                                 flex_grow: 1.0,
                                 min_width: px(0),
                                 flex_direction: FlexDirection::Column,
-                                row_gap: px(4),
+                                row_gap: px(metrics::GAP_S),
                                 overflow: Overflow::clip(),
                                 ..default()
                             })
@@ -865,58 +811,41 @@ fn spawn_inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                                 ));
                             });
                         });
-                    item.spawn(divider());
                     about_box(item);
-                    item.spawn(divider());
-                    fact_row(item, "Stock", InventoryInspectorField::Stock);
-                    fact_row(item, "Weight", InventoryInspectorField::Weight);
+                    spawn_kv(
+                        item,
+                        "Stock",
+                        (InventoryInspectorField::Stock, text("", TextRole::Value)),
+                    );
+                    spawn_kv(
+                        item,
+                        "Weight",
+                        (InventoryInspectorField::Weight, text("", TextRole::Value)),
+                    );
                     spawn_inventory_use_button(item);
-                    item.spawn((
-                        InspectorPart::TotalWeight,
-                        control_row(JustifyContent::SpaceBetween),
-                        Visibility::Hidden,
-                    ))
-                    .with_children(|fact| {
-                        fact.spawn(text("Total weight", TextRole::Label));
-                        fact.spawn((
-                            Name::new(INVENTORY_TOTAL_WEIGHT),
-                            InventoryInspectorField::TotalWeight,
-                            text("", TextRole::Value),
-                            TextLayout::new(Justify::Right, LineBreak::NoWrap),
-                        ));
+                    let mut prices = spawn_block(item, "Price", InspectorPart::Prices);
+                    prices
+                        .entry::<Node>()
+                        .and_modify(|mut node| node.display = Display::None);
+                    prices.with_children(|prices| {
+                        for (label, field) in [
+                            ("Reference", InventoryInspectorField::PriceReference),
+                            ("Pays", InventoryInspectorField::PricePays),
+                            ("Asks", InventoryInspectorField::PriceAsks),
+                            ("Scarcity", InventoryInspectorField::PriceScarcity),
+                            ("Cluster", InventoryInspectorField::PriceCluster),
+                            ("Civilization", InventoryInspectorField::PriceCivilization),
+                            ("Total", InventoryInspectorField::PriceTotal),
+                        ] {
+                            spawn_kv(prices, label, (field, text("", TextRole::Value)));
+                        }
                     });
-                    item.spawn((
-                        InspectorPart::Prices,
-                        Node {
-                            display: Display::None,
-                            flex_direction: FlexDirection::Column,
-                            row_gap: px(4),
-                            ..default()
-                        },
-                    ))
-                    .with_children(|prices| {
-                        fact_row(prices, "Reference", InventoryInspectorField::PriceReference);
-                        fact_row(prices, "Pays", InventoryInspectorField::PricePays);
-                        fact_row(prices, "Asks", InventoryInspectorField::PriceAsks);
-                        fact_row(prices, "Scarcity", InventoryInspectorField::PriceScarcity);
-                        fact_row(prices, "Cluster", InventoryInspectorField::PriceCluster);
-                        fact_row(
-                            prices,
-                            "Civilization",
-                            InventoryInspectorField::PriceCivilization,
-                        );
-                        fact_row(prices, "Total", InventoryInspectorField::PriceTotal);
-                    });
-                    item.spawn((
-                        InspectorPart::Form,
-                        Node {
-                            display: Display::None,
-                            flex_direction: FlexDirection::Column,
-                            row_gap: px(10),
-                            ..default()
-                        },
-                    ))
-                    .with_children(draft_form);
+                    // `title_inventory_draft` writes the action into the
+                    // block's title.
+                    let mut form = spawn_block(item, "", (InspectorPart::Form, InventoryDraftForm));
+                    form.entry::<Node>()
+                        .and_modify(|mut node| node.display = Display::None);
+                    form.with_children(draft_form);
                 });
         });
 }
@@ -1027,10 +956,10 @@ fn priced_text(price_cr: u32, reference_cr: u32, lot: u32) -> String {
     )
 }
 
-/// The `Deal` badge of a row price: its percent off the reference, green
-/// when it favours the player (a Sell bid over the reference, a Buy ask
-/// under it), amber when not, mute at it.
-fn deal_badge(price: RowPrice) -> impl Bundle {
+/// The `Deal` cell of a row price: its percent off the reference as a value,
+/// green when it favours the player (a Sell bid over the reference, a Buy ask
+/// under it), amber when not, muted at it.
+fn deal_text(price: RowPrice) -> impl Bundle {
     let gain = match price.trade {
         ItemTradeType::Sell => price.delta_percent.signum(),
         ItemTradeType::Buy => -price.delta_percent.signum(),
@@ -1040,7 +969,7 @@ fn deal_badge(price: RowPrice) -> impl Bundle {
         -1 => UiColorType::Accent,
         _ => UiColorType::TextSecondary,
     };
-    tag(&format!("{:+}%", price.delta_percent), kind)
+    text_toned(format!("{:+}%", price.delta_percent), TextRole::Value, kind)
 }
 
 /// A price factor as the inspector shows it: one multiplier when ask and bid
@@ -1062,195 +991,105 @@ fn labelled_factor(label: Option<&str>, factor: PriceFactor) -> String {
     }
 }
 
-/// A labelled fact of the selected item: the word on the left and the value,
-/// clipped on one line, on the right.
-fn fact_row(item: &mut ChildSpawnerCommands, label: &str, field: InventoryInspectorField) {
-    item.spawn(control_row(JustifyContent::SpaceBetween))
-        .with_children(|fact| {
-            fact.spawn((
-                text(label, TextRole::Label),
-                Node {
-                    flex_shrink: 0.0,
-                    ..default()
-                },
-            ));
-            fact.spawn((
-                field,
-                text("", TextRole::Value),
-                TextLayout::new(Justify::Right, LineBreak::NoWrap),
-                Node {
-                    min_width: px(0),
-                    overflow: Overflow::clip(),
-                    ..default()
-                },
-            ));
-        });
-}
-
-/// The action form: the draft's direction; the Give, Sell and Store switch; the
-/// typed quantity, the source stock and All on a row the wheel steps; the
-/// quantity slider; the price of a trade; and Confirm, disabled while the
-/// move would be refused. The form names no refusal: the stock, the total
-/// weight or the price that blocks it turns to the danger tone.
+/// The draft block's rows under its title: the Give, Sell and Store switch;
+/// the amount row from one to the source stock; the total weight; the price
+/// of a trade; and the verbs at the block's bottom right, Buy all or Sell all
+/// before Confirm. Confirm is disabled while the move would be refused, and
+/// the number that blocks it is painted Danger: the "/ max", the total
+/// weight or the price. A hidden row takes no space.
 fn draft_form(form: &mut ChildSpawnerCommands) {
-    form.spawn(divider());
-    form.spawn((
-        InventoryInspectorField::DraftTitle,
-        text("", TextRole::Heading),
-        TextLayout::new(Justify::Left, LineBreak::NoWrap),
-        Node {
-            overflow: Overflow::clip(),
-            ..default()
-        },
-    ));
     // `update_inventory_panel` fills the chips from the actions the partner
     // takes, which change with the dock.
     form.spawn((
         InspectorPart::ActionChips,
         InventoryActionChips(Vec::new()),
-        Node {
-            column_gap: px(6),
-            flex_wrap: FlexWrap::Wrap,
-            row_gap: px(4),
-            ..control_row(JustifyContent::FlexStart)
-        },
-        Visibility::Hidden,
-    ));
+        chip_bar(),
+    ))
+    .entry::<Node>()
+    .and_modify(|mut node| node.display = Display::None);
     form.spawn((
-        InventoryDraftWheel,
-        // A four-digit stock at the 1024 px default window leaves no room for
-        // All beside the field and the count; it wraps under them instead of
-        // running past the inspector's edge.
+        InventoryDraftAmount,
+        amount_row(AmountSpec {
+            name: "InventoryDraft",
+        }),
+    ))
+    .observe(on_inventory_draft_amount);
+    form.spawn((
+        InspectorPart::TotalWeight,
         Node {
-            flex_wrap: FlexWrap::Wrap,
-            row_gap: px(6),
-            ..control_row(JustifyContent::FlexStart)
+            display: Display::None,
+            flex_direction: FlexDirection::Column,
+            ..default()
         },
     ))
-    .observe(wheel_inventory_draft)
     .with_children(|row| {
-        row.spawn(Node {
-            width: px(72),
-            flex_shrink: 0.0,
-            ..default()
-        })
-        .with_children(|cell| {
-            cell.spawn((
-                Name::new("InventoryDraftQuantity"),
-                InventoryDraftField,
-                text_field(TextFieldSpec::new("1").max_chars(5).tool()),
-            ));
-        });
-        row.spawn((
-            InventoryInspectorField::DraftStock,
-            text("", TextRole::Value),
-            Node {
-                flex_grow: 1.0,
-                ..default()
-            },
-            TextLayout::new(Justify::Left, LineBreak::NoWrap),
-        ));
-        row.spawn((
-            Name::new("InventoryDraftAll"),
-            button(ButtonSpec::control("All").ghost()),
-        ))
-        .observe(fill_inventory_draft);
+        spawn_kv(
+            row,
+            "Total weight",
+            (
+                Name::new(INVENTORY_TOTAL_WEIGHT),
+                InventoryInspectorField::TotalWeight,
+                text("", TextRole::Value),
+            ),
+        );
     });
-    form.spawn((
-        InventoryDraftSlider,
-        Slider {
-            track_click: TrackClick::Snap,
-            ..default()
-        },
-        SliderValue(1.0),
-        SliderRange::new(0.0, 1.0),
-        SliderStep(1.0),
-        SliderPrecision(0),
-        slider_track(0.0),
-    ))
-    .observe(slide_inventory_draft);
     form.spawn((
         InspectorPart::DraftPrice,
-        control_row(JustifyContent::SpaceBetween),
-        Visibility::Hidden,
+        Node {
+            display: Display::None,
+            flex_direction: FlexDirection::Column,
+            ..default()
+        },
     ))
-    .with_children(|fact| {
-        fact.spawn(text("Price", TextRole::Label));
-        fact.spawn((
-            Name::new(INVENTORY_DRAFT_PRICE),
-            InventoryInspectorField::DraftPrice,
-            text("", TextRole::Value),
-            TextLayout::new(Justify::Right, LineBreak::NoWrap),
-        ));
-    });
-    form.spawn(Node {
-        column_gap: px(8),
-        flex_wrap: FlexWrap::Wrap,
-        row_gap: px(6),
-        ..control_row(JustifyContent::FlexStart)
-    })
     .with_children(|row| {
-        row.spawn((
-            Name::new("InventoryDraftConfirm"),
-            InventoryDraftConfirm,
-            button(ButtonSpec::control("Confirm").primary()),
-            ButtonCueType::Owned,
-        ))
-        .observe(confirm_inventory_draft);
-        // `update_inventory_trade_controls` shows the one of the open
-        // draft's trade and enables it while the whole stack would trade.
+        spawn_kv(
+            row,
+            "Price",
+            (
+                Name::new(INVENTORY_DRAFT_PRICE),
+                InventoryInspectorField::DraftPrice,
+                text("", TextRole::Value),
+            ),
+        );
+    });
+    form.spawn(verb_row(RowAlign::End)).with_children(|row| {
+        // `update_inventory_trade_controls` shows the one of the open draft's
+        // trade and enables it while the whole stack would trade.
         for (trade, name, label) in [
             (ItemTradeType::Buy, INVENTORY_BUY_ALL, "Buy all"),
             (ItemTradeType::Sell, INVENTORY_SELL_ALL, "Sell all"),
         ] {
-            // Spawned up and disabled: the button bundle owns its `Node`, and
-            // `update_inventory_trade_controls` hides it the same frame, before
-            // the form it sits in first shows.
             row.spawn((
                 Name::new(name),
                 InventoryTradeAllButton(trade),
                 button(ButtonSpec::control(label)),
                 ButtonCueType::Owned,
-                InteractionDisabled,
+                VerbGate::Hidden,
             ))
             .observe(on_trade_all_button);
         }
+        row.spawn((
+            Name::new("InventoryDraftConfirm"),
+            InventoryDraftConfirm,
+            button(ButtonSpec::control("Confirm").primary()),
+            ButtonCueType::Owned,
+            VerbGate::Disabled,
+        ))
+        .observe(confirm_inventory_draft);
     });
 }
 
-/// One switch chip of the player's row form, painted as the draft's action
-/// when `current`.
-fn action_chip(
-    chips: &mut ChildSpawnerCommands,
-    action: InventoryActionType,
-    label: &str,
-    current: bool,
-) {
-    let (color, fill, border) = chip_paint(current);
-    chips
-        .spawn((
-            Name::new(format!("InventoryDraft{}", action_chip_name(action))),
-            Button,
-            // The current action again changes nothing, so the handler cues.
-            ButtonCueType::Owned,
-            InventoryDraftActionChip(action),
-            Node {
-                height: px(22),
-                align_items: AlignItems::Center,
-                padding: UiRect::axes(px(8), px(0)),
-                border: UiRect::all(px(1)),
-                ..default()
-            },
-            BackgroundColor(Color::NONE),
-            ThemedFill::alpha(color, fill),
-            BorderColor::all(Color::NONE),
-            ThemedBorder::alpha(color, border),
-            ThemedRadius::control(),
-        ))
-        .observe(on_inventory_draft_action_chip)
-        .with_children(|chip| {
-            chip.spawn((text(label, TextRole::Body), Pickable::IGNORE));
-        });
+/// The word of an action: a draft block's title and a switch chip's label.
+fn action_word(action: InventoryActionType) -> &'static str {
+    match action {
+        InventoryActionType::Take => "Take",
+        InventoryActionType::Give => "Give",
+        InventoryActionType::Buy => "Buy",
+        InventoryActionType::Sell => "Sell",
+        InventoryActionType::Jettison => "Jettison",
+        InventoryActionType::Store(_) => "Store",
+        InventoryActionType::Withdraw(_) => "Withdraw",
+    }
 }
 
 /// The node-name part of a switch chip: `Give`, `Sell`, `Store`, or
@@ -1260,8 +1099,7 @@ pub(crate) fn action_chip_name(action: InventoryActionType) -> String {
         InventoryActionType::Store(InventoryStoreType::Ship(ship)) => {
             format!("StoreShip{}", ship.to_bits())
         }
-        InventoryActionType::Store(InventoryStoreType::Station) => "Store".to_string(),
-        other => format!("{other:?}"),
+        other => action_word(other).to_string(),
     }
 }
 
@@ -1278,7 +1116,7 @@ fn inventory_row(
     let design = items.design(&item);
     let category = design.category;
     let tone = category_color(category);
-    let (fill, border) = row_alphas(selected);
+    let (fill_tone, fill) = row_fill(selected, tone);
     list.spawn((
         Name::new(format!("InventoryRow{side:?}{item}")),
         Button,
@@ -1286,19 +1124,19 @@ fn inventory_row(
         ButtonCueType::Owned,
         InventoryRow { side, item },
         Node {
-            height: px(ROW_PX),
+            height: px(metrics::LIST_ROW_H),
             flex_shrink: 0.0,
             column_gap: px(CELL_GAP_PX),
             align_items: AlignItems::Center,
-            padding: UiRect::axes(px(8), px(0)),
-            border: UiRect::left(px(3)),
+            padding: UiRect::axes(px(metrics::PAD_X), px(0)),
+            border: UiRect::left(px(ROW_STRIPE_PX)),
             overflow: Overflow::clip(),
             ..default()
         },
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(tone, fill),
+        ThemedFill::alpha(fill_tone, fill),
         BorderColor::all(Color::NONE),
-        ThemedBorder::alpha(tone, border),
+        ThemedBorder::alpha(tone, row_stripe(selected)),
     ))
     .observe(on_inventory_row)
     .with_children(|row| {
@@ -1324,7 +1162,7 @@ fn inventory_row(
         });
         row.spawn(cell(QTY_PX)).with_children(|cell| {
             cell.spawn((
-                text_toned(&format!("x{count}"), TextRole::Value, tone),
+                text(format!("x{count}"), TextRole::Value),
                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
                 Pickable::IGNORE,
             ));
@@ -1341,10 +1179,9 @@ fn inventory_row(
                 );
                 if price.lot > 1 {
                     cell.spawn((
-                        text_toned(
-                            &format!(" / {}", cr_digits(price.lot.into())),
+                        text(
+                            format!(" / {}", cr_digits(price.lot.into())),
                             TextRole::Value,
-                            tone,
                         ),
                         TextLayout::new(Justify::Left, LineBreak::NoWrap),
                         Pickable::IGNORE,
@@ -1352,7 +1189,11 @@ fn inventory_row(
                 }
             });
             row.spawn(cell(DEAL_PX)).with_children(|cell| {
-                cell.spawn((deal_badge(price), Pickable::IGNORE));
+                cell.spawn((
+                    deal_text(price),
+                    TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                    Pickable::IGNORE,
+                ));
             });
         }
     });
@@ -1428,11 +1269,11 @@ fn quick_inventory_action(
         .as_mut()
         .filter(|draft| draft.item == *item && draft.action != InventoryActionType::Jettison)?;
     let quantity = if one { 1 } else { ships.draft_stock(draft) };
-    draft.quantity = Some(quantity);
+    draft.quantity = quantity;
     Some(InventoryActionCommand {
         action: draft.action,
         item: draft.item.clone(),
-        quantity: Some(quantity),
+        quantity,
     })
 }
 
@@ -1474,7 +1315,7 @@ fn select_inventory_row(
     runtime.draft = offer.map(|action| InventoryDraft {
         action,
         item: row.item,
-        quantity: Some(1),
+        quantity: 1,
     });
     true
 }
@@ -1519,9 +1360,6 @@ pub(crate) fn inventory_keys(
     };
     for (field, mut text) in &mut q_cue {
         let wanted = match field {
-            InventoryInspectorField::SelectCue => {
-                format!("{} Select", key(&["viewer_prev", "viewer_next"]))
-            }
             InventoryInspectorField::DetailsCue => {
                 format!("{} Full text", key(&["inventory_details"]))
             }
@@ -1725,14 +1563,18 @@ fn on_inventory_draft_action_chip(
 }
 
 /// Send one Take credits command, with one click, while the button is
-/// enabled. The button widget drops a pointer or key press on a disabled
-/// button; this guard also drops an `Activate` triggered directly.
+/// ready. The button widget drops a pointer or key press on a disabled
+/// button; this guard reads the gate, so it also drops an `Activate`
+/// triggered directly.
 fn on_take_credits_button(
     activate: On<Activate>,
-    q_disabled: Query<(), With<InteractionDisabled>>,
+    q_gate: Query<&VerbGate>,
     mut actions: MessageWriter<CreditTakeCommand>,
 ) {
-    if q_disabled.contains(activate.entity) {
+    if q_gate
+        .get(activate.entity)
+        .is_ok_and(|gate| *gate != VerbGate::Ready)
+    {
         return;
     }
     actions.write(CreditTakeCommand);
@@ -1751,26 +1593,26 @@ fn on_take_all_button(_activate: On<Activate>, mut actions: MessageWriter<TakeAl
 /// a button whose trade is not the open draft's.
 fn on_trade_all_button(
     activate: On<Activate>,
-    q_button: Query<(&InventoryTradeAllButton, Has<InteractionDisabled>)>,
+    q_button: Query<(&InventoryTradeAllButton, &VerbGate)>,
     ships: InventoryShips,
     mut runtime: ResMut<InventoryRuntime>,
     mut actions: MessageWriter<InventoryActionCommand>,
 ) {
-    let Ok((button, disabled)) = q_button.get(activate.entity) else {
+    let Ok((button, gate)) = q_button.get(activate.entity) else {
         return;
     };
     let Some(draft) = runtime.draft.as_mut() else {
         return;
     };
-    if disabled || draft.action.trade() != Some(button.0) {
+    if *gate != VerbGate::Ready || draft.action.trade() != Some(button.0) {
         return;
     }
     let quantity = ships.draft_stock(draft);
-    draft.quantity = Some(quantity);
+    draft.quantity = quantity;
     actions.write(InventoryActionCommand {
         action: draft.action,
         item: draft.item.clone(),
-        quantity: Some(quantity),
+        quantity,
     });
 }
 
@@ -2209,88 +2051,44 @@ fn play_cue(
     }
 }
 
-/// Set the open draft's quantity, or do nothing if it already holds it. A new
-/// number ticks; text that is not a number is silent, and the form refuses it
-/// with Confirm disabled. Every quantity control but All goes through here, so
-/// one change makes at most one tick.
-fn set_draft_quantity(
-    runtime: &mut InventoryRuntime,
-    quantity: Option<u32>,
-    commands: &mut Commands,
-    bank: Option<&SoundBank<UiSfx>>,
-) {
-    let Some(draft) = runtime.draft.clone() else {
-        return;
-    };
-    if draft.quantity == quantity {
-        return;
-    }
-    runtime.draft = Some(InventoryDraft { quantity, ..draft });
-    if quantity.is_some() {
-        play_cue(commands, bank, UiSfx::UiTick, SoundCategoryType::UiTick);
-    }
-}
-
-/// Step the open draft's quantity by one per wheel event over the quantity
-/// row, between one and what the source ship carries.
-fn wheel_inventory_draft(
-    scroll: On<PointerScroll>,
-    ships: InventoryShips,
+/// Take a move of the draft's amount row as the open draft's quantity, with
+/// one tick per new number. The row clamps it from one to the source stock.
+fn on_inventory_draft_amount(
+    changed: On<AmountChanged>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
     mut runtime: ResMut<InventoryRuntime>,
 ) {
-    let Some(draft) = runtime.draft.clone() else {
+    let Some(draft) = runtime.draft.as_mut() else {
         return;
     };
-    if scroll.y == 0.0 {
+    if draft.quantity == changed.value {
         return;
     }
-    let step = if scroll.y > 0.0 { 1 } else { -1 };
-    let have = i64::from(ships.draft_stock(&draft));
-    let quantity = (i64::from(draft.quantity.unwrap_or(0)) + step).clamp(1, have) as u32;
-    set_draft_quantity(&mut runtime, Some(quantity), &mut commands, bank.as_deref());
-}
-
-/// Take the slider's value as the open draft's quantity. An empty track is
-/// zero, which Confirm refuses. A drag reports every frame it moves; only a
-/// new whole quantity ticks.
-fn slide_inventory_draft(
-    change: On<ValueChange<f32>>,
-    bank: Option<Res<SoundBank<UiSfx>>>,
-    mut commands: Commands,
-    mut runtime: ResMut<InventoryRuntime>,
-) {
-    let quantity = change.value.round().max(0.0) as u32;
-    set_draft_quantity(&mut runtime, Some(quantity), &mut commands, bank.as_deref());
-}
-
-/// Set the open draft to everything the source ship carries, with a click.
-fn fill_inventory_draft(
-    _: On<Activate>,
-    ships: InventoryShips,
-    mut runtime: ResMut<InventoryRuntime>,
-) {
-    let Some(draft) = runtime.draft.clone() else {
-        return;
-    };
-    runtime.draft = Some(InventoryDraft {
-        quantity: Some(ships.draft_stock(&draft)),
-        ..draft
-    });
+    draft.quantity = changed.value;
+    play_cue(
+        &mut commands,
+        bank.as_deref(),
+        UiSfx::UiTick,
+        SoundCategoryType::UiTick,
+    );
 }
 
 /// Send the open draft to [`apply_inventory_action_commands`]. With none
 /// open, as on the second click of a double click, or with Confirm disabled,
 /// nothing happens. The button widget drops a pointer or key press on a
-/// disabled Confirm; this guard also drops an `Activate` triggered directly.
+/// disabled Confirm; this guard reads the gate, so it also drops an
+/// `Activate` triggered directly or in the frame the gate closed.
 fn confirm_inventory_draft(
     activate: On<Activate>,
-    q_disabled: Query<(), With<InteractionDisabled>>,
+    q_gate: Query<&VerbGate>,
     runtime: Res<InventoryRuntime>,
     mut actions: MessageWriter<InventoryActionCommand>,
 ) {
-    if q_disabled.contains(activate.entity) {
+    if q_gate
+        .get(activate.entity)
+        .is_ok_and(|gate| *gate != VerbGate::Ready)
+    {
         return;
     }
     if let Some(draft) = runtime.draft.clone() {
@@ -2299,101 +2097,6 @@ fn confirm_inventory_draft(
             item: draft.item,
             quantity: draft.quantity,
         });
-    }
-}
-
-/// Take the typed text as the open draft's quantity: a whole number, or
-/// `None`, which Confirm refuses.
-pub(crate) fn type_inventory_draft(
-    fields: Query<&TextFieldValue, (With<InventoryDraftField>, Changed<TextFieldValue>)>,
-    bank: Option<Res<SoundBank<UiSfx>>>,
-    mut commands: Commands,
-    mut runtime: ResMut<InventoryRuntime>,
-) {
-    for value in &fields {
-        let typed = value.trim().parse::<u32>().ok();
-        set_draft_quantity(&mut runtime, typed, &mut commands, bank.as_deref());
-    }
-}
-
-/// Show the open draft's quantity on the slider and the field, writing only a
-/// difference, so the nodes stay and a drag does not fight itself.
-///
-/// The slider runs from zero, an empty track, to the source stock, and hides
-/// while the source carries one or none, where it could not move; the field
-/// and All still set the quantity. While the field holds text that is not a
-/// number, the slider keeps the last number and the field is marked as an
-/// error. The field is rewritten only when the draft holds a number its text
-/// does not read as. A rewrite of the focused field puts the caret at the end.
-/// With no draft open the field lets go of the keyboard, so a hidden field
-/// never holds it.
-#[expect(
-    clippy::type_complexity,
-    reason = "the form's slider and field with their focus and error state"
-)]
-pub(crate) fn sync_inventory_draft_controls(
-    mut commands: Commands,
-    ships: InventoryShips,
-    runtime: Res<InventoryRuntime>,
-    mut sliders: Query<(Entity, &SliderValue, &SliderRange, &mut Node), With<InventoryDraftSlider>>,
-    mut fields: Query<
-        (
-            Entity,
-            &mut TextFieldValue,
-            Has<TextFieldFocused>,
-            Has<TextFieldError>,
-        ),
-        With<InventoryDraftField>,
-    >,
-) {
-    let Some(draft) = runtime.draft.clone() else {
-        for (field, _, focused, _) in &fields {
-            if focused {
-                commands.entity(field).remove::<TextFieldFocused>();
-            }
-        }
-        return;
-    };
-    let have = ships.draft_stock(&draft);
-    for (slider, value, range, mut node) in &mut sliders {
-        let display = if have > 1 {
-            Display::Flex
-        } else {
-            Display::None
-        };
-        if node.display != display {
-            node.display = display;
-        }
-        let wanted = SliderRange::new(0.0, have as f32);
-        if *range != wanted {
-            commands.entity(slider).insert(wanted);
-        }
-        if let Some(quantity) = draft.quantity {
-            let shown = quantity.min(have) as f32;
-            if value.0 != shown {
-                commands.entity(slider).insert(SliderValue(shown));
-            }
-        }
-    }
-    for (field, mut value, focused, marked) in &mut fields {
-        let Some(quantity) = draft.quantity else {
-            if !marked {
-                commands.entity(field).insert(TextFieldError(String::new()));
-            }
-            continue;
-        };
-        if marked {
-            commands.entity(field).remove::<TextFieldError>();
-        }
-        if value.trim().parse::<u32>().ok() == Some(quantity) {
-            continue;
-        }
-        value.0 = quantity.to_string();
-        if focused {
-            commands
-                .entity(field)
-                .insert(TextFieldFocused::at_end(&value.0));
-        }
     }
 }
 
@@ -2605,7 +2308,7 @@ pub(crate) fn take_loot(
             let command = InventoryActionCommand {
                 action: InventoryActionType::Take,
                 item: item.clone(),
-                quantity: Some(count - stored),
+                quantity: count - stored,
             };
             transfer_items(items, ships, pair, ItemTransferType::Take, command)
                 .expect("a Take of what fits passes the transfer rule");
@@ -2677,8 +2380,16 @@ fn transfer_items(
     };
     let (_, own, ..) = ships.ship(pair.own);
     let (_, theirs, lootable, _) = ships.ship(partner);
-    let moved = plan_item_transfer(items, transfer, lootable, &item, quantity, own, theirs)
-        .map_err(|refusal| format!("{refusal:?}"))?;
+    let moved = plan_item_transfer(
+        items,
+        transfer,
+        lootable,
+        &item,
+        Some(quantity),
+        own,
+        theirs,
+    )
+    .map_err(|refusal| format!("{refusal:?}"))?;
     let [(_, mut from, ..), (_, mut to, ..)] = ships
         .ships
         .get_many_mut([source, target])
@@ -2710,7 +2421,16 @@ fn trade_items(
     let (_, own, _, own_cr) = ships.ship(pair.own);
     let (_, theirs, _, partner_cr) = ships.ship(partner);
     let planned = plan_item_trade(
-        items, trade, prices, lawful, &item, quantity, own, own_cr, theirs, partner_cr,
+        items,
+        trade,
+        prices,
+        lawful,
+        &item,
+        Some(quantity),
+        own,
+        own_cr,
+        theirs,
+        partner_cr,
     )
     .map_err(|refusal| format!("{refusal:?}"))?;
     let [(_, mut from, _, _, mut from_cr, mut from_reports), (_, mut to, _, _, mut to_cr, mut to_reports)] =
@@ -2758,7 +2478,7 @@ fn store_items(
         pair.partner.is_some(),
         ships.storage(pair),
         &item,
-        quantity,
+        Some(quantity),
         own,
     )
     .map_err(|refusal| format!("{refusal:?}"))?;
@@ -2819,7 +2539,7 @@ fn hold_items(
     };
     let (_, own, ..) = ships.ship(pair.own);
     let (_, hold, ..) = ships.ship(ship);
-    let moved = plan_item_transfer(items, transfer, true, &item, quantity, own, hold)
+    let moved = plan_item_transfer(items, transfer, true, &item, Some(quantity), own, hold)
         .map_err(|refusal| format!("{refusal:?}"))?;
     let [(_, mut from, ..), (_, mut to, ..)] = ships
         .ships
@@ -2852,7 +2572,7 @@ fn jettison_items(
         intake.is_some(),
         tail,
         &item,
-        quantity,
+        Some(quantity),
         own,
     )
     .map_err(|refusal| format!("{refusal:?}"))?;
@@ -2879,10 +2599,10 @@ fn jettison_items(
 
 /// The open draft as the form draws it.
 struct DraftView {
-    /// Which way it moves items, and with which ship: `Sell to Trader`.
-    title: String,
-    /// The source stock: `of 12`.
-    have: String,
+    /// The quantity the amount row shows.
+    quantity: u32,
+    /// The source stock: the amount row's top, at least one.
+    have: u32,
     /// What a Buy or Sell moves in credits, while it has a price.
     price: Option<u64>,
     /// What keeps Confirm from moving it, or `None` while it would move.
@@ -2988,11 +2708,14 @@ impl SideView {
 /// or the draft would be refused: no whole number, zero, or a transfer,
 /// trade or store its plan refuses against the live stock, room and credits,
 /// or a jettison of more than the stack. The part of the form that blocks
-/// it, the stock, the total weight or the price, turns to the danger tone.
-/// The Take all button is disabled while none of the loot fits, and Take
-/// credits while the player's balance would overflow.
+/// it, the "/ max" of the amount row, the total weight or the price, turns
+/// to the danger tone. The amount row runs from one to the source stock; a
+/// hidden form's field lets go of the keyboard. The Take all button is
+/// disabled while none of the loot fits, and Take credits while the player's
+/// balance would overflow.
 #[expect(
     clippy::too_many_arguments,
+    clippy::type_complexity,
     reason = "one system reading both inventories and writing every pane part"
 )]
 pub(crate) fn update_inventory_panel(
@@ -3007,41 +2730,33 @@ pub(crate) fn update_inventory_panel(
         Query<(&InventoryColumnFact, &mut Text), Without<InventoryInspectorField>>,
     )>,
     mut q_row: Query<(&InventoryRow, &mut ThemedFill, &mut ThemedBorder)>,
-    mut q_chip: Query<
-        (&InventoryFilterChip, &mut ThemedFill, &mut ThemedBorder),
-        Without<InventoryRow>,
-    >,
-    (mut q_action_chip, mut q_action_chips): (
-        Query<
-            (
-                &InventoryDraftActionChip,
-                &mut ThemedFill,
-                &mut ThemedBorder,
-            ),
-            (Without<InventoryRow>, Without<InventoryFilterChip>),
-        >,
+    q_chip: Query<(Entity, &InventoryFilterChip, Has<Selected>)>,
+    (q_action_chip, mut q_action_chips): (
+        Query<(Entity, &InventoryDraftActionChip, Has<Selected>)>,
         Query<(Entity, &mut InventoryActionChips)>,
     ),
-    mut q_part: Query<(&InspectorPart, &mut Node, &mut Visibility)>,
-    mut q_take: Query<
+    mut q_part: Query<(&InspectorPart, &mut Node), Without<InventoryColumnPanel>>,
+    mut q_verb: Query<
         (
-            Entity,
-            &mut Node,
+            &mut VerbGate,
             Has<InventoryTakeAllButton>,
-            Has<InteractionDisabled>,
+            Has<InventoryTakeCreditsButton>,
+            Has<InventoryDraftConfirm>,
         ),
-        (
-            Or<(
-                With<InventoryTakeCreditsButton>,
-                With<InventoryTakeAllButton>,
-            )>,
-            Without<InspectorPart>,
-            Without<InventoryColumnPanel>,
-        ),
+        Or<(
+            With<InventoryTakeAllButton>,
+            With<InventoryTakeCreditsButton>,
+            With<InventoryDraftConfirm>,
+        )>,
     >,
     mut q_field: Query<(&InventoryInspectorField, &mut Text, &mut ThemedText)>,
     mut q_icon: Query<(&mut ImageNode, &mut ThemedImageTint), With<InventoryInspectorIcon>>,
-    q_confirm: Query<(Entity, Has<InteractionDisabled>), With<InventoryDraftConfirm>>,
+    (mut q_amount, q_children, q_top, q_focused): (
+        Query<(Entity, &mut Amount), With<InventoryDraftAmount>>,
+        Query<&Children>,
+        Query<Option<&Short>, With<AmountTop>>,
+        Query<(), (With<AmountField>, With<TextFieldFocused>)>,
+    ),
 ) {
     if q_column.is_empty() {
         return;
@@ -3246,7 +2961,7 @@ pub(crate) fn update_inventory_panel(
                     ));
                 }
                 if section.stacks.is_empty() {
-                    rows.spawn(text("Inventory empty.", TextRole::Label));
+                    rows.spawn(text("Empty", TextRole::Label));
                     continue;
                 }
                 let visible: Vec<RowStack> = section
@@ -3256,7 +2971,7 @@ pub(crate) fn update_inventory_panel(
                     .cloned()
                     .collect();
                 if visible.is_empty() {
-                    rows.spawn(text("Nothing in this category.", TextRole::Label));
+                    rows.spawn(text("Empty", TextRole::Label));
                 }
                 for stack in visible {
                     let picked = selected
@@ -3330,25 +3045,20 @@ pub(crate) fn update_inventory_panel(
         let picked = selected
             .as_ref()
             .is_some_and(|(side, item)| *side == row.side && *item == row.item);
-        let (fill_alpha, border_alpha) = row_alphas(picked);
-        if fill.alpha != fill_alpha {
+        let (fill_tone, fill_alpha) =
+            row_fill(picked, category_color(items.design(&row.item).category));
+        if fill.color != fill_tone || fill.alpha != fill_alpha {
+            fill.color = fill_tone;
             fill.alpha = fill_alpha;
         }
-        if border.alpha != border_alpha {
-            border.alpha = border_alpha;
+        let stripe = row_stripe(picked);
+        if border.alpha != stripe {
+            border.alpha = stripe;
         }
     }
 
-    for (chip, mut fill, mut border) in &mut q_chip {
-        let (color, fill_alpha, border_alpha) = chip_paint(chip.0 == filter);
-        if fill.color != color || fill.alpha != fill_alpha {
-            fill.color = color;
-            fill.alpha = fill_alpha;
-        }
-        if border.color != color || border.alpha != border_alpha {
-            border.color = color;
-            border.alpha = border_alpha;
-        }
+    for (chip, category, chosen) in &q_chip {
+        select_chip(&mut commands, chip, chosen, category.0 == filter);
     }
 
     let chip_actions = terms
@@ -3365,26 +3075,25 @@ pub(crate) fn update_inventory_panel(
                     InventoryActionType::Store(InventoryStoreType::Ship(ship)) => {
                         format!("To {}", ships.title(ship, InventorySideType::Hold(ship)))
                     }
-                    InventoryActionType::Store(InventoryStoreType::Station) => "Store".to_string(),
-                    other => format!("{other:?}"),
+                    other => action_word(other).to_string(),
                 };
-                let current = draft.as_ref().is_some_and(|draft| draft.action == action);
-                action_chip(chips, action, &label, current);
+                chips
+                    .spawn((
+                        Name::new(format!("InventoryDraft{}", action_chip_name(action))),
+                        chip(&label, None),
+                        // The current action again changes nothing, so the
+                        // handler cues.
+                        ButtonCueType::Owned,
+                        InventoryDraftActionChip(action),
+                    ))
+                    .observe(on_inventory_draft_action_chip);
             }
         });
         drawn.0.clone_from(&chip_actions);
     }
-    for (chip, mut fill, mut border) in &mut q_action_chip {
-        let current = draft.as_ref().is_some_and(|draft| draft.action == chip.0);
-        let (color, fill_alpha, border_alpha) = chip_paint(current);
-        if fill.color != color || fill.alpha != fill_alpha {
-            fill.color = color;
-            fill.alpha = fill_alpha;
-        }
-        if border.color != color || border.alpha != border_alpha {
-            border.color = color;
-            border.alpha = border_alpha;
-        }
+    for (chip, action, chosen) in &q_action_chip {
+        let current = draft.as_ref().is_some_and(|draft| draft.action == action.0);
+        select_chip(&mut commands, chip, chosen, current);
     }
 
     // The selected item's price at the partner, what a trade deals at, and
@@ -3399,65 +3108,27 @@ pub(crate) fn update_inventory_panel(
             .and_then(|partner| ships.markets.get(partner).ok());
         Some((items.design(item).reference_price(), quote, prices, market))
     });
-    for (part, mut node, mut visibility) in &mut q_part {
-        // The draft's own rows hide in place, so switching between a Sell and
-        // a Buy, or typing a quantity that is not a number, does not move the
-        // rows under them.
-        let (shown, keeps_space) = match part {
-            InspectorPart::Hint => (selected.is_none(), false),
-            InspectorPart::Item => (selected.is_some(), false),
-            InspectorPart::Form => (draft.is_some(), false),
-            InspectorPart::Prices => (priced.is_some(), false),
-            InspectorPart::ActionChips => (
-                terms.as_ref().is_some_and(|terms| {
-                    chip_actions.len() > 1
-                        && draft
-                            .as_ref()
-                            .is_some_and(|draft| terms.takes(draft.action))
-                }),
-                true,
-            ),
-            InspectorPart::TotalWeight => (
-                draft.as_ref().is_some_and(|draft| draft.quantity.is_some()),
-                true,
-            ),
-            InspectorPart::DraftPrice => (
-                draft
-                    .as_ref()
-                    .is_some_and(|draft| draft.action.trade().is_some()),
-                true,
-            ),
+    for (part, mut node) in &mut q_part {
+        let shown = match part {
+            InspectorPart::Item => selected.is_some(),
+            InspectorPart::Form => draft.is_some(),
+            InspectorPart::Prices => priced.is_some(),
+            InspectorPart::ActionChips => terms.as_ref().is_some_and(|terms| {
+                chip_actions.len() > 1
+                    && draft
+                        .as_ref()
+                        .is_some_and(|draft| terms.takes(draft.action))
+            }),
+            InspectorPart::TotalWeight => draft.is_some(),
+            InspectorPart::DraftPrice => draft
+                .as_ref()
+                .is_some_and(|draft| draft.action.trade().is_some()),
             // `update_inventory_about` owns the description's parts.
             InspectorPart::AboutFull | InspectorPart::AboutMore => continue,
-        };
-        if keeps_space {
-            visibility.set_if_neq(if shown {
-                Visibility::Inherited
-            } else {
-                Visibility::Hidden
-            });
-        } else {
-            let display = if shown { Display::Flex } else { Display::None };
-            if node.display != display {
-                node.display = display;
-            }
-        }
-    }
-
-    for (button, mut node, take_all, disabled) in &mut q_take {
-        let (shown, enabled) = if take_all {
-            take_all_shown
-        } else {
-            take_credits_shown
         };
         let display = if shown { Display::Flex } else { Display::None };
         if node.display != display {
             node.display = display;
-        }
-        if enabled && disabled {
-            commands.entity(button).remove::<InteractionDisabled>();
-        } else if !enabled && !disabled {
-            commands.entity(button).insert(InteractionDisabled);
         }
     }
 
@@ -3468,45 +3139,30 @@ pub(crate) fn update_inventory_panel(
             .expect("the selection was cleared above unless its side carries the item");
         (item, format!("x{count} in {}", view.title))
     });
-    let total_weight = draft.clone().and_then(|draft| {
-        draft
-            .quantity
-            .map(|quantity| items.design(&draft.item).stack_mass_g(quantity))
-    });
+    let total_weight = draft
+        .as_ref()
+        .map(|draft| items.design(&draft.item).stack_mass_g(draft.quantity));
     let form = draft.map(|draft| {
-        let (source, title) = match draft.action {
-            InventoryActionType::Take => (&partner, format!("Take from {}", partner.title)),
-            InventoryActionType::Give => (&own, format!("Give to {}", partner.title)),
-            InventoryActionType::Buy => (&partner, format!("Buy from {}", partner.title)),
-            InventoryActionType::Sell => (&own, format!("Sell to {}", partner.title)),
-            InventoryActionType::Jettison => (&own, "Jettison".to_string()),
-            InventoryActionType::Store(InventoryStoreType::Station) => {
-                (&own, format!("Store at {}", partner.title))
-            }
-            InventoryActionType::Withdraw(InventoryStoreType::Station) => {
-                (&stored, format!("Withdraw from {}", partner.title))
-            }
-            InventoryActionType::Store(InventoryStoreType::Ship(ship)) => (
-                &own,
-                format!(
-                    "Store in {}",
-                    side(InventorySideType::Hold(ship)).map_or("", |view| &view.title)
-                ),
-            ),
+        let source = match draft.action {
+            InventoryActionType::Take | InventoryActionType::Buy => &partner,
+            InventoryActionType::Give
+            | InventoryActionType::Sell
+            | InventoryActionType::Jettison
+            | InventoryActionType::Store(_) => &own,
+            InventoryActionType::Withdraw(InventoryStoreType::Station) => &stored,
             InventoryActionType::Withdraw(InventoryStoreType::Ship(ship)) => {
-                let view = side(InventorySideType::Hold(ship))
-                    .expect("a hold draft closes above once its ship is not listed");
-                (view, format!("Withdraw from {}", view.title))
+                side(InventorySideType::Hold(ship))
+                    .expect("a hold draft closes above once its ship is not listed")
             }
         };
         let have = source.count(&draft.item).unwrap_or(0);
         let block = match (draft.quantity, pair.partner) {
-            (None | Some(0), _) => Some(DraftBlockType::Quantity),
+            (0, _) => Some(DraftBlockType::Quantity),
             // A jettison leaves the player's own stack.
-            (Some(quantity), None) => (quantity > have).then_some(DraftBlockType::Stock),
+            (quantity, None) => (quantity > have).then_some(DraftBlockType::Stock),
             // A transfer or trade runs its own plan, so the form shows what
             // Confirm would meet and Confirm is disabled on it.
-            (Some(quantity), Some(other)) => {
+            (quantity, Some(other)) => {
                 let (_, own_stock, _, _) = ships.ship(pair.own);
                 let (_, their_stock, lootable, their_cr) = ships.ship(other);
                 let prices = ships.prices(pair, &draft.item);
@@ -3576,15 +3232,15 @@ pub(crate) fn update_inventory_panel(
         };
         // What the trade moves in credits; `None` while it has no price: no
         // whole number, or a partner that does not deal in the item.
-        let price = match (draft.action.trade(), draft.quantity) {
-            (Some(trade), Some(quantity)) if ships.deals_in(pair, &draft.item) => ships
+        let price = match draft.action.trade() {
+            Some(trade) if ships.deals_in(pair, &draft.item) => ships
                 .prices(pair, &draft.item)
-                .map(|prices| trade_price_cr(trade, prices, quantity)),
+                .map(|prices| trade_price_cr(trade, prices, draft.quantity)),
             _ => None,
         };
         DraftView {
-            title,
-            have: format!("of {have}"),
+            quantity: draft.quantity,
+            have: have.max(1),
             price,
             block,
         }
@@ -3613,25 +3269,20 @@ pub(crate) fn update_inventory_panel(
                 kg_text(u64::from(items.design(item).mass_g)),
                 UiColorType::Text,
             ),
+            // The target's free room over the mass the quantity moves, as
+            // every have / need, while it does not fit.
             (InventoryInspectorField::TotalWeight, ..) => {
                 let Some(total_g) = total_weight else {
                     continue;
                 };
                 match form.as_ref().and_then(|form| form.block) {
                     Some(DraftBlockType::Room { free_g }) => (
-                        format!("{}  {} free", kg_text(total_g), kg_text(u64::from(free_g))),
+                        format!("{} / {}", kg_text(u64::from(free_g)), kg_text(total_g)),
                         UiColorType::Danger,
                     ),
                     _ => (kg_text(total_g), UiColorType::Text),
                 }
             }
-            (InventoryInspectorField::DraftTitle, _, Some(form)) => {
-                (form.title.clone(), UiColorType::Accent)
-            }
-            (InventoryInspectorField::DraftStock, _, Some(form)) => (
-                form.have.clone(),
-                form.tone(DraftBlockType::Stock, UiColorType::Text),
-            ),
             (InventoryInspectorField::DraftPrice, _, Some(form)) => (
                 form.price.map_or_else(|| "--".to_string(), cr_text),
                 form.tone(DraftBlockType::Price, UiColorType::Text),
@@ -3654,7 +3305,7 @@ pub(crate) fn update_inventory_panel(
                 ),
                 // An owned station sells its stock at its bid.
                 Some((_, _, TradePriceType::Owned(price), _)) => (
-                    format!("{} at bid, yours", lot_cr_text(price.bid_cr, price.lot)),
+                    format!("{} bid", lot_cr_text(price.bid_cr, price.lot)),
                     UiColorType::Text,
                 ),
                 None => continue,
@@ -3697,14 +3348,49 @@ pub(crate) fn update_inventory_panel(
             themed.color = color;
         }
     }
-    let enabled = form.as_ref().is_some_and(|form| form.block.is_none());
-    for (confirm, disabled) in &q_confirm {
-        // Runs every frame the pane is up, so only a change in the enabled
-        // state touches the button.
-        if enabled && disabled {
-            commands.entity(confirm).remove::<InteractionDisabled>();
-        } else if !enabled && !disabled {
-            commands.entity(confirm).insert(InteractionDisabled);
+    let gate = |(shown, enabled): (bool, bool)| match (shown, enabled) {
+        (false, _) => VerbGate::Hidden,
+        (true, false) => VerbGate::Disabled,
+        (true, true) => VerbGate::Ready,
+    };
+    let confirm = (
+        form.is_some(),
+        form.as_ref().is_some_and(|form| form.block.is_none()),
+    );
+    for (mut verb, take_all, take_credits, is_confirm) in &mut q_verb {
+        let wanted = match (take_all, take_credits, is_confirm) {
+            (true, ..) => gate(take_all_shown),
+            (_, true, _) => gate(take_credits_shown),
+            (.., true) => gate(confirm),
+            _ => continue,
+        };
+        // Runs every frame the pane is up, so only a change touches the verb.
+        verb.set_if_neq(wanted);
+    }
+    let stock_short = form
+        .as_ref()
+        .is_some_and(|form| form.block == Some(DraftBlockType::Stock));
+    for (row, mut amount) in &mut q_amount {
+        if let Some(form) = &form {
+            let wanted = Amount {
+                value: form.quantity,
+                min: 1,
+                max: form.have,
+            };
+            if *amount != wanted {
+                *amount = wanted;
+            }
+        }
+        for part in q_children.iter_descendants(row) {
+            if form.is_none() && q_focused.contains(part) {
+                commands.entity(part).remove::<TextFieldFocused>();
+            }
+            if let Ok(short) = q_top.get(part) {
+                let wanted = Short(stock_short);
+                if short != Some(&wanted) {
+                    commands.entity(part).insert(wanted);
+                }
+            }
         }
     }
     let Some((item, _)) = picked else {
@@ -3723,32 +3409,50 @@ pub(crate) fn update_inventory_panel(
     }
 }
 
+/// Write the open draft's action into the draft block's title.
+pub(crate) fn title_inventory_draft(
+    runtime: Res<InventoryRuntime>,
+    q_form: Query<&Children, With<InventoryDraftForm>>,
+    q_children: Query<&Children>,
+    mut q_title: Query<&mut Text, With<BlockTitle>>,
+) {
+    let Some(draft) = runtime.draft.as_ref() else {
+        return;
+    };
+    // A heading is upper case, as `text` spawns it.
+    let word = action_word(draft.action).to_uppercase();
+    for form in &q_form {
+        // The block's first child is its header row, which holds the title.
+        let Some(head) = form.first().and_then(|head| q_children.get(*head).ok()) else {
+            continue;
+        };
+        for part in head {
+            if let Ok(mut title) = q_title.get_mut(*part) {
+                if title.0 != word {
+                    title.0.clone_from(&word);
+                }
+            }
+        }
+    }
+}
+
 /// Show the trade controls the docked partner earns: the `Price` and
 /// `Deal` headings over the player's and the partner's rows while it
-/// trades, and beside Confirm the Buy all or Sell all of the open draft's
+/// trades, and before Confirm the Buy all or Sell all of the open draft's
 /// trade, enabled while [`plan_item_trade`] takes the whole source stack
 /// against the live stock, room and credits. A greyed one names no reason.
 /// Runs after [`update_inventory_panel`], which closes a draft the dock no
 /// longer offers.
 pub(crate) fn update_inventory_trade_controls(
-    mut commands: Commands,
     ships: InventoryShips,
     runtime: Res<InventoryRuntime>,
-    mut q_headings: Query<(&InventoryPriceHeadings, &mut Node), Without<InventoryTradeAllButton>>,
-    mut q_trade_all: Query<
-        (
-            Entity,
-            &InventoryTradeAllButton,
-            &mut Node,
-            Has<InteractionDisabled>,
-        ),
-        Without<InventoryPriceHeadings>,
-    >,
+    mut q_headings: Query<&mut Node, With<InventoryPriceHeadings>>,
+    mut q_trade_all: Query<(&InventoryTradeAllButton, &mut VerbGate)>,
 ) {
     let pair = ships.pair();
     let terms = pair.and_then(|pair| ships.partner_terms(pair));
     let trades = terms.as_ref().is_some_and(|terms| terms.trades);
-    for (_, mut node) in &mut q_headings {
+    for mut node in &mut q_headings {
         let display = if trades { Display::Flex } else { Display::None };
         if node.display != display {
             node.display = display;
@@ -3775,20 +3479,13 @@ pub(crate) fn update_inventory_trade_controls(
         );
         Some((trade, planned.is_ok()))
     });
-    for (button, trade_all, mut node, disabled) in &mut q_trade_all {
-        let (shown, enabled) = match whole {
-            Some((trade, passes)) if trade == trade_all.0 => (true, passes),
-            _ => (false, false),
+    for (trade_all, mut gate) in &mut q_trade_all {
+        let wanted = match whole {
+            Some((trade, true)) if trade == trade_all.0 => VerbGate::Ready,
+            Some((trade, false)) if trade == trade_all.0 => VerbGate::Disabled,
+            _ => VerbGate::Hidden,
         };
-        let display = if shown { Display::Flex } else { Display::None };
-        if node.display != display {
-            node.display = display;
-        }
-        if enabled && disabled {
-            commands.entity(button).remove::<InteractionDisabled>();
-        } else if !enabled && !disabled {
-            commands.entity(button).insert(InteractionDisabled);
-        }
+        gate.set_if_neq(wanted);
     }
 }
 

@@ -12,9 +12,9 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ui::{
-    prelude::{control_row, panel_paint, text, TextRole},
+    prelude::{bar, control_row, metrics, panel_paint, tag, text, TextRole},
     theme::UiColorType,
-    widget::{slider_track, tag, ThemedRadius},
+    widget::ThemedRadius,
 };
 use nova_world_base::prelude::CivilizationField;
 
@@ -186,13 +186,12 @@ fn lead_text(lead: &LeadDraw) -> String {
 fn spawn_strip_rows(strip: &mut ChildSpawnerCommands, draw: &MarketStripDraw) {
     strip
         .spawn(Node {
-            column_gap: px(10),
             flex_wrap: FlexWrap::Wrap,
-            row_gap: px(4),
+            row_gap: px(metrics::GAP_S),
             ..control_row(JustifyContent::FlexStart)
         })
         .with_children(|row| {
-            row.spawn(text("MARKET", TextRole::Label));
+            row.spawn(text("Market", TextRole::Heading));
             row.spawn(text("Buys", TextRole::Body));
             for lead in &draw.pays_most {
                 row.spawn(tag(&lead_text(lead), UiColorType::Accent));
@@ -220,10 +219,7 @@ fn spawn_strip_rows(strip: &mut ChildSpawnerCommands, draw: &MarketStripDraw) {
             }
         });
     strip
-        .spawn(Node {
-            column_gap: px(10),
-            ..control_row(JustifyContent::FlexStart)
-        })
+        .spawn(control_row(JustifyContent::FlexStart))
         .with_children(|row| {
             row.spawn(text("Restock", TextRole::Body));
             match &draw.restock {
@@ -234,7 +230,7 @@ fn spawn_strip_rows(strip: &mut ChildSpawnerCommands, draw: &MarketStripDraw) {
                             flex_shrink: 0.0,
                             ..default()
                         },
-                        children![slider_track(restock.fraction)],
+                        children![bar(restock.fraction, UiColorType::Accent)],
                     ));
                     row.spawn(text(
                         &format!(
@@ -251,7 +247,7 @@ fn spawn_strip_rows(strip: &mut ChildSpawnerCommands, draw: &MarketStripDraw) {
                             flex_shrink: 0.0,
                             ..default()
                         },
-                        children![slider_track(1.0)],
+                        children![bar(1.0, UiColorType::Accent)],
                     ));
                 }
             }

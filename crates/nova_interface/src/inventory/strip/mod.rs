@@ -570,7 +570,8 @@ fn spawn_meter_row(
 /// a parked hull the player owns, the four meters, and the part tiles. A hold
 /// short of room for the take paints the Hold meter in Danger; the other two
 /// refusals tag the button's tooltip. A held strip reads `Held` on the Total
-/// row and names what its section needs on the Hold row, both in Danger.
+/// row and shows the mass its section needs as the Hold row's `+`, both in
+/// Danger.
 #[expect(
     clippy::type_complexity,
     reason = "the block, its texts, its button, its fills and its tiles"
@@ -703,7 +704,7 @@ pub(crate) fn update_strip_block(
             Some(HullStripPauseType::HoldFull { need_g, .. }) => (
                 share,
                 UiColorType::Danger,
-                format!("{used}  needs {}", kg_text(need_g)),
+                format!("{used}  +{}", kg_text(need_g)),
                 UiColorType::Danger,
             ),
             None => {
