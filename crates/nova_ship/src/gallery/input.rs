@@ -440,6 +440,7 @@ mod tests {
         let entry = |id: &str, placeable| GalleryEntry {
             id: id.to_string(),
             tile: None,
+            short: false,
             note: String::new(),
             recipe: Vec::new(),
             alternate: None,
@@ -452,6 +453,7 @@ mod tests {
                 stage: Vec3::ZERO,
                 layers: default(),
                 close_keys: "Esc",
+                close_verb: true,
             },
             GalleryListing(vec![entry("hull", true), entry("thruster", false)]),
         ));

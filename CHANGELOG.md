@@ -52,12 +52,14 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Low-ammo warning: when the hold has under one magazine of an ammo item, a notice (`PDC ROUND LOW: 400`, then `PDC ROUND DRY`) and one cue play, and the weapon gauge shows `LOW` or `DRY`.
 - The Inventory pane's Craft button opens a Craft view: recipe tiles, a card with have / need for the chosen batches and the fee, the running job with Cancel. A HUD chip and notice follow it.
 - The status chip shows `KIT 6 S` while a repair kit runs. The Inventory inspector gains Use; it is greyed while a use would be refused.
-- The Map, Ship, Jobs and Inventory panes drop lines that repeat what a row, count, badge or bar shows, such as a job's hold count and the Inventory result line.
+- The Map, Ship, Jobs and Inventory panes drop lines that repeat what a row, count, badge or bar shows, such as a job's hold count, its hand-in rule and the Inventory result line.
 - The keybind dock along the bottom of the flight HUD is centred on the screen, one gap between chips. On a narrow screen each wrapped line is centred too.
 - Every Tab pane and editor control is one height in both themes. The pane head holds its tabs, mode tags, balance, clock and Close in fixed slots, so a growing balance moves nothing.
 - A verb that cannot work here is hidden, a short balance disables its verb and paints the number red, and a hidden cause shows one tag word. Refusal sentences and notice lines are gone.
 - Ship, Inventory and Craft blocks share one layout: heading, rows, verbs at the bottom right. Repair, a trade and craft batches are one amount row with Max. Delete hides away from a refit dock.
 - Jobs, Map and Station panes share that layout: Station offers are cards in an even grid, GOTO and Cancel sit side by side, and the tooltips that explained a tag or button are gone.
+- The parts catalogue shares it too: category chips, one Available chip, key chips for the hints, no second Close, and the last tile row in full. A price you cannot pay is red.
+- A ghost button such as Cancel, Max or Close has a brighter frame in both themes, so it no longer reads as a disabled one.
 - **(breaking)** UiTheme drops `metrics.border_width`, the slider `height` and the badge `bracketed`, `padding_x` and `border_width`. Lint refuses a disabled button state that looks live.
 
 ### Fixes

@@ -228,13 +228,16 @@ and a save keep the inline design, so the swap persists.
 
 The catalogue lists each part that is not `hide_in_editor`. A host that
 carries a `GalleryListing` (the Ship pane; the editor's gallery carries none)
-also shows an All/Available pair after the filter box
+also shows one Available chip after the filter box
 (`GalleryState.available_only`, `GalleryAction::Available`,
-`catalog::browsable`'s `available_only` argument): Available keeps only the
+`catalog::browsable`'s `available_only` argument): lit, it keeps only the
 listed parts with `placeable: true` and resets the selection to the first
-tile, All brings every listed part back, and `Open`/`Browse` reset the switch
-to All; the count line reads `N of M parts` whenever the switch or the filter
-narrows the grid. A part the station's `StationBuilds` does not name, or
+tile; a second click brings every listed part back, and `Open`/`Browse` turn
+it off; the count reads `N of M parts` whenever the chip or the filter
+narrows the grid. The header draws its own Close only when
+`GalleryHost.close_verb` is set (the editor); under the Tab interface the top
+bar's Close and Esc close it. The hint row is key chips with one verb each,
+keyed by `GalleryHost.close_keys`. A part the station's `StationBuilds` does not name, or
 whose recipe the player's hold and the station's stock together cannot carry
 (`plan_recipe_payment` finds a missing part), has `placeable: false`: its
 tile text, border and focus card title are muted, a theme surface veil greys
@@ -242,7 +245,8 @@ its 3D preview, it has no `tile` line, Place on its card is disabled with the
 `note` as its tooltip (`NOT BUILT`, or `PARTS` for a missing part), the tile
 itself carries that same `note` as its hover tooltip, and Enter and Q do not
 take it. Credits do not mute: a part the ship cannot pay for stays placeable
-with the credits it needs (`400 cr`) on its tile and as its note. A station `builds` id that `GameSections` lacks panics
+with the credits it needs (`400 cr`) on its tile and as its note, both in
+Danger (`GalleryEntry.short`). A station `builds` id that `GameSections` lacks panics
 when the catalogue opens; station lint refuses it first. Every tile's label
 strip is a fixed height (`LABEL_H`): the name sits left on one clipped line,
 with the `GalleryEntry.tile` line (a price, or the credits a short ship

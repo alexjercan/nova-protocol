@@ -14,7 +14,10 @@ use bevy::{
 };
 use nova_gameplay::prelude::{cr_text, lot_cr_text};
 use nova_ui::{
-    prelude::{button, panel, ButtonSpec, UiText},
+    prelude::{
+        button, chip, chip_bar, key_chip, metrics, panel, spawn_kv, text, text_toned, verb_row,
+        ButtonSpec, RowAlign, Selected, TextRole, UiText,
+    },
     theme,
     theme::{ActiveUiTheme, UiColorType},
     widget::{
@@ -161,12 +164,8 @@ pub(crate) fn rebuild_gallery(
         &state.filter,
         state.available_only,
     );
-    // Enter does nothing on a part the host cannot craft, so the hint drops it.
-    let place_hint = if state.placeable_id(&sections, listing).is_some() {
-        "Enter place it   "
-    } else {
-        ""
-    };
+    // Enter does nothing on a part the host cannot craft, so the keys drop it.
+    let placeable = state.placeable_id(&sections, listing).is_some();
     let per_page = layout.page();
     let pages = listed.len().div_ceil(per_page).max(1);
     let page = state.selected / per_page;
@@ -201,151 +200,101 @@ pub(crate) fn rebuild_gallery(
                 Node {
                     width: percent(100),
                     flex_direction: FlexDirection::Row,
-                    // The fixed slots need about 1380 px on one row, so at a
-                    // 640 px window Close and paging left the host.
+                    // The fixed slots need about 1000 px on one row, so a
+                    // narrow host wraps them rather than pushing paging out.
                     flex_wrap: FlexWrap::Wrap,
                     align_items: AlignItems::Center,
-                    column_gap: px(10),
-                    row_gap: px(6),
-                    padding: UiRect::axes(px(14), px(8)),
+                    column_gap: px(metrics::GAP),
+                    row_gap: px(metrics::GAP_S),
+                    padding: UiRect::axes(px(metrics::GAP_L), px(metrics::GAP)),
                     border: UiRect::bottom(px(theme::BORDER_W)),
                     ..default()
                 },
                 panel(),
             ))
             .with_children(|header| {
-                header.spawn((
-                    Name::new("Gallery Title"),
-                    UiText,
-                    Text::new("PARTS"),
-                    TextFont {
-                        font_size: FontSize::Px(20.0),
-                        ..default()
-                    },
-                    TextColor(Color::NONE),
-                    ThemedText::new(UiColorType::Text),
-                ));
+                header.spawn((Name::new("Gallery Title"), text("Parts", TextRole::Heading)));
 
                 let own = listing.is_some_and(|listing| listing.0.iter().any(|entry| entry.own));
-                for category in GalleryCategory::ROW
-                    .into_iter()
-                    .chain(own.then_some(GalleryCategory::Mod))
-                {
-                    header
-                        .spawn((Node {
-                            width: px(if matches!(category, GalleryCategory::All) {
-                                54.0
-                            } else {
-                                96.0
-                            }),
-                            ..default()
-                        },))
-                        .with_children(|slot| {
-                            let mut spec = ButtonSpec::control(category.label()).fill();
-                            if category != state.category {
-                                spec = spec.ghost();
-                            }
-                            slot.spawn((
-                                Name::new(format!("Gallery Category {}", category.label())),
-                                button(spec),
-                                GalleryAction::Category(category),
-                            ));
-                        });
-                }
+                header.spawn(chip_bar()).with_children(|bar| {
+                    for category in GalleryCategory::ROW
+                        .into_iter()
+                        .chain(own.then_some(GalleryCategory::Mod))
+                    {
+                        let mut chip_entity = bar.spawn((
+                            Name::new(format!("Gallery Category {}", category.label())),
+                            chip(category.label(), None),
+                            GalleryAction::Category(category),
+                        ));
+                        if category == state.category {
+                            chip_entity.insert(Selected);
+                        }
+                    }
+                });
 
                 header.spawn(filter_box(&state.filter, state.filter_focused));
 
                 if !state.filter.is_empty() {
-                    header
-                        .spawn(Node {
-                            width: px(30),
-                            ..default()
-                        })
-                        .with_children(|slot| {
-                            let spec = ButtonSpec::control("x").ghost().fill();
-                            slot.spawn((
-                                Name::new("Gallery Clear Filter Button"),
-                                button(spec),
-                                GalleryAction::ClearFilter,
-                            ));
-                        });
+                    header.spawn((
+                        Name::new("Gallery Clear Filter Button"),
+                        chip("x", None),
+                        GalleryAction::ClearFilter,
+                    ));
                 }
 
                 // Only a host listing marks what cannot be placed, so the
                 // editor, which places everything, has no use for the switch.
+                // One toggle chip: the category bar's All is the only All.
                 if listing.is_some() {
-                    for (label, name, only) in [
-                        ("All", "Gallery Stock All", false),
-                        ("Available", "Gallery Stock Available", true),
-                    ] {
-                        header
-                            .spawn(Node {
-                                width: px(if only { 96.0 } else { 54.0 }),
-                                ..default()
-                            })
-                            .with_children(|slot| {
-                                let mut spec = ButtonSpec::control(label).fill();
-                                if only != state.available_only {
-                                    spec = spec.ghost();
-                                }
-                                slot.spawn((
-                                    Name::new(name),
-                                    button(spec),
-                                    GalleryAction::Available(only),
-                                ));
-                            });
+                    let mut available = header.spawn((
+                        Name::new("Gallery Stock Available"),
+                        chip("Available", None),
+                        GalleryAction::Available(!state.available_only),
+                    ));
+                    if state.available_only {
+                        available.insert(Selected);
                     }
                 }
 
-                for (label, name, step) in [
-                    ("<", "Gallery Previous Page Button", -1),
-                    (">", "Gallery Next Page Button", 1),
-                ] {
-                    header
-                        .spawn(Node {
-                            width: px(34),
-                            ..default()
-                        })
-                        .with_children(|slot| {
-                            let spec = ButtonSpec::control(label).ghost().fill();
-                            slot.spawn((Name::new(name), button(spec), GalleryAction::Page(step)));
-                        });
-                }
-
+                // The paging and the count sit at the row's end.
+                header.spawn(Node {
+                    flex_grow: 1.0,
+                    ..default()
+                });
                 header.spawn((
                     Name::new("Gallery Page"),
-                    UiText,
-                    Text::new(format!("{}   page {}/{}", count, page + 1, pages)),
-                    TextFont {
-                        font_size: FontSize::Px(12.0),
-                        ..default()
-                    },
-                    TextColor(Color::NONE),
-                    ThemedText::new(if narrowed {
-                        UiColorType::Accent
-                    } else {
-                        UiColorType::TextMuted
-                    }),
-                    Node {
-                        margin: UiRect::left(px(6)),
-                        ..default()
-                    },
+                    text_toned(
+                        format!("{}   {}/{}", count, page + 1, pages),
+                        TextRole::Label,
+                        if narrowed {
+                            UiColorType::Accent
+                        } else {
+                            UiColorType::TextSecondary
+                        },
+                    ),
+                    TextLayout::new(Justify::Right, LineBreak::NoWrap),
                 ));
-
-                header
-                    .spawn(Node {
-                        width: px(110),
-                        margin: UiRect::left(px(10)),
-                        ..default()
-                    })
-                    .with_children(|slot| {
-                        slot.spawn((
-                            Name::new("Gallery Close Button"),
-                            button(ButtonSpec::control("Close").key("Esc")),
-                            ButtonCueType::Back,
-                            GalleryAction::Close,
+                header.spawn(chip_bar()).with_children(|bar| {
+                    for (label, name, step) in [
+                        ("<", "Gallery Previous Page Button", -1),
+                        (">", "Gallery Next Page Button", 1),
+                    ] {
+                        bar.spawn((
+                            Name::new(name),
+                            chip(label, None),
+                            GalleryAction::Page(step),
                         ));
-                    });
+                    }
+                });
+
+                if host.close_verb {
+                    header.spawn((
+                        Name::new("Gallery Close Button"),
+                        button(ButtonSpec::control("Close").ghost().key(host.close_keys)),
+                        ButtonCueType::Back,
+                        GalleryAction::Close,
+                    ));
+                }
             });
 
             if state.focused {
@@ -369,37 +318,57 @@ pub(crate) fn rebuild_gallery(
                 );
             }
 
+            // One key chip and one verb per key, for the view in front.
+            let keys: &[(&str, &str)] = if state.focused {
+                &[
+                    ("Drag", "turn"),
+                    ("Wheel", "zoom"),
+                    ("Arrows", "next"),
+                    ("Enter", "place"),
+                    ("Esc", "back"),
+                ]
+            } else if state.filter_focused {
+                &[("Enter", "top hit"), ("Esc", "done")]
+            } else {
+                &[
+                    ("Q", "pick"),
+                    ("Arrows", "select"),
+                    ("Enter", "focus"),
+                    ("/", "filter"),
+                    (host.close_keys, "close"),
+                ]
+            };
             root.spawn((
                 Name::new("Gallery Hint"),
-                UiText,
-                // Contextual: the focus card's controls are not the grid's, and
-                // a hint line that lists both is one nobody reads.
-                // One grammar with the editor's key legend: the key as it is
-                // typed, then a lowercase verb phrase. `Q` was "take it" here
-                // and "pick a part" on the stage, which is two names for one
-                // gesture.
-                Text::new(if state.focused {
-                    format!("drag turn it   wheel zoom   arrows next part   {place_hint}Esc back")
-                } else if state.filter_focused {
-                    "type filter   Enter the top hit   Esc leave the field".to_string()
-                } else {
-                    format!(
-                        "Q pick the hovered part   arrows select   Enter focus   / filter   {} \
-                         close",
-                        host.close_keys
-                    )
-                }),
-                TextFont {
-                    font_size: FontSize::Px(12.0),
-                    ..default()
-                },
-                TextColor(Color::NONE),
-                ThemedText::new(UiColorType::TextMuted),
                 Node {
-                    margin: UiRect::axes(px(16), px(8)),
+                    width: percent(100),
+                    height: px(metrics::ROW_H + 2.0 * metrics::GAP),
+                    flex_shrink: 0.0,
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: px(metrics::GAP_L),
+                    padding: UiRect::horizontal(px(metrics::GAP_L)),
                     ..default()
                 },
-            ));
+            ))
+            .with_children(|hints| {
+                for &(key, verb) in keys {
+                    // Enter places only what may be placed.
+                    if state.focused && key == "Enter" && !placeable {
+                        continue;
+                    }
+                    hints
+                        .spawn(Node {
+                            align_items: AlignItems::Center,
+                            column_gap: px(metrics::GAP_S),
+                            ..default()
+                        })
+                        .with_children(|pair| {
+                            pair.spawn(key_chip(key));
+                            pair.spawn(text(verb, TextRole::Label));
+                        });
+                }
+            });
         });
 
     for (cell, index, spin) in stages {
@@ -425,6 +394,9 @@ fn grid_body(
         Node {
             width: percent(100),
             flex_grow: 1.0,
+            // The grid takes what the header and the key row leave, never
+            // more, so the last row's floor stays in the host.
+            min_height: px(0),
             flex_direction: FlexDirection::Column,
             padding: UiRect::all(px(12)),
             row_gap: px(10),
@@ -436,6 +408,8 @@ fn grid_body(
             grid.spawn((Node {
                 width: percent(100),
                 flex_grow: 1.0,
+                flex_basis: px(0),
+                min_height: px(0),
                 flex_direction: FlexDirection::Row,
                 column_gap: px(10),
                 ..default()
@@ -562,24 +536,21 @@ fn spawn_cell(
                         UiText,
                         Text::new(section.base.name.clone()),
                         TextFont {
-                            font_size: FontSize::Px(12.0),
+                            font_size: FontSize::Px(metrics::TEXT),
                             ..default()
                         },
                         TextLayout::new(Justify::Left, LineBreak::NoWrap),
                         TextColor(Color::NONE),
                         ThemedText::alpha(UiColorType::TextBody, alpha),
                     ));
-                    if let Some(tile) = entry.and_then(|entry| entry.tile.clone()) {
+                    if let Some(entry) = entry.filter(|entry| entry.tile.is_some()) {
                         line.spawn((
-                            UiText,
-                            Text::new(tile),
-                            TextFont {
-                                font_size: FontSize::Px(11.0),
-                                ..default()
-                            },
+                            text_toned(
+                                entry.tile.clone().unwrap_or_default(),
+                                TextRole::Label,
+                                price_tone(entry),
+                            ),
                             TextLayout::new(Justify::Right, LineBreak::NoWrap),
-                            TextColor(Color::NONE),
-                            ThemedText::new(UiColorType::Accent),
                             Node {
                                 flex_shrink: 0.0,
                                 ..default()
@@ -591,12 +562,12 @@ fn spawn_cell(
                 UiText,
                 Text::new(catalog::kind_label(&section.kind).to_string()),
                 TextFont {
-                    font_size: FontSize::Px(10.0),
+                    font_size: FontSize::Px(metrics::TEXT_LABEL),
                     ..default()
                 },
                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
                 TextColor(Color::NONE),
-                ThemedText::alpha(UiColorType::TextMuted, alpha),
+                ThemedText::alpha(UiColorType::TextSecondary, alpha),
             ));
         });
     });
@@ -605,6 +576,15 @@ fn spawn_cell(
         tile.insert(Tooltip(entry.note.clone()));
     }
     stage
+}
+
+/// The ink of an entry's price: Danger while the ship cannot pay it.
+fn price_tone(entry: &GalleryEntry) -> UiColorType {
+    if entry.short {
+        UiColorType::Danger
+    } else {
+        UiColorType::Accent
+    }
 }
 
 /// What one recipe row says, as [`recipe_row`] draws it: the quantity cell,
@@ -711,7 +691,7 @@ fn recipe_row(recipe: &mut ChildSpawnerCommands, item: &GalleryRecipeItem) {
             UiText,
             Text::new(text.quantity),
             TextFont {
-                font_size: FontSize::Px(12.0),
+                font_size: FontSize::Px(metrics::TEXT),
                 ..default()
             },
             TextLayout::new(Justify::Left, LineBreak::NoWrap),
@@ -735,7 +715,7 @@ fn recipe_row(recipe: &mut ChildSpawnerCommands, item: &GalleryRecipeItem) {
             UiText,
             Text::new(item.name.clone()),
             TextFont {
-                font_size: FontSize::Px(12.0),
+                font_size: FontSize::Px(metrics::TEXT),
                 ..default()
             },
             TextLayout::new(Justify::Left, LineBreak::NoWrap),
@@ -747,7 +727,7 @@ fn recipe_row(recipe: &mut ChildSpawnerCommands, item: &GalleryRecipeItem) {
                 UiText,
                 Text::new(price),
                 TextFont {
-                    font_size: FontSize::Px(12.0),
+                    font_size: FontSize::Px(metrics::TEXT),
                     ..default()
                 },
                 TextLayout::new(Justify::Right, LineBreak::NoWrap),
@@ -835,14 +815,14 @@ fn focus_body(
                     UiText,
                     Text::new(section.base.name.clone()),
                     TextFont {
-                        font_size: FontSize::Px(18.0),
+                        font_size: FontSize::Px(metrics::TEXT_TITLE),
                         ..default()
                     },
                     TextColor(Color::NONE),
                     ThemedText::alpha(UiColorType::Text, if placeable { 1.0 } else { MUTED_ALPHA }),
                 ));
-                // The details take the free height and clip, so the actions
-                // sit on the card floor and stay inside a short host.
+                // The details take the free height and clip, so the verbs sit
+                // on the card floor and stay inside a short host.
                 card.spawn((
                     Name::new("Gallery Focus Details"),
                     Node {
@@ -850,7 +830,7 @@ fn focus_body(
                         flex_grow: 1.0,
                         min_height: px(0),
                         flex_direction: FlexDirection::Column,
-                        row_gap: px(6),
+                        row_gap: px(metrics::GAP),
                         overflow: Overflow::clip_y(),
                         ..default()
                     },
@@ -875,97 +855,58 @@ fn focus_body(
                                 }
                             });
                     }
-                    details.spawn((
-                        UiText,
-                        Text::new(section.base.description.clone()),
-                        TextFont {
-                            font_size: FontSize::Px(12.0),
+                    details.spawn(text(section.base.description.clone(), TextRole::Body));
+                    details
+                        .spawn(Node {
+                            flex_direction: FlexDirection::Column,
+                            flex_shrink: 0.0,
                             ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColorType::TextMuted),
-                        Node {
-                            margin: UiRect::bottom(px(6)),
-                            ..default()
-                        },
-                    ));
-
-                    for (label, value) in catalog::stats(section) {
-                        details.spawn((
-                            Node {
-                                width: percent(100),
-                                flex_direction: FlexDirection::Row,
-                                justify_content: JustifyContent::SpaceBetween,
-                                ..default()
-                            },
-                            children![
-                                (
-                                    UiText,
-                                    Text::new(label),
-                                    TextFont {
-                                        font_size: FontSize::Px(12.0),
-                                        ..default()
-                                    },
-                                    TextColor(Color::NONE),
-                                    ThemedText::new(UiColorType::TextMuted),
-                                ),
-                                (
-                                    UiText,
-                                    Text::new(value),
-                                    TextFont {
-                                        font_size: FontSize::Px(12.0),
-                                        ..default()
-                                    },
-                                    TextColor(Color::NONE),
-                                    ThemedText::new(UiColorType::TextBody),
-                                ),
-                            ],
-                        ));
-                    }
+                        })
+                        .with_children(|stats| {
+                            for (label, value) in catalog::stats(section) {
+                                spawn_kv(stats, &label, text(value, TextRole::Value));
+                            }
+                        });
                 });
+                // The price, or a swap's tag line, over the verbs.
                 if let Some(entry) = entry.filter(|entry| entry.placeable && !entry.note.is_empty())
                 {
                     card.spawn((
                         Name::new("Gallery Note"),
-                        UiText,
-                        Text::new(entry.note.clone()),
-                        TextFont {
-                            font_size: FontSize::Px(12.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColorType::Accent),
+                        text_toned(entry.note.clone(), TextRole::Value, price_tone(entry)),
                     ));
                 }
-                // Enter places only what may be placed, so a muted part's
-                // button carries no key chip; its tooltip is the note.
-                let mut spec = ButtonSpec::control("Place This Part").primary().fill();
-                if placeable {
-                    spec = spec.key("Enter");
-                }
-                let mut place = card.spawn((
-                    Name::new("Gallery Place Button"),
-                    button(spec),
-                    GalleryAction::Place,
-                ));
-                if let Some(entry) = entry.filter(|entry| !entry.placeable) {
-                    place.insert((InteractionDisabled, Tooltip(entry.note.clone())));
-                }
-                if let Some(label) = entry.and_then(|entry| entry.alternate.as_deref()) {
-                    card.spawn((
-                        Name::new("Gallery Alternate Button"),
-                        button(ButtonSpec::control(label).primary().fill()),
-                        // Its host answers the message, and can refuse.
-                        ButtonCueType::Owned,
-                        GalleryAction::Alternate,
+                card.spawn(verb_row(RowAlign::End)).with_children(|verbs| {
+                    verbs.spawn((
+                        Name::new("Gallery Back Button"),
+                        button(ButtonSpec::control("Back").ghost()),
+                        ButtonCueType::Back,
+                        GalleryAction::Back,
                     ));
-                }
-                card.spawn((
-                    Name::new("Gallery Back Button"),
-                    button(ButtonSpec::control("Back").ghost().fill()),
-                    ButtonCueType::Back,
-                    GalleryAction::Back,
-                ));
+                    if let Some(label) = entry.and_then(|entry| entry.alternate.as_deref()) {
+                        verbs.spawn((
+                            Name::new("Gallery Alternate Button"),
+                            button(ButtonSpec::control(label)),
+                            // Its host answers the message, and can refuse.
+                            ButtonCueType::Owned,
+                            GalleryAction::Alternate,
+                        ));
+                    }
+                    // Enter places only what may be placed, so a muted part's
+                    // verb carries no key chip; the muted card says why.
+                    let mut spec = ButtonSpec::control("Place").primary();
+                    if placeable {
+                        spec = spec.key("Enter");
+                    }
+                    let mut place = verbs.spawn((
+                        Name::new("Gallery Place Button"),
+                        button(spec),
+                        GalleryAction::Place,
+                    ));
+                    if let Some(entry) = entry.filter(|entry| !entry.placeable) {
+                        place.insert((InteractionDisabled, Tooltip(entry.note.clone())));
+                    }
+                });
             });
     });
 
@@ -983,7 +924,7 @@ fn filter_box(filter: &str, focused: bool) -> impl Bundle {
     let (text, color) = match (focused, filter.is_empty()) {
         (true, true) => ("_".to_string(), UiColorType::TextBody),
         (true, false) => (format!("{filter}_"), UiColorType::Accent),
-        (false, true) => ("/ to filter".to_string(), UiColorType::TextMuted),
+        (false, true) => ("Filter".to_string(), UiColorType::TextMuted),
         (false, false) => (filter.to_string(), UiColorType::Accent),
     };
     (
@@ -993,10 +934,11 @@ fn filter_box(filter: &str, focused: bool) -> impl Bundle {
         Hovered::default(),
         Node {
             width: px(190),
-            min_height: px(26),
+            height: px(metrics::CONTROL_H),
+            flex_shrink: 0.0,
             justify_content: JustifyContent::FlexStart,
             align_items: AlignItems::Center,
-            padding: UiRect::horizontal(px(8)),
+            padding: UiRect::horizontal(px(metrics::PAD_X)),
             border: UiRect::all(px(theme::BORDER_W)),
             ..default()
         },
@@ -1013,7 +955,7 @@ fn filter_box(filter: &str, focused: bool) -> impl Bundle {
             UiText,
             Text::new(text),
             TextFont {
-                font_size: FontSize::Px(12.0),
+                font_size: FontSize::Px(metrics::TEXT),
                 ..default()
             },
             TextColor(Color::NONE),

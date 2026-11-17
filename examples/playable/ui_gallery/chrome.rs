@@ -1,6 +1,7 @@
 //! The gallery's copy of the game's pane chrome: the interface card with its
-//! segmented tabs, the side panel paint, the footer with legend and key
-//! chips, the filter chip, and the small table helpers every page shares.
+//! segmented tabs, the side panels, the footer with legend and key chips,
+//! and the small table helpers every page shares. Paint, chips and the
+//! amount row come from the `nova_ui` layout kit.
 //! The recipes come from `nova_interface::pane` and `inventory::app`, which
 //! are crate-private, so the gallery draws them again rather than importing
 //! them.
@@ -12,11 +13,7 @@ use nova_ui::{
     widget::{ThemedBorder, ThemedFill, ThemedText, UiText},
 };
 
-use crate::{
-    data::thousands,
-    icons::{icon_node, GalleryIcons, IconType},
-    on_click, Click, TOAST,
-};
+use crate::{data::thousands, on_click, Click, TOAST};
 
 /// Width cap of the interface card, as the game's `INTERFACE_MAX_PX`.
 const INTERFACE_MAX_PX: f32 = 1520.0;
@@ -177,16 +174,6 @@ pub fn table_head(p: &mut ChildSpawnerCommands, columns: &[(f32, &str)]) {
     });
 }
 
-/// The fill and border of a pane's panel.
-pub fn panel_paint() -> impl Bundle {
-    (
-        BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColorType::TextSecondary, 0.08),
-        BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColorType::TextSecondary),
-    )
-}
-
 /// A pane's side panel or inspector: [`SIDE_PANEL_PX`] wide beside the
 /// view or the lists, as the game's Map and Jobs panes draw it.
 pub fn side_panel(overflow: Overflow) -> impl Bundle {
@@ -309,65 +296,6 @@ pub fn kv(c: &mut ChildSpawnerCommands, label: &str, value: &str) {
     .with_children(|r| {
         r.spawn(cell(84.0, label, 12.0, UiColorType::TextMuted, false));
         r.spawn(grow_cell(value, 13.0, UiColorType::Text));
-    });
-}
-
-/// A column fact: a small label over its value, as the inventory column's
-/// Cargo and Credits.
-pub fn fact(c: &mut ChildSpawnerCommands, label: &str, value: &str) {
-    c.spawn(Node {
-        flex_direction: FlexDirection::Column,
-        row_gap: px(1),
-        ..default()
-    })
-    .with_children(|f| {
-        f.spawn(text(label, 11.0, UiColorType::TextMuted));
-        f.spawn(text(value, 13.0, UiColorType::Text));
-    });
-}
-
-/// A filter chip: the icon and the word, lit when current.
-pub fn chip(
-    bar: &mut ChildSpawnerCommands,
-    icons: &GalleryIcons,
-    icon: Option<IconType>,
-    label: &str,
-    current: bool,
-    name: String,
-    click: Click,
-) {
-    let (color, fill, border) = if current {
-        (UiColorType::Accent, 0.25, 1.0)
-    } else {
-        (UiColorType::TextSecondary, 0.08, 0.4)
-    };
-    bar.spawn((
-        Name::new(name),
-        clickable(
-            (
-                Node {
-                    height: px(26),
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Center,
-                    column_gap: px(4),
-                    padding: UiRect::axes(px(8), px(0)),
-                    border: UiRect::all(px(1)),
-                    border_radius: BorderRadius::all(px(4)),
-                    ..default()
-                },
-                BackgroundColor(Color::NONE),
-                ThemedFill::alpha(color, fill),
-                BorderColor::all(Color::NONE),
-                ThemedBorder::alpha(color, border),
-            ),
-            click,
-        ),
-    ))
-    .with_children(|chip| {
-        if let Some(icon) = icon {
-            chip.spawn(icon_node(icons, icon, icon.color(), 16.0));
-        }
-        chip.spawn((text(label, 12.0, UiColorType::TextBody), Pickable::IGNORE));
     });
 }
 

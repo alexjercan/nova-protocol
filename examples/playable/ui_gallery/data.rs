@@ -62,7 +62,7 @@ pub const JOBS: [JobCard; 11] = [
         window: 30,
         fits_role: true,
         hand_in: "Dust Gate",
-        task: "Bring 12 t iron ore in your hold. Hand-in takes them from the hold.",
+        task: "Bring 12 t iron ore in your hold.",
         have: 0,
         need: 12,
         done: false,
@@ -96,7 +96,7 @@ pub const JOBS: [JobCard; 11] = [
         window: 30,
         fits_role: true,
         hand_in: "Reef Yard",
-        task: "Undock, then follow the hauler to its destination. Protect it from raiders; the job is lost if the hauler is neutralized or destroyed before arrival.",
+        task: "Stay within 1 km of the hauler until it arrives.",
         have: 0,
         need: 1,
         done: false,
@@ -147,7 +147,7 @@ pub const JOBS: [JobCard; 11] = [
         window: 30,
         fits_role: true,
         hand_in: "Dust Gate",
-        task: "Bring 4 t water ice in your hold. Hand-in takes them from the hold.",
+        task: "Bring 4 t water ice in your hold.",
         have: 0,
         need: 4,
         done: false,
@@ -181,7 +181,7 @@ pub const JOBS: [JobCard; 11] = [
         window: 30,
         fits_role: true,
         hand_in: "Dust Gate",
-        task: "Bring 8 t copper in your hold. Hand-in takes them from the hold.",
+        task: "Bring 8 t copper in your hold.",
         have: 8,
         need: 8,
         done: true,
@@ -215,7 +215,7 @@ pub const JOBS: [JobCard; 11] = [
         window: 30,
         fits_role: true,
         hand_in: "Reef Yard",
-        task: "Undock, then follow the hauler to its destination. Protect it from raiders; the job is lost if the hauler is neutralized or destroyed before arrival.",
+        task: "Stay within 1 km of the hauler until it arrives.",
         have: 1,
         need: 1,
         done: true,
@@ -232,7 +232,7 @@ pub const JOBS: [JobCard; 11] = [
         window: 20,
         fits_role: true,
         hand_in: "Dust Gate",
-        task: "Dock with the stranded caller with 4 Medkit in your hold for its injured crew. The dock takes them from the hold.",
+        task: "Dock with the stranded caller with 4 Medkit in your hold for its injured crew.",
         have: 1,
         need: 4,
         done: false,
@@ -524,8 +524,7 @@ impl Category {
 }
 
 /// One ware of the trade view: what the ship holds, what the station holds,
-/// the reference price, what the station pays and asks, and the reason for
-/// the gap.
+/// the reference price, and what the station pays and asks.
 pub struct Ware {
     pub name: &'static str,
     pub category: Category,
@@ -535,7 +534,6 @@ pub struct Ware {
     pub reference: u32,
     pub bid: u32,
     pub ask: u32,
-    pub reason: &'static str,
 }
 
 pub const WARES: [Ware; 8] = [
@@ -548,7 +546,6 @@ pub const WARES: [Ware; 8] = [
         reference: 40,
         bid: 33,
         ask: 38,
-        reason: "Cluster type: belt station, ore is plentiful (60 t against a 40 t target)",
     },
     Ware {
         name: "Copper",
@@ -559,7 +556,6 @@ pub const WARES: [Ware; 8] = [
         reference: 90,
         bid: 126,
         ask: 140,
-        reason: "Scarcity: 2 t in stock against a 20 t target",
     },
     Ware {
         name: "Water ice",
@@ -570,7 +566,6 @@ pub const WARES: [Ware; 8] = [
         reference: 25,
         bid: 19,
         ask: 21,
-        reason: "Demand: the galley is full, water sells under reference",
     },
     Ware {
         name: "Rations",
@@ -581,7 +576,6 @@ pub const WARES: [Ware; 8] = [
         reference: 12,
         bid: 11,
         ask: 13,
-        reason: "At reference: stock is on target",
     },
     Ware {
         name: "Drive parts",
@@ -592,7 +586,6 @@ pub const WARES: [Ware; 8] = [
         reference: 400,
         bid: 520,
         ask: 560,
-        reason: "Civilization: Driftco yards pay over reference for drive parts",
     },
     Ware {
         name: "Hull plate",
@@ -603,7 +596,6 @@ pub const WARES: [Ware; 8] = [
         reference: 60,
         bid: 58,
         ask: 61,
-        reason: "At reference: stock is on target",
     },
     Ware {
         name: "Fuel cells",
@@ -614,7 +606,6 @@ pub const WARES: [Ware; 8] = [
         reference: 120,
         bid: 108,
         ask: 150,
-        reason: "Scarcity: 6 against a 10 target; demand: the watch buys fuel",
     },
     Ware {
         name: "PDC rounds",
@@ -625,7 +616,6 @@ pub const WARES: [Ware; 8] = [
         reference: 30,
         bid: 24,
         ask: 27,
-        reason: "Cluster type: a watch station keeps rounds under reference",
     },
 ];
 

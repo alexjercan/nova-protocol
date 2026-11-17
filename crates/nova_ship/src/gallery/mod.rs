@@ -107,9 +107,12 @@ pub struct GalleryHost {
     pub stage: Vec3,
     /// The render layers the tiles and the focus view's socket marks draw on.
     pub layers: RenderLayers,
-    /// The hint line's close keys, as the host binds them (`Esc` or
+    /// The key chip that closes the gallery, as the host binds it (`Esc` or
     /// `Esc/Tab`).
     pub close_keys: &'static str,
+    /// Whether the header draws its own Close verb. `false` under a host
+    /// whose chrome already shows one, such as the Tab interface's top bar.
+    pub close_verb: bool,
 }
 
 /// The parts a host offers, each with its own line, marking what it cannot
@@ -133,6 +136,10 @@ pub struct GalleryEntry {
     /// refusal in a few words, on one line. `None` draws no line, as for a
     /// part that cannot be placed, which its muted tile and its tooltip say.
     pub tile: Option<String>,
+    /// Whether the ship cannot pay the price: the tile's price and the focus
+    /// card's price line paint Danger. The part stays placeable; the host
+    /// refuses the paid verb.
+    pub short: bool,
     /// The whole price or refusal. On a placeable part the focus card draws
     /// it as a line above Place; on one that cannot be placed it is only the
     /// disabled Place's tooltip, why the part cannot be placed.
@@ -581,6 +588,7 @@ mod tests {
                     stage: Vec3::ZERO,
                     layers: RenderLayers::default(),
                     close_keys: "Esc",
+                    close_verb: true,
                 },
                 ComputedNode {
                     size: Vec2::new(1024.0, 768.0),
@@ -629,6 +637,7 @@ mod tests {
                     stage: Vec3::ZERO,
                     layers: RenderLayers::default(),
                     close_keys: "Esc",
+                    close_verb: true,
                 });
             }
 

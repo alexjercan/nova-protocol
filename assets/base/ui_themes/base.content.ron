@@ -358,7 +358,7 @@
                     )),
                     border: (
                         value: Variable(text),
-                        alpha: 0.25,
+                        alpha: 0.42,
                     ),
                     text: (
                         value: Variable(text),
@@ -373,7 +373,7 @@
                     )),
                     border: (
                         value: Variable(text),
-                        alpha: 0.4,
+                        alpha: 0.6,
                     ),
                     text: (
                         value: Variable(text),
@@ -1494,8 +1494,8 @@
                         alpha: 0.0,
                     )),
                     border: (
-                        value: Variable(highlight),
-                        alpha: 0.12,
+                        value: Variable(text),
+                        alpha: 0.42,
                     ),
                     text: (
                         value: Variable(text),
@@ -1509,8 +1509,8 @@
                         alpha: 0.04,
                     )),
                     border: (
-                        value: Variable(highlight),
-                        alpha: 0.22,
+                        value: Variable(text),
+                        alpha: 0.6,
                     ),
                     text: (
                         value: Variable(text),
@@ -1524,8 +1524,8 @@
                         alpha: 0.22,
                     )),
                     border: (
-                        value: Variable(highlight),
-                        alpha: 0.3,
+                        value: Variable(text),
+                        alpha: 0.7,
                     ),
                     text: (
                         value: Variable(text),

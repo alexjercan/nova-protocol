@@ -1,22 +1,25 @@
-//! The Market page: the INVENTORY pane as the game draws it, with prices.
-//! The category chips over the Tender, Trader and Storage columns, the
-//! MARKET strip under them, and the inspector with the game's quantity form
-//! plus Buy, Sell, Buy all and Sell all on a trade row, or Store and Take on
-//! a storage row. A trade or a move shifts the mock stocks and credits.
+//! The Market page: the INVENTORY pane as the game draws it, with prices,
+//! on the shared layout kit. The category chip bar over the Tender, Trader
+//! and Storage columns, the MARKET strip under them, and the inspector with
+//! the kit's amount row and the side's verbs: Buy all and Buy on a station
+//! row, Sell all and Sell on a hold row, Store and Take on a storage row. A
+//! trade or a move shifts the mock stocks and credits.
 
-use bevy::{
-    prelude::*,
-    ui::InteractionDisabled,
-    ui_widgets::{
-        Slider, SliderPrecision, SliderRange, SliderStep, SliderValue, TrackClick, ValueChange,
+use bevy::prelude::*;
+use nova_ui::{
+    prelude::{
+        amount_row, button, chip, chip_bar, metrics, spawn_block, spawn_kv, tag, text, verb_row,
+        Amount, AmountChanged, AmountSpec, ButtonSpec, RowAlign, Selected, Short, TextRole,
+        VerbGate,
     },
+    theme::UiColorType,
 };
-use nova_ui::{prelude::*, theme::UiColorType};
 
-// The gallery keeps its own fixed-size mock helpers; they shadow the kit's.
-use crate::chrome::{cell, chip, control_row, divider, panel_paint, text};
 use crate::{
-    chrome::*,
+    chrome::{
+        acts, bare_meter, cell, column, column_panel, grow_cell, interface_card, row_node,
+        side_panel_wide, spawn_row, table_head, view_split,
+    },
     data::{delta_percent, thousands, Category, Ware, OWN_HOLDS, STORAGE_CAP_KG, WARES},
     icons::{icon, GalleryIcons},
     Click, MarketDraft, MarketState, TradeSide, FILTER_PREFIX, MARKET_BUY, MARKET_BUY_ALL,
@@ -27,15 +30,15 @@ const TABS: [&str; 5] = ["Map", "Ship", "Inventory", "Jobs", "Station"];
 /// Hold capacity of the docked cargoa, in kg.
 const HOLD_KG: u32 = 30_000;
 
-/// The quantity field of the inspector's form.
+/// The inspector's amount row.
 #[derive(Component)]
-pub struct MarketDraftField;
-/// The quantity slider of the inspector's form.
+pub struct MarketDraftAmount;
+/// The inspector's price value, painted Danger while the balance is short.
 #[derive(Component)]
-pub struct MarketDraftSlider;
-/// The result line of the inspector's form.
+pub struct MarketDraftPrice;
+/// The inspector's Buy, gated on the price.
 #[derive(Component)]
-pub struct MarketDraftSummary;
+pub struct MarketBuyVerb;
 
 impl MarketState {
     pub fn hold_kg(&self) -> u32 {
@@ -67,39 +70,18 @@ pub fn market_page(body: &mut ChildSpawnerCommands, icons: &GalleryIcons, market
     interface_card(body, "Inventory", &TABS, "Inventory", None, |body| {
         body.spawn(view_split()).with_children(|split| {
             split.spawn(column()).with_children(|stores| {
-                stores
-                    .spawn(Node {
-                        column_gap: px(8),
-                        ..control_row(JustifyContent::FlexStart)
-                    })
-                    .with_children(|bar| {
-                        chip(
-                            bar,
-                            icons,
-                            None,
-                            "All",
-                            market.filter.is_none(),
-                            format!("{FILTER_PREFIX} All"),
-                            Click::Filter(None),
-                        );
-                        for category in Category::ALL {
-                            chip(
-                                bar,
-                                icons,
-                                Some(category.icon()),
-                                category.label(),
-                                market.filter == Some(category),
-                                format!("{FILTER_PREFIX} {}", category.label()),
-                                Click::Filter(Some(category)),
-                            );
-                        }
-                    });
+                stores.spawn(chip_bar()).with_children(|bar| {
+                    filter_chip(bar, icons, None, market);
+                    for category in Category::ALL {
+                        filter_chip(bar, icons, Some(category), market);
+                    }
+                });
                 stores
                     .spawn(Node {
                         flex_grow: 1.0,
                         min_height: px(0),
                         flex_direction: FlexDirection::Row,
-                        column_gap: px(12),
+                        column_gap: px(metrics::GAP_L),
                         ..default()
                     })
                     .with_children(|columns| {
@@ -116,6 +98,26 @@ pub fn market_page(body: &mut ChildSpawnerCommands, icons: &GalleryIcons, market
     });
 }
 
+/// One chip of the category bar, `All` for `None`, lit while current.
+fn filter_chip(
+    bar: &mut ChildSpawnerCommands,
+    icons: &GalleryIcons,
+    category: Option<Category>,
+    market: &MarketState,
+) {
+    let label = category.map_or("All", Category::label);
+    let mut chip_entity = bar.spawn((
+        Name::new(format!("{FILTER_PREFIX} {label}")),
+        acts(
+            chip(label, category.map(|category| icons.get(category.icon()))),
+            Click::Filter(category),
+        ),
+    ));
+    if market.filter == category {
+        chip_entity.insert(Selected);
+    }
+}
+
 fn listed(market: &MarketState, side: TradeSide, i: usize, w: &Ware) -> bool {
     let qty = match side {
         TradeSide::Tender => market.ship[i],
@@ -125,6 +127,35 @@ fn listed(market: &MarketState, side: TradeSide, i: usize, w: &Ware) -> bool {
     qty > 0 && market.filter.is_none_or(|c| c == w.category)
 }
 
+/// A column's fact: the label over its value.
+fn fact(row: &mut ChildSpawnerCommands, label: &str, value: String) {
+    row.spawn(Node {
+        flex_direction: FlexDirection::Column,
+        ..default()
+    })
+    .with_children(|fact| {
+        fact.spawn(text(label, TextRole::Label));
+        fact.spawn(text(value, TextRole::Value));
+    });
+}
+
+/// A column's head: its title, then its facts on one row.
+fn column_head(
+    panel: &mut ChildSpawnerCommands,
+    title: &str,
+    facts: impl FnOnce(&mut ChildSpawnerCommands),
+) {
+    panel.spawn(text(title, TextRole::Title));
+    panel
+        .spawn(Node {
+            flex_direction: FlexDirection::Row,
+            column_gap: px(metrics::GAP_L),
+            flex_shrink: 0.0,
+            ..default()
+        })
+        .with_children(facts);
+}
+
 fn trade_column(
     columns: &mut ChildSpawnerCommands,
     icons: &GalleryIcons,
@@ -132,50 +163,35 @@ fn trade_column(
     market: &MarketState,
 ) {
     columns.spawn(column_panel()).with_children(|panel| {
-        panel
-            .spawn(control_row(JustifyContent::SpaceBetween))
-            .with_children(|head| {
-                let title = match side {
-                    TradeSide::Tender => "Tender: cargoa",
-                    TradeSide::Trader => "Trader: Dust Gate",
-                    TradeSide::Storage => unreachable!("the storage column has its own panel"),
-                };
-                head.spawn(text(title, 15.0, UiColorType::Text));
-            });
-        panel
-            .spawn(Node {
-                column_gap: px(18),
-                ..control_row(JustifyContent::FlexStart)
-            })
-            .with_children(|facts| match side {
-                TradeSide::Tender => {
-                    fact(
-                        facts,
-                        "Cargo",
-                        &format!("{} / {}", kg_text(market.hold_kg()), kg_text(HOLD_KG)),
-                    );
-                    fact(
-                        facts,
-                        "Credits",
-                        &format!("{} cr", thousands(market.credits)),
-                    );
-                }
-                TradeSide::Trader => {
-                    let stock: u32 = WARES
-                        .iter()
-                        .zip(&market.station)
-                        .map(|(w, q)| w.kg * q)
-                        .sum();
-                    fact(facts, "Stock", &kg_text(stock));
-                    fact(facts, "Restock", "in 12 min");
-                    fact(
-                        facts,
-                        "Refusal",
-                        &format!("{} min left", market.refused_min),
-                    );
-                }
-                TradeSide::Storage => {}
-            });
+        let title = match side {
+            TradeSide::Tender => "Tender: cargoa",
+            TradeSide::Trader => "Trader: Dust Gate",
+            TradeSide::Storage => unreachable!("the storage column has its own panel"),
+        };
+        column_head(panel, title, |facts| match side {
+            TradeSide::Tender => {
+                fact(
+                    facts,
+                    "Cargo",
+                    format!("{} / {}", kg_text(market.hold_kg()), kg_text(HOLD_KG)),
+                );
+                fact(
+                    facts,
+                    "Credits",
+                    format!("{} cr", thousands(market.credits)),
+                );
+            }
+            TradeSide::Trader => {
+                let stock: u32 = WARES
+                    .iter()
+                    .zip(&market.station)
+                    .map(|(w, q)| w.kg * q)
+                    .sum();
+                fact(facts, "Stock", kg_text(stock));
+                fact(facts, "Restock", "12 min".to_string());
+            }
+            TradeSide::Storage => {}
+        });
         table_head(
             panel,
             &[
@@ -186,12 +202,10 @@ fn trade_column(
                 (44.0, "Deal"),
             ],
         );
-        let mut any = false;
         for (i, w) in WARES.iter().enumerate() {
             if !listed(market, side, i, w) {
                 continue;
             }
-            any = true;
             let (qty, price) = match side {
                 TradeSide::Tender => (market.ship[i], w.bid),
                 TradeSide::Trader | TradeSide::Storage => (market.station[i], w.ask),
@@ -204,25 +218,26 @@ fn trade_column(
                 market.selected == Some((side, i)),
             )
             .insert(Node {
-                padding: UiRect::axes(px(8), px(3)),
+                height: px(metrics::LIST_ROW_H),
+                padding: UiRect::horizontal(px(metrics::PAD_X)),
                 border: UiRect::all(px(1)),
-                column_gap: px(8),
+                column_gap: px(metrics::GAP),
                 ..row_node()
             })
             .with_children(|r| {
                 r.spawn(icon(icons, w.category.icon(), 16.0));
-                r.spawn(grow_cell(w.name, 13.0, UiColorType::Text));
+                r.spawn(grow_cell(w.name, metrics::TEXT, UiColorType::Text));
                 r.spawn(cell(
                     40.0,
                     &format!("x{qty}"),
-                    12.0,
+                    metrics::TEXT,
                     UiColorType::TextBody,
                     true,
                 ));
                 r.spawn(cell(
                     48.0,
                     &format!("{} cr", thousands(price)),
-                    12.0,
+                    metrics::TEXT,
                     UiColorType::Accent,
                     true,
                 ));
@@ -237,19 +252,6 @@ fn trade_column(
                 });
             });
         }
-        if !any {
-            panel.spawn((
-                Node {
-                    padding: UiRect::axes(px(8), px(8)),
-                    ..default()
-                },
-                children![text(
-                    "Nothing in this category.",
-                    12.0,
-                    UiColorType::TextMuted
-                )],
-            ));
-        }
     });
 }
 
@@ -259,33 +261,25 @@ fn trade_column(
 /// an own hold is listed to read.
 fn storage_column(columns: &mut ChildSpawnerCommands, icons: &GalleryIcons, market: &MarketState) {
     columns.spawn(column_panel()).with_children(|panel| {
-        panel.spawn(text("Storage: Dust Gate", 15.0, UiColorType::Text));
-        panel
-            .spawn(Node {
-                column_gap: px(18),
-                ..control_row(JustifyContent::FlexStart)
-            })
-            .with_children(|facts| {
-                fact(
-                    facts,
-                    "Stored",
-                    &format!(
-                        "{} / {}",
-                        kg_text(market.stored_kg()),
-                        kg_text(STORAGE_CAP_KG)
-                    ),
-                );
-            });
+        column_head(panel, "Storage: Dust Gate", |facts| {
+            fact(
+                facts,
+                "Stored",
+                format!(
+                    "{} / {}",
+                    kg_text(market.stored_kg()),
+                    kg_text(STORAGE_CAP_KG)
+                ),
+            );
+        });
         table_head(
             panel,
             &[(18.0, ""), (0.0, "Item"), (48.0, "Qty"), (58.0, "Mass")],
         );
-        let mut any = false;
         for (i, w) in WARES.iter().enumerate() {
             if !listed(market, TradeSide::Storage, i, w) {
                 continue;
             }
-            any = true;
             let qty = market.storage[i];
             spawn_row(
                 panel,
@@ -294,41 +288,29 @@ fn storage_column(columns: &mut ChildSpawnerCommands, icons: &GalleryIcons, mark
                 market.selected == Some((TradeSide::Storage, i)),
             )
             .insert(Node {
-                padding: UiRect::axes(px(8), px(3)),
+                height: px(metrics::LIST_ROW_H),
+                padding: UiRect::horizontal(px(metrics::PAD_X)),
                 border: UiRect::all(px(1)),
-                column_gap: px(8),
+                column_gap: px(metrics::GAP),
                 ..row_node()
             })
             .with_children(|r| stack_cells(r, icons, w, qty));
-        }
-        if !any {
-            panel.spawn((
-                Node {
-                    padding: UiRect::axes(px(8), px(8)),
-                    ..default()
-                },
-                children![text(
-                    "Nothing stored in this category.",
-                    12.0,
-                    UiColorType::TextMuted
-                )],
-            ));
         }
         for hold in &OWN_HOLDS {
             let load: u32 = hold.stacks.iter().map(|(i, q)| WARES[*i].kg * q).sum();
             panel
                 .spawn(Node {
-                    column_gap: px(8),
-                    margin: UiRect::top(px(8)),
-                    padding: UiRect::axes(px(8), px(2)),
-                    ..control_row(JustifyContent::SpaceBetween)
+                    margin: UiRect::top(px(metrics::GAP)),
+                    padding: UiRect::horizontal(px(metrics::PAD_X)),
+                    min_height: px(metrics::ROW_H),
+                    justify_content: JustifyContent::SpaceBetween,
+                    ..row_node()
                 })
                 .with_children(|head| {
-                    head.spawn(text(hold.ship, 13.0, UiColorType::Text));
+                    head.spawn(text(hold.ship, TextRole::Value));
                     head.spawn(text(
-                        &format!("{} / {}", kg_text(load), kg_text(hold.cap_kg)),
-                        12.0,
-                        UiColorType::TextMuted,
+                        format!("{} / {}", kg_text(load), kg_text(hold.cap_kg)),
+                        TextRole::Label,
                     ));
                 });
             for (i, qty) in hold.stacks {
@@ -338,8 +320,9 @@ fn storage_column(columns: &mut ChildSpawnerCommands, icons: &GalleryIcons, mark
                 }
                 panel
                     .spawn(Node {
-                        padding: UiRect::axes(px(9), px(4)),
-                        column_gap: px(8),
+                        height: px(metrics::LIST_ROW_H),
+                        padding: UiRect::horizontal(px(metrics::PAD_X)),
+                        column_gap: px(metrics::GAP),
                         ..row_node()
                     })
                     .with_children(|r| stack_cells(r, icons, w, *qty));
@@ -352,26 +335,26 @@ fn storage_column(columns: &mut ChildSpawnerCommands, icons: &GalleryIcons, mark
 /// and the mass.
 fn stack_cells(r: &mut ChildSpawnerCommands, icons: &GalleryIcons, w: &Ware, qty: u32) {
     r.spawn(icon(icons, w.category.icon(), 16.0));
-    r.spawn(grow_cell(w.name, 13.0, UiColorType::Text));
+    r.spawn(grow_cell(w.name, metrics::TEXT, UiColorType::Text));
     r.spawn(cell(
         48.0,
         &format!("x{qty}"),
-        12.0,
+        metrics::TEXT,
         UiColorType::TextBody,
         true,
     ));
     r.spawn(cell(
         58.0,
         &kg_text(qty * w.kg),
-        12.0,
+        metrics::TEXT,
         UiColorType::TextBody,
         true,
     ));
 }
 
-/// The `Deal` badge: the percent off the reference, green when it favours
+/// The `Deal` tag: the percent off the reference, green when it favours
 /// the player (a Tender bid over the reference, a Trader ask under it),
-/// amber when not, mute at it.
+/// amber when not, secondary at it.
 fn deal_badge(side: TradeSide, delta: i32) -> impl Bundle {
     let gain = match side {
         TradeSide::Tender => delta.signum(),
@@ -387,7 +370,7 @@ fn deal_badge(side: TradeSide, delta: i32) -> impl Bundle {
 }
 
 /// The MARKET strip: the best buyer and the cheapest seller, the restock
-/// meter, and the refusal.
+/// meter, and the refusal tag.
 fn market_strip(stores: &mut ChildSpawnerCommands, market: &MarketState) {
     let pays_most = WARES
         .iter()
@@ -404,494 +387,378 @@ fn market_strip(stores: &mut ChildSpawnerCommands, market: &MarketState) {
         .spawn((
             Node {
                 flex_shrink: 0.0,
-                flex_direction: FlexDirection::Column,
-                row_gap: px(6),
-                padding: UiRect::all(px(8)),
+                flex_direction: FlexDirection::Row,
+                flex_wrap: FlexWrap::Wrap,
+                align_items: AlignItems::Center,
+                column_gap: px(metrics::GAP),
+                row_gap: px(metrics::GAP_S),
+                padding: UiRect::all(px(metrics::GAP)),
                 border: UiRect::all(px(1)),
-                border_radius: BorderRadius::all(px(4)),
                 ..default()
             },
-            panel_paint(),
+            nova_ui::prelude::panel_paint(),
         ))
-        .with_children(|strip| {
-            strip
-                .spawn(Node {
-                    column_gap: px(10),
-                    flex_wrap: FlexWrap::Wrap,
-                    row_gap: px(4),
-                    ..control_row(JustifyContent::FlexStart)
-                })
-                .with_children(|row| {
-                    row.spawn(text("MARKET", 11.0, UiColorType::TextMuted));
-                    row.spawn(text("Buys", 12.0, UiColorType::TextBody));
-                    row.spawn(tag(&format!(
-                            "{} {:+}%",
-                            pays_most.name,
-                            delta_percent(pays_most.bid, pays_most.reference)
-                        ), UiColorType::Accent));
-                    row.spawn(text("Sells", 12.0, UiColorType::TextBody));
-                    row.spawn(tag(&format!(
-                            "{} {:+}%",
-                            cheapest.name,
-                            delta_percent(cheapest.ask, cheapest.reference)
-                        ), UiColorType::Nominal));
-                    row.spawn(Node {
-                        flex_grow: 1.0,
-                        ..default()
-                    });
-                    row.spawn((
-                        Name::new(MARKET_REFUSED),
-                        tag(&format!("REFUSED {} min", market.refused_min), UiColorType::Danger),
-                    ));
-                });
-            strip
-                .spawn(Node {
-                    column_gap: px(10),
-                    ..control_row(JustifyContent::FlexStart)
-                })
-                .with_children(|row| {
-                    row.spawn(text("Restock in 12 min", 12.0, UiColorType::TextBody));
-                    let ore = market.station[0];
-                    row.spawn(bare_meter(140.0, ore as f32 / 40.0));
-                    row.spawn(text(
-                        &format!("iron ore stock {ore} t / target 40 t"),
-                        12.0,
-                        UiColorType::TextMuted,
-                    ));
-                    row.spawn(text(
-                        "Refusal: docked Vane Dock first; the yard's quarantine lifts when the timer ends.",
-                        11.0,
-                        UiColorType::TextMuted,
-                    ));
-                });
+        .with_children(|row| {
+            row.spawn(text("Market", TextRole::Heading));
+            row.spawn(text("Buys", TextRole::Label));
+            row.spawn(tag(
+                &format!(
+                    "{} {:+}%",
+                    pays_most.name,
+                    delta_percent(pays_most.bid, pays_most.reference)
+                ),
+                UiColorType::Accent,
+            ));
+            row.spawn(text("Sells", TextRole::Label));
+            row.spawn(tag(
+                &format!(
+                    "{} {:+}%",
+                    cheapest.name,
+                    delta_percent(cheapest.ask, cheapest.reference)
+                ),
+                UiColorType::Nominal,
+            ));
+            row.spawn(text("Restock", TextRole::Label));
+            let ore = market.station[0];
+            row.spawn(bare_meter(140.0, ore as f32 / 40.0));
+            row.spawn(text(format!("{ore} / 40 t"), TextRole::Value));
+            row.spawn(Node {
+                flex_grow: 1.0,
+                ..default()
+            });
+            row.spawn((
+                Name::new(MARKET_REFUSED),
+                tag(
+                    &format!("REFUSED {} min", market.refused_min),
+                    UiColorType::Danger,
+                ),
+            ));
         });
 }
 
 fn inspector(side: &mut ChildSpawnerCommands, icons: &GalleryIcons, market: &MarketState) {
+    // Nothing selected: the inspector stays empty.
     let Some((trade_side, i)) = market.selected else {
-        section(side, "Item");
-        side.spawn(text(
-            "Select an item to read its prices and trade it.",
-            12.0,
-            UiColorType::TextMuted,
-        ));
         return;
     };
     let w = &WARES[i];
     side.spawn(Node {
-        column_gap: px(8),
-        ..control_row(JustifyContent::FlexStart)
+        flex_direction: FlexDirection::Row,
+        align_items: AlignItems::Center,
+        column_gap: px(metrics::GAP),
+        flex_shrink: 0.0,
+        ..default()
     })
     .with_children(|head| {
         head.spawn(icon(icons, w.category.icon(), 24.0));
-        head.spawn(text(w.name, 15.0, UiColorType::Text));
+        head.spawn(text(w.name, TextRole::Title));
+        head.spawn(tag(w.category.label(), UiColorType::TextSecondary));
     });
-    side.spawn(Node {
-        column_gap: px(6),
-        ..control_row(JustifyContent::FlexStart)
-    })
-    .with_children(|tags| {
-        tags.spawn(tag(
-            &w.category.label().to_uppercase(),
-            UiColorType::TextSecondary,
-        ));
-        tags.spawn(tag(
-            match trade_side {
-                TradeSide::Tender => "IN HOLD",
-                TradeSide::Trader => "IN STOCK",
-                TradeSide::Storage => "IN STORAGE",
-            },
-            UiColorType::Info,
-        ));
-    });
-    side.spawn(divider());
     if trade_side == TradeSide::Storage {
         storage_inspector(side, market, i, w);
         return;
     }
-    kv(side, "Reference", &format!("{} cr", thousands(w.reference)));
-    kv(
-        side,
-        "Pays",
-        &format!(
-            "{} cr ({:+}%)",
-            thousands(w.bid),
-            delta_percent(w.bid, w.reference)
-        ),
-    );
-    kv(
-        side,
-        "Asks",
-        &format!(
-            "{} cr ({:+}%)",
-            thousands(w.ask),
-            delta_percent(w.ask, w.reference)
-        ),
-    );
-    kv(
-        side,
-        "In hold",
-        &format!("x{} ({})", market.ship[i], kg_text(market.ship[i] * w.kg)),
-    );
-    kv(side, "In stock", &format!("x{}", market.station[i]));
-    side.spawn(text(w.reason, 11.0, UiColorType::TextMuted));
-    side.spawn(divider());
-    side.spawn(text(
-        match trade_side {
-            TradeSide::Tender => "Sell from the hold",
-            TradeSide::Trader | TradeSide::Storage => "Buy from the stock",
-        },
-        13.0,
-        UiColorType::Accent,
-    ));
-    draft_form(side, market.draft_max());
-    side.spawn(Node {
-        column_gap: px(8),
-        flex_wrap: FlexWrap::Wrap,
-        row_gap: px(6),
-        ..control_row(JustifyContent::FlexStart)
-    })
-    .with_children(|row| {
-        let can_buy = market.station[i] > 0;
-        let can_sell = market.ship[i] > 0;
-        let mut buy = row.spawn((
-            Name::new(MARKET_BUY),
-            acts(button(ButtonSpec::control("Buy").primary()), Click::Buy),
-        ));
-        if !can_buy {
-            buy.insert((InteractionDisabled, Tooltip("Nothing in stock".into())));
-        }
-        let mut sell = row.spawn((
-            Name::new(MARKET_SELL),
-            acts(button(ButtonSpec::control("Sell").primary()), Click::Sell),
-        ));
-        if !can_sell {
-            sell.insert((InteractionDisabled, Tooltip("Nothing in the hold".into())));
-        }
-        let mut buy_all = row.spawn((
-            Name::new(MARKET_BUY_ALL),
-            acts(button(ButtonSpec::control("Buy all")), Click::BuyAll),
-        ));
-        if !can_buy {
-            buy_all.insert(InteractionDisabled);
-        }
-        let mut sell_all = row.spawn((
-            Name::new(MARKET_SELL_ALL),
-            acts(button(ButtonSpec::control("Sell all")), Click::SellAll),
-        ));
-        if !can_sell {
-            sell_all.insert(InteractionDisabled);
-        }
+    spawn_block(side, "Prices", ()).with_children(|block| {
+        spawn_kv(
+            block,
+            "Reference",
+            text(format!("{} cr", thousands(w.reference)), TextRole::Value),
+        );
+        spawn_kv(
+            block,
+            "Pays",
+            text(
+                format!(
+                    "{} cr  {:+}%",
+                    thousands(w.bid),
+                    delta_percent(w.bid, w.reference)
+                ),
+                TextRole::Value,
+            ),
+        );
+        spawn_kv(
+            block,
+            "Asks",
+            text(
+                format!(
+                    "{} cr  {:+}%",
+                    thousands(w.ask),
+                    delta_percent(w.ask, w.reference)
+                ),
+                TextRole::Value,
+            ),
+        );
+        spawn_kv(
+            block,
+            "In hold",
+            text(
+                format!("x{}  {}", market.ship[i], kg_text(market.ship[i] * w.kg)),
+                TextRole::Value,
+            ),
+        );
+        spawn_kv(
+            block,
+            "In stock",
+            text(format!("x{}", market.station[i]), TextRole::Value),
+        );
     });
-    if let Some(note) = &market.note {
-        side.spawn(text(note, 12.0, UiColorType::Nominal));
-    }
+    // A station row buys, a hold row sells: the other side's verbs have no
+    // use here and are not drawn.
+    let (title, verb, verb_all, name, name_all, click, click_all) = match trade_side {
+        TradeSide::Tender => (
+            "Sell",
+            "Sell",
+            "Sell all",
+            MARKET_SELL,
+            MARKET_SELL_ALL,
+            Click::Sell,
+            Click::SellAll,
+        ),
+        TradeSide::Trader | TradeSide::Storage => (
+            "Buy",
+            "Buy",
+            "Buy all",
+            MARKET_BUY,
+            MARKET_BUY_ALL,
+            Click::Buy,
+            Click::BuyAll,
+        ),
+    };
+    let max = market.draft_max();
+    spawn_block(side, title, ()).with_children(|block| {
+        draft_row(block, max);
+        spawn_kv(
+            block,
+            "Price",
+            (
+                MarketDraftPrice,
+                Short::default(),
+                text("", TextRole::Value),
+            ),
+        );
+        block.spawn(verb_row(RowAlign::End)).with_children(|row| {
+            let gate = if max == 0 {
+                VerbGate::Disabled
+            } else {
+                VerbGate::Ready
+            };
+            row.spawn((
+                Name::new(name_all),
+                acts(button(ButtonSpec::control(verb_all)), click_all),
+                gate.clone(),
+            ));
+            let mut main = row.spawn((
+                Name::new(name),
+                acts(button(ButtonSpec::control(verb).primary()), click),
+                gate,
+            ));
+            if trade_side == TradeSide::Trader {
+                main.insert(MarketBuyVerb);
+            }
+        });
+    });
 }
 
-/// The quantity form: the field, `of max`, All, the slider and the summary
-/// line that `sync_draft` keeps in step.
-fn draft_form(side: &mut ChildSpawnerCommands, max: u32) {
-    side.spawn(Node {
-        flex_wrap: FlexWrap::Wrap,
-        row_gap: px(6),
-        ..control_row(JustifyContent::FlexStart)
-    })
-    .with_children(|row| {
-        row.spawn(Node {
-            width: px(72),
-            flex_shrink: 0.0,
-            ..default()
+/// The kit's amount row for the draft, at the draft's quantity.
+fn draft_row(block: &mut ChildSpawnerCommands, max: u32) {
+    block
+        .spawn((
+            MarketDraftAmount,
+            amount_row(AmountSpec {
+                name: "Gallery Draft",
+            }),
+        ))
+        .insert(Amount {
+            value: 1.min(max),
+            min: 1.min(max),
+            max,
         })
-        .with_children(|cell| {
-            cell.spawn((
-                Name::new("Gallery Draft Quantity"),
-                MarketDraftField,
-                text_field(TextFieldSpec::new("1").max_chars(5).tool()),
-            ));
-        });
-        row.spawn((
-            text(&format!("of {max}"), 15.0, UiColorType::Text),
-            Node {
-                flex_grow: 1.0,
-                ..default()
-            },
-        ));
-        row.spawn((
-            Name::new("Gallery Draft All"),
-            acts(button(ButtonSpec::control("All").ghost()), Click::DraftAll),
-        ));
-    });
-    side.spawn((
-        MarketDraftSlider,
-        Slider {
-            track_click: TrackClick::Snap,
-            ..default()
-        },
-        SliderValue(1.0),
-        SliderRange::new(0.0, max.max(1) as f32),
-        SliderStep(1.0),
-        SliderPrecision(0),
-        slider_track(if max == 0 { 0.0 } else { 1.0 / max as f32 }),
-    ))
-    .observe(on_draft_slide);
-    side.spawn((
-        MarketDraftSummary,
-        text("", 13.0, UiColorType::TextBody),
-        Node {
-            min_height: px(13.0 * 1.2 * 3.0),
-            ..default()
-        },
-    ));
+        .observe(on_draft_amount);
 }
 
 /// The inspector of a storage row: the counts in the hold and in storage,
-/// the quantity form, then Store and Take.
+/// the amount row, then Store and Take.
 fn storage_inspector(side: &mut ChildSpawnerCommands, market: &MarketState, i: usize, w: &Ware) {
-    kv(
-        side,
-        "In hold",
-        &format!("x{} ({})", market.ship[i], kg_text(market.ship[i] * w.kg)),
-    );
-    kv(
-        side,
-        "In storage",
-        &format!(
-            "x{} ({})",
-            market.storage[i],
-            kg_text(market.storage[i] * w.kg)
-        ),
-    );
-    kv(
-        side,
-        "Storage",
-        &format!(
-            "{} / {}",
-            kg_text(market.stored_kg()),
-            kg_text(STORAGE_CAP_KG)
-        ),
-    );
-    side.spawn(text(
-        "Storage keeps a stack for free while the station lives; it is lost with the station.",
-        11.0,
-        UiColorType::TextMuted,
-    ));
-    side.spawn(divider());
-    side.spawn(text(
-        "Move between the hold and storage",
-        13.0,
-        UiColorType::Accent,
-    ));
-    draft_form(side, market.draft_max());
-    side.spawn(Node {
-        column_gap: px(8),
-        flex_wrap: FlexWrap::Wrap,
-        row_gap: px(6),
-        ..control_row(JustifyContent::FlexStart)
-    })
-    .with_children(|row| {
-        let mut store = row.spawn((
-            Name::new(MARKET_STORE),
-            acts(button(ButtonSpec::control("Store").primary()), Click::Store),
-        ));
-        if market.ship[i] == 0 {
-            store.insert((InteractionDisabled, Tooltip("Nothing in the hold".into())));
-        }
-        let mut take = row.spawn((
-            Name::new(MARKET_TAKE),
-            acts(button(ButtonSpec::control("Take").primary()), Click::Take),
-        ));
-        if market.storage[i] == 0 {
-            take.insert((InteractionDisabled, Tooltip("Nothing in storage".into())));
-        }
+    spawn_block(side, "Storage", ()).with_children(|block| {
+        spawn_kv(
+            block,
+            "In hold",
+            text(
+                format!("x{}  {}", market.ship[i], kg_text(market.ship[i] * w.kg)),
+                TextRole::Value,
+            ),
+        );
+        spawn_kv(
+            block,
+            "In storage",
+            text(
+                format!(
+                    "x{}  {}",
+                    market.storage[i],
+                    kg_text(market.storage[i] * w.kg)
+                ),
+                TextRole::Value,
+            ),
+        );
+        spawn_kv(
+            block,
+            "Stored",
+            text(
+                format!(
+                    "{} / {}",
+                    kg_text(market.stored_kg()),
+                    kg_text(STORAGE_CAP_KG)
+                ),
+                TextRole::Value,
+            ),
+        );
     });
-    if let Some(note) = &market.note {
-        side.spawn(text(note, 12.0, UiColorType::Nominal));
+    spawn_block(side, "Move", ()).with_children(|block| {
+        draft_row(block, market.draft_max());
+        block.spawn(verb_row(RowAlign::End)).with_children(|row| {
+            let gate = |have: u32| {
+                if have == 0 {
+                    VerbGate::Disabled
+                } else {
+                    VerbGate::Ready
+                }
+            };
+            row.spawn((
+                Name::new(MARKET_TAKE),
+                acts(button(ButtonSpec::control("Take")), Click::Take),
+                gate(market.storage[i]),
+            ));
+            row.spawn((
+                Name::new(MARKET_STORE),
+                acts(button(ButtonSpec::control("Store").primary()), Click::Store),
+                gate(market.ship[i]),
+            ));
+        });
+    });
+}
+
+/// The amount row moved: take its value as the draft quantity.
+fn on_draft_amount(changed: On<AmountChanged>, mut draft: ResMut<MarketDraft>) {
+    if draft.qty != changed.value {
+        draft.qty = changed.value;
     }
 }
 
-/// The slider moved: take its value as the draft quantity.
-fn on_draft_slide(change: On<ValueChange<f32>>, mut draft: ResMut<MarketDraft>) {
-    let qty = change.value.round().max(0.0) as u32;
-    if draft.qty != qty {
-        draft.qty = qty;
-    }
-}
-
-/// The field changed: take its number as the draft quantity, clamped to
-/// the stock.
-pub fn read_draft_field(
-    fields: Query<&TextFieldValue, (Changed<TextFieldValue>, With<MarketDraftField>)>,
-    market: Res<MarketState>,
-    mut draft: ResMut<MarketDraft>,
-) {
-    for value in &fields {
-        let Ok(qty) = value.0.trim().parse::<u32>() else {
-            continue;
-        };
-        let qty = qty.min(market.draft_max());
-        if draft.qty != qty {
-            draft.qty = qty;
-        }
-    }
-}
-
-/// Write the draft back into the form in place: the slider's value, the
-/// field's text while it is not being typed in, and the summary line.
-pub fn sync_draft(
-    mut commands: Commands,
+/// Write the draft's price into the inspector: the price alone, painted
+/// Danger with Buy disabled while the balance is short.
+pub fn sync_draft_price(
     draft: Res<MarketDraft>,
     market: Res<MarketState>,
-    sliders: Query<(Entity, &SliderValue), With<MarketDraftSlider>>,
-    mut fields: Query<(&mut TextFieldValue, Has<TextFieldFocused>), With<MarketDraftField>>,
-    mut summaries: Query<(&mut Text, Ref<MarketDraftSummary>)>,
+    mut q_price: Query<(&mut Text, &mut Short, Ref<MarketDraftPrice>)>,
+    mut q_buy: Query<&mut VerbGate, With<MarketBuyVerb>>,
 ) {
-    // A rebuilt form arrives a frame after the state moved; its fresh
-    // summary needs the first write too.
-    let fresh = summaries.iter().any(|(_, summary)| summary.is_added());
+    // A rebuilt inspector arrives a frame after the state moved; its fresh
+    // price needs the first write too.
+    let fresh = q_price.iter().any(|(_, _, price)| price.is_added());
     if !draft.is_changed() && !market.is_changed() && !fresh {
         return;
-    }
-    let qty = draft.qty.min(market.draft_max());
-    // `SliderValue` is immutable; the widget takes a fresh insert.
-    for (entity, value) in &sliders {
-        if value.0 != qty as f32 {
-            commands.entity(entity).insert(SliderValue(qty as f32));
-        }
-    }
-    for (mut value, focused) in &mut fields {
-        let wanted = qty.to_string();
-        if !focused && value.0 != wanted {
-            value.0 = wanted;
-        }
     }
     let Some((side, i)) = market.selected else {
         return;
     };
+    let qty = draft.qty.min(market.draft_max());
     let w = &WARES[i];
-    let summary = match side {
-        TradeSide::Trader => {
-            let cost = qty * w.ask;
-            if qty == 0 {
-                "Pick a quantity.".to_string()
-            } else if cost > market.credits {
-                format!(
-                    "Not enough credits: {} cr for x{qty}, {} cr in hand.",
-                    thousands(cost),
-                    thousands(market.credits)
-                )
-            } else {
-                format!(
-                    "Buy x{qty} {} for {} cr; {} cr left.",
-                    w.name,
-                    thousands(cost),
-                    thousands(market.credits - cost)
-                )
-            }
-        }
-        TradeSide::Tender => {
-            let pay = qty * w.bid;
-            if qty == 0 {
-                "Pick a quantity.".to_string()
-            } else {
-                format!(
-                    "Sell x{qty} {} for {} cr; {} cr after.",
-                    w.name,
-                    thousands(pay),
-                    thousands(market.credits + pay)
-                )
-            }
-        }
-        TradeSide::Storage => {
-            if qty == 0 {
-                "Pick a quantity.".to_string()
-            } else {
-                format!(
-                    "Store up to x{} from the hold, take up to x{} from storage; x{qty} picked.",
-                    market.ship[i], market.storage[i]
-                )
-            }
-        }
+    let (cost, short) = match side {
+        TradeSide::Trader => (qty * w.ask, qty * w.ask > market.credits),
+        TradeSide::Tender => (qty * w.bid, false),
+        TradeSide::Storage => return,
     };
-    for (mut text, _) in &mut summaries {
-        if text.0 != summary {
-            text.0 = summary.clone();
+    for (mut text, mut flag, _) in &mut q_price {
+        let wanted = format!("{} cr", thousands(cost));
+        if text.0 != wanted {
+            text.0 = wanted;
+        }
+        if flag.0 != short {
+            flag.0 = short;
+        }
+    }
+    for mut gate in &mut q_buy {
+        let wanted = if short || qty == 0 {
+            VerbGate::Disabled
+        } else {
+            VerbGate::Ready
+        };
+        if *gate != wanted {
+            *gate = wanted;
         }
     }
 }
 
-/// Apply a buy of `qty` to the mock stocks. Returns the note to show.
+/// Apply a buy of `qty` to the mock stocks. Returns the toast headline,
+/// empty when nothing moved.
 pub fn buy(market: &mut MarketState, qty: u32) -> String {
     let Some((_, i)) = market.selected else {
-        return "Select an item first.".into();
+        return String::new();
     };
     let w = &WARES[i];
     let qty = qty.min(market.station[i]);
     let cost = qty * w.ask;
     if qty == 0 {
-        return "Nothing to buy.".into();
+        return String::new();
     }
     if cost > market.credits {
-        return format!("Not enough credits: {} cr needed.", thousands(cost));
+        return String::new();
     }
     market.station[i] -= qty;
     market.ship[i] += qty;
     market.credits -= cost;
-    format!("Bought x{qty} {} for {} cr.", w.name, thousands(cost))
+    format!("+{qty} {}", w.name)
 }
 
-/// Apply a sale of `qty` to the mock stocks. Returns the note to show.
+/// Apply a sale of `qty` to the mock stocks. Returns the toast headline.
 pub fn sell(market: &mut MarketState, qty: u32) -> String {
     let Some((_, i)) = market.selected else {
-        return "Select an item first.".into();
+        return String::new();
     };
     let w = &WARES[i];
     let qty = qty.min(market.ship[i]);
     if qty == 0 {
-        return "Nothing to sell.".into();
+        return String::new();
     }
     let pay = qty * w.bid;
     market.ship[i] -= qty;
     market.station[i] += qty;
     market.credits += pay;
-    format!("Sold x{qty} {} for {} cr.", w.name, thousands(pay))
+    format!("-{qty} {}", w.name)
 }
 
 /// Move `qty` of the selected stack from the hold into storage, within the
-/// cap. Returns the note to show.
+/// cap. Returns the toast headline.
 pub fn store(market: &mut MarketState, qty: u32) -> String {
     let Some((_, i)) = market.selected else {
-        return "Select a stack first.".into();
+        return String::new();
     };
     let w = &WARES[i];
     let room = (STORAGE_CAP_KG.saturating_sub(market.stored_kg())) / w.kg.max(1);
     let qty = qty.min(market.ship[i]);
     if qty == 0 {
-        return "Nothing in the hold to store.".into();
+        return String::new();
     }
     if qty > room {
-        return format!(
-            "Storage is full: room for x{room} {} under the {} cap.",
-            w.name,
-            kg_text(STORAGE_CAP_KG)
-        );
+        return String::new();
     }
     market.ship[i] -= qty;
     market.storage[i] += qty;
-    format!("Stored x{qty} {}.", w.name)
+    format!("-{qty} {}", w.name)
 }
 
 /// Move `qty` of the selected stack from storage into the hold. Returns the
-/// note to show.
+/// toast headline.
 pub fn take(market: &mut MarketState, qty: u32) -> String {
     let Some((_, i)) = market.selected else {
-        return "Select a stack first.".into();
+        return String::new();
     };
     let w = &WARES[i];
     let qty = qty.min(market.storage[i]);
     if qty == 0 {
-        return "Nothing in storage to take.".into();
+        return String::new();
     }
     market.storage[i] -= qty;
     market.ship[i] += qty;
-    format!("Took x{qty} {} aboard.", w.name)
+    format!("+{qty} {}", w.name)
 }

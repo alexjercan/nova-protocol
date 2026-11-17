@@ -201,11 +201,13 @@ pub fn phosphor_theme() -> UiThemeConfig {
                     None,
                 ),
             )),
+            // A live ghost's frame is near three times the disabled one's
+            // (0.15), so a ghost verb never reads as a dead one.
             button_ghost: Some(phosphor_button(
-                state(Fill::none(), va(C::Text, 0.25), var(C::Text), None),
+                state(Fill::none(), va(C::Text, 0.42), var(C::Text), None),
                 state(
                     solid(va(C::Text, 0.06)),
-                    va(C::Text, 0.4),
+                    va(C::Text, 0.6),
                     var(C::Text),
                     None,
                 ),
@@ -487,17 +489,20 @@ pub fn hardware_theme() -> UiThemeConfig {
             )),
             // Ghost stays fill-less by contract, so its press cannot be a
             // bevel: it is a dark wash under a brightening border instead.
+            // Its frame is in the legend's ink at near three times the
+            // disabled frame's alpha: a faint highlight frame read as a dead
+            // verb beside Cancel and Max.
             button_ghost: Some(hardware_button(
-                state(Fill::none(), va(C::Highlight, 0.12), var(C::Text), None),
+                state(Fill::none(), va(C::Text, 0.42), var(C::Text), None),
                 state(
                     solid(va(C::Highlight, 0.04)),
-                    va(C::Highlight, 0.22),
+                    va(C::Text, 0.6),
                     var(C::Text),
                     None,
                 ),
                 state(
                     solid(va(C::Shadow, 0.22)),
-                    va(C::Highlight, 0.3),
+                    va(C::Text, 0.7),
                     var(C::Text),
                     None,
                 ),

@@ -64,14 +64,14 @@
 //! the cards, counts the muted tiles, clicks Gallery Stock Available and
 //! checks it keeps only the placeable listed parts of the category with the
 //! narrowed count on the Gallery Page line, shoots it, clicks Gallery Stock
-//! All and checks the full count is back, at 640x600 in the first theme
+//! Available again and checks the full count is back, at 640x600 in the first theme
 //! shows the muted card's tile and checks its `Tooltip` is its note, hovers
 //! it until the note shows and shoots it, shows the twin's tile and checks
 //! it carries no `Tooltip`, rests the pointer, then reads the focus card of
 //! the twin kinetic PDC, of the twin buying a barrel, of the twin short of a
 //! panel and of a part the station does not build in the Phosphor and
 //! Hardware themes at 640x600 and 1024x768 (Place, Swap and Back and the
-//! Stock buttons inside the card or the header, a muted part's Place off
+//! Stock chip inside the card or the header, a muted part's Place off
 //! with its note as the tooltip, every recipe row whole with its covered
 //! count and, when it bought anything, the bought total, the bought row's
 //! split on hover), presses Enter and clicks the muted Place and
@@ -1563,6 +1563,66 @@ mod smoke {
         }
     }
 
+    /// Tap `viewer_next` or `viewer_prev`, whichever reaches `target` in
+    /// fewer presses, until the Ship view selects it: press on even frames,
+    /// release both on odd ones.
+    ///
+    /// The view cycles the player's sections in `SectionCode` order
+    /// (`ShipSections::collect`), one section per tap and two frames per
+    /// tap. After the walk adds parts the hull has over 50 sections, and
+    /// forward-only from a new `HULL-` could need most of the list: at
+    /// lavapipe frame rates that ran past the beat's deadline.
+    fn tap_toward(
+        target: fn(&World) -> Option<Entity>,
+    ) -> impl Fn(&mut World, f32, u32) + Send + Sync + 'static {
+        move |world, _, frame| {
+            let selected = world.resource::<ShipRuntime>().selected();
+            let action = target(world)
+                .filter(|goal| selected != Some(*goal))
+                .map(|goal| cycle_action(world, selected, goal));
+            match action {
+                Some(action) if frame % 2 == 0 => press_action(action)(world),
+                _ => {
+                    release_action("viewer_next")(world);
+                    release_action("viewer_prev")(world);
+                }
+            }
+        }
+    }
+
+    /// The cycle action with fewer presses from `selected` to `goal`, over
+    /// the player's sections in the view's `SectionCode` order.
+    fn cycle_action(world: &World, selected: Option<Entity>, goal: Entity) -> &'static str {
+        let player = world
+            .try_query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
+            .and_then(|mut players| players.single(world).ok());
+        let mut order: Vec<(String, Entity)> = world
+            .try_query::<(Entity, &ChildOf, &SectionCode)>()
+            .map(|mut sections| {
+                sections
+                    .iter(world)
+                    .filter(|(_, parent, _)| Some(parent.parent()) == player)
+                    .map(|(entity, _, code)| (code.0.clone(), entity))
+                    .collect()
+            })
+            .unwrap_or_default();
+        order.sort();
+        let at = |entity: Option<Entity>| {
+            entity.and_then(|entity| order.iter().position(|(_, each)| *each == entity))
+        };
+        let (Some(goal), len) = (at(Some(goal)), order.len()) else {
+            return "viewer_next";
+        };
+        // Nothing selected: the first press in either direction picks index 0.
+        let from = at(selected).unwrap_or(len - 1);
+        let forward = (goal + len - from) % len;
+        if forward <= len - forward {
+            "viewer_next"
+        } else {
+            "viewer_prev"
+        }
+    }
+
     /// The player's port the dock holds by, while it is docked.
     /// The player ship's first thruster by code (`THR-1`).
     fn first_thruster(world: &World) -> Option<Entity> {
@@ -1621,9 +1681,7 @@ mod smoke {
     fn select_the_thruster(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
         script
             .step("station sandbox: select the first thruster")
-            .each(tap_while("viewer_next", |world| {
-                world.resource::<ShipRuntime>().selected() != first_thruster(world)
-            }))
+            .each(tap_toward(first_thruster))
             .until(Arc::new(|world: &World| {
                 first_thruster(world).is_some()
                     && world.resource::<ShipRuntime>().selected() == first_thruster(world)
@@ -1635,10 +1693,15 @@ mod smoke {
                     first_thruster(world)
                 )
             })
-            .deadline(BEAT_SECS)
+            // A cycle over the hull, sized like the split cycle: the
+            // taps cost frames, and lavapipe frames cost seconds.
+            .deadline(SETUP_SECS)
             .add()
             .step("station sandbox: let the thruster select key up")
-            .on_enter(release_action("viewer_next"))
+            .on_enter(|world: &mut World| {
+                release_action("viewer_next")(world);
+                release_action("viewer_prev")(world);
+            })
             .until(frames(SETTLE_FRAMES))
             .add()
     }
@@ -2568,12 +2631,12 @@ mod smoke {
                 );
             }
             // Only at the stock shape: the header stays this wide at every
-            // theme, so one shape is enough to catch a stock button that
+            // theme, so one shape is enough to catch the stock chip that
             // wrapped off the header.
             if shape.starts_with("640x600") {
                 let header_rect =
                     ui_node_rect(world, "Gallery Header").expect("the header is laid out");
-                for name in ["Gallery Stock All", "Gallery Stock Available"] {
+                for name in ["Gallery Stock Available"] {
                     let rect = ui_node_rect(world, name)
                         .unwrap_or_else(|| panic!("at {shape} the header draws `{name}`"));
                     let inside = rect.min.x >= header_rect.min.x - CARD_SLACK_PX
@@ -3079,11 +3142,11 @@ mod smoke {
             .add()
             .click_named(
                 "station sandbox: show every stocked part again",
-                "Gallery Stock All",
+                "Gallery Stock Available",
                 Arc::new(|world: &World| !world.resource::<GalleryState>().available_only),
                 BEAT_SECS,
             )
-            .step("station sandbox: All brings every listed part of this category back")
+            .step("station sandbox: Available off brings every listed part of this category back")
             .on_enter(|world: &mut World| {
                 let before = world
                     .remove_resource::<CatalogueStockBefore>()
@@ -3093,10 +3156,10 @@ mod smoke {
                 let category = world.resource::<GalleryState>().category;
                 let sections = world.resource::<GameSections>();
                 let listed = browsable(sections, Some(&listing), category, "", false).len();
-                info!("station sandbox: All lists {listed} parts, {before} before Available");
+                info!("station sandbox: Available off lists {listed} parts, {before} before");
                 assert_eq!(
                     listed, before,
-                    "All brings back every listed part Available narrowed"
+                    "Available off brings back every listed part it narrowed"
                 );
             })
             .add();
@@ -3182,13 +3245,26 @@ mod smoke {
         }
         let (width, height) = CAPTURE_RESOLUTION;
         let (width, height) = (width as f32, height as f32);
+        // The Tab top bar's Close and Esc close the Catalogue; it draws no
+        // Close of its own. Esc steps back off a focus card first.
         script
-            .click_named(
-                "station sandbox: close the Catalogue after the cards",
-                "Gallery Close Button",
-                Arc::new(|world: &World| !world.resource::<GalleryState>().open),
-                BEAT_SECS,
-            )
+            .step("station sandbox: close the Catalogue after the cards with Esc")
+            .each(|world, _, frame| {
+                if frame % 2 == 0 && world.resource::<GalleryState>().open {
+                    press_key(KeyCode::Escape)(world);
+                } else {
+                    release_key(KeyCode::Escape)(world);
+                }
+            })
+            .until(Arc::new(|world: &World| {
+                !world.resource::<GalleryState>().open
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let Esc up after the Catalogue")
+            .on_enter(release_key(KeyCode::Escape))
+            .until(frames(SETTLE_FRAMES))
+            .add()
             .step("station sandbox: back to the capture shape and theme")
             .on_enter(move |world: &mut World| {
                 *world.resource_mut::<SelectedUiTheme>() = SelectedUiTheme::default();
@@ -3727,9 +3803,7 @@ mod smoke {
             .deadline(SHOT_SECS)
             .add()
             .step("station sandbox: select the port the dock holds by")
-            .each(tap_while("viewer_next", |world| {
-                world.resource::<ShipRuntime>().selected() != docked_port(world)
-            }))
+            .each(tap_toward(docked_port))
             .until(Arc::new(|world: &World| {
                 docked_port(world).is_some()
                     && world.resource::<ShipRuntime>().selected() == docked_port(world)
@@ -3741,10 +3815,15 @@ mod smoke {
                     docked_port(world)
                 )
             })
-            .deadline(BEAT_SECS)
+            // A cycle over the hull, sized like the split cycle: the
+            // taps cost frames, and lavapipe frames cost seconds.
+            .deadline(SETUP_SECS)
             .add()
             .step("station sandbox: let the select key up")
-            .on_enter(release_action("viewer_next"))
+            .on_enter(|world: &mut World| {
+                release_action("viewer_next")(world);
+                release_action("viewer_prev")(world);
+            })
             .until(frames(SETTLE_FRAMES))
             .add()
             .step("station sandbox: the docked port's Delete is muted")

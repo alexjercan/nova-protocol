@@ -116,6 +116,8 @@ pub(crate) fn gallery_host(camera: Entity) -> impl Bundle {
             stage: Vec3::Y * STAGE_CLEARANCE.to_engine(),
             layers: RenderLayers::default(),
             close_keys: "Esc/Tab",
+            // The editor hides its own chrome under the gallery.
+            close_verb: true,
         },
         GlobalZIndex(layer::GALLERY_Z),
         // Empty while the gallery is closed; it must not eat the stage's
@@ -148,6 +150,7 @@ fn gallery_entries(
             GalleryEntry {
                 id: id.clone(),
                 tile: owner.as_ref().map(|_| "UNDECLARED".to_string()),
+                short: false,
                 note: owner.map_or_else(String::new, |owner| {
                     format!("Placing it declares {owner} as a dependency")
                 }),

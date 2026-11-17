@@ -375,6 +375,7 @@ mod tests {
             GalleryEntry {
                 id: "basic_thruster_section".to_string(),
                 tile: Some("40 cr".to_string()),
+                short: false,
                 note: "40 cr".to_string(),
                 recipe: Vec::new(),
                 alternate: None,
@@ -384,6 +385,7 @@ mod tests {
             GalleryEntry {
                 id: "hauler_nose".to_string(),
                 tile: Some("12 cr".to_string()),
+                short: false,
                 note: "12 cr".to_string(),
                 recipe: Vec::new(),
                 alternate: None,
@@ -418,6 +420,7 @@ mod tests {
         let entry = |id: &str, placeable: bool| GalleryEntry {
             id: id.to_string(),
             tile: placeable.then(|| "40 cr".to_string()),
+            short: false,
             note: "40 cr".to_string(),
             recipe: Vec::new(),
             alternate: None,

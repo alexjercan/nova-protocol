@@ -12,7 +12,8 @@
 //! whose recipe the player's hold and the station's stock together cannot
 //! carry ([`plan_recipe_payment`] finds a missing part), is listed muted with
 //! one tag word and cannot be placed. Credits do not mute: a part the ship
-//! cannot pay for and a payable one both show the price. A placeable part
+//! cannot pay for and a payable one both show the price, the short one in
+//! Danger. A placeable part
 //! that can replace the selected section offers Swap with its price as the
 //! focus card's second verb, or, when the swap is refused for a cause of its
 //! own, a second note line with the section and the tag word.
@@ -166,25 +167,31 @@ fn offered_entry(
     let recipe = &offered.base.build;
     let built = builds.contains(&offered.base.id);
     let rows = recipe_items(items, icons, recipe, built.then_some((stock, own)));
-    let (tile, note, placeable) = if !built {
-        (None, "NOT BUILT".to_string(), false)
+    let (tile, note, placeable, short) = if !built {
+        (None, "NOT BUILT".to_string(), false, false)
     } else {
         match plan_recipe_payment(items, recipe, stock, stock_cr, own, own_cr) {
             Ok(payment) => (
                 Some(cr_text(payment.price_cr)),
                 cr_text(payment.price_cr),
                 true,
+                false,
             ),
             Err(refusal) => {
                 let placeable = !matches!(refusal, RecipePaymentRefusalType::MissingParts { .. });
+                let short = matches!(
+                    refusal,
+                    RecipePaymentRefusalType::InsufficientCredits { .. }
+                );
                 let tag = payment_refusal_tag(&refusal);
-                (placeable.then(|| tag.clone()), tag, placeable)
+                (placeable.then(|| tag.clone()), tag, placeable, short)
             }
         }
     };
     GalleryEntry {
         id: offered.base.id.clone(),
         tile,
+        short,
         note,
         recipe: rows,
         alternate: None,
@@ -398,6 +405,8 @@ pub(crate) fn manage_ship_gallery(
             stage: eye.translation + eye.forward() * GALLERY_STAGE_DISTANCE,
             layers,
             close_keys: "Esc",
+            // The Tab top bar's Close and Esc cover it.
+            close_verb: false,
         },
         GalleryListing::default(),
         Node {
@@ -622,7 +631,8 @@ mod tests {
     }
 
     /// Credits do not mute: a part the ship cannot pay for stays placeable
-    /// and says the price, and the placement ghost refuses the click.
+    /// and shows the price alone, marked short so it paints Danger; the
+    /// placement ghost refuses the click.
     #[test]
     fn a_credit_short_part_stays_placeable() {
         let items = test_items();
@@ -631,6 +641,7 @@ mod tests {
         let entry = offered_entry(&items, &icons(), &pdc(), &builds_pdc(), &stock, 0, &own, 50);
 
         assert!(entry.placeable);
+        assert!(entry.short, "the short price paints Danger");
         assert_eq!(entry.tile.as_deref(), Some("300 cr"));
         assert_eq!(entry.note, "300 cr");
         assert_eq!(entry.recipe.len(), 3);

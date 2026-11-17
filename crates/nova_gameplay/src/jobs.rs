@@ -1160,10 +1160,7 @@ impl SupplyFramingType {
             Self::Repair => "to patch its breached hull",
             Self::SupplyRun => "to get it under way",
         };
-        format!(
-            "Dock with the stranded caller with {count} {name} in your hold {why}. The dock \
-             takes them from the hold."
-        )
+        format!("Dock with the stranded caller with {count} {name} in your hold {why}.")
     }
 }
 
@@ -1251,9 +1248,10 @@ impl Job {
         }
     }
 
-    /// What the player has to do before the hand-in, for the Jobs inspector
-    /// and the chart's job note. The hand-in itself is their own line. An
-    /// item the catalog lacks reads by its id, as in [`Job::title`].
+    /// What the player has to do before the hand-in, as one sentence, for the
+    /// Jobs inspector and the chart's job note. The hand-in and its rules are
+    /// not repeated here: the inspector's rows say where. An item the catalog
+    /// lacks reads by its id, as in [`Job::title`].
     pub fn task(&self, items: &GameItems) -> String {
         let item_name = |item: &ItemDesignId| {
             items
@@ -1261,10 +1259,9 @@ impl Job {
                 .map_or_else(|| item.to_string(), |design| design.name.clone())
         };
         match &self.kind {
-            JobType::Procure { item, count } => format!(
-                "Bring {count} {} in your hold. Hand-in takes them from the hold.",
-                item_name(item)
-            ),
+            JobType::Procure { item, count } => {
+                format!("Bring {count} {} in your hold.", item_name(item))
+            }
             JobType::Recover {
                 wreck_name,
                 item,
@@ -1275,11 +1272,9 @@ impl Job {
                  aboard.",
                 item_name(item)
             ),
-            JobType::Escort { .. } => "Undock and come within 1 km of the hauler; it leaves \
-                for its destination when you are there. Stay with it and protect it from \
-                raiders; the job is lost if the hauler is disabled, neutralized or destroyed \
-                before arrival."
-                .to_string(),
+            JobType::Escort { .. } => {
+                "Stay within 1 km of the hauler until it arrives.".to_string()
+            }
             JobType::Distress { .. } => "Dock with the stranded caller.".to_string(),
             JobType::Neutralize { hull_name, .. } => {
                 format!("Find {hull_name} and neutralize or destroy it.")
@@ -3096,15 +3091,14 @@ mod tests {
                 3,
                 "Rescue a stranded crew with 3 Medkit",
                 "Dock with the stranded caller with 3 Medkit in your hold for its injured \
-                 crew. The dock takes them from the hold.",
+                 crew.",
                 "Rescue",
             ),
             (
                 "Rations",
                 6,
                 "Resupply a stranded ship with 6 Rations",
-                "Dock with the stranded caller with 6 Rations in your hold to feed its crew. \
-                 The dock takes them from the hold.",
+                "Dock with the stranded caller with 6 Rations in your hold to feed its crew.",
                 "Resupply",
             ),
             (
@@ -3112,7 +3106,7 @@ mod tests {
                 400,
                 "Rearm a stranded ship with 400 PDC round",
                 "Dock with the stranded caller with 400 PDC round in your hold to refill its \
-                 magazines. The dock takes them from the hold.",
+                 magazines.",
                 "Rearm",
             ),
             (
@@ -3120,7 +3114,7 @@ mod tests {
                 4,
                 "Repair a stranded ship with 4 Hull plate",
                 "Dock with the stranded caller with 4 Hull plate in your hold to patch its \
-                 breached hull. The dock takes them from the hold.",
+                 breached hull.",
                 "Repair",
             ),
             (
@@ -3128,7 +3122,7 @@ mod tests {
                 5,
                 "Supply a stranded ship with 5 Water ice",
                 "Dock with the stranded caller with 5 Water ice in your hold to get it under \
-                 way. The dock takes them from the hold.",
+                 way.",
                 "Supply",
             ),
         ] {

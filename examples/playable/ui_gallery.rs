@@ -187,8 +187,7 @@ fn main() -> AppExit {
             sync_marks::<DockState>.run_if(resource_changed::<DockState>),
             fade_toasts,
             submit_fields,
-            market::read_draft_field,
-            market::sync_draft,
+            market::sync_draft_price,
         ),
     );
     app.add_systems(
@@ -313,7 +312,7 @@ pub enum TradeSide {
 }
 
 /// The mock trade: live copies of the stocks, the selection, the filter,
-/// the credits, the last trade's note and the refusal timer.
+/// the credits and the refusal timer.
 #[derive(Resource)]
 pub struct MarketState {
     pub ship: Vec<u32>,
@@ -322,7 +321,6 @@ pub struct MarketState {
     pub selected: Option<(TradeSide, usize)>,
     pub filter: Option<Category>,
     pub credits: u32,
-    pub note: Option<String>,
     pub refused_min: u32,
 }
 
@@ -335,14 +333,13 @@ impl Default for MarketState {
             selected: None,
             filter: None,
             credits: 12_450,
-            note: None,
             refused_min: 6,
         }
     }
 }
 
 /// The open trade draft's quantity. Kept out of the page rebuild so the
-/// slider and the field update in place while they are used.
+/// amount row updates in place while it is used.
 #[derive(Resource)]
 pub struct MarketDraft {
     pub qty: u32,
@@ -409,7 +406,6 @@ pub enum Click {
     Sell,
     BuyAll,
     SellAll,
-    DraftAll,
     Store,
     Take,
     Save(usize),
@@ -708,7 +704,6 @@ pub fn on_click(
         }
         Click::Trade(side, i) => {
             market.selected = Some((side, i));
-            market.note = None;
             draft.qty = 1;
         }
         Click::Filter(category) => {
@@ -729,9 +724,6 @@ pub fn on_click(
         Click::SellAll => {
             let note = market::sell(&mut market, u32::MAX);
             trade_note(&mut commands, &mut market, note);
-        }
-        Click::DraftAll => {
-            draft.qty = market.draft_max();
         }
         Click::Store => {
             let note = market::store(&mut market, draft.qty);
@@ -791,13 +783,16 @@ pub fn on_click(
     }
 }
 
+/// Toast a trade that moved something: the stack and the new balance.
 fn trade_note(commands: &mut Commands, market: &mut MarketState, note: String) {
+    if note.is_empty() {
+        return;
+    }
     spawn_toast(
         commands,
         &note,
-        &format!("credits {} cr", data::thousands(market.credits)),
+        &format!("{} cr", data::thousands(market.credits)),
     );
-    market.note = Some(note);
 }
 
 // ---------------------------------------------------------------------------
@@ -819,7 +814,7 @@ struct Capture {
 /// The shots: a page, the New Game step to show on it, the theme to take it
 /// in, and the file.
 #[cfg(feature = "debug")]
-const SHOTS: [(GalleryPage, NewGameStep, &str, &str); 8] = [
+const SHOTS: [(GalleryPage, NewGameStep, &str, &str); 9] = [
     (
         GalleryPage::Jobs,
         NewGameStep::World,
@@ -867,6 +862,12 @@ const SHOTS: [(GalleryPage, NewGameStep, &str, &str); 8] = [
         NewGameStep::World,
         HARDWARE_THEME_ID,
         "ui_gallery-jobs-hardware.png",
+    ),
+    (
+        GalleryPage::Market,
+        NewGameStep::World,
+        HARDWARE_THEME_ID,
+        "ui_gallery-market-hardware.png",
     ),
 ];
 
@@ -942,6 +943,11 @@ fn drive_capture(
             // stocked storage with its row inspected.
             *market = MarketState::default();
             market.selected = Some((TradeSide::Storage, 0));
+            if theme == HARDWARE_THEME_ID {
+                // An empty hold disables Store beside the live ghost Max, so
+                // the shot shows a ghost verb against a dead one.
+                market.ship[0] = 0;
+            }
         }
         cap.wait = SHOT_SETTLE_FRAMES;
     } else {
@@ -1189,10 +1195,7 @@ fn gallery_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
                 WARES[1].station_qty - 1,
                 "the station's copper went down"
             );
-            info!(
-                "gallery: bought one copper, credits {} cr, note {:?}",
-                market.credits, market.note
-            );
+            info!("gallery: bought one copper, credits {} cr", market.credits);
         })
         .add()
         // Storage: a storage row selects and the inspector offers Store and
