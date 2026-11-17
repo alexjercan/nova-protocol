@@ -301,8 +301,9 @@ fn spawn_comms_panel(mut commands: Commands) {
 
 /// Ride above the keybind dock rather than through it.
 ///
-/// The panel spans the bottom-left to 48 % of the width and the dock's core
-/// chips end on the screen's centre line, so the two share a strip of screen.
+/// The panel spans the bottom-left to 48 % of the width and the dock's
+/// centred row reaches left of the screen's centre line, so the two share a
+/// strip of screen.
 /// The stack grows upward from its bottom edge, so that edge is the one thing
 /// to place: a clearance above the dock's measured top, and never under the
 /// panel's own floor. A card of any length then clears a row of any height.
@@ -1558,8 +1559,8 @@ mod tests {
     }
 
     /// The card and the key row share the bottom-left strip of the screen:
-    /// the panel spans to 48 % of the width and the row's core chips end on
-    /// the centre line. The card gives way upward. Its bottom edge stays
+    /// the panel spans to 48 % of the width and the centred row reaches left
+    /// of the centre line. The card gives way upward. Its bottom edge stays
     /// above the row's measured top for a line that wraps to any length, at
     /// 100 % and at 150 % UI scale, and it stays left of the pickup tick.
     #[test]

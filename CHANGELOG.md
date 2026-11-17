@@ -52,6 +52,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Inventory pane's Craft button opens a Craft view: recipe tiles, a card with have / need for the chosen batches, a batch slider, the job with Cancel. A HUD chip and notice follow it.
 - The status chip shows `KIT 6 S` while a repair kit runs. The Inventory inspector gains Use; it is greyed while a use would be refused.
 - The Map, Ship, Jobs and Inventory panes drop lines that repeat what a row, count, badge or bar shows, such as a job's hold count and the Inventory result line.
+- The keybind dock along the bottom of the flight HUD is centred on the screen, one gap between chips. On a narrow screen each wrapped line is centred too.
 
 ### Fixes
 

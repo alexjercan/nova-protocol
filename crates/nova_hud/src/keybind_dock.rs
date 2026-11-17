@@ -14,14 +14,10 @@
 //!   exists; the situational group (GOTO, ORBIT, CANCEL, DOCK, HELM, MINE)
 //!   while there is a lock, a well, a maneuver, a port, a docked pair or a
 //!   bound mining section to act on; the weapon group (AIM, FIRE, TORPEDO,
-//!   RAILGUN) while the hull is armed and the weapons are hot. The core group
-//!   is right-aligned to the screen's centre line and the other groups grow
-//!   rightward from it, so a core chip never moves and a chip entering pushes
-//!   only the chips right of it. That holds while the right groups fit their
-//!   half of the screen; past that the whole row moves left by the overflow,
-//!   so the last chip ends [`DOCK_SIDE_PX`] short of the screen edge and no
-//!   chip is cut. A row too wide for the screen at all keeps the core group
-//!   at the left margin and wraps the right groups onto lines above the row.
+//!   RAILGUN) while the hull is armed and the weapons are hot. The shown
+//!   chips stand centred on the screen with one gap between each pair. A row
+//!   too wide for the screen less [`DOCK_SIDE_PX`] at each side wraps its last
+//!   chips onto lines above it, and every line is centred.
 //!   A shown chip reads in three states - dim
 //!   (pressing it now does nothing), available (full phosphor) and hot
 //!   (inverted, the verb is what the ship is doing).
@@ -50,11 +46,11 @@ use super::{
 };
 
 /// The keybind-dock and verb-cue spawners, `DockChip` with its state and emphasis, `DOCK_VERBS`
-/// with `DOCK_CORE_LEN`, `DOCK_BOTTOM_PX` and `KeybindDockPlugin`.
+/// with `DOCK_BOTTOM_PX` and `KeybindDockPlugin`.
 pub mod prelude {
     pub use super::{
         keybind_dock_hud, verb_cues_hud, DockChip, DockChipState, HintEmphasis, KeybindDockMarker,
-        KeybindDockPlugin, VerbCuesHudMarker, DOCK_BOTTOM_PX, DOCK_CORE_LEN, DOCK_VERBS,
+        KeybindDockPlugin, VerbCuesHudMarker, DOCK_BOTTOM_PX, DOCK_VERBS,
     };
 }
 
@@ -133,13 +129,11 @@ pub(crate) fn column_floor_px(q_dock: &LaidOutDock) -> Option<f32> {
 /// The margin the dock row keeps from the left and right screen edges.
 const DOCK_SIDE_PX: f32 = 12.0;
 
-/// Space between dock chips. Split across the two halves' inner padding, so
-/// the gap at the centre line is the same gap.
+/// Space between dock chips, across a line and between wrapped lines.
 const DOCK_CHIP_GAP_PX: f32 = 7.0;
 
 /// The verb names, in dock display order (left to right): the core group,
-/// then the situational group, then the weapon group. The first
-/// [`DOCK_CORE_LEN`] sit left of the centre line; the rest grow right of it.
+/// then the situational group, then the weapon group.
 pub const DOCK_VERBS: [&str; 15] = [
     "INTERFACE",
     "DRIVE",
@@ -157,10 +151,6 @@ pub const DOCK_VERBS: [&str; 15] = [
     "TORPEDO",
     "RAILGUN",
 ];
-
-/// How many of [`DOCK_VERBS`], from the front, are the core group: shown
-/// while the flight rig exists, right-aligned to the centre line.
-pub const DOCK_CORE_LEN: usize = 5;
 
 /// Emphasis pulse rate and the alpha bands it sweeps. The emphasized chip
 /// renders PURE OBJECTIVE_GOLD hue at all times and only its alpha pulses: the
@@ -204,14 +194,6 @@ pub enum DockChipState {
     /// The verb is what the ship is doing right now (inverted chip).
     Hot,
 }
-
-/// The dock half that right-aligns the core chips to the centre line.
-#[derive(Component, Debug, Clone, Copy)]
-struct DockCoreHalf;
-
-/// The dock half that grows the situational and weapon chips rightward.
-#[derive(Component, Debug, Clone, Copy)]
-struct DockRightHalf;
 
 /// The keycap picture inside a dock chip or cue.
 #[derive(Component, Debug, Clone, Reflect)]
@@ -331,20 +313,12 @@ fn glyph_tint(state: DockChipState) -> Color {
     }
 }
 
-/// UI bundle for the keybind dock: two halves on the bottom edge. The left
-/// half right-aligns the core chips to the centre line, the right half grows
-/// the situational and weapon chips rightward from it, so a core chip never
-/// moves and a chip entering pushes only the chips right of it.
-///
-/// The halves share the row by equal growth from a zero basis, and
-/// [`wrap_dock_row`] holds the right half at least as wide as its chips. So
-/// each half is half the row while the right chips fit, and once they do not
-/// the right half takes its chips' width and the left half the rest: the
-/// whole row moves left by the overflow and the last chip ends
-/// [`DOCK_SIDE_PX`] short of the screen edge. A row wider than the screen
-/// less both margins fits on no one line: [`wrap_dock_row`] then pins the
-/// core half to its content width and wraps the right half's chips onto
-/// lines above the row.
+/// UI bundle for the keybind dock: one row of chips on the bottom edge,
+/// centred, [`DOCK_CHIP_GAP_PX`] between chips. A row wider than the screen
+/// less [`DOCK_SIDE_PX`] at each side wraps: [`FlexWrap::WrapReverse`] keeps
+/// the first line on the bottom edge and puts the overflow on lines above
+/// it, and each line is centred on its own. A line's chips stretch to its
+/// tallest chip, so a mouse cap does not leave its neighbours short.
 ///
 /// The chips spawn EMPTY - no keycap, no key text, collapsed. `update_dock`
 /// fills them, and its `Added<DockChip>` gate makes that happen on the same
@@ -362,8 +336,7 @@ pub fn keybind_dock_hud() -> impl Bundle {
             Node {
                 display: Display::None,
                 // A chip keeps its content width: a squeezed chip breaks its
-                // word onto two lines, and `wrap_dock_row` measures
-                // these widths to decide the wrap.
+                // word onto two lines. A row that does not fit wraps instead.
                 flex_shrink: 0.0,
                 align_items: AlignItems::Center,
                 column_gap: Val::Px(6.0),
@@ -430,29 +403,6 @@ pub fn keybind_dock_hud() -> impl Bundle {
         )
     };
 
-    let half = |name: &'static str, justify: JustifyContent, padding: UiRect| {
-        (
-            Name::new(name),
-            Node {
-                flex_grow: 1.0,
-                flex_basis: Val::Px(0.0),
-                justify_content: justify,
-                column_gap: Val::Px(DOCK_CHIP_GAP_PX),
-                padding,
-                ..default()
-            },
-            Pickable::IGNORE,
-        )
-    };
-    let half_gap = Val::Px(DOCK_CHIP_GAP_PX / 2.0);
-    let mut right = half(
-        "KeybindDockSituational",
-        JustifyContent::Start,
-        UiRect::left(half_gap),
-    );
-    // Only lines a wrap adds use it; one line has no row gap to show.
-    right.1.row_gap = Val::Px(DOCK_CHIP_GAP_PX);
-
     (
         Name::new("KeybindDockHUD"),
         KeybindDockMarker,
@@ -462,25 +412,14 @@ pub fn keybind_dock_hud() -> impl Bundle {
             left: Val::Px(0.0),
             width: Val::Percent(100.0),
             padding: UiRect::horizontal(Val::Px(DOCK_SIDE_PX)),
+            flex_wrap: FlexWrap::WrapReverse,
+            justify_content: JustifyContent::Center,
+            column_gap: Val::Px(DOCK_CHIP_GAP_PX),
+            row_gap: Val::Px(DOCK_CHIP_GAP_PX),
             ..default()
         },
         Pickable::IGNORE,
-        children![
-            (
-                half(
-                    "KeybindDockCore",
-                    JustifyContent::End,
-                    UiRect::right(half_gap)
-                ),
-                DockCoreHalf,
-                Children::spawn(SpawnIter((0..DOCK_CORE_LEN).map(chip_of))),
-            ),
-            (
-                right,
-                DockRightHalf,
-                Children::spawn(SpawnIter((DOCK_CORE_LEN..DOCK_VERBS.len()).map(chip_of))),
-            ),
-        ],
+        Children::spawn(SpawnIter((0..DOCK_VERBS.len()).map(chip_of))),
     )
 }
 
@@ -592,14 +531,11 @@ impl Plugin for KeybindDockPlugin {
                 .in_set(super::NovaHudSystems),
         );
         // The fit needs the cue box the indicator pass just wrote, and must
-        // land before layout reads the cue's `left`/`top`. The wrap reads the
-        // chip widths the last layout measured and must land before this one.
+        // land before layout reads the cue's `left`/`top`.
         app.add_systems(
             PostUpdate,
-            (
-                clear_cues_of_notice.after(ScreenIndicatorSystems),
-                wrap_dock_row,
-            )
+            clear_cues_of_notice
+                .after(ScreenIndicatorSystems)
                 .before(UiSystems::Layout),
         );
     }
@@ -756,78 +692,6 @@ fn chip_state(hints: &FlightVerbHints, situations: &HudSituations, index: usize)
         return DockChipState::Dim;
     }
     DockChipState::Available
-}
-
-/// Size the right half of the dock from its shown chips, and wrap it when
-/// one line cannot hold the row.
-///
-/// Flex alone cannot: a wrapping half's minimum is its widest chip, so it
-/// would wrap at the centre line even when moving the row left fits it; and
-/// a half's automatic minimum reads its chips' narrowest text layout, not
-/// the width a chip that never shrinks takes. So this measures the shown
-/// chips the last layout laid out. On one line the right half's minimum is
-/// its chips' width: past its half of the screen it takes that, and the row
-/// moves left. A row no one line holds wraps: the core half takes its
-/// content width at the left margin, and the right half takes the rest and
-/// wraps its chips onto lines above the row ([`FlexWrap::WrapReverse`] keeps
-/// the first line on the bottom edge). The core chips then stand at their
-/// own height on that line. A chip that just appeared measures zero, so the
-/// answer is one frame late and stable from the next.
-#[expect(clippy::type_complexity, reason = "one query per dock part")]
-fn wrap_dock_row(
-    q_dock: Query<&ComputedNode, With<KeybindDockMarker>>,
-    mut q_core: Query<(&mut Node, &Children), (With<DockCoreHalf>, Without<DockRightHalf>)>,
-    mut q_right: Query<(&mut Node, &Children), (With<DockRightHalf>, Without<DockCoreHalf>)>,
-    q_chip: Query<
-        (&ComputedNode, &Node),
-        (
-            With<DockChip>,
-            Without<DockCoreHalf>,
-            Without<DockRightHalf>,
-        ),
-    >,
-) {
-    let (Ok(dock), Ok((mut core, core_chips)), Ok((mut right, right_chips))) =
-        (q_dock.single(), q_core.single_mut(), q_right.single_mut())
-    else {
-        return;
-    };
-    // One shown line of chips, in logical px, with the half gap at the centre.
-    let line = |chips: &Children| {
-        let widths: Vec<f32> = chips
-            .iter()
-            .filter_map(|chip| q_chip.get(chip).ok())
-            .filter(|(_, node)| node.display != Display::None)
-            .map(|(computed, _)| computed.size().x * computed.inverse_scale_factor())
-            .collect();
-        let gaps = widths.len().saturating_sub(1) as f32 * DOCK_CHIP_GAP_PX;
-        widths.iter().sum::<f32>() + gaps + DOCK_CHIP_GAP_PX / 2.0
-    };
-    let inner = dock.size().x * dock.inverse_scale_factor() - 2.0 * DOCK_SIDE_PX;
-    if inner <= 0.0 {
-        return;
-    }
-    let core_width = line(core_chips);
-    let right_width = line(right_chips);
-    let wrap = core_width + right_width > inner + 0.5;
-    let (flex_wrap, min_width, align_items) = if wrap {
-        (
-            FlexWrap::WrapReverse,
-            Val::Px((inner - core_width).max(0.0)),
-            AlignItems::FlexEnd,
-        )
-    } else {
-        (FlexWrap::NoWrap, Val::Px(right_width), AlignItems::Default)
-    };
-    if right.flex_wrap != flex_wrap {
-        right.flex_wrap = flex_wrap;
-    }
-    if right.min_width != min_width {
-        right.min_width = min_width;
-    }
-    if core.align_items != align_items {
-        core.align_items = align_items;
-    }
 }
 
 /// The verb name behind chip `index`, clamped rather than panicking - the dock
@@ -1372,25 +1236,20 @@ mod tests {
         })
     }
 
-    /// Every dock chip, in [`DOCK_VERBS`] order, across both halves.
+    /// Every dock chip, in [`DOCK_VERBS`] order.
     pub(super) fn chips(app: &App) -> Vec<Entity> {
         let dock = app
             .world()
             .iter_entities()
             .find(|e| e.contains::<KeybindDockMarker>())
             .expect("a dock");
-        let mut chips: Vec<Entity> = dock
-            .get::<Children>()
-            .unwrap()
-            .iter()
-            .flat_map(|half| app.world().entity(half).get::<Children>().unwrap().to_vec())
-            .collect();
+        let mut chips: Vec<Entity> = dock.get::<Children>().unwrap().to_vec();
         chips.sort_by_key(|&chip| app.world().entity(chip).get::<DockChip>().unwrap().0);
         chips
     }
 
     /// Whether `chip` draws: in the layout.
-    fn seen(app: &App, chip: Entity) -> bool {
+    pub(super) fn seen(app: &App, chip: Entity) -> bool {
         app.world().entity(chip).get::<Node>().unwrap().display == Display::Flex
     }
 
@@ -1571,8 +1430,11 @@ mod tests {
         app.update();
         assert!(!seen(&app, helm), "HELM leaves the dock without a pair");
         assert_eq!(state(&app, helm), DockChipState::Dim);
-        for chip in &chips[..DOCK_CORE_LEN] {
-            assert!(seen(&app, *chip), "the core verbs keep their slots");
+        for verb in ["INTERFACE", "DRIVE", "STOP", "RCS", "RADAR"] {
+            assert!(
+                seen(&app, chip_of(&chips, verb)),
+                "the core verbs keep their slots"
+            );
         }
     }
 
@@ -2464,7 +2326,7 @@ pub(crate) mod keycap_sizing_tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::{
-        tests::{all_available_hints, chip_of, chips, hints, verb_hint_mut},
+        tests::{all_available_hints, chip_of, chips, hints, seen, verb_hint_mut},
         *,
     };
     use crate::{
@@ -2549,7 +2411,6 @@ pub(crate) mod keycap_sizing_tests {
         });
         app.world_mut().spawn(keybind_dock_hud());
         app.add_systems(Update, update_dock);
-        app.add_systems(PostUpdate, wrap_dock_row.before(UiSystems::Layout));
         settle(&mut app);
         let chips = chips(&app);
         (app, chips)
@@ -2560,141 +2421,135 @@ pub(crate) mod keycap_sizing_tests {
         only_descendant_with::<ChipGlyph>(app, chip_of(chips, verb))
     }
 
-    /// The core group is right-aligned to the centre line and the other
-    /// groups grow rightward from it: a situational chip entering moves no
-    /// core chip, sits right of the centre line in [`DOCK_VERBS`] order, and
-    /// keeps the chip gap across the centre line.
+    /// The shown chips grouped into laid-out lines, bottom line first, each
+    /// line left to right.
+    fn dock_lines<'a>(rects: &[(&'a str, Rect)]) -> Vec<Vec<(&'a str, Rect)>> {
+        let mut lines: Vec<Vec<(&str, Rect)>> = Vec::new();
+        for &(verb, chip) in rects {
+            match lines
+                .iter_mut()
+                .find(|line| (line[0].1.max.y - chip.max.y).abs() <= 1.0)
+            {
+                Some(line) => line.push((verb, chip)),
+                None => lines.push(vec![(verb, chip)]),
+            }
+        }
+        lines.sort_by(|a, b| b[0].1.max.y.total_cmp(&a[0].1.max.y));
+        for line in &mut lines {
+            line.sort_by(|a, b| a.1.min.x.total_cmp(&b.1.min.x));
+        }
+        lines
+    }
+
+    /// `line` stands centred on a `view` px wide screen: its left margin is
+    /// its right margin within a pixel, and one chip gap separates each pair.
+    fn assert_centred(line: &[(&str, Rect)], view: f32, beat: &str) {
+        let left = line[0].1.min.x;
+        let right = view - line[line.len() - 1].1.max.x;
+        assert!(
+            (left - right).abs() <= 1.0,
+            "{beat}: the line is centred, left margin {left} vs right margin {right}: {line:?}"
+        );
+        for pair in line.windows(2) {
+            let gap = pair[1].1.min.x - pair[0].1.max.x;
+            assert!(
+                (gap - DOCK_CHIP_GAP_PX).abs() <= 1.0,
+                "{beat}: {} and {} keep the chip gap, got {gap}",
+                pair[0].0,
+                pair[1].0
+            );
+        }
+    }
+
+    /// The shown chips of the dock, by verb, as the last layout laid them out.
+    fn shown_rects(app: &App, chips: &[Entity]) -> Vec<(&'static str, Rect)> {
+        DOCK_VERBS
+            .iter()
+            .zip(chips)
+            .filter(|(_, &chip)| seen(app, chip))
+            .map(|(verb, &chip)| (*verb, measure(app, chip).rect))
+            .collect()
+    }
+
+    /// The row is centred whatever is on it: the core group alone, and with
+    /// situational chips joined in [`DOCK_VERBS`] order, keeps equal side
+    /// margins and one chip gap between each pair.
     #[test]
-    fn the_core_verbs_hold_still_when_situational_chips_come_and_go() {
+    fn the_dock_row_stays_centred_when_situational_chips_come_and_go() {
         let (mut app, chips) = dock_app();
-        // The core group alone on the row.
+        // The rig lays out a 1280 px wide target.
+        let view = 1280.0;
         let mut quiet = hints(true, false, None);
-        for verb in &DOCK_VERBS[DOCK_CORE_LEN..] {
+        for verb in &DOCK_VERBS[5..] {
             verb_hint_mut(&mut quiet, verb).shown = false;
         }
         app.insert_resource(quiet.clone());
         settle(&mut app);
-        let core_rects = |app: &App| -> Vec<Rect> {
-            chips[..DOCK_CORE_LEN]
-                .iter()
-                .map(|&chip| measure(app, chip).rect)
-                .collect()
-        };
-        let alone = core_rects(&app);
-        // The rig lays out a 1280 px wide target.
-        let centre = 1280.0 / 2.0;
-        let radar = measure(&app, chip_of(&chips, "RADAR")).rect;
-        assert!(
-            (radar.max.x + DOCK_CHIP_GAP_PX / 2.0 - centre).abs() <= 1.0,
-            "the core group ends half a gap short of the centre line: {radar:?}"
+        let alone = shown_rects(&app, &chips);
+        let verbs: Vec<&str> = alone.iter().map(|(verb, _)| *verb).collect();
+        assert_eq!(
+            verbs,
+            ["INTERFACE", "DRIVE", "STOP", "RCS", "RADAR"],
+            "delivery guard: the core group alone is on the row"
         );
-        for verb in &DOCK_VERBS[DOCK_CORE_LEN..] {
-            assert_eq!(
-                app.world()
-                    .entity(chip_of(&chips, verb))
-                    .get::<Node>()
-                    .unwrap()
-                    .display,
-                Display::None,
-                "delivery guard: {verb} is off the row"
-            );
-        }
+        let lines = dock_lines(&alone);
+        assert_eq!(lines.len(), 1, "one line holds the core group: {lines:?}");
+        assert_centred(&lines[0], view, "the core group alone");
 
-        // GOTO, DOCK and HELM join the row.
         let mut busy = quiet;
         for verb in ["GOTO", "DOCK", "HELM"] {
             verb_hint_mut(&mut busy, verb).shown = true;
         }
         app.insert_resource(busy);
         settle(&mut app);
+        let joined = shown_rects(&app, &chips);
+        let lines = dock_lines(&joined);
+        assert_eq!(lines.len(), 1, "one line holds the row: {lines:?}");
+        let order: Vec<&str> = lines[0].iter().map(|(verb, _)| *verb).collect();
         assert_eq!(
-            core_rects(&app),
-            alone,
-            "no core chip moves when situational chips show"
+            order,
+            [
+                "INTERFACE",
+                "DRIVE",
+                "STOP",
+                "RCS",
+                "RADAR",
+                "GOTO",
+                "DOCK",
+                "HELM"
+            ],
+            "the chips sit in dock order"
         );
-        let goto = measure(&app, chip_of(&chips, "GOTO")).rect;
-        let dock = measure(&app, chip_of(&chips, "DOCK")).rect;
+        assert_centred(&lines[0], view, "GOTO, DOCK and HELM joined");
+        let radar = measure(&app, chip_of(&chips, "RADAR")).rect;
         let helm = measure(&app, chip_of(&chips, "HELM")).rect;
-        assert!(
-            (goto.min.x - DOCK_CHIP_GAP_PX / 2.0 - centre).abs() <= 1.0,
-            "the first situational chip starts half a gap past the centre line: {goto:?}"
-        );
-        assert!(
-            (goto.min.x - radar.max.x - DOCK_CHIP_GAP_PX).abs() <= 1.0,
-            "the gap across the centre line is the chip gap: {radar:?} vs {goto:?}"
-        );
-        assert!(
-            dock.min.x >= goto.max.x && helm.min.x >= dock.max.x,
-            "the chips sit in dock order: {goto:?}, {dock:?}, {helm:?}"
-        );
-        assert!(helm.max.x <= 1280.0, "HELM stays on screen: {helm:?}");
         assert!(
             (helm.height() - radar.height()).abs() <= 0.5,
             "HELM matches the row height: {helm:?} vs {radar:?}"
         );
     }
 
-    /// The centre-line rule gives way only when the right groups need more
-    /// than their half of the screen: the whole row then moves left by the
-    /// overflow, so the last chip ends at the side margin and no chip is cut.
-    /// With the row short again the core group is back on the centre line.
+    /// Every verb shown is the widest row: at 1280 and 1920 px it still fits
+    /// one line, centred, every chip inside both side margins.
     #[test]
-    fn a_right_half_wider_than_half_the_screen_moves_the_row_left_uncut() {
-        // Every verb shown: ten chips right of the core group.
+    fn every_chip_shown_stands_centred_at_1280_and_1920() {
         let (mut app, chips) = dock_app();
-        // The rig lays out a 1280 px wide target.
-        let view = 1280.0;
-        let centre = view / 2.0;
-        let rect = |app: &App, verb: &str| measure(app, chip_of(&chips, verb)).rect;
-
-        let every: Vec<(&str, Rect)> = DOCK_VERBS
-            .iter()
-            .map(|verb| (*verb, rect(&app, verb)))
-            .collect();
-        let radar = rect(&app, "RADAR");
-        let goto = rect(&app, "GOTO");
-        let railgun = rect(&app, "RAILGUN");
-        assert!(
-            railgun.max.x - goto.min.x + DOCK_CHIP_GAP_PX / 2.0 > centre - DOCK_SIDE_PX,
-            "delivery guard: the right chips need more than their half: {goto:?} to {railgun:?}"
-        );
-        assert_uncut(&every, view, "every chip shown");
-        assert!(
-            every
-                .iter()
-                .all(|(_, chip)| (chip.max.y - radar.max.y).abs() <= 1.0),
-            "one line holds the row: {every:?}"
-        );
-        assert!(
-            (railgun.max.x - (view - DOCK_SIDE_PX)).abs() <= 1.0,
-            "the last chip ends at the side margin, whole: {railgun:?}"
-        );
-        assert!(
-            radar.max.x < centre - DOCK_CHIP_GAP_PX,
-            "the core group gave way, left of the centre line: {radar:?}"
-        );
-        assert!(
-            (goto.min.x - radar.max.x - DOCK_CHIP_GAP_PX).abs() <= 1.0,
-            "the gap between the halves is still the chip gap: {radar:?} vs {goto:?}"
-        );
-
-        // The weapon group leaves: the right chips fit their half again.
-        let mut short = all_available_hints();
-        for verb in ["AIM", "FIRE", "TORPEDO", "RAILGUN"] {
-            verb_hint_mut(&mut short, verb).shown = false;
+        for width in [1280_u32, 1920] {
+            set_rig_width(&mut app, width);
+            settle(&mut app);
+            let view = width as f32;
+            let every = shown_rects(&app, &chips);
+            assert_eq!(
+                every.len(),
+                DOCK_VERBS.len(),
+                "delivery guard: every chip shown"
+            );
+            let beat = format!("every chip at {width} px");
+            assert_uncut(&every, view, &beat);
+            let lines = dock_lines(&every);
+            assert_eq!(lines.len(), 1, "{beat}: one line holds the row: {lines:?}");
+            assert_centred(&lines[0], view, &beat);
         }
-        app.insert_resource(short);
-        settle(&mut app);
-        let radar = rect(&app, "RADAR");
-        let mine = rect(&app, "MINE");
-        assert!(
-            mine.max.x < view - DOCK_SIDE_PX - 1.0,
-            "delivery guard: the short row has room on the right: {mine:?}"
-        );
-        assert!(
-            (radar.max.x + DOCK_CHIP_GAP_PX / 2.0 - centre).abs() <= 1.0,
-            "the core group is back on the centre line: {radar:?}"
-        );
     }
 
     /// Every shown chip in `rects` stands inside both side margins of a
@@ -2717,47 +2572,41 @@ pub(crate) mod keycap_sizing_tests {
         }
     }
 
-    /// A screen too narrow for the row on one line keeps the core group at
-    /// the left margin and wraps the last right chips onto a line above the
-    /// row, every chip inside both margins.
+    /// A screen too narrow for the row on one line wraps the last chips onto
+    /// a line above the row. Every line is centred, a chip gap separates the
+    /// lines, and every chip stands inside both margins.
     #[test]
-    fn a_row_no_line_holds_wraps_the_right_chips_above_it() {
+    fn a_row_no_line_holds_wraps_the_last_chips_above_it_each_line_centred() {
         let (mut app, chips) = dock_app();
         let view = 960.0;
         set_rig_width(&mut app, 960);
         settle(&mut app);
-        let rect = |app: &App, verb: &str| measure(app, chip_of(&chips, verb)).rect;
 
-        let every: Vec<(&str, Rect)> = DOCK_VERBS
-            .iter()
-            .map(|verb| (*verb, rect(&app, verb)))
-            .collect();
+        let every = shown_rects(&app, &chips);
         let widths: f32 = every.iter().map(|(_, chip)| chip.width()).sum();
         assert!(
             widths > view - 2.0 * DOCK_SIDE_PX,
             "delivery guard: every chip is wider than one line: {widths}"
         );
         assert_uncut(&every, view, "every chip shown");
-        let interface = rect(&app, "INTERFACE");
-        let radar = rect(&app, "RADAR");
-        let goto = rect(&app, "GOTO");
-        assert!(
-            (interface.min.x - DOCK_SIDE_PX).abs() <= 1.0,
-            "the core group stands at the left margin: {interface:?}"
+        let lines = dock_lines(&every);
+        assert!(lines.len() >= 2, "the row wraps: {lines:?}");
+        for (index, line) in lines.iter().enumerate() {
+            assert_centred(line, view, &format!("line {index}"));
+        }
+        assert_eq!(
+            lines[0][0].0, "INTERFACE",
+            "the first chips stay on the bottom line: {lines:?}"
         );
-        assert!(
-            (goto.min.x - radar.max.x - DOCK_CHIP_GAP_PX).abs() <= 1.0
-                && (goto.max.y - radar.max.y).abs() <= 1.0,
-            "the first right chip sits on the core line, a chip gap on: {radar:?} vs {goto:?}"
+        assert_eq!(
+            lines[lines.len() - 1].last().unwrap().0,
+            "RAILGUN",
+            "the last chips wrap onto the top line: {lines:?}"
         );
-        let above: Vec<&str> = every
-            .iter()
-            .filter(|(_, chip)| chip.max.y <= radar.min.y)
-            .map(|(verb, _)| *verb)
-            .collect();
+        let gap = lines[0][0].1.min.y - lines[1][0].1.max.y;
         assert!(
-            above.contains(&"RAILGUN") && !above.contains(&"GOTO"),
-            "the last right chips wrap onto a line above the row: {above:?}"
+            (gap - DOCK_CHIP_GAP_PX).abs() <= 1.0,
+            "one chip gap separates the lines, got {gap}"
         );
     }
 

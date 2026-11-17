@@ -80,7 +80,7 @@ pub(super) fn chip_layout_app() -> App {
 }
 
 /// Lay the rig out on a `width` px wide target from the next frame, for a
-/// screen narrower than [`RIG_TARGET`].
+/// screen narrower or wider than [`RIG_TARGET`].
 pub(super) fn set_rig_width(app: &mut App, width: u32) {
     let mut cameras = app.world_mut().query::<&mut Camera>();
     for mut camera in cameras.iter_mut(app.world_mut()) {
