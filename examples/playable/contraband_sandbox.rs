@@ -16,9 +16,9 @@
 //!
 //! 1. press Tab and open the Inventory tab;
 //! 2. click Unmarked cores in your column: the row opens Sell;
-//! 3. at WAYSTATION the form reads `Refused: WAYSTATION does not deal in
-//!    contraband` and Confirm is disabled. The station still docks you, and
-//!    its column lists no contraband;
+//! 3. at WAYSTATION the form shows no price (`--`, red) and Confirm is
+//!    disabled. The station still docks you, and its column lists no
+//!    contraband;
 //! 4. press Tab, then D to undock. Fly to FREEPORT, hold Ctrl on it to lock
 //!    it, press D to dock;
 //! 5. at FREEPORT the same form reads the 240 cr price. Confirm sells.
@@ -361,30 +361,25 @@ mod smoke {
         }
     }
 
-    /// The Sell form reads what the start station promises: the refusal
-    /// with Confirm disabled, or the price with Confirm enabled.
+    /// The Sell form reads what the start station promises: no price with
+    /// Confirm disabled, or the price with Confirm enabled.
     fn assert_the_form(at: StartStationType) -> impl Fn(&mut World) + Send + Sync + 'static {
         move |world: &mut World| {
-            let summary = station_void::node_text(world, station_void::DRAFT_SUMMARY)
-                .expect("contraband_sandbox: the form has a summary");
+            let price = station_void::node_text(world, station_void::DRAFT_PRICE)
+                .expect("contraband_sandbox: the form has a price");
             let disabled = station_void::node_disabled(world, station_void::DRAFT_CONFIRM)
                 .expect("contraband_sandbox: the form has a Confirm");
             let wanted = match at {
-                StartStationType::Lawful => {
-                    format!("Refused: {LAWFUL_NAME} does not deal in contraband")
-                }
-                StartStationType::Freeport => format!(
-                    "Price {CORES_BID} cr  Balance {} cr",
-                    PLAYER_CREDITS + CORES_BID
-                ),
+                StartStationType::Lawful => "--".to_string(),
+                StartStationType::Freeport => format!("{CORES_BID} cr"),
             };
-            assert_eq!(summary, wanted, "contraband_sandbox: the Sell form");
+            assert_eq!(price, wanted, "contraband_sandbox: the Sell form");
             assert_eq!(
                 disabled,
                 at == StartStationType::Lawful,
                 "contraband_sandbox: Confirm is disabled only at the lawful station"
             );
-            info!("contraband_sandbox: PASS the Sell form reads {summary:?}");
+            info!("contraband_sandbox: PASS the Sell form reads {price:?}");
         }
     }
 

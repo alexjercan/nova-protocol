@@ -32,7 +32,7 @@ use nova_ui::{
     widget::{
         badge, slider_track, text_field, BadgeKind, ButtonCueType, ButtonSpec, TextFieldError,
         TextFieldFocused, TextFieldSpec, TextFieldValue, ThemedBorder, ThemedFill, ThemedImageTint,
-        ThemedRadius, ThemedText, Tooltip,
+        ThemedRadius, ThemedText,
     },
 };
 
@@ -46,7 +46,7 @@ use crate::{
     icons::{icon_node, InterfaceIcons},
     pane::{
         compact_button, control_row, divider, fixed_cell, side_panel, spawn_credit_figure,
-        themed_label, ui_width, InterfacePaneType, SUMMARY_LINES,
+        themed_label, ui_width, InterfacePaneType,
     },
     terminal::NovaOsAppInput,
     viewer::cycle_index,
@@ -74,8 +74,6 @@ const INVENTORY_STACK_SPLIT_PX: f32 = 1200.0;
 /// stacked under it: a 7-item board stays whole at 1024x768, and Storage
 /// keeps its heading and a row, the rest by the wheel.
 const PARTNER_STACK_GROW: f32 = 2.0;
-/// Seconds a transfer result stays on the note line, as on the Ship pane.
-pub(crate) const NOTE_SECONDS: f32 = 2.5;
 /// Font size of the item description, in logical px.
 const ABOUT_FONT_PX: f32 = 12.0;
 /// Lines of description the inspector reserves. A longer text is clipped, so
@@ -148,6 +146,13 @@ pub const INVENTORY_BUY_ALL: &str = "InventoryBuyAll";
 /// The name of the form's Sell all button.
 pub const INVENTORY_SELL_ALL: &str = "InventorySellAll";
 
+/// The name of the form's price text, shown for a Buy or a Sell.
+pub const INVENTORY_DRAFT_PRICE: &str = "InventoryDraftPrice";
+
+/// The name of the form's total weight text, with the room left beside it
+/// in the danger tone when the move does not fit.
+pub const INVENTORY_TOTAL_WEIGHT: &str = "InventoryTotalWeight";
+
 /// The form's Buy all or Sell all button beside Confirm: one click confirms
 /// the open Buy or Sell draft at the whole source stack. Shown only while a
 /// draft of its trade is open, disabled while a trade of the whole stack
@@ -185,7 +190,7 @@ pub(crate) struct InventoryRow {
 /// A part of the inspector that shows with the selection or without it.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum InspectorPart {
-    /// The hint with nothing selected.
+    /// The selection key cue, with nothing selected.
     Hint,
     /// The selected item.
     Item,
@@ -196,6 +201,8 @@ pub(crate) enum InspectorPart {
     ActionChips,
     /// The draft quantity's total weight, while the quantity is a whole number.
     TotalWeight,
+    /// The draft's price, while the draft is a Buy or a Sell.
+    DraftPrice,
     /// The full description over the clipped one, while the pointer is on it
     /// and it is clipped, or while `inventory_details` holds it open.
     AboutFull,
@@ -225,16 +232,17 @@ pub(crate) enum InventoryInspectorField {
     Stock,
     /// The mass of one item.
     Weight,
-    /// The mass of the draft's quantity.
+    /// The mass of the draft's quantity, in the danger tone with the room
+    /// left while the target has too little.
     TotalWeight,
-    /// The last transfer result.
-    Note,
     /// Which way the open draft moves items, and with which ship.
     DraftTitle,
-    /// How many the draft's source ship carries.
+    /// How many the draft's source ship carries, in the danger tone while the
+    /// quantity is more.
     DraftStock,
-    /// What the target ship carries after the draft, or why it cannot move.
-    DraftSummary,
+    /// What the draft's trade pays or earns, in the danger tone while the
+    /// buyer cannot pay it or the partner does not deal in the item.
+    DraftPrice,
     /// The item's authored reference ask and bid.
     PriceReference,
     /// What the docked partner pays for the selected item: its bid, and how
@@ -277,7 +285,7 @@ pub(crate) struct InventoryDraftSlider;
 #[derive(Component)]
 pub(crate) struct InventoryDraftField;
 
-/// The draft's Confirm, disabled while the draft's summary is a refusal.
+/// The draft's Confirm, disabled while the draft would be refused.
 #[derive(Component)]
 pub(crate) struct InventoryDraftConfirm;
 
@@ -779,7 +787,7 @@ pub(crate) fn scroll_inventory_columns(
     drive_wheel_scroll(wheel, q_list);
 }
 
-/// The inspector: a hint with nothing selected, else the item's icon, name,
+/// The inspector: the selection key cue with nothing selected, else the item's icon, name,
 /// category, description and stock, beside the stores. Each part keeps its
 /// height as the selection changes: the name and the stock clip on one line,
 /// the description clips to [`ABOUT_LINES`], and rows that come and go with
@@ -801,11 +809,6 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                     },
                 ))
                 .with_children(|hint| {
-                    hint.spawn(themed_label(
-                        "Docked, double-click an item to move its stack, Shift for one.",
-                        12.0,
-                        UiColorType::TextSecondary,
-                    ));
                     hint.spawn((
                         InventoryInspectorField::SelectCue,
                         themed_label("", 12.0, UiColorType::TextSecondary),
@@ -884,6 +887,7 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                     .with_children(|fact| {
                         fact.spawn(themed_label("Total weight", 12.0, UiColorType::TextMuted));
                         fact.spawn((
+                            Name::new(INVENTORY_TOTAL_WEIGHT),
                             InventoryInspectorField::TotalWeight,
                             themed_label("", 13.0, UiColorType::Text),
                             TextLayout::new(Justify::Right, LineBreak::NoWrap),
@@ -922,11 +926,6 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                     ))
                     .with_children(draft_form);
                 });
-            panel.spawn((
-                Name::new("InventoryNote"),
-                InventoryInspectorField::Note,
-                themed_label("", 12.0, UiColorType::Accent),
-            ));
         });
 }
 
@@ -1101,8 +1100,9 @@ fn fact_row(item: &mut ChildSpawnerCommands, label: &str, field: InventoryInspec
 
 /// The action form: the draft's direction; the Give, Sell and Store switch; the
 /// typed quantity, the source stock and All on a row the wheel steps; the
-/// quantity slider; the result of the move or why it is refused; and Confirm,
-/// disabled while the form shows a refusal.
+/// quantity slider; the price of a trade; and Confirm, disabled while the
+/// move would be refused. The form names no refusal: the stock, the total
+/// weight or the price that blocks it turns to the danger tone.
 fn draft_form(form: &mut ChildSpawnerCommands) {
     form.spawn(divider());
     form.spawn((
@@ -1181,14 +1181,19 @@ fn draft_form(form: &mut ChildSpawnerCommands) {
     ))
     .observe(slide_inventory_draft);
     form.spawn((
-        Name::new("InventoryDraftSummary"),
-        InventoryInspectorField::DraftSummary,
-        themed_label("", 13.0, UiColorType::TextBody),
-        Node {
-            min_height: px(13.0 * 1.2 * SUMMARY_LINES),
-            ..default()
-        },
-    ));
+        InspectorPart::DraftPrice,
+        control_row(JustifyContent::SpaceBetween),
+        Visibility::Hidden,
+    ))
+    .with_children(|fact| {
+        fact.spawn(themed_label("Price", 12.0, UiColorType::TextMuted));
+        fact.spawn((
+            Name::new(INVENTORY_DRAFT_PRICE),
+            InventoryInspectorField::DraftPrice,
+            themed_label("", 13.0, UiColorType::Text),
+            TextLayout::new(Justify::Right, LineBreak::NoWrap),
+        ));
+    });
     form.spawn(Node {
         column_gap: px(8),
         flex_wrap: FlexWrap::Wrap,
@@ -2400,7 +2405,8 @@ pub(crate) fn sync_inventory_draft_controls(
 /// Buy or Sell with a trading partner by the [`plan_item_trade`] rule, a Store
 /// or Withdraw with a living station's storage by the [`plan_item_storage`]
 /// rule, a Jettison through the player's cargo intake by the [`plan_item_jettison`]
-/// rule. Flash the result on the note line.
+/// rule. The pane writes no result line: the rows, the balances and the
+/// closed form show a move, and the open form a refusal.
 ///
 /// A move removes from the source and adds to the target in this one run; a
 /// trade moves the price from the buyer's credits to the seller's in the same
@@ -2447,29 +2453,30 @@ pub(crate) fn apply_inventory_action_commands(
                 &mut commands,
             ),
         };
-        let (note, cue, category) = match result {
-            Ok(note) => {
+        let (cue, category) = match result {
+            Ok(()) => {
                 runtime.draft = None;
-                (note, UiSfx::MenuSelect, SoundCategoryType::UiClick)
+                (UiSfx::MenuSelect, SoundCategoryType::UiClick)
             }
-            Err(note) => (note, UiSfx::EditorDeny, SoundCategoryType::UiError),
+            Err(why) => {
+                debug!("inventory: {action:?} of {} refused: {why}", command.item);
+                (UiSfx::EditorDeny, SoundCategoryType::UiError)
+            }
         };
-        runtime.note = Some((note, NOTE_SECONDS));
         play_cue(&mut commands, bank.as_deref(), cue, category);
     }
 }
 
 /// Apply each confirmed [`CreditTakeCommand`]: move the docked partner's
 /// whole credit balance into the player ship's by the [`plan_credit_take`]
-/// rule, leaving the partner at zero, or refuse with no change. Flash the
-/// result on the note line, the same as every other Inventory action.
+/// rule, leaving the partner at zero, or refuse with no change. The two
+/// balances show the result.
 /// Each command reads the balance the previous one left, so a second command
 /// against an already-zeroed partner refuses as a repeat. With no docked
 /// partner the commands are dropped, as the panel offers no such button then.
 pub(crate) fn apply_credit_take_commands(
     mut actions: MessageReader<CreditTakeCommand>,
     mut ships: InventoryShips,
-    mut runtime: ResMut<InventoryRuntime>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
 ) {
@@ -2482,20 +2489,13 @@ pub(crate) fn apply_credit_take_commands(
         return;
     };
     for _ in actions.read() {
-        let partner_title = ships.title(partner, InventorySideType::Partner);
-        let (note, cue, category) = match take_credits(&mut ships, pair.own, partner) {
-            Ok(amount) => (
-                format!("TOOK +{}", cr_text(amount)),
-                UiSfx::MenuSelect,
-                SoundCategoryType::UiClick,
-            ),
-            Err(refusal) => (
-                credit_take_refusal_text(refusal, &partner_title),
-                UiSfx::EditorDeny,
-                SoundCategoryType::UiError,
-            ),
+        let (cue, category) = match take_credits(&mut ships, pair.own, partner) {
+            Ok(_) => (UiSfx::MenuSelect, SoundCategoryType::UiClick),
+            Err(refusal) => {
+                debug!("inventory: credit take refused: {refusal:?}");
+                (UiSfx::EditorDeny, SoundCategoryType::UiError)
+            }
         };
-        runtime.note = Some((note, NOTE_SECONDS));
         play_cue(&mut commands, bank.as_deref(), cue, category);
     }
 }
@@ -2525,11 +2525,11 @@ fn take_credits(
 /// Apply each [`TakeAllCommand`]: take every stack the docked partner holds,
 /// as much of each as the player's hold has room for, through the same
 /// [`plan_item_transfer`] Take a Confirm runs, then its credits by
-/// [`plan_credit_take`]. The note line names what was taken and what stayed.
+/// [`plan_credit_take`]. What stayed stays listed in the partner's column.
 /// A command that moves nothing refuses and buzzes: the partner is not
 /// neutralized or lootable, holds nothing, or the hold has no room for any of
-/// it. With no docked partner the commands are dropped, as the panel offers
-/// no such button then.
+/// it, when the button is disabled. With no docked partner the commands are
+/// dropped, as the panel offers no such button then.
 pub(crate) fn apply_take_all_commands(
     mut actions: MessageReader<TakeAllCommand>,
     mut ships: InventoryShips,
@@ -2547,57 +2547,42 @@ pub(crate) fn apply_take_all_commands(
         return;
     };
     for _ in actions.read() {
-        let (note, cue, category) = match take_all(&items, &mut ships, pair, partner) {
-            Ok(note) => {
+        let (cue, category) = match take_all(&items, &mut ships, pair, partner) {
+            Ok(()) => {
                 runtime.draft = None;
-                (note, UiSfx::MenuSelect, SoundCategoryType::UiClick)
+                (UiSfx::MenuSelect, SoundCategoryType::UiClick)
             }
-            Err(note) => (note, UiSfx::EditorDeny, SoundCategoryType::UiError),
+            Err(why) => {
+                debug!("inventory: take all refused: {why}");
+                (UiSfx::EditorDeny, SoundCategoryType::UiError)
+            }
         };
-        runtime.note = Some((note, NOTE_SECONDS));
         play_cue(&mut commands, bank.as_deref(), cue, category);
     }
 }
 
 /// Take what fits of every stack `partner` holds, a dead station's storage
-/// after its hold, then its credits, by the [`plan_loot_take`] rule, or say
-/// why nothing moved. Both texts are the note line.
+/// after its hold, then its credits, by the [`plan_loot_take`] rule, or name
+/// for the log why nothing moved.
 fn take_all(
     items: &GameItems,
     ships: &mut InventoryShips,
     pair: InventoryPair,
     partner: Entity,
-) -> Result<String, String> {
-    let partner_title = ships.title(partner, InventorySideType::Partner);
+) -> Result<(), &'static str> {
     let (_, _, lootable, _) = ships.ship(partner);
     if !lootable {
-        return Err(format!(
-            "Refused: {partner_title} is not neutralized or lootable"
-        ));
+        return Err("not lootable");
     }
     let loot = ships.loot(items, pair.own, partner);
     if loot.is_empty() && loot.is_whole() {
-        return Err(format!("Refused: {partner_title} holds nothing"));
+        return Err("holds nothing");
     }
     if loot.is_empty() {
-        return Err(format!(
-            "Refused: no room for {}",
-            loot_text(items, &loot.stayed, loot.stayed_cr)
-        ));
+        return Err("no room");
     }
     take_loot(items, ships, pair, partner, &loot);
-    let stayed = if loot.is_whole() {
-        String::new()
-    } else {
-        format!(
-            "; no room for {}",
-            loot_text(items, &loot.stayed, loot.stayed_cr)
-        )
-    };
-    Ok(format!(
-        "TOOK {}{stayed}",
-        loot_taken_text(items, &loot.taken, loot.taken_cr)
-    ))
+    Ok(())
 }
 
 /// Move a planned [`LootTake`] from `partner` into the player ship: the hold
@@ -2652,7 +2637,7 @@ pub(crate) fn take_loot(
     }
 }
 
-/// Stacks and credits as one list, naming what stayed: `2 Hull plate and 50 cr`.
+/// Stacks and credits as one list, for the strip log: `2 Hull plate and 50 cr`.
 pub(crate) fn loot_text(
     items: &GameItems,
     stacks: &BTreeMap<ItemDesignId, u32>,
@@ -2668,23 +2653,6 @@ pub(crate) fn loot_text(
     list_text(&parts)
 }
 
-/// Stacks and credits as one list, in the `TOOK` note's own grammar:
-/// `x2 Hull plate, +50 cr`.
-fn loot_taken_text(
-    items: &GameItems,
-    stacks: &BTreeMap<ItemDesignId, u32>,
-    credits_cr: u32,
-) -> String {
-    let mut parts: Vec<String> = stacks
-        .iter()
-        .map(|(item, count)| format!("x{count} {}", items.design(item).name))
-        .collect();
-    if credits_cr > 0 {
-        parts.push(format!("+{}", cr_text(credits_cr)));
-    }
-    parts.join(", ")
-}
-
 /// `a`, `a and b`, or `a, b and c`.
 fn list_text(parts: &[String]) -> String {
     match parts {
@@ -2694,84 +2662,51 @@ fn list_text(parts: &[String]) -> String {
     }
 }
 
-/// The note text of a refused Take credits.
-fn credit_take_refusal_text(refusal: CreditTakeRefusalType, partner_title: &str) -> String {
-    match refusal {
-        CreditTakeRefusalType::NotEligible => {
-            format!("Refused: {partner_title} is not neutralized or lootable")
-        }
-        CreditTakeRefusalType::ZeroBalance => {
-            format!("Refused: {partner_title} holds no credits")
-        }
-        CreditTakeRefusalType::Overflow => {
-            "Refused: your ship cannot hold more credits".to_string()
-        }
-    }
-}
-
-/// Move one command's items, or say why not. Both texts are the note line.
+/// Move one command's items, or name for the log why not.
 fn transfer_items(
     items: &GameItems,
     ships: &mut InventoryShips,
     pair: InventoryPair,
     transfer: ItemTransferType,
     command: InventoryActionCommand,
-) -> Result<String, String> {
+) -> Result<(), String> {
     let Some(partner) = pair.partner else {
-        return Err("Refused: not docked".to_string());
+        return Err("not docked".to_string());
     };
     let InventoryActionCommand { item, quantity, .. } = command;
-    let label = &items.design(&item).name;
-    let own_title = ships.title(pair.own, InventorySideType::Own);
-    let partner_title = ships.title(partner, InventorySideType::Partner);
-    let (source, target, source_title, target_title) = match transfer {
-        ItemTransferType::Take => (partner, pair.own, &partner_title, &own_title),
-        ItemTransferType::Give => (pair.own, partner, &own_title, &partner_title),
+    let (source, target) = match transfer {
+        ItemTransferType::Take => (partner, pair.own),
+        ItemTransferType::Give => (pair.own, partner),
     };
     let (_, own, ..) = ships.ship(pair.own);
     let (_, theirs, lootable, _) = ships.ship(partner);
     let moved = plan_item_transfer(items, transfer, lootable, &item, quantity, own, theirs)
-        .map_err(|refusal| {
-            transfer_refusal_text(
-                items,
-                refusal,
-                &item,
-                source_title,
-                target_title,
-                &partner_title,
-            )
-        })?;
+        .map_err(|refusal| format!("{refusal:?}"))?;
     let [(_, mut from, ..), (_, mut to, ..)] = ships
         .ships
         .get_many_mut([source, target])
         .expect("InventoryShips::pair checked both ships, and a ship does not dock with itself");
     from.remove(&item, moved);
     to.add(items, &item, moved);
-    Ok(match transfer {
-        ItemTransferType::Take => format!("TOOK x{moved} {label}"),
-        ItemTransferType::Give => format!("GAVE x{moved} {label}"),
-    })
+    Ok(())
 }
 
-/// Trade one command's items for credits with the trading partner, or say why
-/// not. Both texts are the note line.
+/// Trade one command's items for credits with the trading partner, or name
+/// for the log why not.
 fn trade_items(
     items: &GameItems,
     ships: &mut InventoryShips,
     pair: InventoryPair,
     trade: ItemTradeType,
     command: InventoryActionCommand,
-) -> Result<String, String> {
+) -> Result<(), String> {
     let Some(partner) = pair.partner else {
-        return Err("Refused: not docked".to_string());
+        return Err("not docked".to_string());
     };
     let InventoryActionCommand { item, quantity, .. } = command;
-    let label = &items.design(&item).name;
-    let own_title = ships.title(pair.own, InventorySideType::Own);
-    let partner_title = ships.title(partner, InventorySideType::Partner);
-    let (seller, buyer, seller_title, buyer_title) = match trade {
-        ItemTradeType::Buy => (partner, pair.own, &partner_title, &own_title),
-        ItemTradeType::Sell => (pair.own, partner, &own_title, &partner_title),
+    let (seller, buyer) = match trade {
+        ItemTradeType::Buy => (partner, pair.own),
+        ItemTradeType::Sell => (pair.own, partner),
     };
     let prices = ships.prices(pair, &item);
     let lawful = ships.lawful(pair);
@@ -2780,16 +2715,7 @@ fn trade_items(
     let planned = plan_item_trade(
         items, trade, prices, lawful, &item, quantity, own, own_cr, theirs, partner_cr,
     )
-    .map_err(|refusal| {
-        trade_refusal_text(
-            items,
-            refusal,
-            &item,
-            seller_title,
-            buyer_title,
-            &partner_title,
-        )
-    })?;
+    .map_err(|refusal| format!("{refusal:?}"))?;
     let [(_, mut from, _, _, mut from_cr, mut from_reports), (_, mut to, _, _, mut to_cr, mut to_reports)] =
         ships
             .ships
@@ -2814,76 +2740,11 @@ fn trade_items(
         count: planned.count,
         price_cr: planned.price_cr,
     });
-    let price = cr_text(planned.price_cr);
-    Ok(match trade {
-        ItemTradeType::Buy => format!("BOUGHT x{} {label} -{price}", planned.count),
-        ItemTradeType::Sell => format!("SOLD x{} {label} +{price}", planned.count),
-    })
-}
-
-/// The note text of a refused Take or Give.
-fn transfer_refusal_text(
-    items: &GameItems,
-    refusal: ItemTransferRefusalType,
-    item: &ItemDesignId,
-    source_title: &str,
-    target_title: &str,
-    partner_title: &str,
-) -> String {
-    let label = &items.design(item).name;
-    match refusal {
-        ItemTransferRefusalType::NotLootable => {
-            format!("Refused: {partner_title} is not neutralized or lootable")
-        }
-        ItemTransferRefusalType::NoQuantity => "Refused: enter a quantity".to_string(),
-        ItemTransferRefusalType::ZeroQuantity => "Refused: quantity is zero".to_string(),
-        ItemTransferRefusalType::Short { held } => {
-            format!("Refused: only {held} {label} in {source_title}")
-        }
-        ItemTransferRefusalType::NoRoom { free_g } => format!(
-            "Refused: {target_title} has room for {} more",
-            kg_text(u64::from(free_g))
-        ),
-    }
-}
-
-/// The note text of a refused Buy or Sell.
-fn trade_refusal_text(
-    items: &GameItems,
-    refusal: ItemTradeRefusalType,
-    item: &ItemDesignId,
-    seller_title: &str,
-    buyer_title: &str,
-    partner_title: &str,
-) -> String {
-    let label = &items.design(item).name;
-    match refusal {
-        ItemTradeRefusalType::NotTrader => format!("Refused: {partner_title} does not trade"),
-        ItemTradeRefusalType::Contraband => {
-            format!("Refused: {partner_title} does not deal in contraband")
-        }
-        ItemTradeRefusalType::NoQuantity => "Refused: enter a quantity".to_string(),
-        ItemTradeRefusalType::ZeroQuantity => "Refused: quantity is zero".to_string(),
-        ItemTradeRefusalType::ZeroCredits => "Refused: sale pays 0 cr".to_string(),
-        ItemTradeRefusalType::Short { held } => {
-            format!("Refused: only {held} {label} in {seller_title}")
-        }
-        ItemTradeRefusalType::NoRoom { free_g } => format!(
-            "Refused: {buyer_title} has room for {} more",
-            kg_text(u64::from(free_g))
-        ),
-        ItemTradeRefusalType::NoCredits { credits } => {
-            format!("Refused: {buyer_title} has only {}", cr_text(credits))
-        }
-        ItemTradeRefusalType::CreditOverflow => {
-            format!("Refused: {seller_title} cannot hold more credits")
-        }
-    }
+    Ok(())
 }
 
 /// Store one command's items in the docked station's storage, or withdraw
-/// them from it, or say why not. Both texts are the note line. No credits
-/// move. The move is reported on the player ship as
+/// them from it, or name for the log why not. No credits move. The move is reported on the player ship as
 /// [`ShipInventoryReport::Stored`] or [`ShipInventoryReport::Withdrawn`].
 fn store_items(
     items: &GameItems,
@@ -2891,12 +2752,8 @@ fn store_items(
     pair: InventoryPair,
     direction: ItemStorageType,
     command: InventoryActionCommand,
-) -> Result<String, String> {
+) -> Result<(), String> {
     let InventoryActionCommand { item, quantity, .. } = command;
-    let own_title = ships.title(pair.own, InventorySideType::Own);
-    let partner_title = pair.partner.map_or_else(String::new, |partner| {
-        ships.title(partner, InventorySideType::Partner)
-    });
     let (_, own, ..) = ships.ship(pair.own);
     let moved = plan_item_storage(
         items,
@@ -2907,9 +2764,7 @@ fn store_items(
         quantity,
         own,
     )
-    .map_err(|refusal| {
-        storage_refusal_text(items, refusal, direction, &item, &own_title, &partner_title)
-    })?;
+    .map_err(|refusal| format!("{refusal:?}"))?;
     let station = pair
         .partner
         .expect("plan_item_storage refuses an undocked ship");
@@ -2921,7 +2776,6 @@ fn store_items(
         .stations
         .get_mut(station)
         .expect("plan_item_storage refuses a partner without station storage");
-    let label = &items.design(&item).name;
     match direction {
         ItemStorageType::Store => {
             own.remove(&item, moved);
@@ -2931,7 +2785,6 @@ fn store_items(
                 item: item.clone(),
                 count: moved,
             });
-            Ok(format!("Stored {moved} {label} at {partner_title}"))
         }
         ItemStorageType::Withdraw => {
             storage.remove(&item, moved);
@@ -2941,16 +2794,16 @@ fn store_items(
                 item: item.clone(),
                 count: moved,
             });
-            Ok(format!("Withdrew {moved} {label} from {partner_title}"))
         }
     }
+    Ok(())
 }
 
 /// Store one command's items in an own ship's hold, or withdraw them from it,
-/// or say why not, by the [`plan_item_transfer`] rule: a Store is a Give to
-/// that ship and a Withdraw a Take from it, always allowed from an own ship.
-/// Both texts are the note line. No credits move and nothing is reported: a
-/// hold is not a station's storage.
+/// or name for the log why not, by the [`plan_item_transfer`] rule: a Store
+/// is a Give to that ship and a Withdraw a Take from it, always allowed from
+/// an own ship. No credits move and nothing is reported: a hold is not a
+/// station's storage.
 fn hold_items(
     items: &GameItems,
     ships: &mut InventoryShips,
@@ -2958,95 +2811,30 @@ fn hold_items(
     direction: ItemStorageType,
     ship: Entity,
     command: InventoryActionCommand,
-) -> Result<String, String> {
+) -> Result<(), String> {
     if !ships.own_holds(pair).contains(&ship) {
-        return Err("Refused: that ship is not docked here".to_string());
+        return Err("the hold's ship is not docked here".to_string());
     }
     let InventoryActionCommand { item, quantity, .. } = command;
-    let own_title = ships.title(pair.own, InventorySideType::Own);
-    let hold_title = ships.title(ship, InventorySideType::Hold(ship));
-    let (transfer, source, target, source_title, target_title) = match direction {
-        ItemStorageType::Store => (
-            ItemTransferType::Give,
-            pair.own,
-            ship,
-            &own_title,
-            &hold_title,
-        ),
-        ItemStorageType::Withdraw => (
-            ItemTransferType::Take,
-            ship,
-            pair.own,
-            &hold_title,
-            &own_title,
-        ),
+    let (transfer, source, target) = match direction {
+        ItemStorageType::Store => (ItemTransferType::Give, pair.own, ship),
+        ItemStorageType::Withdraw => (ItemTransferType::Take, ship, pair.own),
     };
     let (_, own, ..) = ships.ship(pair.own);
     let (_, hold, ..) = ships.ship(ship);
-    let moved = plan_item_transfer(items, transfer, true, &item, quantity, own, hold).map_err(
-        |refusal| {
-            transfer_refusal_text(
-                items,
-                refusal,
-                &item,
-                source_title,
-                target_title,
-                &hold_title,
-            )
-        },
-    )?;
+    let moved = plan_item_transfer(items, transfer, true, &item, quantity, own, hold)
+        .map_err(|refusal| format!("{refusal:?}"))?;
     let [(_, mut from, ..), (_, mut to, ..)] = ships
         .ships
         .get_many_mut([source, target])
         .expect("own_holds names a ship root other than the player ship");
     from.remove(&item, moved);
     to.add(items, &item, moved);
-    let label = &items.design(&item).name;
-    Ok(match direction {
-        ItemStorageType::Store => format!("Stored {moved} {label} in {hold_title}"),
-        ItemStorageType::Withdraw => format!("Withdrew {moved} {label} from {hold_title}"),
-    })
+    Ok(())
 }
 
-/// The note text of a refused Store or Withdraw.
-fn storage_refusal_text(
-    items: &GameItems,
-    refusal: ItemStorageRefusalType,
-    direction: ItemStorageType,
-    item: &ItemDesignId,
-    own_title: &str,
-    partner_title: &str,
-) -> String {
-    match refusal {
-        ItemStorageRefusalType::NotDocked => "Refused: not docked".to_string(),
-        ItemStorageRefusalType::NoStorageService => {
-            format!("Refused: {partner_title} offers no storage")
-        }
-        ItemStorageRefusalType::UnknownItem => format!("Refused: unknown item {item}"),
-        ItemStorageRefusalType::NoQuantity => "Refused: enter a quantity".to_string(),
-        ItemStorageRefusalType::ZeroQuantity => "Refused: quantity is zero".to_string(),
-        ItemStorageRefusalType::NotEnoughItems { have } => {
-            let source = match direction {
-                ItemStorageType::Store => own_title,
-                ItemStorageType::Withdraw => "storage",
-            };
-            format!(
-                "Refused: only {have} {} in {source}",
-                items.design(item).name
-            )
-        }
-        ItemStorageRefusalType::StorageFull { free_g } => {
-            format!("Refused: storage full, {} free", kg_text(u64::from(free_g)))
-        }
-        ItemStorageRefusalType::HoldFull { free_g } => format!(
-            "Refused: {own_title} has room for {} more",
-            kg_text(u64::from(free_g))
-        ),
-    }
-}
-
-/// Queue one command's items on the player's cargo intake as canisters, or say
-/// why not. Both texts are the note line. `pending` tracks deferred queues.
+/// Queue one command's items on the player's cargo intake as canisters, or
+/// name for the log why not. `pending` tracks deferred queues.
 fn jettison_items(
     items: &GameItems,
     ships: &mut InventoryShips,
@@ -3054,10 +2842,8 @@ fn jettison_items(
     command: InventoryActionCommand,
     pending: &mut BTreeMap<Entity, VecDeque<CargoCanister>>,
     commands: &mut Commands,
-) -> Result<String, String> {
+) -> Result<(), String> {
     let InventoryActionCommand { item, quantity, .. } = command;
-    let label = &items.design(&item).name;
-    let own_title = ships.title(pair.own, InventorySideType::Own);
     let intake = ships.intake(pair.own);
     let tail = intake
         .as_ref()
@@ -3072,15 +2858,7 @@ fn jettison_items(
         quantity,
         own,
     )
-    .map_err(|refusal| match refusal {
-        ItemJettisonRefusalType::Docked => "Refused: undock to jettison".to_string(),
-        ItemJettisonRefusalType::NoIntake => "Refused: no working cargo intake".to_string(),
-        ItemJettisonRefusalType::NoQuantity => "Refused: enter a quantity".to_string(),
-        ItemJettisonRefusalType::ZeroQuantity => "Refused: quantity is zero".to_string(),
-        ItemJettisonRefusalType::Short { held } => {
-            format!("Refused: only {held} {label} in {own_title}")
-        }
-    })?;
+    .map_err(|refusal| format!("{refusal:?}"))?;
     let (intake, waiting) = intake.expect("plan_item_jettison refuses a ship with no intake");
     let (_, mut own, ..) = ships
         .ships
@@ -3095,20 +2873,94 @@ fn jettison_items(
             .add(items, &item, jettison.merged);
     }
     queue.extend(jettison.canisters);
-    let waiting = queue.len();
     commands
         .entity(intake)
         .insert(CargoIntakeEjectionQueue(queue.clone()));
     pending.insert(intake, queue);
-    let noun = if waiting == 1 {
-        "canister"
-    } else {
-        "canisters"
-    };
-    Ok(format!(
-        "Jettisoned {} {label}: {waiting} {noun} queued",
-        jettison.count
-    ))
+    Ok(())
+}
+
+/// The open draft as the form draws it.
+struct DraftView {
+    /// Which way it moves items, and with which ship: `Sell to Trader`.
+    title: String,
+    /// The source stock: `of 12`.
+    have: String,
+    /// What a Buy or Sell moves in credits, while it has a price.
+    price: Option<u64>,
+    /// What keeps Confirm from moving it, or `None` while it would move.
+    block: Option<DraftBlockType>,
+}
+
+impl DraftView {
+    /// The danger tone while `block` keeps the draft from moving, else `tone`.
+    fn tone(&self, block: DraftBlockType, tone: UiColorType) -> UiColorType {
+        if self.block == Some(block) {
+            UiColorType::Danger
+        } else {
+            tone
+        }
+    }
+}
+
+/// What keeps an open draft from moving, by the part of the form that
+/// shows it. The form names no refusal in words.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum DraftBlockType {
+    /// No whole number, or zero: the field shows it and Confirm is greyed.
+    Quantity,
+    /// The source holds fewer than the quantity: the stock is in the danger
+    /// tone.
+    Stock,
+    /// The target has `free_g` grams of room, less than the quantity's mass:
+    /// the total weight is in the danger tone with the room beside it.
+    Room { free_g: u32 },
+    /// The buyer cannot pay, the sale pays nothing, or the partner does not
+    /// deal in the item: the price is in the danger tone.
+    Price,
+    /// A partner no longer eligible, or a hold no longer docked, which the
+    /// columns show.
+    Other,
+}
+
+impl DraftBlockType {
+    fn of_transfer(refusal: ItemTransferRefusalType) -> Self {
+        match refusal {
+            ItemTransferRefusalType::NotLootable => Self::Other,
+            ItemTransferRefusalType::NoQuantity | ItemTransferRefusalType::ZeroQuantity => {
+                Self::Quantity
+            }
+            ItemTransferRefusalType::Short { .. } => Self::Stock,
+            ItemTransferRefusalType::NoRoom { free_g } => Self::Room { free_g },
+        }
+    }
+
+    fn of_trade(refusal: ItemTradeRefusalType) -> Self {
+        match refusal {
+            ItemTradeRefusalType::NoQuantity | ItemTradeRefusalType::ZeroQuantity => Self::Quantity,
+            ItemTradeRefusalType::Short { .. } => Self::Stock,
+            ItemTradeRefusalType::NoRoom { free_g } => Self::Room { free_g },
+            ItemTradeRefusalType::NotTrader
+            | ItemTradeRefusalType::Contraband
+            | ItemTradeRefusalType::ZeroCredits
+            | ItemTradeRefusalType::NoCredits { .. }
+            | ItemTradeRefusalType::CreditOverflow => Self::Price,
+        }
+    }
+
+    fn of_storage(refusal: ItemStorageRefusalType) -> Self {
+        match refusal {
+            ItemStorageRefusalType::NotDocked
+            | ItemStorageRefusalType::NoStorageService
+            | ItemStorageRefusalType::UnknownItem => Self::Other,
+            ItemStorageRefusalType::NoQuantity | ItemStorageRefusalType::ZeroQuantity => {
+                Self::Quantity
+            }
+            ItemStorageRefusalType::NotEnoughItems { .. } => Self::Stock,
+            ItemStorageRefusalType::StorageFull { free_g }
+            | ItemStorageRefusalType::HoldFull { free_g } => Self::Room { free_g },
+        }
+    }
 }
 
 /// One side as the pane draws it: its title and its stacks, or `None` for a
@@ -3136,10 +2988,12 @@ impl SideView {
 /// pane is left as it is. A broken ship record panics through
 /// [`InventoryShips`]. A draft its selected row no longer offers, after an
 /// undock or a filter, is closed. Confirm is disabled while no draft is open
-/// or the draft's summary is a refusal: no whole number, or a transfer,
-/// trade its plan refuses against the live stock, room and credits. A numbered
-/// jettison stays enabled; Confirm plans it. The note line counts down in real
-/// time, since the interface pauses virtual time.
+/// or the draft would be refused: no whole number, zero, or a transfer,
+/// trade or store its plan refuses against the live stock, room and credits,
+/// or a jettison of more than the stack. The part of the form that blocks
+/// it, the stock, the total weight or the price, turns to the danger tone.
+/// The Take all button is disabled while none of the loot fits, and Take
+/// credits while the player's balance would overflow.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system reading both inventories and writing every pane part"
@@ -3148,7 +3002,6 @@ pub(crate) fn update_inventory_panel(
     mut commands: Commands,
     mut runtime: ResMut<InventoryRuntime>,
     icons: Res<InterfaceIcons>,
-    time: Res<Time<Real>>,
     ships: InventoryShips,
     mut q_column: Query<(Entity, &mut InventoryColumn)>,
     mut q_panel: Query<(&InventoryColumnPanel, &mut Visibility, &mut Node), Without<InspectorPart>>,
@@ -3174,7 +3027,12 @@ pub(crate) fn update_inventory_panel(
     ),
     mut q_part: Query<(&InspectorPart, &mut Node, &mut Visibility)>,
     mut q_take: Query<
-        (&mut Node, Has<InventoryTakeAllButton>),
+        (
+            Entity,
+            &mut Node,
+            Has<InventoryTakeAllButton>,
+            Has<InteractionDisabled>,
+        ),
         (
             Or<(
                 With<InventoryTakeCreditsButton>,
@@ -3195,12 +3053,6 @@ pub(crate) fn update_inventory_panel(
         return;
     };
     let items: &GameItems = &ships.items;
-    if let Some((_, remaining)) = runtime.note.as_mut() {
-        *remaining -= time.delta_secs();
-        if *remaining <= 0.0 {
-            runtime.note = None;
-        }
-    }
     let (_, own_inventory, _, own_cr) = ships.ship(pair.own);
     let own_title = ships.title(pair.own, InventorySideType::Own);
     let own_cargo = format!(
@@ -3278,14 +3130,24 @@ pub(crate) fn update_inventory_panel(
     let has_intake = ships.intake(pair.own).is_some();
     let lootable = terms.as_ref().is_some_and(|terms| terms.lootable);
     let partner_cr = partner_credits.map_or_else(String::new, |credits| cr_digits(credits.into()));
-    let take_credits_shown = lootable && partner_credits.unwrap_or(0) > 0;
+    // Each as (shown, enabled). Take credits shows while there is a balance
+    // to take, disabled while the player's own would overflow.
+    let take_credits_shown = (
+        lootable && partner_credits.unwrap_or(0) > 0,
+        plan_credit_take(lootable, own_cr, partner_credits.unwrap_or(0)).is_ok(),
+    );
     // Shown while there is anything to take, fit or not: the hold, a dead
-    // station's storage or the balance. The same plan refuses `holds nothing`.
-    let take_all_shown = lootable
-        && pair.partner.is_some_and(|other| {
-            let loot = ships.loot(items, pair.own, other);
-            !(loot.is_empty() && loot.is_whole())
-        });
+    // station's storage or the balance; disabled while none of it fits.
+    let take_all_loot = pair
+        .partner
+        .filter(|_| lootable)
+        .map(|other| ships.loot(items, pair.own, other));
+    let take_all_shown = (
+        take_all_loot
+            .as_ref()
+            .is_some_and(|loot| !(loot.is_empty() && loot.is_whole())),
+        take_all_loot.as_ref().is_some_and(|loot| !loot.is_empty()),
+    );
     let side = |which: InventorySideType| match which {
         InventorySideType::Own => Some(&own),
         InventorySideType::Partner => Some(&partner),
@@ -3570,6 +3432,12 @@ pub(crate) fn update_inventory_panel(
                 draft.as_ref().is_some_and(|draft| draft.quantity.is_some()),
                 true,
             ),
+            InspectorPart::DraftPrice => (
+                draft
+                    .as_ref()
+                    .is_some_and(|draft| draft.action.trade().is_some()),
+                true,
+            ),
             // `update_inventory_about` owns the description's parts.
             InspectorPart::AboutFull | InspectorPart::AboutMore => continue,
         };
@@ -3587,8 +3455,8 @@ pub(crate) fn update_inventory_panel(
         }
     }
 
-    for (mut node, take_all) in &mut q_take {
-        let shown = if take_all {
+    for (button, mut node, take_all, disabled) in &mut q_take {
+        let (shown, enabled) = if take_all {
             take_all_shown
         } else {
             take_credits_shown
@@ -3597,12 +3465,13 @@ pub(crate) fn update_inventory_panel(
         if node.display != display {
             node.display = display;
         }
+        if enabled && disabled {
+            commands.entity(button).remove::<InteractionDisabled>();
+        } else if !enabled && !disabled {
+            commands.entity(button).insert(InteractionDisabled);
+        }
     }
 
-    let note = runtime
-        .note
-        .as_ref()
-        .map_or(String::new(), |(note, _)| note.clone());
     let picked = selected.map(|(which, item)| {
         let view = side(which).expect("the selection was cleared above unless its side is shown");
         let count = view
@@ -3613,7 +3482,7 @@ pub(crate) fn update_inventory_panel(
     let total_weight = draft.clone().and_then(|draft| {
         draft
             .quantity
-            .map(|quantity| kg_text(items.design(&draft.item).stack_mass_g(quantity)))
+            .map(|quantity| items.design(&draft.item).stack_mass_g(quantity))
     });
     let form = draft.map(|draft| {
         let (source, title) = match draft.action {
@@ -3642,16 +3511,12 @@ pub(crate) fn update_inventory_panel(
             }
         };
         let have = source.count(&draft.item).unwrap_or(0);
-        let summary = match (draft.quantity, pair.partner) {
-            (None, _) => Err("Type a whole number".to_string()),
+        let block = match (draft.quantity, pair.partner) {
+            (None | Some(0), _) => Some(DraftBlockType::Quantity),
             // A jettison leaves the player's own stack.
-            (Some(quantity), None) => Ok(format!(
-                "{} after: x{}",
-                own.title,
-                have.saturating_sub(quantity)
-            )),
-            // A transfer or trade runs its own plan, so the form shows the
-            // refusal Confirm would meet and Confirm is disabled on it.
+            (Some(quantity), None) => (quantity > have).then_some(DraftBlockType::Stock),
+            // A transfer or trade runs its own plan, so the form shows what
+            // Confirm would meet and Confirm is disabled on it.
             (Some(quantity), Some(other)) => {
                 let (_, own_stock, _, _) = ships.ship(pair.own);
                 let (_, their_stock, lootable, their_cr) = ships.ship(other);
@@ -3667,21 +3532,8 @@ pub(crate) fn update_inventory_panel(
                         own_stock,
                         their_stock,
                     )
-                    .map(|moved| {
-                        let after = match transfer {
-                            ItemTransferType::Take => &own,
-                            ItemTransferType::Give => &partner,
-                        };
-                        let count = after.count(&draft.item).unwrap_or(0).saturating_add(moved);
-                        format!("{} after: x{count}", after.title)
-                    })
-                    .map_err(|refusal| {
-                        let (from, to) = match transfer {
-                            ItemTransferType::Take => (&partner.title, &own.title),
-                            ItemTransferType::Give => (&own.title, &partner.title),
-                        };
-                        transfer_refusal_text(items, refusal, &draft.item, from, to, &partner.title)
-                    }),
+                    .err()
+                    .map(DraftBlockType::of_transfer),
                     (None, Some(trade), _) => plan_item_trade(
                         items,
                         trade,
@@ -3694,45 +3546,16 @@ pub(crate) fn update_inventory_panel(
                         their_stock,
                         their_cr,
                     )
-                    .map(|planned| {
-                        let after = match trade {
-                            ItemTradeType::Buy => own_cr - planned.price_cr,
-                            ItemTradeType::Sell => own_cr + planned.price_cr,
-                        };
-                        format!(
-                            "Price {}  Balance {}",
-                            cr_text(planned.price_cr),
-                            cr_text(after)
-                        )
-                    })
-                    .map_err(|refusal| {
-                        let (seller, buyer) = match trade {
-                            ItemTradeType::Buy => (&partner.title, &own.title),
-                            ItemTradeType::Sell => (&own.title, &partner.title),
-                        };
-                        trade_refusal_text(
-                            items,
-                            refusal,
-                            &draft.item,
-                            seller,
-                            buyer,
-                            &partner.title,
-                        )
-                    }),
+                    .err()
+                    .map(DraftBlockType::of_trade),
                     (None, None, Some((direction, InventoryStoreType::Ship(ship)))) => {
-                        let hold = side(InventorySideType::Hold(ship));
-                        let hold_title = hold.map_or(String::new(), |view| view.title.clone());
-                        let (transfer, from, to) = match direction {
-                            ItemStorageType::Store => {
-                                (ItemTransferType::Give, &own.title, &hold_title)
-                            }
-                            ItemStorageType::Withdraw => {
-                                (ItemTransferType::Take, &hold_title, &own.title)
-                            }
+                        let transfer = match direction {
+                            ItemStorageType::Store => ItemTransferType::Give,
+                            ItemStorageType::Withdraw => ItemTransferType::Take,
                         };
-                        match hold {
-                            None => Err("Refused: that ship is not docked here".to_string()),
-                            Some(view) => plan_item_transfer(
+                        match side(InventorySideType::Hold(ship)) {
+                            None => Some(DraftBlockType::Other),
+                            Some(_) => plan_item_transfer(
                                 items,
                                 transfer,
                                 true,
@@ -3741,25 +3564,8 @@ pub(crate) fn update_inventory_panel(
                                 own_stock,
                                 ships.ship(ship).1,
                             )
-                            .map(|moved| {
-                                let after = match direction {
-                                    ItemStorageType::Store => view,
-                                    ItemStorageType::Withdraw => &own,
-                                };
-                                let count =
-                                    after.count(&draft.item).unwrap_or(0).saturating_add(moved);
-                                format!("{} after: x{count}", after.title)
-                            })
-                            .map_err(|refusal| {
-                                transfer_refusal_text(
-                                    items,
-                                    refusal,
-                                    &draft.item,
-                                    from,
-                                    to,
-                                    &hold_title,
-                                )
-                            }),
+                            .err()
+                            .map(DraftBlockType::of_transfer),
                         }
                     }
                     (None, None, Some((direction, InventoryStoreType::Station))) => {
@@ -3772,34 +3578,30 @@ pub(crate) fn update_inventory_panel(
                             Some(quantity),
                             own_stock,
                         )
-                        .map(|moved| {
-                            let after = match direction {
-                                ItemStorageType::Store => &stored,
-                                ItemStorageType::Withdraw => &own,
-                            };
-                            let count = after.count(&draft.item).unwrap_or(0).saturating_add(moved);
-                            format!("{} after: x{count}", after.title)
-                        })
-                        .map_err(|refusal| {
-                            storage_refusal_text(
-                                items,
-                                refusal,
-                                direction,
-                                &draft.item,
-                                &own.title,
-                                &partner.title,
-                            )
-                        })
+                        .err()
+                        .map(DraftBlockType::of_storage)
                     }
-                    (None, None, None) => Err("Refused: undock to jettison".to_string()),
+                    (None, None, None) => Some(DraftBlockType::Other),
                 }
             }
         };
-        (title, format!("of {have}"), summary)
+        // What the trade moves in credits; `None` while it has no price: no
+        // whole number, or a partner that does not deal in the item.
+        let price = match (draft.action.trade(), draft.quantity) {
+            (Some(trade), Some(quantity)) if ships.deals_in(pair, &draft.item) => ships
+                .prices(pair, &draft.item)
+                .map(|prices| trade_price_cr(trade, prices, quantity)),
+            _ => None,
+        };
+        DraftView {
+            title,
+            have: format!("of {have}"),
+            price,
+            block,
+        }
     });
     for (field, mut text, mut themed) in &mut q_field {
         let (value, color) = match (field, picked.as_ref(), form.as_ref()) {
-            (InventoryInspectorField::Note, ..) => (note.clone(), UiColorType::Accent),
             (InventoryInspectorField::Name, Some((item, _)), _) => {
                 (items.design(item).name.clone(), UiColorType::Text)
             }
@@ -3822,20 +3624,29 @@ pub(crate) fn update_inventory_panel(
                 kg_text(u64::from(items.design(item).mass_g)),
                 UiColorType::Text,
             ),
-            (InventoryInspectorField::TotalWeight, ..) => match &total_weight {
-                Some(total) => (total.clone(), UiColorType::Text),
-                None => continue,
-            },
-            (InventoryInspectorField::DraftTitle, _, Some((title, ..))) => {
-                (title.clone(), UiColorType::Accent)
+            (InventoryInspectorField::TotalWeight, ..) => {
+                let Some(total_g) = total_weight else {
+                    continue;
+                };
+                match form.as_ref().and_then(|form| form.block) {
+                    Some(DraftBlockType::Room { free_g }) => (
+                        format!("{}  {} free", kg_text(total_g), kg_text(u64::from(free_g))),
+                        UiColorType::Danger,
+                    ),
+                    _ => (kg_text(total_g), UiColorType::Text),
+                }
             }
-            (InventoryInspectorField::DraftStock, _, Some((_, have, _))) => {
-                (have.clone(), UiColorType::Text)
+            (InventoryInspectorField::DraftTitle, _, Some(form)) => {
+                (form.title.clone(), UiColorType::Accent)
             }
-            (InventoryInspectorField::DraftSummary, _, Some((.., summary))) => match summary {
-                Ok(text) => (text.clone(), UiColorType::TextBody),
-                Err(text) => (text.clone(), UiColorType::Danger),
-            },
+            (InventoryInspectorField::DraftStock, _, Some(form)) => (
+                form.have.clone(),
+                form.tone(DraftBlockType::Stock, UiColorType::Text),
+            ),
+            (InventoryInspectorField::DraftPrice, _, Some(form)) => (
+                form.price.map_or_else(|| "--".to_string(), cr_text),
+                form.tone(DraftBlockType::Price, UiColorType::Text),
+            ),
             (InventoryInspectorField::PriceReference, ..) => match &priced {
                 Some((reference, ..)) => (price_text(*reference), UiColorType::TextBody),
                 None => continue,
@@ -3897,7 +3708,7 @@ pub(crate) fn update_inventory_panel(
             themed.color = color;
         }
     }
-    let enabled = form.as_ref().is_some_and(|(.., summary)| summary.is_ok());
+    let enabled = form.as_ref().is_some_and(|form| form.block.is_none());
     for (confirm, disabled) in &q_confirm {
         // Runs every frame the pane is up, so only a change in the enabled
         // state touches the button.
@@ -3927,8 +3738,9 @@ pub(crate) fn update_inventory_panel(
 /// `Deal` headings over the player's and the partner's rows while it
 /// trades, and beside Confirm the Buy all or Sell all of the open draft's
 /// trade, enabled while [`plan_item_trade`] takes the whole source stack
-/// against the live stock, room and credits. Runs after
-/// [`update_inventory_panel`], which closes a draft the dock no longer offers.
+/// against the live stock, room and credits. A greyed one names no reason.
+/// Runs after [`update_inventory_panel`], which closes a draft the dock no
+/// longer offers.
 pub(crate) fn update_inventory_trade_controls(
     mut commands: Commands,
     ships: InventoryShips,
@@ -3940,7 +3752,6 @@ pub(crate) fn update_inventory_trade_controls(
             &InventoryTradeAllButton,
             &mut Node,
             Has<InteractionDisabled>,
-            Option<&Tooltip>,
         ),
         Without<InventoryPriceHeadings>,
     >,
@@ -3954,6 +3765,7 @@ pub(crate) fn update_inventory_trade_controls(
             node.display = display;
         }
     }
+    // The open draft's trade, and whether its whole source stack trades.
     let whole = runtime.draft.as_ref().and_then(|draft| {
         let trade = draft.action.trade()?;
         let pair = pair?;
@@ -3972,60 +3784,21 @@ pub(crate) fn update_inventory_trade_controls(
             theirs,
             their_cr,
         );
-        let own_title = ships.title(pair.own, InventorySideType::Own);
-        let partner_title = ships.title(partner, InventorySideType::Partner);
-        let (seller, buyer) = match trade {
-            ItemTradeType::Buy => (&partner_title, &own_title),
-            ItemTradeType::Sell => (&own_title, &partner_title),
-        };
-        let refusal = planned.err().map(|refusal| {
-            trade_refusal_text(
-                &ships.items,
-                refusal,
-                &draft.item,
-                seller,
-                buyer,
-                &partner_title,
-            )
-        });
-        Some((trade, refusal))
+        Some((trade, planned.is_ok()))
     });
-    for (button, trade_all, mut node, disabled, tooltip) in &mut q_trade_all {
-        let (shown, refusal) = match &whole {
-            Some((trade, refusal)) if *trade == trade_all.0 => (true, refusal.as_deref()),
-            _ => (false, None),
+    for (button, trade_all, mut node, disabled) in &mut q_trade_all {
+        let (shown, enabled) = match whole {
+            Some((trade, passes)) if trade == trade_all.0 => (true, passes),
+            _ => (false, false),
         };
         let display = if shown { Display::Flex } else { Display::None };
         if node.display != display {
             node.display = display;
         }
-        // The reason a greyed button carries, as `refusable_button` sets it:
-        // the form's summary line names the same refusal for the draft.
-        match refusal {
-            Some(why) => {
-                if !disabled {
-                    commands.entity(button).insert(InteractionDisabled);
-                }
-                if tooltip.is_none_or(|tooltip| tooltip.0 != why) {
-                    commands.entity(button).insert(Tooltip(why.to_string()));
-                }
-            }
-            None if shown => {
-                if disabled {
-                    commands.entity(button).remove::<InteractionDisabled>();
-                }
-                if tooltip.is_some() {
-                    commands.entity(button).remove::<Tooltip>();
-                }
-            }
-            None => {
-                if !disabled {
-                    commands.entity(button).insert(InteractionDisabled);
-                }
-                if tooltip.is_some() {
-                    commands.entity(button).remove::<Tooltip>();
-                }
-            }
+        if enabled && disabled {
+            commands.entity(button).remove::<InteractionDisabled>();
+        } else if !enabled && !disabled {
+            commands.entity(button).insert(InteractionDisabled);
         }
     }
 }

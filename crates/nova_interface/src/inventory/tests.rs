@@ -21,7 +21,8 @@ use nova_ship::prelude::{
 use nova_sound::prelude::*;
 use nova_ui::{
     screen::EllipsisText,
-    widget::{TextFieldError, TextFieldValue},
+    theme::UiColorType,
+    widget::{TextFieldError, TextFieldValue, ThemedText},
 };
 
 use super::*;
@@ -790,15 +791,6 @@ fn plates(world: &World, ship: Entity) -> u32 {
         .count(&ItemDesignId::from(ItemRoleType::HullPlate))
 }
 
-/// The note line's text, if a result is showing.
-fn note(app: &App) -> Option<String> {
-    app.world()
-        .resource::<InventoryRuntime>()
-        .note
-        .as_ref()
-        .map(|(note, _)| note.clone())
-}
-
 #[test]
 fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
     use InventoryActionType::{Give, Take};
@@ -829,24 +821,18 @@ fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
         app.world_mut().write_message(command);
         app.update();
         let draft_open = app.world().resource::<InventoryRuntime>().draft.is_some();
-        (note(app), take_cues(app), draft_open)
+        (take_cues(app), draft_open)
     };
-    let moved = |text: &str| (Some(text.to_string()), vec![UiSfx::MenuSelect], false);
-    let refused = |text: &str| (Some(text.to_string()), vec![UiSfx::EditorDeny], true);
+    let moved = || (vec![UiSfx::MenuSelect], false);
+    let refused = || (vec![UiSfx::EditorDeny], true);
 
     // A live ship that was never neutralized: Take is stealing, Give is fine.
-    assert_eq!(
-        confirm(&mut app, Take, Some(3)),
-        refused("Refused: Derelict is not neutralized or lootable")
-    );
+    assert_eq!(confirm(&mut app, Take, Some(3)), refused());
     assert_eq!(
         (plates(app.world(), player), plates(app.world(), partner)),
         (12, 8)
     );
-    assert_eq!(
-        confirm(&mut app, Give, Some(2)),
-        moved("GAVE x2 Hull plate")
-    );
+    assert_eq!(confirm(&mut app, Give, Some(2)), moved());
     assert_eq!(
         (plates(app.world(), player), plates(app.world(), partner)),
         (10, 10)
@@ -856,30 +842,15 @@ fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
     app.world_mut()
         .entity_mut(partner)
         .insert(LootableShipMarker);
-    assert_eq!(
-        confirm(&mut app, Take, Some(3)),
-        moved("TOOK x3 Hull plate")
-    );
+    assert_eq!(confirm(&mut app, Take, Some(3)), moved());
     assert_eq!(
         (plates(app.world(), player), plates(app.world(), partner)),
         (13, 7)
     );
-    assert_eq!(
-        confirm(&mut app, Take, None),
-        refused("Refused: enter a quantity")
-    );
-    assert_eq!(
-        confirm(&mut app, Take, Some(0)),
-        refused("Refused: quantity is zero")
-    );
-    assert_eq!(
-        confirm(&mut app, Take, Some(8)),
-        refused("Refused: only 7 Hull plate in Derelict")
-    );
-    assert_eq!(
-        confirm(&mut app, Give, Some(14)),
-        refused("Refused: only 13 Hull plate in NOVA")
-    );
+    assert_eq!(confirm(&mut app, Take, None), refused());
+    assert_eq!(confirm(&mut app, Take, Some(0)), refused());
+    assert_eq!(confirm(&mut app, Take, Some(8)), refused());
+    assert_eq!(confirm(&mut app, Give, Some(14)), refused());
     assert_eq!(
         (plates(app.world(), player), plates(app.world(), partner)),
         (13, 7)
@@ -890,10 +861,7 @@ fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
         .entity_mut(partner)
         .remove::<LootableShipMarker>()
         .insert(NeutralizedMarker);
-    assert_eq!(
-        confirm(&mut app, Take, Some(7)),
-        moved("TOOK x7 Hull plate")
-    );
+    assert_eq!(confirm(&mut app, Take, Some(7)), moved());
     assert!(app
         .world()
         .get::<ShipInventory>(partner)
@@ -903,10 +871,7 @@ fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
 
     // A target without the room refuses the whole move.
     app.world_mut().entity_mut(partner).insert(hold(39));
-    assert_eq!(
-        confirm(&mut app, Give, Some(2)),
-        refused("Refused: Derelict has room for 10 kg more")
-    );
+    assert_eq!(confirm(&mut app, Give, Some(2)), refused());
     assert_eq!(
         (plates(app.world(), player), plates(app.world(), partner)),
         (20, 39)
@@ -917,10 +882,7 @@ fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
 
     // A command that arrives after the undock moves nothing.
     app.world_mut().entity_mut(player).remove::<DockedShip>();
-    assert_eq!(
-        confirm(&mut app, Give, Some(1)),
-        refused("Refused: not docked")
-    );
+    assert_eq!(confirm(&mut app, Give, Some(1)), refused());
     assert_eq!(plates(app.world(), player), 20);
 }
 
@@ -968,38 +930,20 @@ fn confirm_trades_items_for_credits_and_a_refusal_changes_nothing() {
         let (items, player_cr, partner_items, partner_cr) = state(app);
         assert_eq!(items + partner_items, 20, "items conserve");
         assert_eq!(player_cr + partner_cr, 1_100, "credits conserve");
-        (note(app), take_cues(app), draft_open)
+        (take_cues(app), draft_open)
     };
-    let traded = |text: &str| (Some(text.to_string()), vec![UiSfx::MenuSelect], false);
-    let refused = |text: &str| (Some(text.to_string()), vec![UiSfx::EditorDeny], true);
+    let traded = || (vec![UiSfx::MenuSelect], false);
+    let refused = || (vec![UiSfx::EditorDeny], true);
 
     // A hull plate asks 40 cr and bids 30 cr.
-    assert_eq!(
-        confirm(&mut app, Buy, Some(2)),
-        traded("BOUGHT x2 Hull plate -80 cr")
-    );
+    assert_eq!(confirm(&mut app, Buy, Some(2)), traded());
     assert_eq!(state(&app), (14, 20, 6, 1_080));
-    assert_eq!(
-        confirm(&mut app, Buy, Some(1)),
-        refused("Refused: NOVA has only 20 cr")
-    );
-    assert_eq!(
-        confirm(&mut app, Sell, Some(3)),
-        traded("SOLD x3 Hull plate +90 cr")
-    );
+    assert_eq!(confirm(&mut app, Buy, Some(1)), refused());
+    assert_eq!(confirm(&mut app, Sell, Some(3)), traded());
     assert_eq!(state(&app), (11, 110, 9, 990));
-    assert_eq!(
-        confirm(&mut app, Sell, Some(12)),
-        refused("Refused: only 11 Hull plate in NOVA")
-    );
-    assert_eq!(
-        confirm(&mut app, Buy, Some(10)),
-        refused("Refused: only 9 Hull plate in Trader")
-    );
-    assert_eq!(
-        confirm(&mut app, Sell, Some(0)),
-        refused("Refused: quantity is zero")
-    );
+    assert_eq!(confirm(&mut app, Sell, Some(12)), refused());
+    assert_eq!(confirm(&mut app, Buy, Some(10)), refused());
+    assert_eq!(confirm(&mut app, Sell, Some(0)), refused());
 
     // The buyer's hold binds before its credits.
     app.world_mut()
@@ -1009,19 +953,13 @@ fn confirm_trades_items_for_credits_and_a_refusal_changes_nothing() {
             100_000,
             [(ItemDesignId::from(ItemRoleType::HullPlate), 9)],
         ));
-    assert_eq!(
-        confirm(&mut app, Sell, Some(2)),
-        refused("Refused: Trader has room for 10 kg more")
-    );
+    assert_eq!(confirm(&mut app, Sell, Some(2)), refused());
 
     // A lootable ship is a wreck, not a market.
     app.world_mut()
         .entity_mut(partner)
         .insert(LootableShipMarker);
-    assert_eq!(
-        confirm(&mut app, Buy, Some(1)),
-        refused("Refused: Trader does not trade")
-    );
+    assert_eq!(confirm(&mut app, Buy, Some(1)), refused());
     assert_eq!(state(&app), (11, 110, 9, 990));
 }
 
@@ -1100,25 +1038,19 @@ fn a_living_station_stores_and_withdraws_and_a_derelict_one_only_loots() {
         );
         assert_eq!(credits(app), (100, 1_000), "no credits move");
         let draft_open = app.world().resource::<InventoryRuntime>().draft.is_some();
-        (note(app), take_cues(app), draft_open)
+        (take_cues(app), draft_open)
     };
-    let moved = |text: &str| (Some(text.to_string()), vec![UiSfx::MenuSelect], false);
-    let refused = |text: &str| (Some(text.to_string()), vec![UiSfx::EditorDeny], true);
+    let moved = || (vec![UiSfx::MenuSelect], false);
+    let refused = || (vec![UiSfx::EditorDeny], true);
 
     assert_eq!(
         offers(&mut app),
         [Some(station_store), None, Some(station_withdraw)],
         "a station without Trade sells nothing"
     );
-    assert_eq!(
-        confirm(&mut app, station_store, Some(5)),
-        moved("Stored 5 Hull plate at Waystation")
-    );
+    assert_eq!(confirm(&mut app, station_store, Some(5)), moved());
     assert_eq!((plates(app.world(), player), stored(&app)), (7, 5));
-    assert_eq!(
-        confirm(&mut app, station_withdraw, Some(2)),
-        moved("Withdrew 2 Hull plate from Waystation")
-    );
+    assert_eq!(confirm(&mut app, station_withdraw, Some(2)), moved());
     assert_eq!((plates(app.world(), player), stored(&app)), (9, 3));
     assert_eq!(
         app.world()
@@ -1139,18 +1071,9 @@ fn a_living_station_stores_and_withdraws_and_a_derelict_one_only_loots() {
         ]
     );
     // 3 plates stored leave 70 kg of the 100 kg cap: 8 plates are 80 kg.
-    assert_eq!(
-        confirm(&mut app, station_store, Some(8)),
-        refused("Refused: storage full, 70 kg free")
-    );
-    assert_eq!(
-        confirm(&mut app, station_withdraw, Some(4)),
-        refused("Refused: only 3 Hull plate in storage")
-    );
-    assert_eq!(
-        confirm(&mut app, Buy, Some(1)),
-        refused("Refused: Waystation does not trade")
-    );
+    assert_eq!(confirm(&mut app, station_store, Some(8)), refused());
+    assert_eq!(confirm(&mut app, station_withdraw, Some(4)), refused());
+    assert_eq!(confirm(&mut app, Buy, Some(1)), refused());
     // The hold binds a withdraw: 9 plates in a 95 kg hold leave 5 kg.
     app.world_mut()
         .entity_mut(player)
@@ -1159,10 +1082,7 @@ fn a_living_station_stores_and_withdraws_and_a_derelict_one_only_loots() {
             95_000,
             [(plate.clone(), 9)],
         ));
-    assert_eq!(
-        confirm(&mut app, station_withdraw, Some(1)),
-        refused("Refused: NOVA has room for 5 kg more")
-    );
+    assert_eq!(confirm(&mut app, station_withdraw, Some(1)), refused());
     assert_eq!((plates(app.world(), player), stored(&app)), (9, 3));
 
     // A dead station keeps its services list but offers none: it is loot.
@@ -1177,10 +1097,7 @@ fn a_living_station_stores_and_withdraws_and_a_derelict_one_only_loots() {
             None
         ]
     );
-    assert_eq!(
-        confirm(&mut app, station_store, Some(1)),
-        refused("Refused: Waystation offers no storage")
-    );
+    assert_eq!(confirm(&mut app, station_store, Some(1)), refused());
     assert_eq!((plates(app.world(), player), stored(&app)), (9, 3));
 }
 
@@ -1233,10 +1150,10 @@ fn held_and_stored(
     )
 }
 
-/// At a lawful station the Sell form of a contraband item states the
-/// refusal with Confirm disabled, a double click on the row refuses the same
-/// way on the note line and moves nothing, and the Store chip still stores
-/// it. At a station that is not lawful the same form sells it.
+/// At a lawful station the Sell form of a contraband item shows no price, in
+/// the danger tone, with Confirm disabled; a double click on the row refuses
+/// with the deny cue and moves nothing, and the Store chip still stores it.
+/// At a station that is not lawful the same form prices and sells it.
 #[test]
 fn a_lawful_station_refuses_a_contraband_sale_and_still_stores_the_item() {
     use InventorySideType::Own;
@@ -1256,14 +1173,15 @@ fn a_lawful_station_refuses_a_contraband_sale_and_still_stores_the_item() {
         .insert(LawfulStationMarker);
     settle(&mut rig.app);
     let credits = |rig: &PanePointerRig| rig.app.world().get::<ShipCredits>(player).unwrap().0;
-    let refusal = "Refused: Waystation does not deal in contraband";
 
     let at = row_at(&mut rig, Own, &cores);
     click_at(&mut rig, at);
-    assert_eq!(draft_form(&mut rig.app), (refusal.to_string(), false));
+    assert_eq!(
+        draft_form(&mut rig.app),
+        (("--".to_string(), UiColorType::Danger), false)
+    );
     take_cues(&mut rig.app);
     double_click_at(&mut rig, at);
-    assert_eq!(note(&rig.app).as_deref(), Some(refusal));
     assert_eq!(
         held_and_stored(rig.app.world(), player, station, &cores),
         (2, 0)
@@ -1280,7 +1198,7 @@ fn a_lawful_station_refuses_a_contraband_sale_and_still_stores_the_item() {
     settle(&mut rig.app);
     assert_eq!(
         draft_form(&mut rig.app),
-        ("Price 480 cr  Balance 580 cr".to_string(), true)
+        (("480 cr".to_string(), UiColorType::Text), true)
     );
 
     rig.app
@@ -1355,10 +1273,6 @@ fn a_double_click_stores_a_hold_stack_and_withdraws_a_storage_stack() {
         (0, 50)
     );
     assert_eq!(
-        note(&rig.app).as_deref(),
-        Some("Stored 50 PDC round at Waystation")
-    );
-    assert_eq!(
         take_cues(&mut rig.app),
         [UiSfx::MenuSelect, UiSfx::MenuSelect],
         "one select, one move"
@@ -1381,10 +1295,6 @@ fn a_double_click_stores_a_hold_stack_and_withdraws_a_storage_stack() {
     assert_eq!(
         held_and_stored(rig.app.world(), player, station, &plate),
         (1, 11)
-    );
-    assert_eq!(
-        note(&rig.app).as_deref(),
-        Some("Withdrew 1 Hull plate from Waystation")
     );
     rig.app
         .world_mut()
@@ -1439,22 +1349,29 @@ fn load(app: &mut App, ship: Entity, item: &ItemDesignId, count: u32) {
         .add(&test_items(), item, count);
 }
 
-/// The open form's summary text, and whether Confirm is enabled.
-fn draft_form(app: &mut App) -> (String, bool) {
+/// The text of the inspector's `field` and its tone.
+fn form_field(app: &mut App, field: InventoryInspectorField) -> (String, UiColorType) {
+    let world = app.world_mut();
+    world
+        .query::<(&InventoryInspectorField, &Text, &ThemedText)>()
+        .iter(world)
+        .find(|(each, ..)| **each == field)
+        .map(|(_, text, themed)| (text.0.clone(), themed.color))
+        .expect("the inspector has every field")
+}
+
+/// The open form's price and its tone, and whether Confirm is enabled.
+fn draft_form(app: &mut App) -> ((String, UiColorType), bool) {
+    let price = form_field(app, InventoryInspectorField::DraftPrice);
     let world = app.world_mut();
     let confirm = only::<InventoryDraftConfirm>(world);
-    let summary = world
-        .query::<(&InventoryInspectorField, &Text)>()
-        .iter(world)
-        .find(|(each, _)| **each == InventoryInspectorField::DraftSummary)
-        .map(|(_, text)| text.0.clone())
-        .expect("the form has a summary");
-    (summary, world.get::<InteractionDisabled>(confirm).is_none())
+    (price, world.get::<InteractionDisabled>(confirm).is_none())
 }
 
 /// A double click whose whole stack would overfill the station's storage, or
-/// the player's hold, refuses exactly as Confirm does: the refusal on the
-/// note line and the form, the deny cue, and no item, credit or report moved.
+/// the player's hold, refuses exactly as Confirm does: the form's total
+/// weight in the danger tone beside the room left, the deny cue, and no
+/// item, credit or report moved.
 #[test]
 fn a_double_click_that_would_overfill_refuses_and_changes_nothing() {
     use InventorySideType::{Own, Storage};
@@ -1479,10 +1396,6 @@ fn a_double_click_that_would_overfill_refuses_and_changes_nothing() {
         (12, 0)
     );
     assert_eq!(
-        note(&rig.app).as_deref(),
-        Some("Refused: storage full, 100 kg free")
-    );
-    assert_eq!(
         take_cues(&mut rig.app),
         [UiSfx::MenuSelect, UiSfx::EditorDeny]
     );
@@ -1494,6 +1407,10 @@ fn a_double_click_that_would_overfill_refuses_and_changes_nothing() {
             quantity: Some(12),
         }),
         "the form keeps the refused stack open"
+    );
+    assert_eq!(
+        form_field(&mut rig.app, InventoryInspectorField::TotalWeight),
+        ("120 kg  100 kg free".to_string(), UiColorType::Danger)
     );
     assert_eq!(reports(&rig), 0);
 
@@ -1513,10 +1430,6 @@ fn a_double_click_that_would_overfill_refuses_and_changes_nothing() {
     assert_eq!(
         held_and_stored(rig.app.world(), player, station, &plate),
         (12, 50)
-    );
-    assert_eq!(
-        note(&rig.app).as_deref(),
-        Some("Refused: NOVA has room for 280 kg more")
     );
     assert_eq!(reports(&rig), 0);
     let credits = |entity| rig.app.world().get::<ShipCredits>(entity).unwrap().0;
@@ -1607,10 +1520,6 @@ fn a_docked_own_ship_hold_is_listed_in_storage_and_moves_stacks_both_ways() {
         (32, 0)
     );
     assert_eq!(
-        note(&rig.app).as_deref(),
-        Some("Withdrew 20 Hull plate from Escort")
-    );
-    assert_eq!(
         take_cues(&mut rig.app),
         [UiSfx::MenuSelect, UiSfx::MenuSelect]
     );
@@ -1633,10 +1542,6 @@ fn a_docked_own_ship_hold_is_listed_in_storage_and_moves_stacks_both_ways() {
         ),
         (0, 32)
     );
-    assert_eq!(
-        note(&rig.app).as_deref(),
-        Some("Stored 32 Hull plate in Escort")
-    );
     assert_eq!(stored(&rig), 0, "the station's storage is not touched");
 
     // A full 100 kg hold of 10 plates takes nothing more.
@@ -1658,10 +1563,6 @@ fn a_docked_own_ship_hold_is_listed_in_storage_and_moves_stacks_both_ways() {
             plates(rig.app.world(), escort)
         ),
         (10, 32)
-    );
-    assert_eq!(
-        note(&rig.app).as_deref(),
-        Some("Refused: NOVA has room for 0 kg more")
     );
     assert_eq!(
         take_cues(&mut rig.app),
@@ -1735,10 +1636,6 @@ fn an_own_ship_partner_is_storage_not_a_trader() {
         ),
         (0, 15)
     );
-    assert_eq!(
-        note(&rig.app).as_deref(),
-        Some("Stored 12 Hull plate in Escort")
-    );
 }
 
 /// A click moves the docked partner's whole credit balance in one
@@ -1762,37 +1659,22 @@ fn take_credits_moves_the_whole_balance_once_and_a_refusal_changes_nothing() {
     let take = |app: &mut App| {
         app.world_mut().write_message(CreditTakeCommand);
         app.update();
-        (note(app), take_cues(app))
+        take_cues(app)
     };
 
     // A live ship that was never neutralized is not robbed.
-    assert_eq!(
-        take(&mut app),
-        (
-            Some("Refused: Derelict is not neutralized or lootable".to_string()),
-            vec![UiSfx::EditorDeny]
-        )
-    );
+    assert_eq!(take(&mut app), vec![UiSfx::EditorDeny]);
     assert_eq!((credits(&app, player), credits(&app, partner)), (100, 500));
 
     // Lootable: one click takes the whole balance and zeros the partner.
     app.world_mut()
         .entity_mut(partner)
         .insert(LootableShipMarker);
-    assert_eq!(
-        take(&mut app),
-        (Some("TOOK +500 cr".to_string()), vec![UiSfx::MenuSelect])
-    );
+    assert_eq!(take(&mut app), vec![UiSfx::MenuSelect]);
     assert_eq!((credits(&app, player), credits(&app, partner)), (600, 0));
 
     // Repeating the action against the zeroed balance refuses again.
-    assert_eq!(
-        take(&mut app),
-        (
-            Some("Refused: Derelict holds no credits".to_string()),
-            vec![UiSfx::EditorDeny]
-        )
-    );
+    assert_eq!(take(&mut app), vec![UiSfx::EditorDeny]);
     assert_eq!((credits(&app, player), credits(&app, partner)), (600, 0));
 
     // An overflowing take refuses without moving anything.
@@ -1800,13 +1682,7 @@ fn take_credits_moves_the_whole_balance_once_and_a_refusal_changes_nothing() {
         .entity_mut(player)
         .insert(ShipCredits(u32::MAX - 2));
     app.world_mut().entity_mut(partner).insert(ShipCredits(3));
-    assert_eq!(
-        take(&mut app),
-        (
-            Some("Refused: your ship cannot hold more credits".to_string()),
-            vec![UiSfx::EditorDeny]
-        )
-    );
+    assert_eq!(take(&mut app), vec![UiSfx::EditorDeny]);
     assert_eq!(
         (credits(&app, player), credits(&app, partner)),
         (u32::MAX - 2, 3)
@@ -1880,11 +1756,11 @@ fn take_all_app(
     (app, player, partner)
 }
 
-/// Press Take all once: the note and the cues it left.
-fn take_all(app: &mut App) -> (Option<String>, Vec<UiSfx>) {
+/// Press Take all once: the cues it left.
+fn take_all(app: &mut App) -> Vec<UiSfx> {
     app.world_mut().write_message(TakeAllCommand);
     app.update();
-    (note(app), take_cues(app))
+    take_cues(app)
 }
 
 /// What `ship` holds: its stacks and its credits.
@@ -1911,35 +1787,17 @@ fn take_all_moves_every_stack_and_the_credits_from_a_lootable_partner() {
     let (mut app, player, partner) =
         take_all_app(12, &[(plate.clone(), 8), (rations.clone(), 5)], 500);
 
-    assert_eq!(
-        take_all(&mut app),
-        (
-            Some("Refused: Derelict is not neutralized or lootable".to_string()),
-            vec![UiSfx::EditorDeny]
-        )
-    );
+    assert_eq!(take_all(&mut app), vec![UiSfx::EditorDeny]);
     assert_eq!(holds(&app, player), (vec![(plate.clone(), 12)], 100));
 
     app.world_mut()
         .entity_mut(partner)
         .insert(LootableShipMarker);
-    assert_eq!(
-        take_all(&mut app),
-        (
-            Some("TOOK x8 Hull plate, x5 Rations, +500 cr".to_string()),
-            vec![UiSfx::MenuSelect]
-        )
-    );
+    assert_eq!(take_all(&mut app), vec![UiSfx::MenuSelect]);
     assert_eq!(holds(&app, player), (vec![(plate, 20), (rations, 5)], 600));
     assert_eq!(holds(&app, partner), (vec![], 0));
 
-    assert_eq!(
-        take_all(&mut app),
-        (
-            Some("Refused: Derelict holds nothing".to_string()),
-            vec![UiSfx::EditorDeny]
-        )
-    );
+    assert_eq!(take_all(&mut app), vec![UiSfx::EditorDeny]);
 }
 
 /// With room for only part of the wreck's hold, Take all takes what fits and
@@ -1954,23 +1812,11 @@ fn take_all_with_a_nearly_full_hold_takes_what_fits_and_names_what_stayed() {
         .entity_mut(partner)
         .insert(LootableShipMarker);
 
-    assert_eq!(
-        take_all(&mut app),
-        (
-            Some("TOOK x2 Hull plate, +50 cr; no room for 6 Hull plate".to_string()),
-            vec![UiSfx::MenuSelect]
-        )
-    );
+    assert_eq!(take_all(&mut app), vec![UiSfx::MenuSelect]);
     assert_eq!(holds(&app, player), (vec![(plate.clone(), 40)], 150));
     assert_eq!(holds(&app, partner), (vec![(plate.clone(), 6)], 0));
 
-    assert_eq!(
-        take_all(&mut app),
-        (
-            Some("Refused: no room for 6 Hull plate".to_string()),
-            vec![UiSfx::EditorDeny]
-        )
-    );
+    assert_eq!(take_all(&mut app), vec![UiSfx::EditorDeny]);
     assert_eq!(holds(&app, player), (vec![(plate.clone(), 40)], 150));
     assert_eq!(holds(&app, partner), (vec![(plate, 6)], 0));
 }
@@ -2047,13 +1893,7 @@ fn the_strip_block_and_take_all_show_only_at_a_wreck() {
     );
     let before = plates(rig.app.world(), player);
     take_cues(&mut rig.app);
-    assert_eq!(
-        take_all(&mut rig.app),
-        (
-            Some("TOOK x2 Hull plate".to_string()),
-            vec![UiSfx::MenuSelect]
-        )
-    );
+    assert_eq!(take_all(&mut rig.app), vec![UiSfx::MenuSelect]);
     assert_eq!(plates(rig.app.world(), player), before + 2);
     assert!(rig
         .app
@@ -2069,9 +1909,10 @@ fn the_strip_block_and_take_all_show_only_at_a_wreck() {
     );
 }
 
-/// Confirm follows the live plan: disabled on each refusal the summary shows,
-/// so neither a click nor a triggered `Activate` sends it, and enabled again
-/// once the quantity, room or credits allow the trade. A Buy that fills the
+/// Confirm follows the live plan: disabled on each refusal, with the number
+/// that blocks it in the danger tone, so neither a click nor a triggered
+/// `Activate` sends it, and enabled again once the quantity, room or credits
+/// allow the trade. A Buy that fills the
 /// hold and spends every credit exactly is allowed.
 #[test]
 fn confirm_is_disabled_while_the_draft_is_refused_and_enabled_at_exact_room_and_credits() {
@@ -2099,15 +1940,15 @@ fn confirm_is_disabled_while_the_draft_is_refused_and_enabled_at_exact_room_and_
     let confirm = only::<InventoryDraftConfirm>(rig.app.world_mut());
     let field = only::<InventoryDraftField>(rig.app.world_mut());
     let form = |app: &mut App| {
-        let world = app.world_mut();
-        let summary = world
-            .query::<(&InventoryInspectorField, &Text)>()
-            .iter(world)
-            .find(|(each, _)| **each == InventoryInspectorField::DraftSummary)
-            .map(|(_, text)| text.0.clone())
-            .expect("the form has a summary");
-        (summary, world.get::<InteractionDisabled>(confirm).is_none())
+        let (price, enabled) = draft_form(app);
+        (
+            price,
+            form_field(app, InventoryInspectorField::TotalWeight),
+            enabled,
+        )
     };
+    let text = |text: &str| (text.to_string(), UiColorType::Text);
+    let danger = |text: &str| (text.to_string(), UiColorType::Danger);
     let set_field = |app: &mut App, text: &str| {
         app.world_mut().get_mut::<TextFieldValue>(field).unwrap().0 = text.to_string();
         settle(app);
@@ -2117,17 +1958,15 @@ fn confirm_is_disabled_while_the_draft_is_refused_and_enabled_at_exact_room_and_
         row.side == InventorySideType::Partner
     });
     click_at(&mut rig, partner_row);
-    assert_eq!(
-        form(&mut rig.app),
-        ("Price 40 cr  Balance 40 cr".to_string(), true)
-    );
+    assert_eq!(form(&mut rig.app), (text("40 cr"), text("10 kg"), true));
 
-    // Three plates overfill the hold: disabled, and neither a click nor a
-    // triggered Activate moves anything or says anything.
+    // Three plates overfill the hold: the weight turns red beside the room
+    // left, Confirm is disabled, and neither a click nor a triggered
+    // Activate moves anything.
     set_field(&mut rig.app, "3");
     assert_eq!(
         form(&mut rig.app),
-        ("Refused: NOVA has room for 20 kg more".to_string(), false)
+        (text("120 cr"), danger("30 kg  20 kg free"), false)
     );
     take_cues(&mut rig.app);
     let confirm_at = centre_of::<InventoryDraftConfirm>(rig.app.world_mut(), |_| true);
@@ -2135,49 +1974,37 @@ fn confirm_is_disabled_while_the_draft_is_refused_and_enabled_at_exact_room_and_
     rig.app.world_mut().trigger(Activate { entity: confirm });
     settle(&mut rig.app);
     assert_eq!(state(&rig.app), (38, 80, 8, 1_000));
-    assert_eq!(note(&rig.app), None);
     assert!(take_cues(&mut rig.app).is_empty());
     assert_eq!(draft_quantity(&rig.app), Some(3));
 
+    // Not a number: no price, and Confirm is disabled.
     set_field(&mut rig.app, "2x");
-    assert_eq!(
-        form(&mut rig.app),
-        ("Type a whole number".to_string(), false)
-    );
+    let (price, _, enabled) = form(&mut rig.app);
+    assert_eq!((price, enabled), (text("--"), false));
 
     // Two plates fill the hold and spend every credit exactly: allowed.
     set_field(&mut rig.app, "2");
-    assert_eq!(
-        form(&mut rig.app),
-        ("Price 80 cr  Balance 0 cr".to_string(), true)
-    );
+    assert_eq!(form(&mut rig.app), (text("80 cr"), text("20 kg"), true));
 
-    // A credit short disables it; the credit back enables it.
+    // A credit short turns the price red and disables Confirm; the credit
+    // back enables it.
     rig.app
         .world_mut()
         .entity_mut(player)
         .insert(ShipCredits(79));
     settle(&mut rig.app);
-    assert_eq!(
-        form(&mut rig.app),
-        ("Refused: NOVA has only 79 cr".to_string(), false)
-    );
+    assert_eq!(form(&mut rig.app), (danger("80 cr"), text("20 kg"), false));
     rig.app
         .world_mut()
         .entity_mut(player)
         .insert(ShipCredits(80));
     settle(&mut rig.app);
-    assert!(form(&mut rig.app).1);
+    assert!(form(&mut rig.app).2);
 
-    // The shorter summary reflows the form, so aim at Confirm again.
     let confirm_at = centre_of::<InventoryDraftConfirm>(rig.app.world_mut(), |_| true);
     click_at(&mut rig, confirm_at);
     assert_eq!(state(&rig.app), (40, 0, 6, 1_080));
     assert_eq!(rig.app.world().resource::<InventoryRuntime>().draft, None);
-    assert_eq!(
-        note(&rig.app).as_deref(),
-        Some("BOUGHT x2 Hull plate -80 cr")
-    );
 }
 
 #[test]
@@ -2207,10 +2034,10 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
         }
         app.update();
         let draft_open = app.world().resource::<InventoryRuntime>().draft.is_some();
-        (note(app), take_cues(app), draft_open)
+        (take_cues(app), draft_open)
     };
-    let dropped = |text: &str| (Some(text.to_string()), vec![UiSfx::MenuSelect], false);
-    let refused = |text: &str| (Some(text.to_string()), vec![UiSfx::EditorDeny], true);
+    let dropped = || (vec![UiSfx::MenuSelect], false);
+    let refused = || (vec![UiSfx::EditorDeny], true);
     let queue = |app: &App, intake: Entity| {
         app.world()
             .get::<CargoIntakeEjectionQueue>(intake)
@@ -2223,28 +2050,16 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
             })
     };
 
-    assert_eq!(
-        confirm(&mut app, &[Some(4)]),
-        refused("Refused: no working cargo intake")
-    );
+    assert_eq!(confirm(&mut app, &[Some(4)]), refused());
     assert_eq!(plates(app.world(), player), 12);
 
     let intake = app
         .world_mut()
         .spawn((ChildOf(player), CargoIntakeSectionMarker))
         .id();
-    assert_eq!(
-        confirm(&mut app, &[None]),
-        refused("Refused: enter a quantity")
-    );
-    assert_eq!(
-        confirm(&mut app, &[Some(0)]),
-        refused("Refused: quantity is zero")
-    );
-    assert_eq!(
-        confirm(&mut app, &[Some(13)]),
-        refused("Refused: only 12 Hull plate in NOVA")
-    );
+    assert_eq!(confirm(&mut app, &[None]), refused());
+    assert_eq!(confirm(&mut app, &[Some(0)]), refused());
+    assert_eq!(confirm(&mut app, &[Some(13)]), refused());
     assert_eq!(plates(app.world(), player), 12);
     assert_eq!(queue(&app, intake), None);
 
@@ -2252,18 +2067,11 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
     // second jettison in that run merges into the waiting canister.
     assert_eq!(
         confirm(&mut app, &[Some(4), Some(1)]),
-        (
-            Some("Jettisoned 1 Hull plate: 1 canister queued".to_string()),
-            vec![UiSfx::MenuSelect, UiSfx::MenuSelect],
-            false
-        )
+        (vec![UiSfx::MenuSelect, UiSfx::MenuSelect], false)
     );
     assert_eq!(plates(app.world(), player), 7);
     assert_eq!(queue(&app, intake), Some(vec![50_000]));
-    assert_eq!(
-        confirm(&mut app, &[Some(1)]),
-        dropped("Jettisoned 1 Hull plate: 1 canister queued")
-    );
+    assert_eq!(confirm(&mut app, &[Some(1)]), dropped());
     assert_eq!(plates(app.world(), player), 6);
     assert_eq!(queue(&app, intake), Some(vec![60_000]));
 
@@ -2279,16 +2087,10 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
                 19,
             ),
         ])));
-    assert_eq!(
-        confirm(&mut app, &[Some(40)]),
-        refused("Refused: only 39 Hull plate in NOVA")
-    );
+    assert_eq!(confirm(&mut app, &[Some(40)]), refused());
     assert_eq!(plates(app.world(), player), 39);
     assert_eq!(queue(&app, intake), Some(vec![190_000]));
-    assert_eq!(
-        confirm(&mut app, &[Some(39)]),
-        dropped("Jettisoned 39 Hull plate: 1 canister queued")
-    );
+    assert_eq!(confirm(&mut app, &[Some(39)]), dropped());
     assert_eq!(plates(app.world(), player), 0);
     assert_eq!(queue(&app, intake), Some(vec![580_000]));
     app.world_mut()
@@ -2300,18 +2102,12 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
     app.world_mut()
         .entity_mut(intake)
         .insert(SectionInactiveMarker);
-    assert_eq!(
-        confirm(&mut app, &[Some(1)]),
-        refused("Refused: no working cargo intake")
-    );
+    assert_eq!(confirm(&mut app, &[Some(1)]), refused());
     app.world_mut()
         .entity_mut(intake)
         .remove::<SectionInactiveMarker>();
     dock_partner(app.world_mut(), player, "Derelict", 8);
-    assert_eq!(
-        confirm(&mut app, &[Some(1)]),
-        refused("Refused: undock to jettison")
-    );
+    assert_eq!(confirm(&mut app, &[Some(1)]), refused());
     assert_eq!(plates(app.world(), player), 12);
     assert_eq!(queue(&app, intake), None);
 }
@@ -2428,9 +2224,9 @@ fn a_catalog_only_item_jettisons_sells_and_buys_through_the_pane_commands() {
             quantity: Some(quantity),
         });
         app.update();
-        (note(app), take_cues(app))
+        take_cues(app)
     };
-    let done = |text: &str| (Some(text.to_string()), vec![UiSfx::MenuSelect]);
+    let done = || vec![UiSfx::MenuSelect];
     let held = |app: &App, ship: Entity| {
         let hold = app.world().get::<ShipInventory>(ship).unwrap();
         let credits = app.world().get::<ShipCredits>(ship).unwrap().0;
@@ -2452,10 +2248,7 @@ fn a_catalog_only_item_jettisons_sells_and_buys_through_the_pane_commands() {
             .collect()
     };
 
-    assert_eq!(
-        confirm(&mut app, Jettison, 2),
-        done("Jettisoned 2 Fixture core: 1 canister queued")
-    );
+    assert_eq!(confirm(&mut app, Jettison, 2), done());
     assert_eq!(held(&app, player), (4, 20_000, 100));
     assert_eq!(queued(&app), [(vec![(core.clone(), 2)], 10_000)]);
 
@@ -2464,16 +2257,10 @@ fn a_catalog_only_item_jettisons_sells_and_buys_through_the_pane_commands() {
     app.world_mut()
         .entity_mut(partner)
         .insert((stock(4), ShipCredits(1_000)));
-    assert_eq!(
-        confirm(&mut app, Sell, 3),
-        done("SOLD x3 Fixture core +135 cr")
-    );
+    assert_eq!(confirm(&mut app, Sell, 3), done());
     assert_eq!(held(&app, player), (1, 5_000, 235));
     assert_eq!(held(&app, partner), (7, 35_000, 865));
-    assert_eq!(
-        confirm(&mut app, Buy, 2),
-        done("BOUGHT x2 Fixture core -120 cr")
-    );
+    assert_eq!(confirm(&mut app, Buy, 2), done());
     assert_eq!(held(&app, player), (3, 15_000, 115));
     assert_eq!(held(&app, partner), (5, 25_000, 985));
     assert_eq!(queued(&app), [(vec![(core.clone(), 2)], 10_000)]);
@@ -2574,8 +2361,8 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
     assert_eq!(total_weight(rig.app.world_mut()).as_deref(), Some("60 kg"));
     assert_eq!(take_cues(&mut rig.app), [UiSfx::UiTick]);
 
-    // Typed text sets it; text that is not a number stays as typed, marks
-    // the field and says so, with no tick.
+    // Typed text sets it; text that is not a number stays as typed and
+    // marks the field, with no tick.
     rig.app
         .world_mut()
         .get_mut::<TextFieldValue>(field)
@@ -2601,12 +2388,6 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
     let world = rig.app.world_mut();
     assert_eq!(world.get::<TextFieldValue>(field).unwrap().0, "4x");
     assert!(world.get::<TextFieldError>(field).is_some());
-    let summary = world
-        .query::<(&InventoryInspectorField, &Text)>()
-        .iter(world)
-        .find(|(each, _)| **each == InventoryInspectorField::DraftSummary)
-        .map(|(_, text)| text.0.clone());
-    assert_eq!(summary.as_deref(), Some("Type a whole number"));
 
     // All takes the whole source stack, clears the error and rewrites the field.
     let all = centre_of::<Name>(rig.app.world_mut(), |name| {
@@ -2636,7 +2417,7 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
         (field, slider, wheel)
     );
 
-    // Confirm moves the stack, closes the form and leaves the note.
+    // Confirm moves the stack and closes the form.
     let confirm = centre_of::<Name>(rig.app.world_mut(), |name| {
         name.as_str() == "InventoryDraftConfirm"
     });
@@ -2649,7 +2430,6 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
         (20, 0)
     );
     assert_eq!(rig.app.world().resource::<InventoryRuntime>().draft, None);
-    assert_eq!(note(&rig.app).as_deref(), Some("TOOK x8 Hull plate"));
     assert_eq!(
         take_cues(&mut rig.app),
         [UiSfx::MenuFocus, UiSfx::MenuSelect]
@@ -2779,13 +2559,13 @@ mod generated_wreck {
     }
 
     /// Write one confirmed command with its draft open, run it, and return
-    /// the note line.
+    /// whether it moved: a move closes the draft.
     fn confirm(
         app: &mut App,
         action: InventoryActionType,
         item: ItemDesignId,
         quantity: u32,
-    ) -> Option<String> {
+    ) -> bool {
         let command = InventoryActionCommand {
             action,
             item: item.clone(),
@@ -2798,7 +2578,7 @@ mod generated_wreck {
         });
         app.world_mut().write_message(command);
         app.update();
-        note(app)
+        app.world().resource::<InventoryRuntime>().draft.is_none()
     }
 
     #[test]
@@ -2983,8 +2763,6 @@ mod generated_wreck {
             drawn,
             "the wreck spawns its stock"
         );
-        let items = test_items();
-        let label = &items.design(&drawn_item).name;
         let held = |app: &App| {
             (
                 count(app.world(), player, &drawn_item),
@@ -2993,20 +2771,19 @@ mod generated_wreck {
         };
         let before_take = held(&app).0;
 
-        assert_eq!(
-            confirm(
-                &mut app,
-                InventoryActionType::Take,
-                drawn_item.clone(),
-                drawn
-            ),
-            Some(format!("TOOK x{drawn} {label}"))
-        );
+        assert!(confirm(
+            &mut app,
+            InventoryActionType::Take,
+            drawn_item.clone(),
+            drawn
+        ));
         assert_eq!(held(&app), (before_take + drawn, 0));
-        assert_eq!(
-            confirm(&mut app, InventoryActionType::Give, drawn_item.clone(), 1),
-            Some(format!("GAVE x1 {label}"))
-        );
+        assert!(confirm(
+            &mut app,
+            InventoryActionType::Give,
+            drawn_item.clone(),
+            1
+        ));
         assert_eq!(held(&app), (before_take + drawn - 1, 1));
     }
 }

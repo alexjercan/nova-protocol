@@ -29,7 +29,7 @@
 //!    the Hauler's hold;
 //! 5. double-click Rations in the Depot's column: you buy the stack; with
 //!    **Sell** on your row, a double click sells yours;
-//! 6. a move that does not fit is refused whole, on the note line.
+//! 6. a move that does not fit is refused whole, with the deny cue.
 //!
 //! The diagnostics layer (F3) is on at start: a line from your ship to each
 //! own ship whose hold is offered as storage, labelled with its name and its
@@ -611,7 +611,7 @@ fn draw_the_holds(
 mod smoke {
     use std::sync::Arc;
 
-    use nova_protocol::nova_debug::harness::{AutopilotPlugin, Predicate};
+    use nova_protocol::nova_debug::harness::AutopilotPlugin;
 
     use super::*;
 
@@ -663,19 +663,6 @@ mod smoke {
         info!("storage_quick_loop: PASS {stage} {got:?}");
     }
 
-    /// Advance once a laid-out, visible UI text reads `wanted`.
-    fn text_shown(wanted: &'static str) -> Arc<Predicate> {
-        Arc::new(move |world: &World| {
-            world
-                .try_query::<(&Text, &ComputedNode, &InheritedVisibility)>()
-                .is_some_and(|mut texts| {
-                    texts.iter(world).any(|(text, node, visible)| {
-                        text.0 == wanted && visible.get() && node.size().x > 0.0
-                    })
-                })
-        })
-    }
-
     /// The Hauler's hull plate row: an own hold's row is named by its ship.
     fn hauler_row(world: &mut World) -> String {
         let hauler = ship(world, HAULER_ID);
@@ -707,19 +694,14 @@ mod smoke {
             .add()
     }
 
-    /// Wait for `note`, check the plates, and shoot `shot`.
+    /// Wait for the move, check the plates, and shoot `shot`.
     fn result(
         script: AutopilotPlugin<GameStates>,
         stage: &'static str,
-        note: &'static str,
         wanted: (u32, u32, u32),
         shot: &'static str,
     ) -> AutopilotPlugin<GameStates> {
         script
-            .step(format!("{stage}: the note line"))
-            .until(text_shown(note))
-            .deadline(STEP_DEADLINE)
-            .add()
             .step(format!("{stage}: the overlay reads the move"))
             .until(Arc::new(|world: &World| {
                 world
@@ -760,7 +742,6 @@ mod smoke {
         let script = result(
             script,
             "withdraw the Hauler's stack",
-            "Withdrew 4 Hull plate from Hauler",
             (10, 0, 0),
             WITHDRAW_OWN_SHOT,
         );
@@ -791,7 +772,6 @@ mod smoke {
         let script = result(
             script,
             "store the stack at the Depot",
-            "Stored 10 Hull plate at Depot",
             (0, 10, 0),
             STORE_SHOT,
         );
@@ -807,17 +787,11 @@ mod smoke {
                 "InventoryRowStorageHullPlate",
                 STEP_DEADLINE,
             );
-        let script = result(
-            script,
-            "withdraw one",
-            "Withdrew 1 Hull plate from Depot",
-            (1, 9, 0),
-            WITHDRAW_ONE_SHOT,
-        )
-        .step("let Shift up")
-        .on_enter(release_key(KeyCode::ShiftLeft))
-        .until(frames(1))
-        .add();
+        let script = result(script, "withdraw one", (1, 9, 0), WITHDRAW_ONE_SHOT)
+            .step("let Shift up")
+            .on_enter(release_key(KeyCode::ShiftLeft))
+            .until(frames(1))
+            .add();
 
         // 4. Close the pane: the flight view shows the line to the Hauler.
         script

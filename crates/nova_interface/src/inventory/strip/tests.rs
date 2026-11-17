@@ -24,7 +24,6 @@ fn strip_app() -> App {
         STEP_SECS,
     )));
     app.insert_resource(test_items());
-    app.init_resource::<InventoryRuntime>();
     app.init_resource::<TakenOrder>();
     app.add_message::<HullStripCommand>();
     app.add_plugins(DockingSectionPlugin { render: false });
@@ -330,15 +329,11 @@ fn an_undock_stops_the_strip_and_keeps_what_it_took() {
     for kept in [wreck.berth, wreck.a, wreck.c] {
         assert!(app.world().get_entity(kept).is_ok());
     }
-    assert_eq!(
-        app.world().resource::<InventoryRuntime>().note(),
-        Some("strip stopped: you undocked; 1 section taken")
-    );
 }
 
-/// Strip takes the wreck's whole hold and balance before its first section,
-/// and names them with the parts when the wreck is gone. With no room for
-/// all of it, the press moves nothing at all and starts no strip.
+/// Strip takes the wreck's whole hold and balance before its first section.
+/// With no room for all of it, the press moves nothing at all and starts no
+/// strip.
 #[test]
 fn a_strip_takes_the_whole_hold_first_or_does_nothing() {
     let plate = ItemDesignId::from(ItemRoleType::HullPlate.id());
@@ -361,10 +356,6 @@ fn a_strip_takes_the_whole_hold_first_or_does_nothing() {
             .map(|hold| hold.count(&plate)),
         Some(6)
     );
-    assert_eq!(
-        app.world().resource::<InventoryRuntime>().note(),
-        Some("strip: no room for 1 Hull plate")
-    );
 
     let mut app = strip_app();
     let (player, wreck) = dock_with_a_loaded_wreck(app.world_mut(), 1_000_000, loot(), 50);
@@ -376,20 +367,9 @@ fn a_strip_takes_the_whole_hold_first_or_does_nothing() {
         app.world().get::<ShipCredits>(player),
         Some(&ShipCredits(50))
     );
-    assert_eq!(
-        app.world().resource::<InventoryRuntime>().note(),
-        Some("took 6 Hull plate and 50 cr; stripping the wreck: 17 s")
-    );
     run_until(&mut app, 200, |app| {
         app.world().get_entity(wreck.root).is_err()
     });
-    assert_eq!(
-        app.world().resource::<InventoryRuntime>().note(),
-        Some(
-            "the wreck is stripped and gone: took 6 Hull plate and 50 cr, \
-             stripped 1 Frame spar, 6 Section panel"
-        )
-    );
 }
 
 /// A dead station's storage, the player's own stored items, is loot a strip
@@ -428,10 +408,6 @@ fn a_strip_takes_a_dead_stations_storage_first_or_does_nothing() {
     assert!(job(&app, player).is_none(), "no room: no strip");
     assert!(hold(&app, player).is_empty(), "no room: no partial take");
     assert_eq!(stored(&app, wreck.root), 6);
-    assert_eq!(
-        app.world().resource::<InventoryRuntime>().note(),
-        Some("strip: no room for 1 Hull plate")
-    );
 
     let mut app = strip_app();
     let (player, wreck) = dead_station(app.world_mut(), 1_000_000);
@@ -456,20 +432,9 @@ fn a_strip_takes_a_dead_stations_storage_first_or_does_nothing() {
             count: 6,
         }]
     );
-    assert_eq!(
-        app.world().resource::<InventoryRuntime>().note(),
-        Some("took 6 Hull plate; stripping the wreck: 17 s")
-    );
     run_until(&mut app, 200, |app| {
         app.world().get_entity(wreck.root).is_err()
     });
-    assert_eq!(
-        app.world().resource::<InventoryRuntime>().note(),
-        Some(
-            "the wreck is stripped and gone: took 6 Hull plate, \
-             stripped 1 Frame spar, 6 Section panel"
-        )
-    );
 }
 
 /// Cargo and credits that reach the wreck during a strip, as a Give leaves
@@ -535,13 +500,6 @@ fn a_strip_sweeps_what_the_wreck_holds_at_the_port_and_holds_until_it_fits() {
     assert_eq!(
         app.world().get::<ShipCredits>(player),
         Some(&ShipCredits(50))
-    );
-    assert_eq!(
-        app.world().resource::<InventoryRuntime>().note(),
-        Some(
-            "the wreck is stripped and gone: took 6 Hull plate and 50 cr, \
-             stripped 1 Frame spar, 6 Section panel"
-        )
     );
 }
 
@@ -646,7 +604,7 @@ fn a_strip_refuses_while_your_ship_is_parked_there_and_at_your_own_station() {
         ));
         (player, wreck)
     };
-    let refused = |app: &mut App, player: Entity, wreck: &Wreck, note: &str| {
+    let refused = |app: &mut App, player: Entity, wreck: &Wreck| {
         app.world_mut().write_message(HullStripCommand);
         app.update();
         assert!(job(app, player).is_none(), "refused: no strip");
@@ -654,10 +612,6 @@ fn a_strip_refuses_while_your_ship_is_parked_there_and_at_your_own_station() {
         assert_eq!(
             app.world().get::<ShipCredits>(wreck.root),
             Some(&ShipCredits(50))
-        );
-        assert_eq!(
-            app.world().resource::<InventoryRuntime>().note(),
-            Some(note)
         );
         for _ in 0..80 {
             app.update();
@@ -686,12 +640,7 @@ fn a_strip_refuses_while_your_ship_is_parked_there_and_at_your_own_station() {
         ParkedHull(wreck.root),
         ParkedHullType::Sale,
     ));
-    refused(
-        &mut app,
-        player,
-        &wreck,
-        "strip: 1 of your ships is parked here",
-    );
+    refused(&mut app, player, &wreck);
     assert_eq!(
         app.world()
             .get::<ShipInventory>(hull)
@@ -706,6 +655,6 @@ fn a_strip_refuses_while_your_ship_is_parked_there_and_at_your_own_station() {
     app.world_mut()
         .entity_mut(wreck.root)
         .insert(OwnedStationMarker);
-    refused(&mut app, player, &wreck, "strip: this is your station");
+    refused(&mut app, player, &wreck);
     assert!(app.world().get::<OwnedStationMarker>(wreck.root).is_some());
 }

@@ -21,8 +21,8 @@
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 0 | `outcome: a lawful station docks a hull that carries contraband` | at the lock the hints carry no refusal, the HUD notice is empty and admission answers none; the request docks the hull at the station marked lawful with the core still in its hold |
-//! | 1 | `outcome: a lawful station's market refuses a contraband sale` | the Sell form reads `Refused: WAYSTATION does not deal in contraband` with Confirm disabled; a click on Confirm moves nothing: the hold and both balances are unchanged |
-//! | 2 | `outcome: a station that is not lawful buys contraband at its bid` | at FREEPORT the same form reads the 240 cr price and the balance after it; Confirm moves the core to the station and 240 cr to the player |
+//! | 1 | `outcome: a lawful station's market refuses a contraband sale` | the Sell form shows no price (`--`, danger tone) with Confirm disabled; a click on Confirm moves nothing: the hold and both balances are unchanged |
+//! | 2 | `outcome: a station that is not lawful buys contraband at its bid` | at FREEPORT the same form reads the 240 cr price; Confirm moves the core to the station and 240 cr to the player |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -236,7 +236,7 @@ mod walk {
     const SETTLE_FRAMES: u32 = 10;
 
     const CORES_ROW: &str = "InventoryRowOwnUnmarkedCores";
-    const DRAFT_SUMMARY: &str = "InventoryDraftSummary";
+    const DRAFT_PRICE: &str = "InventoryDraftPrice";
     const CONFIRM: &str = "InventoryDraftConfirm";
 
     /// The station balances the walk reads before the trades.
@@ -285,11 +285,6 @@ mod walk {
             .get::<ShipCredits>(root)
             .expect("contraband trade probe: every ship carries a balance")
             .0
-    }
-
-    /// The line the lawful station's market refuses the sale with.
-    fn refusal_line() -> String {
-        format!("Refused: {LAWFUL_NAME} does not deal in contraband")
     }
 
     /// What the HUD notice reads, empty while the slot is empty.
@@ -515,13 +510,13 @@ mod walk {
             .expect("contraband trade probe: the form has a Confirm")
     }
 
-    /// The Sell form at the lawful station states the refusal and disables
+    /// The Sell form at the lawful station shows no price and disables
     /// Confirm.
     fn assert_the_refused_form(world: &mut World) {
         assert_eq!(
-            node_text(world, DRAFT_SUMMARY),
-            refusal_line(),
-            "contraband trade probe: the form states the market's refusal"
+            node_text(world, DRAFT_PRICE),
+            "--",
+            "contraband trade probe: the market that refuses names no price"
         );
         assert!(
             confirm_disabled(world),
@@ -545,25 +540,22 @@ mod walk {
             (PLAYER_CREDITS, balances.lawful),
             "contraband trade probe: a refused sale moves no credit"
         );
-        let line = refusal_line();
-        info!("contraband trade probe: PASS the lawful market refuses the sale: '{line}'");
+        let price = node_text(world, DRAFT_PRICE);
+        info!("contraband trade probe: PASS the lawful market refuses the sale: price '{price}'");
         let elapsed = world.resource::<Time>().elapsed_secs();
         nova_probe::probe_marker(
             world,
             "outcome: a lawful station's market refuses a contraband sale",
-            serde_json::json!({ "t": elapsed, "line": line }),
+            serde_json::json!({ "t": elapsed, "price": price }),
         );
     }
 
-    /// The Sell form at the station that is not lawful states the price and
-    /// the balance after it, with Confirm enabled.
+    /// The Sell form at the station that is not lawful states the price,
+    /// with Confirm enabled.
     fn assert_the_open_form(world: &mut World) {
         assert_eq!(
-            node_text(world, DRAFT_SUMMARY),
-            format!(
-                "Price {CORES_BID} cr  Balance {} cr",
-                PLAYER_CREDITS + CORES_BID
-            ),
+            node_text(world, DRAFT_PRICE),
+            format!("{CORES_BID} cr"),
             "contraband trade probe: the form states the sale"
         );
         assert!(

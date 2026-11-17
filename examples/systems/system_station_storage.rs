@@ -41,7 +41,7 @@
 //! | 2 | `outcome: the player stores parts in the station's storage` | a Store through the pane moves the stacks from the hold to the station's storage with no credits, and fires `OnStored` once per stack with the station as subject |
 //! | 3 | `outcome: the retired station's record holds its storage` | the retired cell's record holds the station with the stored stacks |
 //! | 4 | `outcome: the thawed station gives back the same stacks` | the thawed station is a new entity holding the stored stacks; a Withdraw of each moves it back, the hold counts are the ones before the store, and `OnWithdrawn` fires once per stack |
-//! | 5 | `outcome: a store past the cap refuses on the form` | one panel more than the empty storage's cap takes shows `Refused: storage full, <cap> free` with Confirm disabled, and nothing moves |
+//! | 5 | `outcome: a store past the cap refuses on the form` | one panel more than the empty storage's cap takes shows the total weight beside `<cap> free` in the danger tone with Confirm disabled, and nothing moves |
 //! | 6 | `outcome: the leave save holds the station's storage` | the leave save, read with [`open_world`], holds the station in its cell with the two stored panels |
 //! | 7 | `outcome: a loaded world gives the station its storage back` | after Load, the station stands under its id with the two stored panels |
 //!
@@ -120,7 +120,10 @@ mod walk {
         nova_interface::pane::InterfacePaneType,
         prelude::*,
     };
-    use nova_ui::widget::TextFieldValue;
+    use nova_ui::{
+        theme::UiColorType,
+        widget::{TextFieldValue, ThemedText},
+    };
     use nova_world::prelude::{
         desired_sectors, FrozenBodyType, FrozenSector, FrozenSectors, SectorRoot, WorldConfig,
     };
@@ -149,7 +152,7 @@ mod walk {
     const LOAD_WORLD_BUTTON: &str = "Load World Button";
 
     const QUANTITY_FIELD: &str = "InventoryDraftQuantity";
-    const DRAFT_SUMMARY: &str = "InventoryDraftSummary";
+    const TOTAL_WEIGHT: &str = "InventoryTotalWeight";
     const CONFIRM: &str = "InventoryDraftConfirm";
 
     /// Item ids the walk moves.
@@ -322,13 +325,28 @@ mod walk {
             .expect("station storage: the over-cap count is chosen")
     }
 
-    /// The form's refusal of a store past the empty storage's cap.
-    fn over_cap_refusal(world: &World) -> String {
+    /// The form's total weight for a store past the empty storage's cap,
+    /// with the room left beside it.
+    fn over_cap_weight(world: &World) -> String {
         let cap_g = world
             .resource::<StorageWatch>()
             .cap_g
             .expect("station storage: the cap is read");
-        format!("Refused: storage full, {} free", kg_text(u64::from(cap_g)))
+        let total_g = world
+            .resource::<GameItems>()
+            .design(&PANEL.into())
+            .stack_mass_g(over_cap_panels(world));
+        format!("{}  {} free", kg_text(total_g), kg_text(u64::from(cap_g)))
+    }
+
+    /// The tone of the UI text named `name`.
+    fn node_tone(world: &mut World, name: &str) -> UiColorType {
+        let mut texts = world.query::<(&Name, &ThemedText)>();
+        texts
+            .iter(world)
+            .find(|(found, _)| found.as_str() == name)
+            .map(|(_, themed)| themed.color)
+            .unwrap_or_else(|| panic!("station storage: no text named '{name}'"))
     }
 
     fn stored_count(world: &World, item: &str) -> u32 {
@@ -988,14 +1006,15 @@ mod walk {
         info!("station storage: withdrew {panels} {PANEL} and {plates} {PLATE}");
     }
 
-    /// Claim 5: one panel over the cap refuses on the form, Confirm disabled.
+    /// Claim 5: one panel over the cap refuses on the form: the total
+    /// weight beside the room left, in the danger tone, Confirm disabled.
     fn assert_the_over_cap_refusal(world: &mut World) {
         let player = player(world);
-        let summary = node_text(world, DRAFT_SUMMARY);
+        let summary = node_text(world, TOTAL_WEIGHT);
         assert_eq!(
-            summary,
-            over_cap_refusal(world),
-            "station storage: the form refuses the store"
+            (summary.clone(), node_tone(world, TOTAL_WEIGHT)),
+            (over_cap_weight(world), UiColorType::Danger),
+            "station storage: the form shows the store does not fit"
         );
         assert!(
             confirm_disabled(world),

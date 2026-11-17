@@ -33,7 +33,15 @@
 //! [`plan_item_trade`](nova_gameplay::prelude::plan_item_trade),
 //! [`plan_item_storage`](nova_gameplay::prelude::plan_item_storage) or
 //! [`plan_item_jettison`](nova_gameplay::prelude::plan_item_jettison) rule, or
-//! refuses with no change. The partner column's Credits row also carries a
+//! refuses with no change.
+//!
+//! The pane writes no result or refusal line. A move shows in the rows and
+//! the balances and closes the form. The form names no refusal: Confirm is
+//! greyed and the number that blocks it turns to the danger tone, the source
+//! stock, the total weight with the target's free room beside it, or the
+//! price of a trade the buyer cannot pay or the partner does not deal in.
+//! Confirm and a refusal play the outcome cue. The partner column's Credits
+//! row also carries a
 //! separate Take credits button, shown only while the partner is neutralized
 //! or lootable and holds a credit above zero, even with an empty hold; one
 //! click writes a [`CreditTakeCommand`] and
@@ -58,8 +66,9 @@
 //! [`TakeAllCommand`]: [`apply_take_all_commands`] takes as much of every
 //! stack as the hold has room for through the Take path, then as much of a
 //! dead station's storage (one `Withdrawn` report per stack), then the
-//! credits, and names on the note line what stayed. Over the column, the
-//! strip block strips the whole hull (see the `strip` module).
+//! credits; what stayed stays listed. The button is disabled while none of
+//! it fits. Over the column, the strip block strips the whole hull (see the
+//! `strip` module).
 //!
 //! # Module layout
 //!
@@ -91,7 +100,10 @@ use nova_ui::{
 
 pub(crate) use self::{app::*, market::*, strip::*, use_item::*};
 pub use self::{
-    app::{INVENTORY_BUY_ALL, INVENTORY_SELL_ALL, INVENTORY_TAKE_ALL},
+    app::{
+        INVENTORY_BUY_ALL, INVENTORY_DRAFT_PRICE, INVENTORY_SELL_ALL, INVENTORY_TAKE_ALL,
+        INVENTORY_TOTAL_WEIGHT,
+    },
     market::{INVENTORY_MARKET_REFUSED, INVENTORY_MARKET_STRIP},
     strip::{
         HullStripCommand, INVENTORY_STRIP_BLOCK, INVENTORY_STRIP_BUTTON, INVENTORY_STRIP_PROGRESS,
@@ -102,7 +114,10 @@ pub use self::{
 /// Glob-import surface: `use nova_interface::inventory::prelude::*`.
 pub mod prelude {
     pub use super::{
-        app::{INVENTORY_BUY_ALL, INVENTORY_SELL_ALL, INVENTORY_TAKE_ALL},
+        app::{
+            INVENTORY_BUY_ALL, INVENTORY_DRAFT_PRICE, INVENTORY_SELL_ALL, INVENTORY_TAKE_ALL,
+            INVENTORY_TOTAL_WEIGHT,
+        },
         market::{INVENTORY_MARKET_REFUSED, INVENTORY_MARKET_STRIP},
         strip::{
             HullStripCommand, INVENTORY_STRIP_BLOCK, INVENTORY_STRIP_BUTTON,
@@ -189,8 +204,8 @@ pub(crate) enum InventoryStoreType {
     Ship(Entity),
 }
 
-/// What the Inventory pane shows: the category filter, the selected row, the
-/// open action form and the result note.
+/// What the Inventory pane shows: the category filter, the selected row and
+/// the open action form.
 ///
 /// Kept while the interface is closed, like the pane itself. A selection that
 /// no longer names a shown row, and a draft the selection no longer offers, are
@@ -203,8 +218,6 @@ pub struct InventoryRuntime {
     pub(crate) selected: Option<(InventorySideType, ItemDesignId)>,
     /// The action form the selected row opened, if it offers one.
     pub(crate) draft: Option<InventoryDraft>,
-    /// The last action result and its remaining seconds on screen.
-    pub(crate) note: Option<(String, f32)>,
     /// Whether `inventory_details` holds the selected item's full description
     /// open. A new selection closes it.
     pub(crate) details: bool,
@@ -213,19 +226,6 @@ pub struct InventoryRuntime {
     pub(crate) own_action: Option<InventoryActionType>,
     /// The row the last click landed on, for a double click.
     pub(crate) click: DoubleClick<(InventorySideType, ItemDesignId)>,
-}
-
-impl InventoryRuntime {
-    /// The last action result on the note line, while it shows: a take, a
-    /// trade, or why a strip was refused or stopped.
-    pub fn note(&self) -> Option<&str> {
-        self.note.as_ref().map(|(note, _)| note.as_str())
-    }
-
-    /// Show `note` on the note line for [`NOTE_SECONDS`].
-    pub(crate) fn say(&mut self, note: String) {
-        self.note = Some((note, NOTE_SECONDS));
-    }
 }
 
 /// What an Inventory pane form does with its items.

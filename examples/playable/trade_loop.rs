@@ -21,18 +21,18 @@
 //! 5. click Hull plate on your side, pick Sell, All and Confirm: you earn
 //!    120 cr.
 //! 6. click Salvaged parts on the trader's side and All: 240 cr is more than
-//!    you hold, so the form shows the refusal, Confirm is disabled, and a
-//!    click on it moves nothing.
+//!    you hold, so the price shows red, Confirm is disabled, and a click on
+//!    it moves nothing.
 //!
 //! ```text
 //! cargo run --example trade_loop --features debug
 //! ```
 //!
 //! Under `NOVA_AUTOPILOT=1` the script runs all six steps through the pane's
-//! own named widgets. After each Confirm it waits for the pane's note line,
-//! then checks both ships' stacks and credits and that no item or credit was
-//! made or lost. On the refusal it waits for the summary and a disabled
-//! Confirm, clicks it, and checks that no note showed and nothing moved.
+//! own named widgets. After each Confirm it waits for the tender's balance to
+//! move, then checks both ships' stacks and credits and that no item or
+//! credit was made or lost. On the refusal it waits for the red price and a
+//! disabled Confirm, clicks it, and checks that nothing moved.
 //! `NOVA_CAPTURE=1` also writes one frame per result.
 
 #[path = "shared/docking_pair.rs"]
@@ -46,6 +46,8 @@ use docking_pair::{spar, tender};
 #[cfg(feature = "debug")]
 use nova_protocol::nova_interface::pane::InterfacePaneType;
 use nova_protocol::prelude::*;
+#[cfg(feature = "debug")]
+use nova_ui::{theme::UiColorType, widget::ThemedText};
 
 #[derive(Parser)]
 #[command(name = "trade_loop")]
@@ -58,9 +60,9 @@ const TENDER_ID: &str = "trade_tender";
 /// Scenario id of the trader it docks with.
 const TRADER_ID: &str = "trade_trader";
 
-/// The player hull's name, which the pane's note line reads.
+/// The player hull's name.
 const TENDER_NAME: &str = "Tender";
-/// The trader's name, which the pane's note line reads.
+/// The trader's name.
 const TRADER_NAME: &str = "Trader";
 
 /// Where the trader stands, in meters: straight ahead, turned to face the
@@ -91,15 +93,9 @@ const STEP_DEADLINE: f32 = 20.0;
 #[cfg(feature = "debug")]
 const LOCK_HOLD: f32 = 3.0;
 
-/// The note line after the Buy: 1 Rations at 8 cr.
+/// The form's price for the refused Buy: 2 Salvaged parts ask 240 cr.
 #[cfg(feature = "debug")]
-const BUY_NOTE: &str = "Bought 1 Rations from Trader for 8 cr";
-/// The note line after the Sell: 4 Hull plates at 30 cr.
-#[cfg(feature = "debug")]
-const SELL_NOTE: &str = "Sold 4 Hull plate to Trader for 120 cr";
-/// The form's summary for the refused Buy: 2 Salvaged parts ask 240 cr.
-#[cfg(feature = "debug")]
-const REFUSED_SUMMARY: &str = "Refused: Tender has only 212 cr";
+const REFUSED_PRICE: &str = "240 cr";
 
 /// The frames the capture path writes, one per result. The Sell frame is the
 /// 0.15.0 news still: both holds and balances after a checked Sell.
@@ -347,31 +343,6 @@ fn check_spawned(world: &mut World) {
     check_ledgers(world, "before the trades", &spawned);
 }
 
-/// Advance once exactly `count` laid-out, visible UI texts read `wanted`, as a
-/// player sees them.
-///
-/// A count, not a presence: the refusal holds at one, the draft's summary,
-/// only while the note line does not repeat it.
-#[cfg(feature = "debug")]
-fn text_shown(
-    wanted: &'static str,
-    count: usize,
-) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(move |world: &World| {
-        world
-            .try_query::<(&Text, &ComputedNode, &InheritedVisibility)>()
-            .is_some_and(|mut texts| {
-                texts
-                    .iter(world)
-                    .filter(|(text, node, visible)| {
-                        text.0 == wanted && visible.get() && node.size().x > 0.0
-                    })
-                    .count()
-                    == count
-            })
-    })
-}
-
 /// Advance once the interface shows `pane`.
 #[cfg(feature = "debug")]
 fn the_interface_shows(
@@ -387,19 +358,46 @@ fn the_interface_shows(
     })
 }
 
-/// Click the draft form's Confirm and wait for `note` to show.
+/// Click the draft form's Confirm and wait for the tender's balance to read
+/// `credits`.
 #[cfg(feature = "debug")]
 fn confirm(
     script: nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates>,
     label: &str,
-    note: &'static str,
+    credits: u32,
 ) -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     script.click_named(
         &format!("{label}: confirm"),
         "InventoryDraftConfirm",
-        text_shown(note, 1),
+        std::sync::Arc::new(move |world: &World| {
+            world
+                .try_query::<(&EntityId, &ShipCredits)>()
+                .is_some_and(|mut ships| {
+                    ships
+                        .iter(world)
+                        .any(|(id, held)| id.0 == TENDER_ID && held.0 == credits)
+                })
+        }),
         STEP_DEADLINE,
     )
+}
+
+/// Advance once the draft form's price reads `wanted` in the danger tone.
+#[cfg(feature = "debug")]
+fn price_refused(
+    wanted: &'static str,
+) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(move |world: &World| {
+        world
+            .try_query::<(&Name, &Text, &ThemedText)>()
+            .is_some_and(|mut texts| {
+                texts.iter(world).any(|(name, text, themed)| {
+                    name.as_str() == "InventoryDraftPrice"
+                        && text.0 == wanted
+                        && themed.color == UiColorType::Danger
+                })
+            })
+    })
 }
 
 /// Whether the draft form's Confirm carries [`InteractionDisabled`].
@@ -489,7 +487,7 @@ fn trade_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         ui_node_present("InventoryDraftConfirm"),
         STEP_DEADLINE,
     );
-    let script = confirm(script, "buy", BUY_NOTE)
+    let script = confirm(script, "buy", AFTER_BUY.0.credits)
         .step("check the Buy")
         .on_enter(|world: &mut World| check_ledgers(world, "after the Buy", &AFTER_BUY))
         .until(frames(1))
@@ -517,7 +515,7 @@ fn trade_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
             pointer_released(),
             STEP_DEADLINE,
         );
-    let script = confirm(script, "sell", SELL_NOTE)
+    let script = confirm(script, "sell", AFTER_SELL.0.credits)
         .step("check the Sell")
         .on_enter(|world: &mut World| check_ledgers(world, "after the Sell", &AFTER_SELL))
         .until(frames(1))
@@ -525,9 +523,9 @@ fn trade_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
     let script = shoot_result(script, "Sell", SELL_SHOT);
 
     // REFUSED: All asks for both Salvaged parts, 240 cr against 212. One
-    // part, 120 cr, is affordable, so the summary's refusal is the proof All
+    // part, 120 cr, is affordable, so the red 240 cr price is the proof All
     // set the quantity to two. The refusal disables Confirm; a real click on
-    // it must send nothing, so no note repeats the summary.
+    // it must send nothing.
     let script = script
         .click_named(
             "refused: pick Salvaged parts",
@@ -539,7 +537,7 @@ fn trade_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
             "refused: take all",
             "InventoryDraftAll",
             and(
-                text_shown(REFUSED_SUMMARY, 1),
+                price_refused(REFUSED_PRICE),
                 std::sync::Arc::new(confirm_disabled),
             ),
             STEP_DEADLINE,
@@ -550,7 +548,7 @@ fn trade_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
             pointer_released(),
             STEP_DEADLINE,
         )
-        .step("let a sent command reach the note line")
+        .step("let a sent command reach the holds")
         .until(frames(10))
         .add()
         .step("check the refusal moved nothing")
@@ -560,9 +558,8 @@ fn trade_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
                 "trade_loop after the refused Buy: Confirm is enabled"
             );
             assert!(
-                text_shown(REFUSED_SUMMARY, 1)(world),
-                "trade_loop after the refused Buy: the refusal is not shown once, \
-                 on the summary alone"
+                price_refused(REFUSED_PRICE)(world),
+                "trade_loop after the refused Buy: the price is not red"
             );
             check_ledgers(world, "after the refused Buy", &AFTER_SELL);
         })

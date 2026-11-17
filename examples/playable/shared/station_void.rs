@@ -25,8 +25,8 @@ pub const PLAYER_ID: &str = "player_spaceship";
 /// which stands off its -X flank, faces +Z.
 const STATION_TURN: f32 = std::f32::consts::FRAC_PI_2;
 
-/// The `Name` of the Inventory draft form's summary text.
-pub const DRAFT_SUMMARY: &str = "InventoryDraftSummary";
+/// The `Name` of the Inventory draft form's price text.
+pub const DRAFT_PRICE: &str = "InventoryDraftPrice";
 /// The `Name` of the Inventory draft form's Confirm button.
 pub const DRAFT_CONFIRM: &str = "InventoryDraftConfirm";
 

@@ -23,7 +23,7 @@
 //! 4. on another run, undock part-way (the docking key): the strip stops and
 //!    what it took stays taken; dock again and Strip takes the rest;
 //! 5. Take all in the wreck's Credits row takes every stack that fits and the
-//!    credits, and names what stayed; Take credits takes the credits.
+//!    credits; what stayed stays listed. Take credits takes the credits.
 //!
 //! ```text
 //! nix develop --command cargo run --example recycle_sandbox --features debug
@@ -38,13 +38,13 @@
 //! yellow with its seconds left, and the berth port in red, labelled `last`.
 //!
 //! Strip first takes the wreck's whole hold and credits, as Take all does.
-//! When your hold has no room for all of it, Strip is disabled and moves
-//! nothing; point at it for what has no room.
+//! When your hold has no room for all of it, Strip is disabled, moves
+//! nothing, and the Hold meter turns red.
 //!
 //! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the dock and opens the
 //! Inventory pane. It fills the player's hold so the wreck's loot cannot
 //! fit, asserts Strip is disabled and a strip command moves nothing, and
-//! shoots the tooltip (`recycle-sandbox-no-room.png`). It empties the
+//! shoots the red Hold meter (`recycle-sandbox-no-room.png`). It empties the
 //! ballast, presses Strip, asserts the loot is in the hold and the wreck's
 //! hold and credits are empty, and shoots the pane
 //! (`recycle-sandbox-taken.png`). Then it shuts the interface, waits for a
@@ -510,7 +510,7 @@ mod smoke {
     use nova_protocol::{
         nova_debug::harness::{shoot, AutopilotPlugin, Predicate, SHOT_DEADLINE_SECS},
         nova_interface::{
-            inventory::{HullStripCommand, InventoryRuntime, INVENTORY_STRIP_BUTTON},
+            inventory::{HullStripCommand, INVENTORY_STRIP_BUTTON},
             pane::InterfacePaneType,
         },
     };
@@ -525,7 +525,7 @@ mod smoke {
     const SETTLE_FRAMES: u32 = 10;
     /// The frame the walk shoots.
     const SHOT: &str = "recycle-sandbox.png";
-    /// The disabled Strip and its tooltip, with the hold too full.
+    /// The disabled Strip and the red Hold meter, with the hold too full.
     const NO_ROOM_SHOT: &str = "recycle-sandbox-no-room.png";
     /// The pane right after Strip took the loot.
     const TAKEN_SHOT: &str = "recycle-sandbox-taken.png";
@@ -626,29 +626,22 @@ mod smoke {
             .map(|(_, disabled, tooltip)| (disabled, tooltip.0.clone()))
     }
 
-    /// Whether the Strip button's tooltip panel is up and laid out.
-    fn strip_tooltip_shown(world: &World) -> bool {
-        let Some(button) = world.try_query::<(Entity, &Name)>().and_then(|mut names| {
-            names
-                .iter(world)
-                .find(|(_, name)| name.as_str() == INVENTORY_STRIP_BUTTON)
-                .map(|(button, _)| button)
-        }) else {
-            return false;
-        };
+    /// Whether the strip block's Hold meter text, used over capacity with
+    /// the mass to come, is in the danger tone.
+    fn hold_meter_red(world: &World) -> bool {
         world
-            .try_query_filtered::<(&ChildOf, &Node, &ComputedNode), With<nova_ui::widget::TooltipPanel>>()
-            .is_some_and(|mut panels| {
-                panels.iter(world).any(|(parent, node, computed)| {
-                    parent.parent() == button
-                        && node.display == Display::Flex
-                        && computed.size().x > 0.0
+            .try_query::<(&Text, &nova_ui::widget::ThemedText)>()
+            .is_some_and(|mut texts| {
+                texts.iter(world).any(|(text, themed)| {
+                    text.0.contains(" / ")
+                        && text.0.contains("  +")
+                        && themed.color == nova_ui::theme::UiColorType::Danger
                 })
             })
     }
 
-    /// With no room: the button is disabled, and a strip command moves
-    /// nothing at all and starts no strip.
+    /// With no room: the button is disabled with no tooltip, the Hold meter
+    /// is red, and a strip command moves nothing at all and starts no strip.
     fn assert_nothing_moved(world: &mut World) {
         let player = player(world);
         let smoke = world.resource::<SmokeLoot>();
@@ -657,8 +650,12 @@ mod smoke {
         let (disabled, reason) = strip_button(world).expect("recycle sandbox: Strip is up");
         assert!(disabled, "recycle sandbox: Strip is disabled with no room");
         assert!(
-            reason.starts_with("no room for "),
-            "recycle sandbox: the tooltip names what has no room, got {reason:?}"
+            reason.is_empty(),
+            "recycle sandbox: the red Hold meter shows no room, got tooltip {reason:?}"
+        );
+        assert!(
+            hold_meter_red(world),
+            "recycle sandbox: the Hold meter is red"
         );
         assert!(job(world).is_none(), "recycle sandbox: no strip started");
         assert_eq!(
@@ -673,16 +670,7 @@ mod smoke {
             "recycle sandbox: the wreck kept its loot"
         );
         assert_eq!(credits(world, wreck), loot_cr);
-        let note = world
-            .resource::<InventoryRuntime>()
-            .note()
-            .map(str::to_string);
-        assert_eq!(
-            note.as_deref(),
-            Some(format!("strip: {reason}").as_str()),
-            "recycle sandbox: the refused press names the same reason"
-        );
-        info!("recycle sandbox: PASS no room: Strip disabled ({reason}), nothing moved");
+        info!("recycle sandbox: PASS no room: Strip disabled, Hold meter red, nothing moved");
     }
 
     /// After Strip: the loot is in the hold, the wreck's hold and balance
@@ -708,9 +696,8 @@ mod smoke {
         assert_eq!(credits(world, wreck), 0);
         assert!(job(world).is_some(), "recycle sandbox: the strip runs");
         info!(
-            "recycle sandbox: PASS Strip took {:?} and {loot_cr} cr first; note {:?}",
-            loot.stacks().collect::<Vec<_>>(),
-            world.resource::<InventoryRuntime>().note()
+            "recycle sandbox: PASS Strip took {:?} and {loot_cr} cr first",
+            loot.stacks().collect::<Vec<_>>()
         );
     }
 
@@ -822,18 +809,12 @@ mod smoke {
         .step("recycle sandbox: fill the hold past the loot")
         .on_enter(stuff_the_hold)
         .until(when(|world| {
-            strip_button(world).is_some_and(|(disabled, reason)| disabled && !reason.is_empty())
+            strip_button(world).is_some_and(|(disabled, _)| disabled) && hold_meter_red(world)
         }))
         .diagnose(|world| format!("strip button {:?}", strip_button(world)))
         .deadline(BEAT_SECS)
         .add()
-        .step("recycle sandbox: hover the disabled Strip for its reason")
-        .on_enter(hover_named(INVENTORY_STRIP_BUTTON))
-        .each(|world, _, _| keep_hovering_named(INVENTORY_STRIP_BUTTON)(world))
-        .until(Arc::new(strip_tooltip_shown))
-        .deadline(BEAT_SECS)
-        .add()
-        .step("recycle sandbox: settle the tooltip")
+        .step("recycle sandbox: settle the red Hold meter")
         .until(frames(SETTLE_FRAMES))
         .add()
         .step("recycle sandbox: shoot the disabled Strip")

@@ -254,7 +254,6 @@ fn spawn_strip_rows(strip: &mut ChildSpawnerCommands, draw: &MarketStripDraw) {
                         },
                         children![slider_track(1.0)],
                     ));
-                    row.spawn(themed_label("Stocked", 12.0, UiColorType::TextMuted));
                 }
             }
         });

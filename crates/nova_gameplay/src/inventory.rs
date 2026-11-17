@@ -49,15 +49,15 @@ pub mod prelude {
         plan_credit_take, plan_hull_strip, plan_item_jettison, plan_item_storage, plan_item_trade,
         plan_item_transfer, plan_loot_take, plan_plate_repair, plan_plate_step,
         plan_recipe_payment, plan_section_rebuild, plan_section_yield, strip_duration_secs,
-        BuildRecipe, CargoCanister, CargoCanisterIdAllocator, CargoCanisterRuntimeId,
-        CreditTakeRefusalType, GameItems, HullStrip, HullStripPartner, HullStripPauseType,
-        HullStripRefusalType, ItemCategoryType, ItemDesign, ItemDesignId, ItemJettison,
-        ItemJettisonRefusalType, ItemRoleType, ItemStorageRefusalType, ItemStorageType, ItemTrade,
-        ItemTradeRefusalType, ItemTransferRefusalType, ItemTransferType, LootTake,
-        LootableShipMarker, PlateRepair, PlateRepairRefusalType, RebuildSiteType, RecipePayment,
-        RecipePaymentRefusalType, SectionRebuildRefusalType, ShipCredits, ShipInventory,
-        ShipInventoryReport, ShipInventoryReports, ShipInventoryStock, StationPartner,
-        StationStorage, StripTarget, TradePriceType, CARGO_CANISTER_MAX_MASS_G,
+        trade_price_cr, BuildRecipe, CargoCanister, CargoCanisterIdAllocator,
+        CargoCanisterRuntimeId, CreditTakeRefusalType, GameItems, HullStrip, HullStripPartner,
+        HullStripPauseType, HullStripRefusalType, ItemCategoryType, ItemDesign, ItemDesignId,
+        ItemJettison, ItemJettisonRefusalType, ItemRoleType, ItemStorageRefusalType,
+        ItemStorageType, ItemTrade, ItemTradeRefusalType, ItemTransferRefusalType,
+        ItemTransferType, LootTake, LootableShipMarker, PlateRepair, PlateRepairRefusalType,
+        RebuildSiteType, RecipePayment, RecipePaymentRefusalType, SectionRebuildRefusalType,
+        ShipCredits, ShipInventory, ShipInventoryReport, ShipInventoryReports, ShipInventoryStock,
+        StationPartner, StationStorage, StripTarget, TradePriceType, CARGO_CANISTER_MAX_MASS_G,
         FIELD_REBUILD_MIN_SECS, FIELD_REBUILD_SECS_PER_PART, HULL_PLATE_HEALTH, PLATE_REPAIR_SECS,
         STRIP_MIN_SECS, STRIP_SECS_PER_PART,
     };
@@ -984,6 +984,25 @@ pub enum TradePriceType {
     Owned(ItemPrice),
 }
 
+/// The credits a `trade` of `quantity` moves at `prices`: a Buy pays the
+/// ask, or the bid at a station the player owns ([`TradePriceType::Owned`]),
+/// rounded up by [`ItemPrice::buy_cr`]; a Sell earns the bid, rounded down by
+/// [`ItemPrice::sell_cr`]. [`plan_item_trade`] charges it, and a form shows
+/// it before the plan passes.
+pub fn trade_price_cr(trade: ItemTradeType, prices: TradePriceType, quantity: u32) -> u64 {
+    match (trade, prices) {
+        (ItemTradeType::Buy, TradePriceType::Market(price)) => price.buy_cr(quantity),
+        (ItemTradeType::Buy, TradePriceType::Owned(price)) => ItemPrice {
+            ask_cr: price.bid_cr,
+            ..price
+        }
+        .buy_cr(quantity),
+        (ItemTradeType::Sell, TradePriceType::Market(price) | TradePriceType::Owned(price)) => {
+            price.sell_cr(quantity)
+        }
+    }
+}
+
 /// Plan a trade of `quantity` of `item` between the player ship (`own`,
 /// holding `own_cr`) and its docked `partner` (holding `partner_cr`).
 ///
@@ -1023,20 +1042,10 @@ pub fn plan_item_trade(
     if quantity == 0 {
         return Err(ItemTradeRefusalType::ZeroQuantity);
     }
-    let (seller, buyer, buyer_cr, seller_cr, price) = match (trade, prices) {
-        (ItemTradeType::Buy, TradePriceType::Market(price)) => {
-            (partner, own, own_cr, partner_cr, price.buy_cr(quantity))
-        }
-        (ItemTradeType::Buy, TradePriceType::Owned(price)) => {
-            let at_bid = ItemPrice {
-                ask_cr: price.bid_cr,
-                ..price
-            };
-            (partner, own, own_cr, partner_cr, at_bid.buy_cr(quantity))
-        }
-        (ItemTradeType::Sell, TradePriceType::Market(price) | TradePriceType::Owned(price)) => {
-            (own, partner, partner_cr, own_cr, price.sell_cr(quantity))
-        }
+    let price = trade_price_cr(trade, prices, quantity);
+    let (seller, buyer, buyer_cr, seller_cr) = match trade {
+        ItemTradeType::Buy => (partner, own, own_cr, partner_cr),
+        ItemTradeType::Sell => (own, partner, partner_cr, own_cr),
     };
     if trade == ItemTradeType::Sell && price == 0 {
         return Err(ItemTradeRefusalType::ZeroCredits);

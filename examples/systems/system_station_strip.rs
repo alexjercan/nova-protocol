@@ -34,7 +34,7 @@
 //! | 4 | `outcome: a finished strip demolishes the wreck and releases the player` | the wreck is gone, the player has no dock and no connection names it, and no strip runs |
 //! | 5 | `outcome: a finished strip's yield is in the hold` | the hold gained the whole-hull plan's parts, the sum of every `OnStripped` |
 //! | 6 | `outcome: a wreck a strip demolished stays gone across a retire` | the retired cell's frozen record holds no wreck, and none stands when the cell streams back |
-//! | 7 | `outcome: a living station shows the Station tab and refuses a strip` | docked at a living station, the Station tab shows and the Inventory pane shows no strip block; a strip command shows the living-station reason, starts no strip and moves nothing |
+//! | 7 | `outcome: a living station shows the Station tab and refuses a strip` | docked at a living station, the Station tab shows and the Inventory pane shows no strip block; a strip command starts no strip and moves nothing |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -118,9 +118,7 @@ mod walk {
         },
         nova_events::engine::GameEvent,
         nova_interface::{
-            inventory::{
-                HullStripCommand, InventoryRuntime, INVENTORY_STRIP_BLOCK, INVENTORY_STRIP_BUTTON,
-            },
+            inventory::{HullStripCommand, INVENTORY_STRIP_BLOCK, INVENTORY_STRIP_BUTTON},
             pane::InterfacePaneType,
             ship::design_section_code,
         },
@@ -178,9 +176,6 @@ mod walk {
     const EARLY_SHOT_PROGRESS: f32 = 0.1;
     const MID_SHOT_PROGRESS: f32 = 0.4;
     const LATE_SHOT_PROGRESS: f32 = 0.7;
-
-    /// The living-station refusal line, as the strip handler writes it.
-    const LIVING_STATION_NOTE: &str = "strip: a living station is not salvage";
 
     /// One target the walk docks at.
     #[derive(Clone, Debug)]
@@ -833,10 +828,6 @@ mod walk {
         world.get::<HullStripJob>(the_player(world)?)
     }
 
-    fn note(world: &World) -> Option<&str> {
-        world.get_resource::<InventoryRuntime>()?.note()
-    }
-
     fn start_hold(world: &World) -> ShipInventory {
         world
             .resource::<StripWatch>()
@@ -1350,7 +1341,6 @@ mod walk {
             "outcome: a living station shows the Station tab and refuses a strip",
             serde_json::json!({
                 "station": station_target(world).id.to_string(),
-                "note": note(world),
             }),
         );
         info!("station strip: PASS a living station shows the Station tab and refuses a strip");
@@ -1544,8 +1534,7 @@ mod walk {
         )
         .step("station strip: strip the station")
         .on_enter(send_strip)
-        .until(when(|world| note(world) == Some(LIVING_STATION_NOTE)))
-        .deadline(SESSION_SECS)
+        .until(frames(10))
         .add()
         .step("station strip: assert the station refusal")
         .on_enter(assert_the_station_refusal)

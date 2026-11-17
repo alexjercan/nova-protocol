@@ -54,7 +54,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Inventory pane's Craft button opens a Craft view: recipe tiles, a card with have / need for the chosen batches, a batch slider, the job with Cancel. A HUD chip and notice follow it.
 - Dock chips `KIT 3`, `BOOST 2`, `FLARE 4` show held consumables; the status chip shows `KIT 6 S / BOOST 5 S`; a flare posts `FLARE: 2 DECOYED`. The Inventory inspector gains Use.
 - A custom key binding on 1, 2 or 3 resets to its default on load: those keys now use a repair kit, a boost cell and a decoy flare.
-- The Map, Ship and Jobs panes drop lines that repeat what a row, count, badge or bar already shows, such as the contact kind note and a job's hold count.
+- The Map, Ship, Jobs and Inventory panes drop lines that repeat what a row, count, badge or bar shows, such as a job's hold count and the Inventory result line.
 
 ### Fixes
 

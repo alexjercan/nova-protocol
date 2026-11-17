@@ -15,7 +15,11 @@
 //! [`HullStripJob`] on the player ship. When that take would leave anything
 //! behind, at the player's own dead station, or while a hull the player owns
 //! is parked at the partner, the strip does not start and nothing moves: the
-//! button is disabled by the same rule, and its tooltip names the reason.
+//! button is disabled by the same rule. A hold short of room paints the Hold
+//! meter in the danger tone; the other two causes have no sign in the pane,
+//! so the button's tooltip carries a short tag (`OWN STATION`,
+//! `OWN SHIP PARKED`). The block writes no result line: the meters, the part
+//! tiles and the hold show a strip start, run and end.
 //! [`advance_hull_strip`] runs the job on the game clock, with the pane open
 //! or shut, so the player starts it and flies on; the TAB interface's pause
 //! holds it like any other game work.
@@ -53,7 +57,7 @@ use nova_ui::{
     },
 };
 
-use super::{loot_text, take_loot, InventoryRuntime, InventoryShips};
+use super::{loot_text, take_loot, InventoryShips};
 use crate::{
     icons::InterfaceIcons,
     pane::{compact_button, spawn_part_tile, themed_label},
@@ -360,38 +364,19 @@ pub(crate) fn plan_strip_press<'a>(
     (hull, verdict)
 }
 
-/// Why a strip does not start: the note line after `strip: `, and the
-/// tooltip of a disabled Strip button. `hull` names what has no room on a
-/// [`HullStripRefusalType::NoRoom`].
-fn strip_refusal_text(
-    items: &GameItems,
-    refusal: HullStripRefusalType,
-    hull: Option<&HullStripPartner<'_>>,
-) -> String {
+/// The tooltip tag of a Strip button `refusal` disables, for a cause with
+/// no sign in the pane; `None` for a hold short of room, which the Hold meter
+/// shows.
+fn strip_refusal_tag(refusal: HullStripRefusalType) -> Option<&'static str> {
     match refusal {
-        HullStripRefusalType::NotDocked => "dock with a wreck first".to_string(),
-        HullStripRefusalType::Busy => "a strip is already running".to_string(),
-        HullStripRefusalType::LivingStation => "a living station is not salvage".to_string(),
-        HullStripRefusalType::OwnedStation => "this is your station".to_string(),
-        HullStripRefusalType::NotLootable => {
-            "the docked hull is not a wreck you may loot".to_string()
-        }
-        HullStripRefusalType::OwnedHullsParked { count } => {
-            let verb = if count == 1 { "is" } else { "are" };
-            format!("{count} of your ships {verb} parked here")
-        }
-        HullStripRefusalType::NoRoom => {
-            hull.map_or_else(String::new, |hull| no_room_text(items, &hull.loot))
-        }
+        HullStripRefusalType::OwnedStation => Some("OWN STATION"),
+        HullStripRefusalType::OwnedHullsParked { .. } => Some("OWN SHIP PARKED"),
+        HullStripRefusalType::NotDocked
+        | HullStripRefusalType::Busy
+        | HullStripRefusalType::LivingStation
+        | HullStripRefusalType::NotLootable
+        | HullStripRefusalType::NoRoom => None,
     }
-}
-
-/// What a Take all leaves behind: `no room for 6 Hull plate`.
-fn no_room_text(items: &GameItems, loot: &LootTake) -> String {
-    format!(
-        "no room for {}",
-        loot_text(items, &loot.stayed, loot.stayed_cr)
-    )
 }
 
 /// The list order of a pane code: its prefix, then its number, so `HULL-2`
@@ -583,11 +568,12 @@ fn spawn_meter_row(
 }
 
 /// Keep the strip block on the docked partner and the running job: shown only
-/// at a wreck, the Strip button while no strip runs, disabled with its
-/// tooltip while [`plan_strip_press`] refuses for room, at the player's own
-/// station or for a parked hull the player owns, the four meters, and
-/// the part tiles. A held strip reads `Held` on the Total row and names what
-/// its section needs on the Hold row, both in Danger.
+/// at a wreck, the Strip button while no strip runs, disabled while
+/// [`plan_strip_press`] refuses for room, at the player's own station or for
+/// a parked hull the player owns, the four meters, and the part tiles. A hold
+/// short of room for the take paints the Hold meter in Danger; the other two
+/// refusals tag the button's tooltip. A held strip reads `Held` on the Total
+/// row and names what its section needs on the Hold row, both in Danger.
 #[expect(
     clippy::type_complexity,
     reason = "the block, its texts, its button, its fills and its tiles"
@@ -631,9 +617,11 @@ pub(crate) fn update_strip_block(
         _ => None,
     };
     let button_shown = verdict.is_ok() || blocked.is_some();
-    let reason = blocked.map_or_else(String::new, |refusal| {
-        strip_refusal_text(&items, refusal, hull.as_ref())
-    });
+    let no_room = blocked == Some(HullStripRefusalType::NoRoom);
+    let reason = blocked
+        .and_then(strip_refusal_tag)
+        .unwrap_or_default()
+        .to_string();
     for (button, mut tooltip, disabled) in &mut q_button {
         if tooltip.0 != reason {
             tooltip.0.clone_from(&reason);
@@ -727,11 +715,20 @@ pub(crate) fn update_strip_block(
                     .iter()
                     .map(|(item, &count)| items.design(item).stack_mass_g(count))
                     .sum();
+                let tone = if no_room {
+                    UiColorType::Danger
+                } else {
+                    UiColorType::Accent
+                };
                 (
                     share,
-                    UiColorType::Accent,
+                    tone,
                     format!("{used}  +{}", kg_text(mass_g)),
-                    UiColorType::Text,
+                    if no_room {
+                        UiColorType::Danger
+                    } else {
+                        UiColorType::Text
+                    },
                 )
             }
         };
@@ -808,11 +805,9 @@ fn on_strip_button(_activate: On<Activate>, mut strips: MessageWriter<HullStripC
 /// partner's whole hold, a dead station's whole storage and its balance into
 /// the player's, as Take all does, then start a [`HullStripJob`] on the
 /// player ship. No section moves until
-/// its timer ends. A refusal moves nothing, the loot included, and shows its
-/// reason on the note line.
+/// its timer ends. A refusal moves nothing, the loot included, and buzzes.
 pub(crate) fn apply_hull_strip_commands(
     mut messages: MessageReader<HullStripCommand>,
-    mut runtime: ResMut<InventoryRuntime>,
     mut commands: Commands,
     items: Option<Res<GameItems>>,
     site: StripSite,
@@ -836,10 +831,6 @@ pub(crate) fn apply_hull_strip_commands(
         Ok(strip) => strip,
         Err(refusal) => {
             info!("strip: refused: {refusal:?}");
-            runtime.say(format!(
-                "strip: {}",
-                strip_refusal_text(&items, refusal, hull.as_ref())
-            ));
             play_menu_deny(&mut commands, bank.as_deref());
             return;
         }
@@ -857,15 +848,6 @@ pub(crate) fn apply_hull_strip_commands(
         strip.duration_secs,
         strip_parts_text(&items, &strip.parts)
     );
-    let took = if loot.is_empty() {
-        String::new()
-    } else {
-        format!("took {looted}; ")
-    };
-    runtime.say(format!(
-        "{took}stripping the wreck: {}",
-        duration_text(strip.duration_secs)
-    ));
     play_menu_select(&mut commands, bank.as_deref());
     commands
         .entity(player)
@@ -890,7 +872,6 @@ pub(crate) fn apply_hull_strip_commands(
 /// ship and station wears one.
 pub(crate) fn advance_hull_strip(
     time: Res<Time>,
-    mut runtime: ResMut<InventoryRuntime>,
     mut commands: Commands,
     items: Option<Res<GameItems>>,
     site: StripSite,
@@ -909,11 +890,6 @@ pub(crate) fn advance_hull_strip(
         .filter(|partner| partner.entity == job.partner)
     else {
         info!("strip: stopped by the undock after {} sections", job.taken);
-        runtime.say(format!(
-            "strip stopped: you undocked; {} section{} taken",
-            job.taken,
-            if job.taken == 1 { "" } else { "s" }
-        ));
         commands.entity(player).remove::<HullStripJob>();
         return;
     };
@@ -1034,23 +1010,4 @@ pub(crate) fn advance_hull_strip(
     commands.trigger(DockingReleaseRequest { entity: player });
     commands.entity(partner.entity).despawn();
     commands.entity(player).remove::<HullStripJob>();
-    runtime.say(strip_done_text(&items, &job));
-}
-
-/// The note that ends a strip: the loot it took, first and at the berth, and
-/// every part its sections gave, such as `the wreck is stripped and gone:
-/// took 6 Hull plate and 50 cr, stripped 3 Section panel`.
-fn strip_done_text(items: &GameItems, job: &HullStripJob) -> String {
-    let took = if job.looted.is_empty() {
-        String::new()
-    } else {
-        format!(
-            "took {}, ",
-            loot_text(items, &job.looted.taken, job.looted.taken_cr)
-        )
-    };
-    format!(
-        "the wreck is stripped and gone: {took}stripped {}",
-        strip_parts_text(items, &job.yielded)
-    )
 }
