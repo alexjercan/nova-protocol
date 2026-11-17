@@ -303,12 +303,18 @@ impl SoundLoudness {
 /// A clip that cannot be measured is an authoring error the content lint
 /// refuses; one that reaches a load anyway (a mod built without the lint) is
 /// logged as an error and left out of [`SoundLoudness`].
+///
+/// Each clip logs at trace. A load step finishes its clips over a run of
+/// consecutive frames, so `burst` collects them and the first frame that
+/// measures nothing logs the run as one debug line.
 pub(crate) fn measure_loaded_sounds(
     mut events: MessageReader<AssetEvent<AudioSource>>,
     sources: Res<Assets<AudioSource>>,
     asset_server: Option<Res<AssetServer>>,
     mut loudness: ResMut<SoundLoudness>,
+    mut burst: Local<Vec<(String, ClipLoudness)>>,
 ) {
+    let before = burst.len();
     for event in events.read() {
         let id = match *event {
             AssetEvent::Added { id } | AssetEvent::Modified { id } => id,
@@ -328,11 +334,12 @@ pub(crate) fn measure_loaded_sounds(
         match measure_clip(&source.bytes) {
             Ok(lufs) => {
                 let clip = ClipLoudness { lufs };
-                debug!(
+                trace!(
                     "nova audio: `{name}` measures {lufs:.1} LUFS, gain {:+.1} dB to {LOUDNESS_TARGET_LUFS} LUFS",
                     clip.gain_db()
                 );
                 loudness.clips.insert(id, clip);
+                burst.push((name, clip));
             }
             Err(error) => {
                 loudness.clips.remove(&id);
@@ -340,6 +347,29 @@ pub(crate) fn measure_loaded_sounds(
             }
         }
     }
+    if burst.len() == before && !burst.is_empty() {
+        debug!("nova audio: {}", burst_summary(&mut burst));
+        burst.clear();
+    }
+}
+
+/// One burst of measured clips as one log line: the count, the gain range, and
+/// every clip as `name LUFS/gain` in name order.
+fn burst_summary(burst: &mut [(String, ClipLoudness)]) -> String {
+    burst.sort_by(|(a, _), (b, _)| a.cmp(b));
+    let gains = burst.iter().map(|(_, clip)| clip.gain_db());
+    let low = gains.clone().fold(f32::INFINITY, f32::min);
+    let high = gains.fold(f32::NEG_INFINITY, f32::max);
+    let clips: Vec<String> = burst
+        .iter()
+        .map(|(name, clip)| format!("{name} {:.1}/{:+.1}", clip.lufs, clip.gain_db()))
+        .collect();
+    format!(
+        "measured {} clip(s), gain {low:+.1}..{high:+.1} dB to {LOUDNESS_TARGET_LUFS} LUFS; \
+         LUFS/gain dB: {}",
+        burst.len(),
+        clips.join(", ")
+    )
 }
 
 #[cfg(test)]
