@@ -1,0 +1,114 @@
+[
+    Recipe((
+        id: "base/pdc_round",
+        inputs: [
+            (
+                "IronOre",
+                1,
+            ),
+            (
+                "StoneOre",
+                1,
+            ),
+        ],
+        output: (
+            "PdcRound",
+            100,
+        ),
+        duration_secs: 8.0,
+        site: Ship,
+    )),
+    Recipe((
+        id: "base/hull_plate",
+        inputs: [
+            (
+                "IronOre",
+                2,
+            ),
+        ],
+        output: (
+            "HullPlate",
+            1,
+        ),
+        duration_secs: 8.0,
+        site: Ship,
+    )),
+    Recipe((
+        id: "base/section_panel",
+        inputs: [
+            (
+                "CarbonOre",
+                2,
+            ),
+        ],
+        output: (
+            "SectionPanel",
+            1,
+        ),
+        duration_secs: 6.0,
+        site: Ship,
+    )),
+    Recipe((
+        id: "base/alloy_plate",
+        inputs: [
+            (
+                "IronOre",
+                2,
+            ),
+            (
+                "CarbonOre",
+                1,
+            ),
+        ],
+        output: (
+            "AlloyPlate",
+            1,
+        ),
+        duration_secs: 10.0,
+        site: Station(
+            fee_cr: 30,
+        ),
+    )),
+    Recipe((
+        id: "base/rail_slug",
+        inputs: [
+            (
+                "IronOre",
+                2,
+            ),
+        ],
+        output: (
+            "RailSlug",
+            1,
+        ),
+        duration_secs: 10.0,
+        site: Station(
+            fee_cr: 10,
+        ),
+    )),
+    Recipe((
+        id: "base/torpedo",
+        inputs: [
+            (
+                "AlloyPlate",
+                2,
+            ),
+            (
+                "ActuatorPack",
+                1,
+            ),
+            (
+                "CarbonOre",
+                9,
+            ),
+        ],
+        output: (
+            "Torpedo",
+            1,
+        ),
+        duration_secs: 30.0,
+        site: Station(
+            fee_cr: 40,
+        ),
+    )),
+]

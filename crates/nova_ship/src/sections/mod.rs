@@ -12,6 +12,7 @@ pub mod catalog_ids;
 pub mod cell_grid;
 pub mod clearance;
 pub mod controller_section;
+pub mod craft_job;
 pub mod damage_cracks;
 pub mod damage_effects;
 pub mod damage_plume;
@@ -59,10 +60,10 @@ pub mod prelude {
     pub use super::{
         ammo::prelude::*, ammo_warning::prelude::*, base_section::prelude::*,
         cargo_intake_section::prelude::*, catalog_ids::prelude::*, cell_grid::prelude::*,
-        clearance::prelude::*, controller_section::prelude::*, damage_cracks::prelude::*,
-        damage_effects::prelude::*, damage_plume::prelude::*, damage_sparks::prelude::*,
-        design_sections::prelude::*, docking_section::prelude::*, escort_hire::prelude::*,
-        fixture::prelude::*, frozen::prelude::*, frozen_piece::prelude::*,
+        clearance::prelude::*, controller_section::prelude::*, craft_job::prelude::*,
+        damage_cracks::prelude::*, damage_effects::prelude::*, damage_plume::prelude::*,
+        damage_sparks::prelude::*, design_sections::prelude::*, docking_section::prelude::*,
+        escort_hire::prelude::*, fixture::prelude::*, frozen::prelude::*, frozen_piece::prelude::*,
         frozen_rounds::prelude::*, greeble_solver::prelude::*, hull_buy::prelude::*,
         hull_radius::prelude::*, hull_section::prelude::*, integrity::prelude::*,
         link_points::prelude::*, live_structure_anchor, mining_section::prelude::*,
@@ -318,6 +319,18 @@ impl Plugin for SpaceshipSectionPlugin {
             )
                 .chain()
                 .in_set(rescue_call::RescueSystems),
+        );
+        // A craft job runs on the same game clock, after the repair jobs:
+        // both write the hold, and a batch takes only what they hold back.
+        app.register_type::<craft_job::ShipCraftJob>();
+        app.add_message::<craft_job::CraftJobEnded>();
+        app.add_observer(craft_job::cancel_craft_job);
+        app.add_observer(craft_job::stop_station_craft_on_undock);
+        app.add_systems(
+            Update,
+            craft_job::advance_ship_craft_jobs
+                .in_set(craft_job::CraftJobSystems)
+                .after(repair_jobs::RepairJobSystems),
         );
         // The authored-animation rig and driver. Unconditional, not
         // render-gated: the components must exist headless (a server loads

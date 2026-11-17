@@ -154,15 +154,6 @@ name = "market_sandbox"
 path = "examples/playable/market_sandbox.rs"
 required-features = ["debug"]
 
-# Refining by hand: start docked at the waystation in a void with iron ore,
-# carbon ore and credits aboard; --short ore|credits stages a refusal. Nothing
-# ends it; under NOVA_AUTOPILOT a smoke walk opens the Refine form and checks
-# it.
-[[example]]
-name = "refine_sandbox"
-path = "examples/playable/refine_sandbox.rs"
-required-features = ["debug"]
-
 # Field repair by hand: undocked in a void with three hurt plates, the docking
 # port lost, and hull plates and the port's recipe parts in the hold. Repair
 # and Rebuild run as jobs on the game clock. Nothing ends it; under
@@ -189,6 +180,15 @@ required-features = ["debug"]
 [[example]]
 name = "ammo_warning_sandbox"
 path = "examples/playable/ammo_warning_sandbox.rs"
+required-features = ["debug"]
+
+# Craft by hand: start docked at the waystation, which offers Craft, with ore
+# and credits aboard. Run recipes from the Craft pane; a job runs only while
+# you fly. Nothing ends it; under NOVA_AUTOPILOT a smoke walk checks the tiles,
+# starts two batches of PDC rounds and checks the first lands.
+[[example]]
+name = "craft_sandbox"
+path = "examples/playable/craft_sandbox.rs"
 required-features = ["debug"]
 
 # Second-tier sections by hand: start docked at a generated yard that builds
@@ -987,14 +987,6 @@ name = "system_station_strip"
 path = "examples/systems/system_station_strip.rs"
 required-features = ["debug"]
 
-# Ore refined at a living station through the Inventory pane: the form states
-# the batch, Confirm takes the inputs and the fee and adds one alloy plate,
-# and a batch the hold is short of is refused on the form.
-[[example]]
-name = "system_station_refine"
-path = "examples/systems/system_station_refine.rs"
-required-features = ["debug"]
-
 # A living lawful station docks a hull with one unmarked core in its hold and
 # refuses the sale on the Inventory form; a station that is not lawful buys
 # the core at its bid.
@@ -1010,6 +1002,14 @@ required-features = ["debug"]
 [[example]]
 name = "system_station_storage"
 path = "examples/systems/system_station_storage.rs"
+required-features = ["debug"]
+
+# Crafting off the game clock: one batch of a Ship recipe crafts in flight
+# through the Craft pane's command, and a Station recipe is refused undocked,
+# at the start and as a job.
+[[example]]
+name = "system_ship_craft"
+path = "examples/systems/system_ship_craft.rs"
 required-features = ["debug"]
 
 # The stations epic end to end on a generated New Game: a section lost and

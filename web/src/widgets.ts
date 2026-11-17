@@ -13565,8 +13565,8 @@ function initStanceLedger(host: HTMLElement): void {
 // ADVANCEMENT_VARIATION :67, the draw `curve * (1 + offset)` :257-259 and
 // `advancement_curve` :460, a smoothstep (`ramp`, clusters.rs:1207). A New
 // Game starts at a station of the 3x3x3 block of civilizations round the
-// origin (start.rs:48 START_CIVILIZATION_SEARCH). A station offers Refine
-// from REFINE_ADVANCEMENT (station_layout.rs:143, :563) and builds the parts
+// origin (start.rs:48 START_CIVILIZATION_SEARCH). A station offers Craft
+// from CRAFT_ADVANCEMENT (station_layout.rs:143, :568) and builds the parts
 // its civilization knows (:495, :565): the parts its advancement opens, each
 // part above advancement 0 on one KNOWN_CHANCE draw (ship_parts.rs:51,
 // `known` :524).
@@ -13575,7 +13575,7 @@ export const ADVANCEMENT_VARIATION = 0.1; // civilizations.rs:67
 export const CIVILIZATION_LATTICE_KM = 240; // civilizations.rs:42
 export const CIVILIZATION_JITTER_KM = 40; // civilizations.rs:45
 export const INFLUENCE_REACH_KM = 320; // civilizations.rs:51
-export const REFINE_ADVANCEMENT = 0.25; // station_layout.rs:143
+export const CRAFT_ADVANCEMENT = 0.25; // station_layout.rs:143
 export const PART_KNOWN_CHANCE = 0.5; // ship_parts.rs:51
 /**
  * The farthest a civilization of the New Game start block can have its
@@ -13586,7 +13586,7 @@ export const START_BLOCK_KM =
 
 /** One thing v0.18.0 added that a civilization's advancement opens. */
 export interface AdvancementGate {
-    /** The section id, or `Refine` for the station service. */
+    /** The section id, or `Craft` for the station service. */
     id: string;
     name: string;
     kind: "service" | "section";
@@ -13596,10 +13596,10 @@ export interface AdvancementGate {
 /** In gate order. Each section gate is its builder's `advancement` field. */
 export const ADVANCEMENT_GATES: AdvancementGate[] = [
     {
-        id: "Refine",
-        name: "Refine service",
+        id: "Craft",
+        name: "Craft service",
         kind: "service",
-        advancement: REFINE_ADVANCEMENT,
+        advancement: CRAFT_ADVANCEMENT,
     },
     {
         id: "dart_torpedo_section", // sections/torpedo_bay.rs:398
@@ -13717,7 +13717,7 @@ function initAdvancementGates(host: HTMLElement): void {
         "aria-label":
             "Civilization advancement against distance from the world " +
             "origin, with the band each civilization varies in and the " +
-            "advancements that open Refine, the Dart, the second-tier " +
+            "advancements that open Craft, the Dart, the second-tier " +
             "sections and the Heavy Lance.",
     });
     // The block a New Game starts in.
@@ -13798,7 +13798,7 @@ function initAdvancementGates(host: HTMLElement): void {
     // curve is far above it. The two lowest lines are close, so one name
     // hangs under its line and the other stands on its own.
     const gateWords: [number, string, boolean][] = [
-        [0.25, "0.25 Refine, Dart", true],
+        [0.25, "0.25 Craft, Dart", true],
         [0.3, "0.30 second tier", false],
         [0.6, "0.60 Heavy Lance", false],
     ];
@@ -13933,7 +13933,7 @@ function initAdvancementGates(host: HTMLElement): void {
                 document.createTextNode(
                     reach === "All"
                         ? service
-                            ? "every living station this far out refines"
+                            ? "every living station this far out crafts"
                             : "open to every civilization this far out; half of them know it"
                         : reach === "Some"
                           ? `only where the civilization reads high; all of them from ${opensAt(gate, 1 - ADVANCEMENT_VARIATION)}`
@@ -13958,7 +13958,7 @@ function initAdvancementGates(host: HTMLElement): void {
         if (at <= START_BLOCK_KM)
             words.push(
                 "A New Game starts in this block, so the start station " +
-                    "neither refines nor builds any of these."
+                    "neither crafts nor builds any of these."
             );
         if (open.All.length === ADVANCEMENT_GATES.length)
             words.push("Everything here is open.");
@@ -13973,7 +13973,7 @@ function initAdvancementGates(host: HTMLElement): void {
             );
         else if (at > START_BLOCK_KM)
             words.push(
-                "Nothing new opens yet: the first refinery is about " +
+                "Nothing new opens yet: the first Craft station is about " +
                     `${opensAt(ADVANCEMENT_GATES[0], 1 + ADVANCEMENT_VARIATION)} out.`
             );
         readout.textContent = words.join(" ");
@@ -13994,224 +13994,7 @@ function initAdvancementGates(host: HTMLElement): void {
                 `centre is within ${km(Math.round(START_BLOCK_KM))} of the origin. ` +
                 "An open section is not a known one: each civilization " +
                 "knows an open section on one even draw, so about half of " +
-                "them build it. Refine has no draw."
-        )
-    );
-    update();
-}
-
-// ---- v0.18.0: refine or sell ----------------------------------------------
-
-// The alloy plate and its refine recipe, from
-// crates/nova_authoring/src/base_content/items.rs: the plate :273-281 (90 cr
-// ask, 68 cr bid), ALLOY_PLATE_REFINE_FEE_CR :314 and `refine_recipe`
-// :319-327. The ore names and prices are the PRICE_ITEMS rows above. The
-// batch count is nova_gameplay/src/inventory.rs
-// `ItemRefineRecipe::batches_from` :220 and the fee `plan_item_refine` :1160.
-export const ALLOY_PLATE = {
-    id: "AlloyPlate",
-    name: "Alloy plate",
-    askCr: 90,
-    bidCr: 68,
-};
-/** What one batch takes: each input's item id and count, and the fee. */
-export const ALLOY_PLATE_RECIPE: { inputs: [string, number][]; feeCr: number } =
-    {
-        inputs: [
-            ["IronOre", 2],
-            ["CarbonOre", 1],
-        ],
-        feeCr: 30,
-    };
-
-/** What a hold of ore refines to, and what each choice is worth. */
-export interface RefinePlan {
-    /** The whole batches the ore covers: one alloy plate each. */
-    batches: number;
-    /** Credits the station takes for those batches. */
-    feeCr: number;
-    /** The ore left over, in recipe input order. */
-    left: number[];
-    /** Credits for selling all the ore at its base bid. */
-    sellRawCr: number;
-    /**
-     * Credits for refining, then selling the plates and the ore left over
-     * at their base bids, less the fee.
-     */
-    sellRefinedCr: number;
-    /** Credits the same plates cost to buy at the base ask. */
-    buyPlatesCr: number;
-}
-
-/**
- * The refine plan for a hold that carries `ore[i]` of the recipe's input
- * `i`: iron ore, then carbon ore. Prices are the base bids and ask.
- */
-export function refinePlan(ore: number[]): RefinePlan {
-    const inputs = ALLOY_PLATE_RECIPE.inputs.map(([id, count], index) => {
-        const item = PRICE_ITEMS.find((candidate) => candidate.id === id);
-        if (!item) throw new Error(`refinePlan: unknown item ${id}`);
-        return { count, have: ore[index], bidCr: item.bidCr };
-    });
-    const batches = Math.min(
-        ...inputs.map((input) => Math.floor(input.have / input.count))
-    );
-    const feeCr = batches * ALLOY_PLATE_RECIPE.feeCr;
-    const left = inputs.map((input) => input.have - batches * input.count);
-    const bids = (counts: number[]): number =>
-        inputs.reduce(
-            (sum, input, index) => sum + counts[index] * input.bidCr,
-            0
-        );
-    return {
-        batches,
-        feeCr,
-        left,
-        sellRawCr: bids(ore),
-        sellRefinedCr: batches * ALLOY_PLATE.bidCr + bids(left) - feeCr,
-        buyPlatesCr: batches * ALLOY_PLATE.askCr,
-    };
-}
-
-function initRefineBatch(host: HTMLElement): void {
-    header(
-        host,
-        "Refinery scope: refine or sell",
-        "Set the ore in your hold. The scope counts the batches a refinery " +
-            "makes of it, states the batch line as the Refine form does, " +
-            "and compares what the hold is worth each way."
-    );
-
-    const names = ALLOY_PLATE_RECIPE.inputs.map(
-        ([id]) => PRICE_ITEMS.find((item) => item.id === id)?.name ?? String(id)
-    );
-    const faders = [
-        control(
-            names[0].toLowerCase(),
-            0,
-            200,
-            1,
-            100,
-            (v) => String(v),
-            () => update()
-        ),
-        control(
-            names[1].toLowerCase(),
-            0,
-            200,
-            1,
-            40,
-            (v) => String(v),
-            () => update()
-        ),
-    ];
-    const controls = el("div", "widget__controls");
-    for (const fader of faders) controls.appendChild(fader.row);
-
-    const form = el("p", "widget__form");
-    const stack = el("div", "widget__stack widget__stack--board");
-    const stats = el("div", "widget__stats");
-    const platesStat = stat(stats, "plates");
-    const feeStat = stat(stats, "fee");
-    const leftStat = stat(stats, "ore left");
-    const readout = el("p", "widget__readout");
-    readout.setAttribute("aria-live", "polite");
-
-    const cr = (value: number): string => `${numText(value, 0)} cr`;
-    const update = (): void => {
-        const ore = faders.map((fader) => Number(fader.input.value));
-        const plan = refinePlan(ore);
-        // The form's own batch line: crates/nova_interface/src/inventory/
-        // app.rs `refine_batch_text`.
-        const terms = ALLOY_PLATE_RECIPE.inputs.map(
-            ([, count], index) => `${count * plan.batches} ${names[index]}`
-        );
-        form.textContent = plan.batches
-            ? `${[...terms, cr(plan.feeCr)].join(" + ")} -> ${plan.batches} ${ALLOY_PLATE.name}`
-            : "No whole batch in this hold";
-        form.classList.toggle("is-empty", plan.batches === 0);
-
-        const gain = plan.sellRefinedCr - plan.sellRawCr;
-        const option = (
-            word: string,
-            kind: string,
-            detail: string,
-            state: string
-        ): HTMLElement => {
-            const cell = el("div", "widget__cell widget__cell--board");
-            if (state) cell.classList.add(state);
-            cell.appendChild(el("b", undefined, word));
-            cell.appendChild(
-                el("span", "widget__kind widget__kind--generated", kind)
-            );
-            cell.appendChild(document.createTextNode(detail));
-            return cell;
-        };
-        const plates = `${plan.batches} ${plan.batches === 1 ? "plate" : "plates"}`;
-        const leftWords = plan.left
-            .map((count, index) => `${count} ${names[index].toLowerCase()}`)
-            .join(" and ");
-        stack.replaceChildren(
-            option(
-                "SELL THE ORE",
-                cr(plan.sellRawCr),
-                `${ore[0]} ${names[0].toLowerCase()} and ${ore[1]} ` +
-                    `${names[1].toLowerCase()} at their base bids`,
-                ""
-            ),
-            option(
-                "REFINE, SELL THE PLATE",
-                plan.batches ? cr(plan.sellRefinedCr) : "NO BATCH",
-                plan.batches
-                    ? `${plates} at ${cr(ALLOY_PLATE.bidCr)}, less the ` +
-                          `${cr(plan.feeCr)} fee, and the ore left over sold`
-                    : "the hold is short of one input",
-                gain > 0 ? "is-live" : "is-off"
-            ),
-            option(
-                "REFINE, KEEP THE PLATE",
-                plan.batches ? `${cr(plan.buyPlatesCr)} TO BUY` : "NO BATCH",
-                plan.batches
-                    ? `${plates} at the base ask of ${cr(ALLOY_PLATE.askCr)}; ` +
-                          `refining costs the ${cr(plan.feeCr)} fee and the ore`
-                    : "the hold is short of one input",
-                plan.batches ? "is-live" : "is-off"
-            )
-        );
-        platesStat.textContent = String(plan.batches);
-        feeStat.textContent = cr(plan.feeCr);
-        leftStat.textContent = leftWords;
-        readout.textContent = plan.batches
-            ? `Refine ${plan.batches === 1 ? "1 batch" : `${plan.batches} batches`}, ` +
-              `sell the ${plan.batches === 1 ? "plate" : "plates"} and the ` +
-              `ore left over, and the hold earns ${cr(plan.sellRefinedCr)}: ` +
-              `${cr(gain)} more than the ${cr(plan.sellRawCr)} the raw ore ` +
-              "sells for."
-            : "A batch needs " +
-              ALLOY_PLATE_RECIPE.inputs
-                  .map(
-                      ([, count], index) =>
-                          `${count} ${names[index].toLowerCase()}`
-                  )
-                  .join(" and ") +
-              `. This hold sells for ${cr(plan.sellRawCr)} as ore.`;
-    };
-
-    host.appendChild(controls);
-    host.appendChild(form);
-    host.appendChild(stack);
-    host.appendChild(stats);
-    host.appendChild(readout);
-    host.appendChild(
-        el(
-            "p",
-            "widget__note",
-            "These are base prices. A generated trader moves each price by " +
-                "its stock, its cluster and its civilization, so ore sells " +
-                "for more near planets and for less in an asteroid-rich " +
-                "cluster. The fee leaves your balance at Confirm, and a " +
-                "refine you cannot pay for is refused. A batch takes 30 kg " +
-                "of ore and gives one 30 kg plate, so the hold weighs the same."
+                "them build it. Craft has no draw."
         )
     );
     update();
@@ -14916,7 +14699,6 @@ const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "price-factors": initPriceFactors,
     "stance-ledger": initStanceLedger,
     "advancement-gates": initAdvancementGates,
-    "refine-batch": initRefineBatch,
     "key-row": initKeyRow,
     "sound-levels": initSoundLevels,
 };

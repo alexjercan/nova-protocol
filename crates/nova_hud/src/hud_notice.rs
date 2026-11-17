@@ -28,8 +28,10 @@
 //! `SOS FAILED: NO ANSWER, CALL AGAIN` when the station refuses and nothing
 //! is taken, `SOS ENDED: DOCKED` when the ship docks before the answer, and
 //! `NO FREE BERTH: SHIP FIXED, DOCK YOURSELF` when the paid berth gives up.
-//! A cancel posts nothing: the player pressed it in the Ship pane, which
-//! notes it. The player's hold reserve of an ammunition item crossing into
+//! A player craft job that ends on its own ([`CraftJobEnded`]) posts how:
+//! `CRAFTED 500 PDC ROUND`, `CRAFT STOPPED: NO STONE ORE, 300 MADE` or
+//! `CRAFT STOPPED: UNDOCKED`. A cancel posts nothing: the player pressed it
+//! in the Ship or Craft pane, which notes it. The player's hold reserve of an ammunition item crossing into
 //! LOW or DRY ([`AmmoReserveCrossed`]) posts `PDC ROUND LOW: 400` or
 //! `TORPEDO DRY`, once per crossing.
 //!
@@ -49,9 +51,9 @@ use nova_ship::{
     flight::prelude::{MatchRefusal, MatchRefusalType},
     input::prelude::FlightVerbHints,
     sections::prelude::{
-        AmmoReserveCrossed, AmmoReserveWarningType, DockClamped, DockPressRefusal,
-        DockPressRefusalType, DockReleased, RepairJobEndType, RepairJobEnded, RescueCallEnded,
-        RescueEndType,
+        AmmoReserveCrossed, AmmoReserveWarningType, CraftJobEndType, CraftJobEnded, DockClamped,
+        DockPressRefusal, DockPressRefusalType, DockReleased, RepairJobEndType, RepairJobEnded,
+        RescueCallEnded, RescueEndType,
     },
 };
 use nova_sound::prelude::*;
@@ -193,7 +195,8 @@ impl HudNoticeKeepOut<'_, '_> {
 /// a refused `DOCK` press, the player's clamp closing and letting go, a
 /// held job's done, a refused supply dock and a player repair job's end to
 /// it, and runs `post_dock_refusal_notice`, `post_match_refusal_notice`,
-/// `post_dock_press_notice`, `post_repair_job_notice`, `show_hud_notice` and
+/// `post_dock_press_notice`, `post_repair_job_notice`, `post_rescue_notice`,
+/// `post_craft_job_notice`, `show_hud_notice` and
 /// `paint_hud_notice` chained
 /// in Update within [`NovaHudSystems`]. The box itself is a player-scoped
 /// widget spawned by `NovaHudPlugin`.
@@ -209,6 +212,7 @@ impl Plugin for HudNoticePlugin {
         app.add_message::<DockPressRefusal>();
         app.add_message::<RepairJobEnded>();
         app.add_message::<RescueCallEnded>();
+        app.add_message::<CraftJobEnded>();
         app.init_resource::<ShownNotice>();
         app.register_type::<HudNoticeMarker>();
         app.register_type::<HudNoticeText>();
@@ -225,6 +229,7 @@ impl Plugin for HudNoticePlugin {
                 post_dock_press_notice,
                 post_repair_job_notice,
                 post_rescue_notice,
+                post_craft_job_notice,
                 show_hud_notice,
                 paint_hud_notice,
             )
@@ -325,6 +330,64 @@ fn post_rescue_notice(
             notices.write(HudNotice(line));
         }
     }
+}
+
+/// Post how a player ship's craft job ended, unless the player cancelled
+/// it. A job runs only once the item and recipe catalogs load.
+fn post_craft_job_notice(
+    mut ended: MessageReader<CraftJobEnded>,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
+    items: Option<Res<GameItems>>,
+    recipes: Option<Res<GameRecipes>>,
+    mut notices: MessageWriter<HudNotice>,
+) {
+    for ended in ended.read() {
+        if !q_player.contains(ended.ship) {
+            continue;
+        }
+        let (Some(items), Some(recipes)) = (items.as_deref(), recipes.as_deref()) else {
+            continue;
+        };
+        if let Some(line) = craft_job_end_line(items, recipes.design(&ended.recipe), &ended.end) {
+            debug!("hud_notice: {line}");
+            notices.write(HudNotice(line));
+        }
+    }
+}
+
+/// The notice line for a craft job of `recipe` that ended on its own;
+/// `None` for a cancel, which the pane notes. A stop names what it made
+/// before it, when it made any.
+fn craft_job_end_line(
+    items: &GameItems,
+    recipe: &RecipeDesign,
+    end: &CraftJobEndType,
+) -> Option<String> {
+    let made = |batches: u32| u64::from(batches) * u64::from(recipe.output_count());
+    let output = items.design(recipe.output_item()).name.to_uppercase();
+    let (batches, why) = match end {
+        CraftJobEndType::Crafted { batches } => {
+            return Some(format!("CRAFTED {} {output}", made(*batches)));
+        }
+        CraftJobEndType::Cancelled { .. } => return None,
+        CraftJobEndType::Stopped { batches, reason } => (
+            *batches,
+            match reason {
+                CraftRefusalType::ShortInput { item, .. } => {
+                    format!("NO {}", items.design(item).name.to_uppercase())
+                }
+                CraftRefusalType::ShortCredits { .. } => "NO CREDITS".to_string(),
+                CraftRefusalType::NotAtCraftStation => "UNDOCKED".to_string(),
+                CraftRefusalType::CreditOverflow => "STATION FULL".to_string(),
+                CraftRefusalType::Running | CraftRefusalType::BadBatches => "REFUSED".to_string(),
+            },
+        ),
+    };
+    Some(if batches == 0 {
+        format!("CRAFT STOPPED: {why}")
+    } else {
+        format!("CRAFT STOPPED: {why}, {} MADE", made(batches))
+    })
 }
 
 /// The notice line for a rescue call that ended on its own; `None` for a
@@ -955,5 +1018,48 @@ mod tests {
         app.update();
         assert_eq!(rendered(&mut app).0, "RELAY DOCK OCCUPIED");
         assert_eq!(app.world().resource::<NoticeCues>().interface, 2);
+    }
+
+    /// A craft job's end names the output it made, what stopped it, and
+    /// what it made before the stop; a cancel posts nothing.
+    #[test]
+    fn a_craft_job_end_names_its_output_and_why_it_stopped() {
+        let items = nova_gameplay::test_support::test_items();
+        let recipe = RecipeDesign {
+            id: RecipeDesignId::from("base/pdc_round"),
+            inputs: vec![
+                (ItemRoleType::IronOre.into(), 1),
+                (ItemRoleType::StoneOre.into(), 1),
+            ],
+            output: (ItemRoleType::PdcRound.into(), 100),
+            duration_secs: 8.0,
+            site: CraftSiteType::Ship,
+        };
+        let line = |end| craft_job_end_line(&items, &recipe, &end);
+        assert_eq!(
+            line(CraftJobEndType::Crafted { batches: 5 }).as_deref(),
+            Some("CRAFTED 500 PDC ROUND")
+        );
+        assert_eq!(
+            line(CraftJobEndType::Stopped {
+                batches: 3,
+                reason: CraftRefusalType::ShortInput {
+                    item: ItemRoleType::StoneOre.into(),
+                    need: 1,
+                    have: 0,
+                },
+            })
+            .as_deref(),
+            Some("CRAFT STOPPED: NO STONE ORE, 300 MADE")
+        );
+        assert_eq!(
+            line(CraftJobEndType::Stopped {
+                batches: 0,
+                reason: CraftRefusalType::NotAtCraftStation,
+            })
+            .as_deref(),
+            Some("CRAFT STOPPED: UNDOCKED")
+        );
+        assert_eq!(line(CraftJobEndType::Cancelled { batches: 2 }), None);
     }
 }

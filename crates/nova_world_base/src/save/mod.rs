@@ -20,11 +20,13 @@
 //! [`WORLD_SAVE_VERSION`], another catalog or a start role the loaded content
 //! does not hold refuses the world. Nothing is migrated. A missing or
 //! unknown field or variant names a save of another build under the same
-//! format, and refuses as one. One exception: a saved ship's running repair
-//! jobs and rescue call. v0.18.0 shipped with neither, so a v0.18.0 save
-//! without them loads with none running. A loaded job is checked like every
-//! other record: one naming a section the ship's design lacks refuses the
-//! world. Native only: the web build has no saved worlds.
+//! format, and refuses as one; there is no exception. A save of another
+//! content catalog, v0.18.0 included, is refused at its header, so no older
+//! save reaches a saved ship's repair jobs, rescue call or craft job. A
+//! loaded job is checked like every other record: one naming a section the
+//! ship's design lacks, a recipe the loaded catalog lacks, or a station
+//! recipe on a ship not saved docked refuses the world. Native only: the
+//! web build has no saved worlds.
 //!
 //! The state carries the scenario ([`SavedScenario`]) beside the sectors: a
 //! Load resumes the same scenario with its objectives, variables, timers and
@@ -58,10 +60,11 @@ use bevy::prelude::*;
 use nova_assets::{prelude::LoadedSectionPacks, storage::write_atomic};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    kg_text, CargoCanisterRuntimeId, Chart, CivilizationStances, ClusterType, GameItems,
-    GameTradeProfiles, GoalRecord, ItemDesignId, JobPostings, JobSourceType, Jobs, SavedBodyRef,
-    SavedOwner, SavedSectionRef, SavedTargetRef, StationServiceType, StationVisits,
-    CARGO_CANISTER_MAX_MASS_G, PLATE_REPAIR_SECS, RESCUE_SECS,
+    kg_text, CargoCanisterRuntimeId, Chart, CivilizationStances, ClusterType, CraftSiteType,
+    GameItems, GameRecipes, GameTradeProfiles, GoalRecord, ItemDesignId, JobPostings,
+    JobSourceType, Jobs, SavedBodyRef, SavedOwner, SavedSectionRef, SavedTargetRef,
+    StationServiceType, StationVisits, CARGO_CANISTER_MAX_MASS_G, CRAFT_BATCHES_MAX,
+    PLATE_REPAIR_SECS, RESCUE_SECS,
 };
 use nova_scenario::prelude::{
     FleetEscort, FrozenShip, GameScenarios, GameShipDesigns, GameStartRoles, SavedScenario,
@@ -547,12 +550,13 @@ pub fn open_world(
     scenarios: &RegisteredScenarios,
     designs: &GameShipDesigns,
     profiles: &GameTradeProfiles,
+    recipes: &GameRecipes,
 ) -> Result<(WorldFolder, WorldLock, WorldSaveHeader, WorldSaveState), WorldRefusal> {
     check_slug(slug)?;
     let path = root.join(slug);
     let lock = lock_world(&path)?;
     let header = read_header(&path, loaded, roles)?;
-    let state = read_state(&path, &header, items, scenarios, designs, profiles)?;
+    let state = read_state(&path, &header, items, scenarios, designs, profiles, recipes)?;
     sweep_orphans(&path, &state_file(header.generation));
     Ok((
         WorldFolder {
@@ -583,11 +587,12 @@ pub fn check_world(
     scenarios: &RegisteredScenarios,
     designs: &GameShipDesigns,
     profiles: &GameTradeProfiles,
+    recipes: &GameRecipes,
 ) -> Result<(), WorldRefusal> {
     check_slug(slug)?;
     let path = root.join(slug);
     let header = read_header(&path, loaded, roles)?;
-    read_state(&path, &header, items, scenarios, designs, profiles).map(drop)
+    read_state(&path, &header, items, scenarios, designs, profiles, recipes).map(drop)
 }
 
 /// Read and check the state file `header` names in the world folder `path`.
@@ -598,6 +603,7 @@ fn read_state(
     scenarios: &RegisteredScenarios,
     designs: &GameShipDesigns,
     profiles: &GameTradeProfiles,
+    recipes: &GameRecipes,
 ) -> Result<WorldSaveState, WorldRefusal> {
     let state_name = state_file(header.generation);
     let text = std::fs::read_to_string(path.join(&state_name))
@@ -662,7 +668,7 @@ fn read_state(
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_rcs(&state, designs)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
-    check_saved_jobs(&state, designs)
+    check_saved_jobs(&state, designs, recipes)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     if !scenarios.0.contains(&state.scenario.scenario_id) {
         return Err(WorldRefusal::Scenario {
@@ -1165,15 +1171,53 @@ fn design_section_ids(
     Ok(sections.iter().map(|section| section.id.clone()).collect())
 }
 
-/// Every saved repair job and rescue call is one a session ran: a plate job
-/// on a section the ship kept, a field rebuild and a rescue chain on
-/// sections its design names and it lost, at most one job a section, and
-/// finite clocks within their spans. Only the read path checks: Load runs
-/// it on open, so a job naming a section the design lacks refuses the world
-/// rather than drop the job or panic in its thaw. The write path does not:
-/// it takes every id from a live job on a section of the same design.
-fn check_saved_jobs(state: &WorldSaveState, designs: &GameShipDesigns) -> Result<(), String> {
-    let check = |ship: &FrozenShip, owner: &str| -> Result<(), String> {
+/// Every saved repair job, rescue call and craft job is one a session ran:
+/// a plate job on a section the ship kept, a field rebuild and a rescue
+/// chain on sections its design names and it lost, at most one job a
+/// section, a craft job of a loaded recipe below its batch count of at
+/// most `CRAFT_BATCHES_MAX`, a station recipe only on the player ship saved
+/// docked, and finite clocks within their spans. Only the read path checks:
+/// Load runs
+/// it on open, so a job naming a section the design lacks or a recipe the
+/// catalog lacks refuses the world rather than drop the job or panic in its
+/// thaw or tick. The write path does not: it takes every id from a live job
+/// on a section of the same design or of a loaded recipe.
+fn check_saved_jobs(
+    state: &WorldSaveState,
+    designs: &GameShipDesigns,
+    recipes: &GameRecipes,
+) -> Result<(), String> {
+    // `docked`: the ship was saved in a dock, the one place a station
+    // recipe runs. Only the player ship saves its dock.
+    let check = |ship: &FrozenShip, owner: &str, docked: bool| -> Result<(), String> {
+        if let Some(job) = ship.craft_job() {
+            let Some(recipe) = recipes.get(&job.recipe) else {
+                return Err(format!(
+                    "{owner} runs a craft job of the recipe '{}', which the catalog lacks",
+                    job.recipe
+                ));
+            };
+            if matches!(recipe.site, CraftSiteType::Station { .. }) && !docked {
+                return Err(format!(
+                    "{owner} runs a craft job of the station recipe '{}' but was not saved \
+                     docked",
+                    job.recipe
+                ));
+            }
+            if job.queued == 0
+                || job.queued > CRAFT_BATCHES_MAX
+                || job.done >= job.queued
+                || !job.elapsed_secs.is_finite()
+                || job.elapsed_secs < 0.0
+                || job.elapsed_secs > recipe.duration_secs
+            {
+                return Err(format!(
+                    "{owner} runs a craft job of '{}' at batch {} of {} and {} s of {} s, \
+                     which no session wrote",
+                    job.recipe, job.done, job.queued, job.elapsed_secs, recipe.duration_secs
+                ));
+            }
+        }
         if ship.repair_jobs().is_empty() && ship.rescue_call().is_none() {
             return Ok(());
         }
@@ -1263,14 +1307,19 @@ fn check_saved_jobs(state: &WorldSaveState, designs: &GameShipDesigns) -> Result
     check(
         &state.player.ship,
         &format!("the player ship '{}'", state.player.id.0),
+        state.player.controls.dock.is_some(),
     )?;
     for escort in &state.player.fleet {
-        check(&escort.ship, &format!("the escort '{}'", escort.id.0))?;
+        check(
+            &escort.ship,
+            &format!("the escort '{}'", escort.id.0),
+            false,
+        )?;
     }
     for (_, record) in state.sectors.iter() {
         for body in record.each_body() {
             if let FrozenBodyType::Ship(ship) = body.body() {
-                check(ship, &format!("'{}'", body.id().unwrap_or("a ship")))?;
+                check(ship, &format!("'{}'", body.id().unwrap_or("a ship")), false)?;
             }
         }
     }

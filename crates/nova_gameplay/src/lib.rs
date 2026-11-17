@@ -4,6 +4,7 @@
 //! machine and the physics, entropy and particle registrations its peers build
 //! on. The modules are `integrity` and `damage` (health, disable, destroy),
 //! `gravity` (gravity wells), `inventory` (the items a ship carries),
+//! `crafting` (the recipes a ship crafts items by),
 //! `button_cue` (the button voice over `nova_sound`), `juice` (combat
 //! feedback) over the reusable trauma rig in `shake` and the burst in
 //! `impact_spark`, `objectives` (the mission objective list and its
@@ -40,6 +41,7 @@ pub mod civilization;
 pub mod clock;
 pub mod contact_model;
 pub mod cooldown;
+pub mod crafting;
 pub mod damage;
 pub mod freeze;
 pub mod goal;
@@ -126,17 +128,18 @@ pub mod prelude {
     pub use super::{
         asset_ref::prelude::*, beacon::prelude::*, bounds::prelude::*, button_cue::prelude::*,
         chart::prelude::*, cheats::prelude::*, civilization::prelude::*, clock::prelude::*,
-        contact_model::prelude::*, cooldown::prelude::*, damage::prelude::*, freeze::prelude::*,
-        goal::prelude::*, gravity::prelude::*, hash::prelude::*, impact_sound::prelude::*,
-        impact_spark::prelude::*, integrity::prelude::*, inventory::prelude::*, jobs::prelude::*,
-        juice::prelude::*, lifetime::prelude::*, markers::prelude::*, market::prelude::*,
-        math::prelude::*, mesh::prelude::*, narrative_accent::prelude::*, objectives::prelude::*,
-        open_objectives::prelude::*, plugin::prelude::*, projectile_hooks::prelude::*,
-        relations::prelude::*, render_target::prelude::*, rescue::prelude::*,
-        role_icon::prelude::*, rounds::prelude::*, saved_refs::prelude::*, settings::prelude::*,
-        shake::prelude::*, soft_dot::prelude::*, station_visits::prelude::*,
-        trade_profile::prelude::*, transform::prelude::*, transient_light::prelude::*, EscapeOwner,
-        GameMode, GameStates, GuardedLeave, PauseStates, UnsavedWork,
+        contact_model::prelude::*, cooldown::prelude::*, crafting::prelude::*, damage::prelude::*,
+        freeze::prelude::*, goal::prelude::*, gravity::prelude::*, hash::prelude::*,
+        impact_sound::prelude::*, impact_spark::prelude::*, integrity::prelude::*,
+        inventory::prelude::*, jobs::prelude::*, juice::prelude::*, lifetime::prelude::*,
+        markers::prelude::*, market::prelude::*, math::prelude::*, mesh::prelude::*,
+        narrative_accent::prelude::*, objectives::prelude::*, open_objectives::prelude::*,
+        plugin::prelude::*, projectile_hooks::prelude::*, relations::prelude::*,
+        render_target::prelude::*, rescue::prelude::*, role_icon::prelude::*, rounds::prelude::*,
+        saved_refs::prelude::*, settings::prelude::*, shake::prelude::*, soft_dot::prelude::*,
+        station_visits::prelude::*, trade_profile::prelude::*, transform::prelude::*,
+        transient_light::prelude::*, EscapeOwner, GameMode, GameStates, GuardedLeave, PauseStates,
+        UnsavedWork,
     };
 }
 

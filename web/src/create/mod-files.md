@@ -164,7 +164,7 @@ content is rebalanced, prune the entry.
 ## Content files
 
 Every `*.content.ron` file is a RON list. One file may contain any mix of the
-twelve item kinds:
+thirteen item kinds:
 
 ```ron
 [
@@ -254,11 +254,18 @@ twelve item kinds:
         ask_cr: 60,
         bid_cr: 45,
     )),
+    Recipe((
+        id: "my_mod/sensor_core",
+        inputs: [("SalvagedParts", 1)],
+        output: ("my_mod_sensor_core", 1),
+        duration_secs: 12.0,
+        site: Ship,
+    )),
 ]
 ```
 
 An `Item` adds a new entry to the item catalog, or replaces one your mod
-depends on. Every field but `refine` is required: `id`, `name` and `about` are not blank;
+depends on. Every field is required: `id`, `name` and `about` are not blank;
 `category` is one of `Raw`, `Repair`, `Ammo`, `Food`, `Parts`, `Contraband`;
 the market of a living lawful station does not buy or sell a `Contraband`
 item, see [Stations](../stations/). `mass_g` is
@@ -283,34 +290,39 @@ load order; a pack that depends on the id's owner may replace it whole. See
 [Scenario objects](../objects/#inventory) for the item table and the stock
 format.
 
-An item that a station makes carries a refine recipe. Leave `refine` out for
-an item nothing refines.
-
-```ron
-refine: Some((
-    inputs: [("IronOre", 2), ("CarbonOre", 1)],
-    fee_cr: 30,
-)),
-```
-
-One batch takes every input and `fee_cr` credits and makes one of the item,
-at a station that offers `Refine`, see [Refine](../stations/#refine). Lint,
-then load, refuse a recipe that:
-
-- lists no input, lists an input twice, or lists one with a count of `0`;
-- lists the item itself, or an id no loaded mod defines;
-- costs less than the item sells for: the inputs at their `ask_cr` plus
-  `fee_cr` must be at least the item's `bid_cr`, each price as the share of
-  its `price_lot`. Otherwise a player buys the inputs, refines and sells at a
-  profit from reference prices alone.
-
-The price rule reads the merged catalog. When a mod replaces an input or the
-refined item and breaks the rule, that mod is refused, not the pack it
-depends on.
-
 Splitting these into `campaign.content.ron`, `scenarios.content.ron`, and
 `sections.content.ron` is a readability convention, not a loader requirement.
 Large mods can use one scenario per file and list all of them in `content`.
+
+### Recipes
+
+A `Recipe` is one row of the Craft pane, see [Craft](../stations/#craft).
+Every field is required.
+
+| field | meaning |
+|---|---|
+| `id` | what the recipe is known by. Prefix it with your mod id. A base id such as `base/pdc_round` replaces that recipe whole |
+| `inputs` | `(item, count)` pairs one batch takes, in the order the pane shows them |
+| `output` | the `(item, count)` one batch makes |
+| `duration_secs` | game seconds one batch runs |
+| `site` | `Ship`: runs anywhere, in flight too. `Station(fee_cr: n)`: runs only docked at a living station that offers `Craft`, and pays it `n` credits a batch |
+
+Lint, then load, refuse a recipe that:
+
+- has a blank id, lists no input, lists an input twice, or lists one with a
+  count of `0`;
+- makes `0` of its output, takes its own output, or names an id no loaded
+  mod defines;
+- runs `0` seconds, a negative time, or a time that is not finite;
+- costs less than its output sells for: the inputs at their `ask_cr` plus the
+  fee must be at least the output's `bid_cr`, each price as the share of its
+  `price_lot`. Otherwise a player buys the inputs, crafts and sells at a
+  profit from reference prices alone;
+- makes an output heavier than its inputs, so a batch always fits the hold.
+
+The price and mass rules read the merged catalog. When a mod replaces an input
+or the output and breaks a rule, that mod is refused, not the pack it depends
+on.
 
 ## The content chapters
 
@@ -361,13 +373,14 @@ the [base content catalog](../base-content/) for reusable base ids and assets.
 
 Content merges by id:
 
-- A new id adds a campaign, scenario, section, ship, style, lesson, or theme.
+- A new id adds a campaign, scenario, section, ship, style, lesson, recipe, or
+  theme.
 - An id that already exists replaces that whole entry.
 - A duplicate id inside one bundle is a conflict: the load logs it, keeps the
   first entry, and loads the rest of the bundle.
 
 For sections, the key is `base.id`. For campaigns, scenarios, ships, styles,
-lessons, and UI themes, the key is `id`. Prefix new ids with your mod id to
+lessons, recipes, and UI themes, the key is `id`. Prefix new ids with your mod id to
 avoid accidental collisions.
 
 An item id follows a stricter rule: a new id adds, but an id another pack

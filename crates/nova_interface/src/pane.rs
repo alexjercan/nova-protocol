@@ -1,10 +1,10 @@
 //! The TAB interface: one themed full-screen surface over the frozen world,
-//! with a Map pane, a Ship pane, an Inventory pane, a Jobs pane and, docked,
-//! a Station pane.
+//! with a Map pane, a Ship pane, an Inventory pane, a Craft pane, a Jobs
+//! pane and, docked, a Station pane.
 //!
 //! TAB opens it from flight (`Unpaused -> Interface`) and closes it again.
-//! Keyboard M and gamepad Y step Map -> Ship -> Inventory -> Jobs -> Station
-//! -> Map, Station only while docked, and the buttons in the card's title
+//! Keyboard M and gamepad Y step Map -> Ship -> Inventory -> Craft -> Jobs ->
+//! Station -> Map, Station only while docked, and the buttons in the card's title
 //! row pick a pane. The first open shows Map; after that TAB reopens the
 //! last pane. The `;` command modal opens over the pane without tearing it
 //! down, so closing the modal returns to the same pane with its scene, camera
@@ -37,6 +37,7 @@ use nova_ui::{
 };
 
 use crate::{
+    craft::craft_body,
     icons::{icon_node, InterfaceIcons, SectionIconType},
     inventory::{category_color, inventory_body},
     jobs::jobs_body,
@@ -67,6 +68,8 @@ pub enum InterfacePaneType {
     Ship,
     /// What the player ship carries, and what a docked ship carries.
     Inventory,
+    /// The recipes the player ship can run, and its running craft job.
+    Craft,
     /// The jobs the player holds, always, and the docked station's board.
     Jobs,
     /// What the docked station sells: ships, escorts and the station itself.
@@ -76,10 +79,11 @@ pub enum InterfacePaneType {
 
 impl InterfacePaneType {
     /// Every pane, in title-row order, with its button label.
-    const ALL: [(Self, &'static str); 5] = [
+    const ALL: [(Self, &'static str); 6] = [
         (Self::Map, "Map"),
         (Self::Ship, "Ship"),
         (Self::Inventory, "Inventory"),
+        (Self::Craft, "Craft"),
         (Self::Jobs, "Jobs"),
         (Self::Station, "Station"),
     ];
@@ -90,18 +94,20 @@ impl InterfacePaneType {
             Self::Map => "map",
             Self::Ship => "ship",
             Self::Inventory => "inventory",
+            Self::Craft => "craft",
             Self::Jobs => "jobs",
             Self::Station => "station",
         }
     }
 
     /// The pane `interface_next_tab` steps to: Map -> Ship -> Inventory ->
-    /// Jobs -> Station -> Map, skipping Station while `docked` is false.
+    /// Craft -> Jobs -> Station -> Map, skipping Station while `docked` is false.
     fn next(self, docked: bool) -> Self {
         match self {
             Self::Map => Self::Ship,
             Self::Ship => Self::Inventory,
-            Self::Inventory => Self::Jobs,
+            Self::Inventory => Self::Craft,
+            Self::Craft => Self::Jobs,
             Self::Jobs if docked => Self::Station,
             Self::Jobs | Self::Station => Self::Map,
         }
@@ -740,6 +746,7 @@ fn pane_body(body: &mut ChildSpawnerCommands, pane: InterfacePaneType, icons: &I
         InterfacePaneType::Map => map_body(body, icons),
         InterfacePaneType::Ship => ship_body(body, icons),
         InterfacePaneType::Inventory => inventory_body(body, icons),
+        InterfacePaneType::Craft => craft_body(body),
         InterfacePaneType::Jobs => jobs_body(body),
         InterfacePaneType::Station => station_body(body),
     }

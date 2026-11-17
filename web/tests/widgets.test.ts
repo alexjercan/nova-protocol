@@ -14,8 +14,6 @@ import {
     advancementBand,
     advancementCurve,
     advancementRadiusKm,
-    ALLOY_PLATE,
-    ALLOY_PLATE_RECIPE,
     CIVILIZATION_JITTER_KM,
     CIVILIZATION_LATTICE_KM,
     gateReach,
@@ -24,7 +22,7 @@ import {
     KEY_ROW_VERBS,
     keyRowChips,
     PART_KNOWN_CHANCE,
-    REFINE_ADVANCEMENT,
+    CRAFT_ADVANCEMENT,
     START_BLOCK_KM,
     ARRIVAL_STANDOFF,
     CHIPS_PER_WIDE_CRATER,
@@ -125,7 +123,6 @@ import {
     PRICE_UNKEPT,
     priceFactors,
     PROVOKED_WINDOW_SECONDS,
-    refinePlan,
     SOUND_FADE_OUT_SHARE,
     SOUND_LOUDNESS_TARGET_LUFS,
     SOUND_ROWS,
@@ -1456,10 +1453,10 @@ console.log("widgets: the corridor scope reproduces the stand bank");
         )
     );
     assert.equal(
-        REFINE_ADVANCEMENT,
+        CRAFT_ADVANCEMENT,
         rustNumber(
             "crates/nova_world_base/src/station_layout.rs",
-            /const REFINE_ADVANCEMENT: f32 = ([\d.]+);/
+            /const CRAFT_ADVANCEMENT: f32 = ([\d.]+);/
         )
     );
     assert.equal(
@@ -1478,7 +1475,7 @@ console.log("widgets: the corridor scope reproduces the stand bank");
         1
     );
     assert.equal(Math.round(START_BLOCK_KM), 485);
-    assert.equal(ADVANCEMENT_GATES[0].advancement, REFINE_ADVANCEMENT);
+    assert.equal(ADVANCEMENT_GATES[0].advancement, CRAFT_ADVANCEMENT);
     const builders: Record<string, string> = {
         dart_torpedo_section: "torpedo_bay.rs",
         wide_intake_section: "cargo_intake.rs",
@@ -1538,84 +1535,13 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     for (const gate of ADVANCEMENT_GATES)
         assert.equal(gateReach(START_BLOCK_KM, gate.advancement), "None");
     // A gate opens to some civilizations first, then to all of them.
-    const first = advancementRadiusKm(REFINE_ADVANCEMENT / 1.1);
-    const every = advancementRadiusKm(REFINE_ADVANCEMENT / 0.9);
-    assert.equal(gateReach(first - 1, REFINE_ADVANCEMENT), "None");
-    assert.equal(gateReach(first + 1, REFINE_ADVANCEMENT), "Some");
-    assert.equal(gateReach(every - 1, REFINE_ADVANCEMENT), "Some");
-    assert.equal(gateReach(every + 1, REFINE_ADVANCEMENT), "All");
+    const first = advancementRadiusKm(CRAFT_ADVANCEMENT / 1.1);
+    const every = advancementRadiusKm(CRAFT_ADVANCEMENT / 0.9);
+    assert.equal(gateReach(first - 1, CRAFT_ADVANCEMENT), "None");
+    assert.equal(gateReach(first + 1, CRAFT_ADVANCEMENT), "Some");
+    assert.equal(gateReach(every - 1, CRAFT_ADVANCEMENT), "Some");
+    assert.equal(gateReach(every + 1, CRAFT_ADVANCEMENT), "All");
     assert.equal(gateReach(4000, 0.6), "All");
-}
-
-// ---- refine-batch ---------------------------------------------------------
-
-// The refinery scope's plate and recipe are the base item builder's.
-{
-    const ITEMS = "crates/nova_authoring/src/base_content/items.rs";
-    const constant = rustSays(
-        ITEMS,
-        new RegExp(`const (\\w+): &str = "${ALLOY_PLATE.id}";`)
-    );
-    const plate = (index: number): string =>
-        rustSays(
-            ITEMS,
-            new RegExp(
-                `\\(\\s*${constant},\\s*` +
-                    [
-                        '"([^"]+)"',
-                        '"[^"]*"',
-                        "\\w+",
-                        "[\\d_]+",
-                        "\\d+",
-                        "(\\d+)",
-                        "(\\d+)",
-                    ]
-                        .map((part, at) =>
-                            at === index ? part : part.replace(/[()]/g, "")
-                        )
-                        .join(",\\s*")
-            )
-        );
-    assert.equal(ALLOY_PLATE.name, plate(0));
-    assert.equal(ALLOY_PLATE.askCr, Number(plate(5)));
-    assert.equal(ALLOY_PLATE.bidCr, Number(plate(6)));
-    assert.equal(
-        ALLOY_PLATE_RECIPE.feeCr,
-        rustNumber(ITEMS, /const ALLOY_PLATE_REFINE_FEE_CR: u32 = (\d+);/)
-    );
-    const recipe = rustSays(ITEMS, /inputs: vec!\[([\s\S]*?)\],\s*fee_cr/);
-    assert.deepEqual(
-        ALLOY_PLATE_RECIPE.inputs,
-        [...recipe.matchAll(/ItemRoleType::(\w+)\.into\(\), (\d+)/g)].map(
-            (hit) => [hit[1], Number(hit[2])]
-        )
-    );
-}
-
-// A batch is 2 iron ore + 1 carbon ore + 30 cr -> 1 alloy plate; the ore
-// covers whole batches only (inventory.rs `batches_from`).
-{
-    const one = refinePlan([3, 1]);
-    assert.equal(one.batches, 1);
-    assert.equal(one.feeCr, 30);
-    assert.deepEqual(one.left, [1, 0]);
-    assert.equal(one.sellRawCr, 3 * 12 + 6);
-    assert.equal(one.sellRefinedCr, 68 + 12 - 30);
-    assert.equal(one.buyPlatesCr, 90);
-    // Carbon is the short input here, then iron.
-    assert.equal(refinePlan([100, 40]).batches, 40);
-    assert.deepEqual(refinePlan([100, 40]).left, [20, 0]);
-    assert.equal(refinePlan([5, 40]).batches, 2);
-    assert.deepEqual(refinePlan([5, 40]).left, [1, 38]);
-    const none = refinePlan([1, 9]);
-    assert.equal(none.batches, 0);
-    assert.equal(none.feeCr, 0);
-    assert.equal(none.sellRefinedCr, none.sellRawCr);
-    // At base prices a batch sold as plate earns 8 cr over its ore.
-    assert.equal(
-        refinePlan([200, 100]).sellRefinedCr - refinePlan([200, 100]).sellRawCr,
-        100 * 8
-    );
 }
 
 // ---- key-row --------------------------------------------------------------

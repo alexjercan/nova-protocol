@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crafting Slice One</title>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1d1d1b; --muted: #5d5b55; --line: #d9d5cc;
+  --card: #ffffff; --accent: #2f5d8a; --ok: #2d6a3e; --warn: #8a4b16; --code: #f1eee7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16171a; --fg: #e6e4df; --muted: #a09d96; --line: #34363b;
+    --card: #1e2024; --accent: #8ab4de; --ok: #8fcf9c; --warn: #e3a66a; --code: #23262b;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #16171a; --fg: #e6e4df; --muted: #a09d96; --line: #34363b;
+  --card: #1e2024; --accent: #8ab4de; --ok: #8fcf9c; --warn: #e3a66a; --code: #23262b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.6rem; margin: 0 0 4px; }
+h2 { font-size: 1.2rem; margin: 36px 0 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+h3 { font-size: 1rem; margin: 20px 0 6px; }
+p, li { max-width: 72ch; }
+.sub { color: var(--muted); margin: 0 0 16px; }
+code, pre { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 0.86rem; }
+code { background: var(--code); padding: 1px 4px; border-radius: 3px; }
+pre { background: var(--code); padding: 12px; border-radius: 6px; overflow-x: auto; line-height: 1.4; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0 12px; font-size: 0.92rem; }
+th, td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+th { color: var(--muted); font-weight: 600; }
+td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.rec { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent);
+  border-radius: 6px; padding: 10px 14px; margin: 10px 0; }
+.rec b { color: var(--accent); }
+.alt { color: var(--muted); font-size: 0.93rem; }
+.ok { color: var(--ok); font-weight: 600; }
+.warn { color: var(--warn); font-weight: 600; }
+.toc { columns: 2; padding-left: 18px; }
+@media (max-width: 640px) { .toc { columns: 1; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Crafting: first slice</h1>
+<p class="sub">Task 20261116-132140. Design for review, 2026-11-16. Code map with paths and lines: <code>MAP.md</code> in this folder. Nothing is built yet.</p>
+
+<p>Goal of this slice: make crafting a real feature, small enough to land before the ammo resupply work
+(task 20261116-132139), which needs <b>PDC rounds made from ore on the ship</b>. Each point gives one
+recommendation and the alternatives in one line each.</p>
+
+<ol class="toc">
+<li><a href="#format">Recipe content format</a></li>
+<li><a href="#tier">On-ship tier</a></li>
+<li><a href="#recipes">First recipe list</a></li>
+<li><a href="#job">Crafting as a timed job</a></li>
+<li><a href="#ui">UI: the Craft pane</a></li>
+<li><a href="#deferred">Deferred</a></li>
+<li><a href="#risk">What dies, what breaks, what fails loudly, proof</a></li>
+</ol>
+
+<h2 id="format">1. Recipe content format</h2>
+<div class="rec"><b>Recommend:</b> a new content kind <code>Recipe</code>, one entry per recipe, that replaces
+the <code>refine</code> field on <code>Item</code>. Every field is required. The station fee sits inside the
+site, so a ship recipe cannot carry credits by mistake.</div>
+
+<pre>Recipe((
+    id: "base/pdc_round",
+    inputs: [("IronOre", 1), ("StoneOre", 1)],
+    output: ("PdcRound", 100),
+    duration_secs: 8.0,          // game seconds per batch
+    site: Ship,
+)),
+Recipe((
+    id: "base/alloy_plate",
+    inputs: [("IronOre", 2), ("CarbonOre", 1)],
+    output: ("AlloyPlate", 1),
+    duration_secs: 10.0,
+    site: Station((fee_cr: 30)), // docked at a living station that offers Craft
+)),</pre>
+
+<h3>Rust types (in <code>nova_gameplay</code>, new module <code>crafting.rs</code>)</h3>
+<pre>pub struct RecipeDesignId(String);              // authored catalog id, "base/pdc_round"
+pub struct RecipeDesign {
+    pub id: RecipeDesignId,
+    pub inputs: Vec&lt;(ItemDesignId, u32)&gt;,      // one batch, authored order
+    pub output: (ItemDesignId, u32),           // one batch
+    pub duration_secs: f32,                    // per batch, finite, &gt; 0
+    pub site: CraftSiteType,
+}
+pub enum CraftSiteType { Ship, Station { fee_cr: u32 } }
+pub struct GameRecipes(BTreeMap&lt;RecipeDesignId, RecipeDesign&gt;);  // Resource
+pub fn recipe_faults(recipe: &amp;RecipeDesign, items: &amp;GameItems) -&gt; Vec&lt;String&gt;;</pre>
+
+<h3>Station gate</h3>
+<p><code>StationServiceType::Refine</code> becomes <code>Craft</code>. Generated stations offer it from
+advancement 0.25, as Refine does now (<code>REFINE_ADVANCEMENT</code> becomes <code>CRAFT_ADVANCEMENT</code>).
+The base waystation keeps it. No per-recipe gate in this slice: every station recipe works at every
+Craft station.</p>
+
+<h3>Lint (shared by <code>content lint</code> and the load merge)</h3>
+<p>Refused, with the recipe id: empty id; no inputs; an input count of 0; an input listed twice; an input
+that is the output; an unknown input or output item; an output count of 0; <code>duration_secs</code> not
+finite or not above 0; <b>no-loss price rule</b> (inputs at ask plus the fee are worth less than the output
+at bid, lot-exact, the rule <code>refine_price_fault</code> has now); <b>mass rule</b> (the output weighs more
+than the inputs). The mass rule means an output always fits the hold once its inputs leave it, so the
+runtime needs no "hold full" refusal.</p>
+
+<p><b>Format break, marked (breaking):</b> <code>refine</code> on an item, <code>Refine</code> in a station's
+<code>services</code> and the <code>OnCreditsChanged</code> cause <code>Refine</code> all stop working. The
+item <code>refine</code> field shipped in v0.18.0, so the changelog says how to migrate. The example mod gains
+one <code>Recipe</code> (<code>example/survey_core</code>: 1 SalvagedParts to 1 survey core, ship site) and
+its service list comment gains <code>Craft</code>.</p>
+
+<p class="alt">Alternatives: keep the recipe on the item as <code>craft: [..]</code> (one item, many recipes is
+awkward, and a mod cannot add a recipe to a base item without replacing the item); <code>outputs</code> as a
+list for by-products (not needed by any first recipe, add later); a separate <code>credits</code> field beside
+<code>site</code> (allows a ship recipe with a fee, which lint must then refuse).</p>
+
+<h2 id="tier">2. On-ship tier</h2>
+<div class="rec"><b>Recommend: built into every hull.</b> Any player ship can run <code>site: Ship</code>
+recipes anywhere, in flight, docked or in a fight. Station recipes are the "3x3 table".</div>
+<p>Why: the ammo task needs every combat role to make rounds without a refit. A fabricator section needs a
+new section kind, mesh, editor support, AI and start-hull changes, and every current start hull would lack
+it on day one.</p>
+<p class="alt">Alternative: a fabricator section (a stronger "2x2 vs 3x3" story, much larger scope; can be
+added later as a third site, <code>Fabricator</code>, with no format break for existing recipes).</p>
+
+<h2 id="recipes">3. First recipe list</h2>
+<p>Six recipes. No new items. Prices are the current base items (provisional). "Cost" is inputs at ask plus
+fee; "Earns" is the output at bid. The lint passes when cost is at least earns, and mass out is at most
+mass in.</p>
+<div class="table-wrap">
+<table>
+<tr><th>Id</th><th>Site</th><th>Inputs (one batch)</th><th>Output</th><th class="n">s / batch</th>
+<th class="n">Cost cr</th><th class="n">Earns cr</th><th class="n">Mass in &gt; out kg</th><th>Lint</th></tr>
+<tr><td><code>base/pdc_round</code></td><td>Ship</td><td>1 IronOre, 1 StoneOre</td><td>100 PdcRound</td>
+<td class="n">8</td><td class="n">20</td><td class="n">7</td><td class="n">20 &gt; 20</td><td class="ok">pass</td></tr>
+<tr><td><code>base/hull_plate</code></td><td>Ship</td><td>2 IronOre</td><td>1 HullPlate</td>
+<td class="n">8</td><td class="n">32</td><td class="n">30</td><td class="n">20 &gt; 10</td><td class="ok">pass</td></tr>
+<tr><td><code>base/section_panel</code></td><td>Ship</td><td>2 CarbonOre</td><td>1 SectionPanel</td>
+<td class="n">6</td><td class="n">16</td><td class="n">15</td><td class="n">20 &gt; 10</td><td class="ok">pass</td></tr>
+<tr><td><code>base/alloy_plate</code></td><td>Station, 30 cr</td><td>2 IronOre, 1 CarbonOre</td><td>1 AlloyPlate</td>
+<td class="n">10</td><td class="n">70</td><td class="n">68</td><td class="n">30 &gt; 30</td><td class="ok">pass</td></tr>
+<tr><td><code>base/rail_slug</code></td><td>Station, 10 cr</td><td>2 IronOre</td><td>1 RailSlug</td>
+<td class="n">10</td><td class="n">42</td><td class="n">30</td><td class="n">20 &gt; 20</td><td class="ok">pass</td></tr>
+<tr><td><code>base/torpedo</code></td><td>Station, 40 cr</td><td>2 AlloyPlate, 1 ActuatorPack, 9 CarbonOre</td><td>1 Torpedo</td>
+<td class="n">30</td><td class="n">372</td><td class="n">300</td><td class="n">165 &gt; 150</td><td class="ok">pass</td></tr>
+</table>
+</div>
+<p>The AlloyPlate recipe is the current refine, moved unchanged (same inputs, same 30 cr fee). Hull plates and
+section panels from ore let the player feed the field repair and field rebuild jobs that landed in
+<code>32b64d192</code> without a station.</p>
+
+<h3>Ammo sanity check (against <code>tasks/20261116-132139/MEASURE.md</code>)</h3>
+<div class="table-wrap">
+<table>
+<tr><th>Need</th><th class="n">Batches</th><th class="n">Game time</th><th class="n">Ore</th><th class="n">Ore at ask</th><th class="n">Same rounds bought</th></tr>
+<tr><td>One PDC magazine, 500</td><td class="n">5</td><td class="n">40 s</td><td class="n">100 kg</td><td class="n">100 cr</td><td class="n">55 cr</td></tr>
+<tr><td>Measured fight, run 1: 582</td><td class="n">6</td><td class="n">48 s</td><td class="n">120 kg</td><td class="n">120 cr</td><td class="n">65 cr</td></tr>
+<tr><td>Measured fight, run 3: 1971</td><td class="n">20</td><td class="n">160 s</td><td class="n">400 kg</td><td class="n">400 cr</td><td class="n">217 cr</td></tr>
+</table>
+</div>
+<ul>
+<li>Rate: 100 rounds per 8 s is 12.5 rounds/s, one eighth of one PDC's fire rate. Crafting refills between
+fights, not during a burst.</li>
+<li>Price: rounds from bought ore cost about 20 cr per 100, about 1.8x the station ask of 11. Buying at a
+station stays the cheap path; crafting is the supply path when the station is empty or far. Mined ore costs
+only time. MEASURE found price is not the limit (611-763 cr net per escort), supply is.</li>
+<li>Mass: 400 kg of ore for a full 2000-round refill fits the picket's 1316 kg free hold.</li>
+<li>Stone ore is the cheapest ore (4 cr ask), so it keeps the cost down. Iron alone (1 IronOre to 50 rounds)
+would cost 32 cr per 100, about 3x the station.</li>
+<li class="warn">Gap: the combat roles (bounty_hunter, military, pirate) have no mining beam, so on board they
+craft from ore they bought or looted. The ammo task can add ore to their start kits if play shows a need.
+Feel is unmeasured until the playable example runs.</li>
+</ul>
+<p class="alt">Alternatives: iron only (simpler input, about 3x station price); a cheaper or faster PDC recipe
+(makes the station Buy pointless); also put torpedoes on the ship (they are the deliberate, expensive choice;
+keep them station-made).</p>
+
+<h2 id="job">4. Crafting as a timed job</h2>
+<div class="rec"><b>Recommend:</b> one craft job per ship: one recipe, N batches, on the gameplay clock.
+Inputs and fee are taken <b>at the end of each batch</b>, as plate repair spends a plate as it fits it.</div>
+
+<h3>Rules</h3>
+<ul>
+<li><b>Clock:</b> <code>Update</code> on <code>Res&lt;Time&gt;</code>, like <code>advance_ship_repair_jobs</code>.
+TAB and the pause menu stop it. A ship flies and fights while it crafts.</li>
+<li><b>Start</b> (from the Craft pane) refuses, in this order: a craft job already runs; batches is 0; a
+station recipe while not docked at a living station that offers Craft; the hold (less what running repair
+jobs hold back, <code>ShipRepairJobs::free_hold</code>) is short of an input for all N batches; credits are
+short of N fees. A start takes nothing.</li>
+<li><b>Each batch end</b> re-checks the site, the inputs and the fee for one batch. On a pass it removes the
+inputs, adds the output and moves the fee from the ship to the station (<code>OnCreditsChanged</code> cause
+<code>Craft</code> on both). On a refusal the job stops with the reason; finished batches stay.</li>
+<li><b>Station recipe:</b> the ship must stay docked. An undock, a dead or derelict station ends the job
+as stopped on the next frame, with finished batches kept.</li>
+<li><b>Cancel:</b> any time, from the job row. Finished batches stay; nothing more is taken. Nothing is ever
+held "in the machine", so there is nothing to refund.</li>
+<li><b>Concurrency:</b> one craft job per ship. Repairs and the SOS call run beside it. Start is refused while a
+craft runs; the player cancels or waits.</li>
+<li><b>End:</b> a <code>CraftJobEnded</code> message drives a HUD notice (<code>CRAFTED 500 PDC ROUND</code>,
+<code>CRAFT STOPPED: NO STONE ORE, 300 MADE</code>, <code>CRAFT STOPPED: UNDOCKED</code>) and the pane note.
+The flight chip shows <code>CRAFT PDC ROUND 40%</code> when no SOS or repair job uses it.</li>
+</ul>
+
+<h3>Why inputs at batch end</h3>
+<p>It is the model the owner already approved for repairs. A cancel, a Load or a lost ship never loses
+inputs. The save keeps only ids and counts, with no held stack to restore or refund. The mass rule means the
+output always fits. The cost: if the player sells, jettisons or gives away an input mid-job, the next batch
+stops and says which input ran out.</p>
+<p class="alt">Alternative: take all inputs and fees at start (the hold drops at once, but cancel must refund
+into a hold that may be full, and the save must keep the held stack).</p>
+
+<h3>Save</h3>
+<pre>pub struct ShipCraftJob {          // Component on the ship root; serde
+    pub recipe: RecipeDesignId,
+    pub queued: u32,               // batches asked, &gt; 0
+    pub done: u32,                 // batches finished, &lt; queued
+    pub elapsed_secs: f32,         // in the current batch, &lt; duration_secs
+}</pre>
+<ul>
+<li>Saved as <code>FrozenShip.craft: Option&lt;ShipCraftJob&gt;</code>. No <code>Entity</code>, so no saved
+mirror type is needed. A v0.18.0 save has no field and loads with none running, the same exception as
+repairs.</li>
+<li>The save check refuses an unknown recipe id, <code>done &gt;= queued</code>, and a non-finite or over-long
+<code>elapsed_secs</code>.</li>
+<li>A parked hull drops its job (nobody runs it, nothing is held).</li>
+<li><b>Shipped-save migration:</b> v0.18.0 saves list <code>Refine</code> in saved station services
+(<code>FrozenStation::services</code>, the chart's <code>StationSummary::services</code>). These two save fields
+read <code>Refine</code> as <code>Craft</code> through one save-only deserializer, so content never accepts the old
+name. A <code>TODO</code> removes it when <code>WORLD_SAVE_VERSION</code> moves past v0.18.0.</li>
+</ul>
+<p class="alt">Alternatives: a FIFO queue of several recipes per ship (more UI and save shape, add later);
+keep the service named <code>Refine</code> (no save migration, but the name is wrong for torpedo assembly).</p>
+
+<h2 id="ui">5. UI: the Craft pane</h2>
+<div class="rec"><b>Recommend: its own pane, <code>Craft</code>,</b> in the existing title row: Map, Ship,
+Inventory, <b>Craft</b>, Jobs, Station. M and gamepad Y step through it. It is always shown, because ship
+recipes work everywhere.</div>
+<p>Why not an overlay on the Inventory pane, like the Ship pane catalogue: the catalogue's open and return
+flow is the problem task 20261116-133436 is fixing (TAB drops the player out). A pane has no open, no
+return and no separate camera. The Inventory pane (about 8.3k lines) stays the hold and trade surface. No new
+bar: the tab sits in the row that exists.</p>
+
+<h3>Layout, modelled on the catalogue gallery</h3>
+<pre>[Map] [Ship] [Inventory] [Craft] [Jobs] [Station]                              1,240 cr
+-------------------------------------------------------------------------------------------
+PDC round x100   batch 3/5  [##########----------]  22 s left                    [Cancel]
+All  Ammo  Repair  Parts                                                 filter [______]
++-------------+ +-------------+ +-------------+ +-------------+  | PDC round x100     SHIP
+| [ammo icon] | | [plate icn] | | [part icon] | | [part icon] |  | Iron ore      12 / 1
+| PDC round   | | Hull plate  | | Sect. panel | | Alloy plate |  | Stone ore     30 / 1
+| x100   SHIP | | x1     SHIP | | x1     SHIP | | x1  STATION |  | 8 s a batch
++-------------+ +-------------+ +-------------+ +-------------+  | Batches [-] 5 [+] [Max]
++-------------+ +-------------+                                  | Takes 5 iron, 5 stone ore
+| Rail slug   | | Torpedo     |  &lt;- muted: "Dock at a Craft     | Makes 500 PDC round, 40 s
+| x1  STATION | | x1  STATION |     station"                     |                   [Craft]
++-------------+ +-------------+                                  |</pre>
+<ul>
+<li>Tile: the output's category icon and color (as the Inventory pane uses), name, count and a site tag.
+2D tiles, not the 3D gallery scene: items have no meshes.</li>
+<li>Muted tile with its reason, as the catalogue does: "Dock at a Craft station", "Short of stone ore",
+"A craft is running".</li>
+<li>Focus card: inputs with have / need, fee for a station recipe, seconds per batch, batches with
+<code>-</code>, <code>+</code> and Max (what the hold and credits cover), one summary line, one Craft verb. A
+refusal disables Craft and shows the reason under the summary line.</li>
+<li>The job row shows only while a job runs. The category row and filter are one line.</li>
+</ul>
+
+<h3>What dies in the Inventory pane</h3>
+<p>The Refine chip and action, its batch form and summary, the Refine double click, the
+<code>refines</code> partner term, <code>GameItems::refined_from</code>, and their tests. The
+<code>refine_sandbox</code> and <code>system_station_refine</code> examples go too; the new examples below replace
+them.</p>
+<p class="alt">Alternatives: an overlay over the Inventory pane from a footer button (inherits the
+catalogue's return problem); a Craft section inside the Inventory pane (the pane is already the densest).</p>
+
+<h2 id="deferred">6. Deferred to later slices</h2>
+<ul>
+<li>Consumables with an effect in flight (repair kit, thrust boost, flare, decoy).</li>
+<li>Sections as items (craft a section, carry it, fit it).</li>
+<li>Market and Inventory pane rework.</li>
+<li>Catalogue UX (task 20261116-133436). The Craft pane should take its result where it applies.</li>
+<li>A fabricator section and a <code>Fabricator</code> site; per-recipe station gates or per-station recipe lists.</li>
+<li>A craft queue, by-product outputs, an <code>OnCrafted</code> scenario event, and editor forms for recipes
+(the editor lists and inspects a recipe through reflection only).</li>
+<li>AI ships crafting.</li>
+</ul>
+
+<h2 id="risk">7. What dies, what may break, what fails loudly, proof</h2>
+<h3>Dies</h3>
+<p><code>ItemDesign::refine</code>, <code>ItemRefineRecipe</code>, <code>plan_item_refine</code>, <code>ItemRefine</code>,
+<code>ItemRefineRefusalType</code>, <code>GameItems::refined_from</code>, the refine block of
+<code>item_pack_faults</code> and its tests, <code>StationServiceType::Refine</code>,
+<code>CreditChangeCauseType::Refine</code>, <code>REFINE_ADVANCEMENT</code>, the Inventory Refine verb, two
+examples and their catalog drift rows, and the Refine docs sections.</p>
+
+<h3>May break</h3>
+<ul>
+<li>Mods with <code>refine:</code> or <code>Refine</code> (breaking; changelog migration note).</li>
+<li>Scenario scripts that compare <code>event.cause == "Refine"</code> (breaking; rename).</li>
+<li>v0.18.0 saves: handled by the save-only service migration and the absent <code>craft</code> field. Needs a test.</li>
+<li>Editor exhaustive <code>Content</code> matches (compile errors find them).</li>
+<li>Ammo economics: crafted rounds from bought ore cost about 1.8x the station ask.</li>
+</ul>
+
+<h3>Fails loudly</h3>
+<ul>
+<li>A recipe with an unknown item, bad count, bad duration, a loss on price or a gain in mass: lint error, then
+a load error, keyed by the recipe id.</li>
+<li>An item that still has <code>refine</code>, or a station that lists <code>Refine</code>: RON parse error
+(<code>deny_unknown_fields</code>, unknown variant).</li>
+<li>A save that names an unknown recipe: the world is refused with the id.</li>
+<li>A running job whose recipe is not in <code>GameRecipes</code>: panic (the save check refuses it first).</li>
+</ul>
+
+<h3>Verification plan</h3>
+<ul>
+<li>Unit (<code>nova_gameplay</code>): each <code>recipe_faults</code> refusal; the lot-exact price rule moved
+over with its existing cases; <code>plan_craft_start</code> and <code>plan_craft_batch</code> refusal order.</li>
+<li>ECS (<code>nova_ship</code>): a ship recipe finishes N batches on the game clock and takes inputs per
+batch; no progress while the clock is paused; cancel keeps finished batches; a station job stops on undock.</li>
+<li>Save (<code>nova_scenario</code>, <code>nova_world_base</code>): a running craft job resumes after a RON
+round trip and thaw; an unknown recipe id refuses the world; a v0.18.0 save with <code>Refine</code> loads as
+<code>Craft</code>.</li>
+<li>Content: <code>content gen</code> then <code>content lint</code>, base and <code>--target example</code>.</li>
+<li>System example <code>system_ship_craft</code> (replaces <code>system_station_refine</code>), autopilot, asserted
+markers: (0) PDC rounds crafted undocked from the Craft pane; (1) the AlloyPlate station recipe is refused
+undocked on the focus card; (2) docked, it crafts and moves the fee; (3) an undock stops the station job and
+keeps finished batches.</li>
+<li>Playable example <code>craft_sandbox</code> (replaces <code>refine_sandbox</code>): undocked near the
+waystation with ore aboard and the Craft pane open; hand-playable with no deadline, autopilot smoke run, README
+row. Frames of the Craft pane inspected.</li>
+</ul>
+</main>
+</body>
+</html>

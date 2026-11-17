@@ -249,7 +249,8 @@ fn lint_judged(
                     .into_iter()
                     .map(|issue| error(issue.to_string())),
             ),
-            Content::Lesson(_) | Content::Item(_) => {}
+            // The item rule judges recipes with every visible pack.
+            Content::Lesson(_) | Content::Item(_) | Content::Recipe(_) => {}
         }
     }
     if tables > 1 {
@@ -383,30 +384,34 @@ pub(crate) fn asset_faults(world: &mut World) -> Vec<String> {
 
 /// What the item rule says about `own` beside `packs`.
 fn item_findings(own: &str, data: &ProjectData, packs: &[VisiblePack]) -> Vec<Problem> {
-    let designs = |items: &[&'_ Content]| -> Vec<_> {
-        items
-            .iter()
-            .filter_map(|item| match item {
-                Content::Item(design) => Some(design.clone()),
-                _ => None,
-            })
-            .collect()
-    };
-    let held: Vec<(&str, &[String], Vec<_>)> = packs
+    let held: Vec<(&str, &[String], Vec<&Content>)> = packs
         .iter()
-        .map(|pack| (pack.id, pack.dependencies, designs(&pack.items)))
+        .map(|pack| (pack.id, pack.dependencies, pack.items.clone()))
         .chain(std::iter::once((
             own,
             data.meta.dependencies.as_slice(),
-            designs(&data.items().collect::<Vec<_>>()),
+            data.items().collect(),
         )))
         .collect();
     let packs: Vec<ItemPack> = held
         .iter()
-        .map(|(id, dependencies, items)| ItemPack {
+        .map(|(id, dependencies, content)| ItemPack {
             id,
             dependencies,
-            items: items.iter().collect(),
+            items: content
+                .iter()
+                .filter_map(|item| match item {
+                    Content::Item(design) => Some(design),
+                    _ => None,
+                })
+                .collect(),
+            recipes: content
+                .iter()
+                .filter_map(|item| match item {
+                    Content::Recipe(design) => Some(design),
+                    _ => None,
+                })
+                .collect(),
         })
         .collect();
     item_pack_faults(&packs)

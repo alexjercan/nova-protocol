@@ -49,7 +49,6 @@ fn items() -> GameItems {
         price_lot: 1,
         ask_cr: 1,
         bid_cr: 1,
-        refine: None,
     };
     GameItems::new([
         item(ItemRoleType::HullPlate, 10_000),

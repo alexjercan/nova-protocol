@@ -171,11 +171,13 @@ pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> Ap
     app.insert_resource(nova_world_base::test_support::fixture_loaded());
     app.insert_resource(nova_world_base::test_support::fixture_styles());
     // The start roles and ship catalog the New Game modal lists and names
-    // hulls from, and the trade profiles Create draws the traffic's from;
-    // the content merge publishes them in production.
+    // hulls from, the trade profiles Create draws the traffic's from, and
+    // the recipes Load checks a saved craft job against; the content merge
+    // publishes them in production.
     app.insert_resource(dummy_roles());
     app.init_resource::<GameShipDesigns>();
     app.init_resource::<nova_gameplay::prelude::GameTradeProfiles>();
+    app.init_resource::<nova_gameplay::prelude::GameRecipes>();
     app.init_resource::<nova_ship::prelude::GameSections>();
     // Headless: no TimePlugin, so provide the clocks the pause systems and the
     // handbook's looping demonstrations touch. Nothing advances them, so a test

@@ -136,14 +136,14 @@ const STORAGE_CAP_G: (f32, f32) = (1_000_000.0, 4_000_000.0);
 const CREDITS: (f32, f32) = (10_000.0, 40_000.0);
 
 /// The civilization advancement from which a generated station offers
-/// [`StationServiceType::Refine`]. Refining is the first step past selling
-/// raw ore, so the starting rings, which read at most 0.15, sell ore and
-/// buy plates; the 0.25 tier that opens the second turret also opens the
-/// refinery that feeds second-tier recipes.
-pub const REFINE_ADVANCEMENT: f32 = 0.25;
+/// [`StationServiceType::Craft`]. Station recipes are the first step past
+/// ship recipes, so the starting rings, which read at most 0.15, sell ore
+/// and buy plates; the 0.25 tier that opens the second turret also opens the
+/// station recipes that make alloy plates for second-tier sections.
+pub const CRAFT_ADVANCEMENT: f32 = 0.25;
 
 /// The services every generated station offers. One at or past
-/// [`REFINE_ADVANCEMENT`] offers Refine too.
+/// [`CRAFT_ADVANCEMENT`] offers Craft too.
 const SERVICES: [StationServiceType; 5] = [
     StationServiceType::Rebuild,
     StationServiceType::Refit,
@@ -447,7 +447,7 @@ pub fn generate_station(
 }
 
 /// The station design `civilization` keeps, built on `layout`: the dock
-/// services, with Refine from [`REFINE_ADVANCEMENT`], every section the
+/// services, with Craft from [`CRAFT_ADVANCEMENT`], every section the
 /// civilization knows as what it builds,
 /// storage and credits that rise with advancement, and an opening stock that
 /// fills a share of the hold, half goods and half the parts every section
@@ -565,7 +565,7 @@ pub fn generated_station(
         hull: layout.design.clone(),
         services: SERVICES
             .into_iter()
-            .chain((advancement >= REFINE_ADVANCEMENT).then_some(StationServiceType::Refine))
+            .chain((advancement >= CRAFT_ADVANCEMENT).then_some(StationServiceType::Craft))
             .collect(),
         builds: known.iter().map(|part| part.id().to_string()).collect(),
         storage_cap_g: lerp(STORAGE_CAP_G, advancement).round() as u32,
@@ -1846,7 +1846,6 @@ mod tests {
                     price_lot: 1,
                     ask_cr: 10,
                     bid_cr: 5,
-                    refine: None,
                 }),
         );
         // A civilization that knows the small drive but not the wide one.
@@ -1947,7 +1946,6 @@ mod tests {
                     price_lot: 1,
                     ask_cr: 10,
                     bid_cr: 5,
-                    refine: None,
                 }),
         );
         let request = request(1, StationArchetypeType::Ring, 0.0);
@@ -2057,7 +2055,6 @@ mod tests {
                 price_lot: 1,
                 ask_cr: 10,
                 bid_cr: 5,
-                refine: None,
             }),
         );
         let request = request(1, StationArchetypeType::Ring, 1.0);
@@ -2122,7 +2119,6 @@ mod tests {
             price_lot: 1,
             ask_cr: 10,
             bid_cr: 5,
-            refine: None,
         }));
         let request = request(1, StationArchetypeType::Ring, 0.0);
         let living = Civilization {
@@ -2184,7 +2180,6 @@ mod tests {
                 price_lot: 1,
                 ask_cr: 10,
                 bid_cr: 5,
-                refine: None,
             }))
         };
         let request = request(1, StationArchetypeType::Ring, 1.0);
@@ -2224,10 +2219,10 @@ mod tests {
         assert!(heavy_g >= u64::from(PDC_OPENING_ROUNDS) * 1_000);
     }
 
-    /// A station offers Refine from [`REFINE_ADVANCEMENT`] and the five
+    /// A station offers Craft from [`CRAFT_ADVANCEMENT`] and the five
     /// dock services alone under it.
     #[test]
-    fn a_station_offers_refine_from_the_refine_advancement() {
+    fn a_station_offers_craft_from_the_craft_advancement() {
         use nova_gameplay::prelude::ItemDesign;
 
         use crate::civilizations::CivilizationStatusType;
@@ -2242,7 +2237,6 @@ mod tests {
             price_lot: 1,
             ask_cr: 10,
             bid_cr: 5,
-            refine: None,
         }));
         let services = |advancement: f32| {
             let request = request(1, StationArchetypeType::Ring, advancement);
@@ -2261,13 +2255,13 @@ mod tests {
                 .services
         };
         assert_eq!(services(0.0), SERVICES);
-        assert_eq!(services(REFINE_ADVANCEMENT - 0.01), SERVICES);
-        for advancement in [REFINE_ADVANCEMENT, 1.0] {
+        assert_eq!(services(CRAFT_ADVANCEMENT - 0.01), SERVICES);
+        for advancement in [CRAFT_ADVANCEMENT, 1.0] {
             let offered = services(advancement);
             assert_eq!(offered[..SERVICES.len()], SERVICES, "{advancement}");
             assert_eq!(
                 offered[SERVICES.len()..],
-                [StationServiceType::Refine],
+                [StationServiceType::Craft],
                 "{advancement}"
             );
         }

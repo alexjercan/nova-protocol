@@ -1040,13 +1040,6 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "system_station_refine",
-        &[
-            "ore and a fee are refined into an alloy plate",
-            "a refine short of an input is refused on the form",
-        ],
-    ),
-    (
         "system_contraband_trade",
         &[
             "a lawful station docks a hull that carries contraband",
@@ -1162,6 +1155,13 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "a store past the cap refuses on the form",
             "the leave save holds the station's storage",
             "a loaded world gives the station its storage back",
+        ],
+    ),
+    (
+        "system_ship_craft",
+        &[
+            "a ship recipe crafts in flight",
+            "a station recipe refuses undocked",
         ],
     ),
     (

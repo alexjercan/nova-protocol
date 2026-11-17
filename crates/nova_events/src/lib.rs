@@ -991,9 +991,9 @@ pub enum CreditChangeCauseType {
     /// A fine paid at a docked station to settle with a civilization that
     /// stood Enemy to the player.
     Settle,
-    /// A refine at a docked station paid the recipe's fee: it moves from
-    /// the player to the station.
-    Refine,
+    /// A station recipe's batch finished at a docked station and paid its
+    /// fee: it moves from the ship to the station.
+    Craft,
     /// An armed `credits give` or `credits set` command wrote the balance.
     Cheat,
     /// A scenario's `GrantCredits` action granted or charged the credits.
@@ -1018,7 +1018,7 @@ impl CreditChangeCauseType {
             CreditChangeCauseType::JobReward => "JobReward",
             CreditChangeCauseType::JobRefresh => "JobRefresh",
             CreditChangeCauseType::Settle => "Settle",
-            CreditChangeCauseType::Refine => "Refine",
+            CreditChangeCauseType::Craft => "Craft",
             CreditChangeCauseType::Cheat => "Cheat",
             CreditChangeCauseType::Scenario => "Scenario",
             CreditChangeCauseType::Rescue => "Rescue",
@@ -1802,7 +1802,7 @@ mod inventory_event_tests {
             CreditChangeCauseType::JobReward,
             CreditChangeCauseType::JobRefresh,
             CreditChangeCauseType::Settle,
-            CreditChangeCauseType::Refine,
+            CreditChangeCauseType::Craft,
             CreditChangeCauseType::Cheat,
             CreditChangeCauseType::Scenario,
             CreditChangeCauseType::Rescue,

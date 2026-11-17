@@ -894,9 +894,13 @@ fn the_station_tab_shows_only_while_docked_at_a_living_station() {
 }
 
 #[test]
-fn the_next_tab_key_steps_through_jobs_always_and_station_only_while_docked() {
+fn the_next_tab_key_steps_through_craft_and_jobs_always_and_station_only_while_docked() {
     assert_eq!(
         InterfacePaneType::Inventory.next(false),
+        InterfacePaneType::Craft
+    );
+    assert_eq!(
+        InterfacePaneType::Craft.next(false),
         InterfacePaneType::Jobs
     );
     assert_eq!(InterfacePaneType::Jobs.next(false), InterfacePaneType::Map);

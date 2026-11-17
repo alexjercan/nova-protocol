@@ -49,7 +49,7 @@ use bevy::{
     prelude::*,
     reflect::TypePath,
 };
-use nova_gameplay::prelude::{ItemDesign, PriceTable, TradeProfileDesign};
+use nova_gameplay::prelude::{ItemDesign, PriceTable, RecipeDesign, TradeProfileDesign};
 // The pure serde format types live in the engine-free `nova_mod_format`
 // crate so the portal generator builds without bevy; re-exported here so game
 // code keeps importing them from nova_modding.
@@ -174,6 +174,18 @@ pub enum Content {
     /// limit, count, reward or weight, a repeated item and side and a
     /// repeated role fail at lint and at load.
     TradeProfile(TradeProfileDesign),
+    /// A [`RecipeDesign`] - registers into `GameRecipes` keyed by its id.
+    /// What one craft batch takes from the hold, what it makes, how long it
+    /// runs and where: on the ship, or docked at a station that offers Craft
+    /// for a fee.
+    ///
+    /// A mod adds a recipe by declaring a new id and replaces a base one by
+    /// declaring its id, like a trade profile. An unknown item, a bad count
+    /// or duration, a batch that pays or an output heavier than its inputs
+    /// fail at lint and refuse the mod that owns the recipe at load. The
+    /// rules judge the merged item catalog, so a mod that replaces an item
+    /// until a recipe of another pack pays is the mod refused.
+    Recipe(RecipeDesign),
 }
 
 /// The fixed [`Content::id`] of the [`Content::PriceTable`] singleton: a
@@ -201,6 +213,7 @@ impl Content {
             Content::StartRole(_) => "start role",
             Content::PriceTable(_) => "price table",
             Content::TradeProfile(_) => "trade profile",
+            Content::Recipe(_) => "recipe",
         }
     }
 
@@ -220,6 +233,7 @@ impl Content {
             Content::StartRole(role) => role.id.as_str(),
             Content::PriceTable(_) => PRICE_TABLE_ID,
             Content::TradeProfile(profile) => profile.id.as_str(),
+            Content::Recipe(recipe) => recipe.id.as_str(),
         }
     }
 

@@ -17,12 +17,12 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::HullStripPauseType;
+use nova_gameplay::prelude::{GameItems, GameRecipes, HullStripPauseType};
 use nova_ship::{
     flight::prelude::*,
     prelude::{
         CameraAuthoritySystems, DockedHelmType, DockedShip, DockingConnection, HullStripJob,
-        RepairWorkType, ShipRepairJobs, ShipRescueCall,
+        RepairWorkType, ShipCraftJob, ShipRepairJobs, ShipRescueCall,
     },
 };
 use nova_ui::hud::{chip_node, chip_paint, ChipText, ChipTone};
@@ -745,18 +745,25 @@ fn drive_mode_chip(
 /// The ship's running rescue call and its time left, such as `SOS 42 S`, or
 /// else its first running repair job and its share done, below the RCS
 /// chip, such as `REPAIR HULL-3 40%` or `REBUILD DOCK-1 75% +1` with one more
-/// job running. A ship with neither shows nothing. Both run on the game
-/// clock, so the chip shows them moving only in flight.
+/// job running, or else its craft job and its share done, such as
+/// `CRAFT PDC ROUND 40%`. A ship with none shows nothing. All run on the
+/// game clock, so the chip shows them moving only in flight.
 fn drive_repair_chip(
     q_hud: Query<&FlightStatusHudTargetEntity, With<FlightStatusHudMarker>>,
     mut q_ui: Query<(&mut ScreenIndicatorAnchor, &mut Text, &ChildOf), With<RepairChipUIMarker>>,
-    q_jobs: Query<(Option<&ShipRepairJobs>, Option<&ShipRescueCall>)>,
+    q_jobs: Query<(
+        Option<&ShipRepairJobs>,
+        Option<&ShipRescueCall>,
+        Option<&ShipCraftJob>,
+    )>,
+    items: Option<Res<GameItems>>,
+    recipes: Option<Res<GameRecipes>>,
 ) {
     for (mut anchor, mut text, &ChildOf(parent)) in &mut q_ui {
         let Ok(ship) = q_hud.get(parent) else {
             continue;
         };
-        let (jobs, call) = q_jobs.get(**ship).unwrap_or((None, None));
+        let (jobs, call, craft) = q_jobs.get(**ship).unwrap_or((None, None, None));
         if let Some(call) = call {
             let line = format!("SOS {:.0} S", call.remaining_secs().ceil());
             anchor.set_if_neq(ScreenIndicatorAnchor(Some(
@@ -768,6 +775,22 @@ fn drive_repair_chip(
             continue;
         }
         let jobs = jobs.map_or(&[][..], |jobs| jobs.0.as_slice());
+        let craft = craft.zip(items.as_deref()).zip(recipes.as_deref());
+        if let (None, Some(((craft, items), recipes))) = (jobs.first(), craft) {
+            let recipe = recipes.design(&craft.recipe);
+            let line = format!(
+                "CRAFT {} {:.0}%",
+                items.design(recipe.output_item()).name.to_uppercase(),
+                craft.progress(recipe) * 100.0
+            );
+            anchor.set_if_neq(ScreenIndicatorAnchor(Some(
+                ScreenIndicatorAnchorKind::Entity(**ship),
+            )));
+            if **text != line {
+                **text = line;
+            }
+            continue;
+        }
         let Some(first) = jobs.first() else {
             anchor.set_if_neq(ScreenIndicatorAnchor(None));
             if !text.is_empty() {

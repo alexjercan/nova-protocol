@@ -58,6 +58,7 @@ pub(crate) fn with_id(item: &mut Content, id: &str) {
         Content::Item(design) => design.id = ItemDesignId::from(id),
         Content::StartRole(role) => role.id = id.into(),
         Content::TradeProfile(profile) => profile.id = id.into(),
+        Content::Recipe(recipe) => recipe.id = id.into(),
         Content::Ship(design) => design.id = id.into(),
         Content::Scenario(_)
         | Content::Station(_)

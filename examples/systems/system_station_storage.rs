@@ -1027,6 +1027,7 @@ mod walk {
             &RegisteredScenarios::from(world.resource::<GameScenarios>()),
             world.resource::<GameShipDesigns>(),
             world.resource::<GameTradeProfiles>(),
+            world.resource::<GameRecipes>(),
         )
         .unwrap_or_else(|refusal| panic!("station storage: cannot open the leave save: {refusal}"));
         let saved = match state.sectors.get(cell) {

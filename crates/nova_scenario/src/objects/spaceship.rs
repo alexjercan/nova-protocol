@@ -668,20 +668,13 @@ struct FrozenShipState {
     /// `None` on a root the brake never touches (the player's, a station's).
     brake: Option<NeutralizedBrakeType>,
     /// The repair jobs running at the freeze, plate jobs keyed by section
-    /// id. Absent in a v0.18.0 save, which had no timed jobs: it loads with
-    /// none.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Vec::is_empty")
-    )]
+    /// id. Required like every field: a save of another catalog, v0.18.0
+    /// included, is refused at its header before this is read.
     repairs: Vec<SavedRepairJob>,
-    /// The rescue call running at the freeze. Absent in a v0.18.0 save,
-    /// which had no rescue: it loads with none.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
+    /// The rescue call running at the freeze, required like `repairs`.
     rescue: Option<ShipRescueCall>,
+    /// The craft job running at the freeze, required like `repairs`.
+    craft: Option<ShipCraftJob>,
 }
 
 /// The RCS magazine a ship root froze with: delta-v spent and seconds idle,
@@ -759,6 +752,13 @@ impl FrozenShip {
         self.state.rescue.as_ref()
     }
 
+    /// The craft job the ship froze with, as the save checks its recipe
+    /// against the catalog.
+    #[must_use]
+    pub fn craft_job(&self) -> Option<&ShipCraftJob> {
+        self.state.craft.as_ref()
+    }
+
     /// This record as a parked hull keeps it: nobody drives it, it is
     /// Neutral, every capability is off, it is neither derelict nor
     /// lootable, and it holds no credits and no AI progress. Its sections,
@@ -778,6 +778,7 @@ impl FrozenShip {
                 ai: None,
                 repairs: Vec::new(),
                 rescue: None,
+                craft: None,
                 ..self.state
             },
             ..self
@@ -869,8 +870,9 @@ pub(crate) fn rehull_ship(
     // After the despawns: a section leaving writes its binding into the
     // controller table, and the new table replaces what those wrote.
     // The old hull's jobs name its sections and design ids, which the new
-    // hull does not have. Nothing a job holds was spent yet, so dropping
-    // them loses nothing.
+    // hull does not have, and its craft job would run on the bought hull's
+    // hold. Nothing a job holds was spent yet (a craft batch takes its
+    // inputs at its end), so dropping them loses nothing.
     let mut root = world.entity_mut(ship);
     root.remove::<(
         Health,
@@ -881,6 +883,7 @@ pub(crate) fn rehull_ship(
         HadThruster,
         ShipRepairJobs,
         ShipRescueCall,
+        ShipCraftJob,
     )>();
     root.insert((
         SpaceshipDesign(design),
@@ -1059,6 +1062,7 @@ pub fn freeze_ship(world: &World, ship: Entity) -> Result<FrozenShip, UnsettledB
                 })
                 .collect(),
             rescue: root.get::<ShipRescueCall>().cloned(),
+            craft: root.get::<ShipCraftJob>().cloned(),
         },
     })
 }
@@ -2154,6 +2158,9 @@ fn insert_spaceship_sections(
         if let Some(call) = state.rescue.take() {
             root.insert(call);
         }
+        if let Some(job) = state.craft.take() {
+            root.insert(job);
+        }
     }
 
     // After the controller's own wiring, so the progress the AI froze with
@@ -2640,12 +2647,14 @@ mod tests {
         );
     }
 
-    /// A save keeps a running plate job by its section's design id and a
-    /// running rescue call by its station: after a RON round trip and a thaw
-    /// the plate job works on the thawed section and fits its last plate on
-    /// time, and the call keeps its clock and comes due on time.
+    /// A save keeps a running plate job by its section's design id, a
+    /// running rescue call by its station and a running craft job by its
+    /// recipe id: after a RON round trip and a thaw the plate job works on
+    /// the thawed section and fits its last plate on time, the call keeps
+    /// its clock and comes due on time, and the craft job finishes its last
+    /// batch on its saved clock.
     #[test]
-    fn a_running_plate_job_and_rescue_call_resume_after_a_save_and_load() {
+    fn a_running_plate_job_rescue_call_and_craft_job_resume_after_a_save_and_load() {
         use std::time::Duration;
 
         use bevy::{ecs::message::Messages, time::TimeUpdateStrategy};
@@ -2660,9 +2669,29 @@ mod tests {
             .set_max_delta(Duration::from_secs(60));
         app.add_message::<RepairJobEnded>();
         app.add_message::<RescueCallEnded>();
-        app.add_systems(Update, (advance_ship_repair_jobs, advance_ship_rescue_call));
+        app.add_message::<CraftJobEnded>();
+        app.add_systems(
+            Update,
+            (
+                advance_ship_repair_jobs,
+                advance_ship_rescue_call,
+                advance_ship_craft_jobs.after(advance_ship_repair_jobs),
+            ),
+        );
         let items = test_items();
+        let rounds = ItemDesignId::from(ItemRoleType::PdcRound);
+        let recipe = RecipeDesign {
+            id: RecipeDesignId::from("test/pdc_round"),
+            inputs: vec![
+                (ItemRoleType::IronOre.into(), 1),
+                (ItemRoleType::StoneOre.into(), 1),
+            ],
+            output: (rounds.clone(), 100),
+            duration_secs: 3.0 * PLATE_REPAIR_SECS,
+            site: CraftSiteType::Ship,
+        };
         let world = app.world_mut();
+        world.insert_resource(GameRecipes::new([recipe.clone()]));
         world.init_resource::<GameSections>();
         world.init_resource::<GameShipDesigns>();
         world.insert_resource(items.clone());
@@ -2711,9 +2740,15 @@ mod tests {
         let plate = ItemDesignId::from(ItemRoleType::HullPlate);
         let bow = section(world, ship, "bow");
         world.get_mut::<Health>(bow).unwrap().current = 50.0;
-        world
-            .entity_mut(ship)
-            .insert(ShipInventory::new(&items, 1_000_000, [(plate.clone(), 1)]));
+        world.entity_mut(ship).insert(ShipInventory::new(
+            &items,
+            1_000_000,
+            [
+                (plate.clone(), 1),
+                (ItemRoleType::IronOre.into(), 1),
+                (ItemRoleType::StoneOre.into(), 1),
+            ],
+        ));
         let mut job = RepairJob::plates(bow, "HULL-1".to_string(), 2);
         job.work = RepairWorkType::Plates {
             section: bow,
@@ -2735,9 +2770,15 @@ mod tests {
             }],
         );
         call.elapsed_secs = RESCUE_SECS - 2.0 * PLATE_REPAIR_SECS;
+        let craft = ShipCraftJob {
+            recipe: recipe.id.clone(),
+            queued: 2,
+            done: 1,
+            elapsed_secs: recipe.duration_secs - PLATE_REPAIR_SECS,
+        };
         world
             .entity_mut(ship)
-            .insert((ShipRepairJobs(vec![job]), call.clone()));
+            .insert((ShipRepairJobs(vec![job]), call.clone(), craft.clone()));
 
         let frozen = freeze_ship(world, ship).expect("a settled ship freezes");
         let frozen: FrozenShip =
@@ -2765,6 +2806,7 @@ mod tests {
         );
         assert_eq!(jobs.0[0].elapsed_secs, 1.0);
         assert_eq!(world.get::<ShipRescueCall>(thawed), Some(&call));
+        assert_eq!(world.get::<ShipCraftJob>(thawed), Some(&craft));
 
         // The first frame's delta is zero; the next fits the last plate.
         app.update();
@@ -2782,6 +2824,17 @@ mod tests {
             .map(|ended| ended.end)
             .collect();
         assert_eq!(ends, vec![RepairJobEndType::Repaired { plates: 2 }]);
+        assert!(world.get::<ShipCraftJob>(thawed).is_none());
+        assert_eq!(
+            world.get::<ShipInventory>(thawed).unwrap().count(&rounds),
+            100
+        );
+        let crafted: Vec<CraftJobEndType> = world
+            .resource_mut::<Messages<CraftJobEnded>>()
+            .drain()
+            .map(|ended| ended.end)
+            .collect();
+        assert_eq!(crafted, vec![CraftJobEndType::Crafted { batches: 2 }]);
         assert!(!world.get::<ShipRescueCall>(thawed).unwrap().is_due());
         app.update();
         let call = app.world().get::<ShipRescueCall>(thawed).unwrap();

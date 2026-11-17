@@ -1,8 +1,8 @@
 //! The TAB interface and the `;` command modal.
 //!
 //! TAB opens a themed full-screen interface with a Map pane, a Ship pane, an
-//! Inventory pane and a Jobs pane, plus a Station pane while docked, over the
-//! frozen world. `;` opens `NOVA COMMANDS`, a
+//! Inventory pane, a Craft pane and a Jobs pane, plus a Station pane while
+//! docked, over the frozen world. `;` opens `NOVA COMMANDS`, a
 //! command-only modal on the retained CRT monitor, over any surface -
 //! including the interface, which it returns to on close. The flight HUD
 //! (`nova_hud`) hides while either is open; the two share only the
@@ -23,6 +23,7 @@
 //! | `map` | The Map pane: a schematic 3D view of local space. |
 //! | `ship` | The Ship pane: a schematic 3D viewer of the player ship. |
 //! | `inventory` | The Inventory pane: the player and docked-ship inventories. |
+//! | `craft` | The Craft pane: the recipes the player ship runs and its craft job. |
 //! | `jobs` | The Jobs pane: the held jobs and the docked station's board. |
 //! | `station` | The Station pane: what the docked station sells. |
 //! | `sector_notice` | The `SECTOR` HUD notice on a sector crossing. |
@@ -31,6 +32,7 @@
 #![warn(missing_docs)]
 
 pub mod bindings;
+pub mod craft;
 mod icons;
 pub mod inventory;
 pub mod jobs;
@@ -65,6 +67,7 @@ mod pointer_rig;
 pub mod prelude {
     pub use super::{
         bindings::interface_bindings,
+        craft::prelude::*,
         icons::{icon_node, init_interface_icons, InterfaceIcons},
         inventory::prelude::*,
         jobs::prelude::*,
@@ -90,6 +93,7 @@ use nova_ui::{
 };
 
 use crate::{
+    craft::CraftPaneSystems,
     inventory::InventoryPaneSystems,
     jobs::JobsPaneSystems,
     map::MapPaneSystems,
@@ -105,7 +109,7 @@ use crate::{
     terminal::CommandsSystems,
 };
 
-/// Wires the TAB interface, its four panes, and the `;` command modal.
+/// Wires the TAB interface, its panes, and the `;` command modal.
 ///
 /// Added by the assembly crate (`nova_core`), not by the HUD - the interface
 /// and the flight HUD are peers, and the plugin that orders them belongs above
@@ -148,6 +152,7 @@ impl Plugin for InterfacePlugin {
                 .before(MapPaneSystems)
                 .before(ShipPaneSystems)
                 .before(InventoryPaneSystems)
+                .before(CraftPaneSystems)
                 .before(JobsPaneSystems)
                 .before(StationPaneSystems),
         );
@@ -164,6 +169,7 @@ impl Plugin for InterfacePlugin {
                 MapPaneSystems,
                 ShipPaneSystems,
                 InventoryPaneSystems,
+                CraftPaneSystems,
                 JobsPaneSystems,
                 StationPaneSystems,
             )
@@ -212,6 +218,7 @@ impl Plugin for InterfacePlugin {
         app.add_plugins(map::MapPanePlugin);
         app.add_plugins(ship::ShipPanePlugin);
         app.add_plugins(inventory::InventoryPanePlugin);
+        app.add_plugins(craft::CraftPanePlugin);
         app.add_plugins(jobs::JobsPanePlugin);
         app.add_plugins(station::StationPanePlugin);
         app.add_plugins(sector_notice::SectorNoticePlugin);

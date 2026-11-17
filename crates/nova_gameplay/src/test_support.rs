@@ -87,7 +87,6 @@ pub fn test_items() -> crate::inventory::GameItems {
         price_lot,
         ask_cr,
         bid_cr,
-        refine: None,
     };
     let role = |role: ItemRoleType, name: &str, category, mass_g, price_lot, ask_cr, bid_cr| {
         item(role.id(), name, category, mass_g, price_lot, ask_cr, bid_cr)
@@ -154,16 +153,7 @@ pub fn test_items() -> crate::inventory::GameItems {
             200,
             150,
         ),
-        ItemDesign {
-            refine: Some(ItemRefineRecipe {
-                inputs: vec![
-                    (ItemRoleType::IronOre.into(), 2),
-                    (ItemRoleType::CarbonOre.into(), 1),
-                ],
-                fee_cr: 30,
-            }),
-            ..item("AlloyPlate", "Alloy plate", Parts, 30_000, 1, 90, 68)
-        },
+        item("AlloyPlate", "Alloy plate", Parts, 30_000, 1, 90, 68),
         item(
             "UnmarkedCores",
             "Unmarked cores",

@@ -21,8 +21,8 @@ use nova_assets::prelude::LoadedSectionPacks;
 use nova_core::loading_screen::LoadingScreenPlugin;
 use nova_gameplay::prelude::{
     resumed_lifetime, AssetRef, ClockFreeze, DamageType, FreezeOwner, FrozenRoundFlight, GameItems,
-    GameMode, GameStates, GameTradeProfiles, PauseStates, PlayerSpaceshipMarker, ProjectileDamage,
-    SavedLifetime, SavedOwner,
+    GameMode, GameRecipes, GameStates, GameTradeProfiles, PauseStates, PlayerSpaceshipMarker,
+    ProjectileDamage, SavedLifetime, SavedOwner,
 };
 use nova_menu::prelude::NovaMenuPlugin;
 use nova_scenario::prelude::{
@@ -344,6 +344,7 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
             &RegisteredScenarios::from(app.world().resource::<GameScenarios>()),
             app.world().resource::<GameShipDesigns>(),
             app.world().resource::<GameTradeProfiles>(),
+            app.world().resource::<GameRecipes>(),
         );
         assert!(opened.is_ok(), "world.lock is free: {opened:?}");
     }
@@ -567,6 +568,7 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
             &RegisteredScenarios::from(app.world().resource::<GameScenarios>()),
             app.world().resource::<GameShipDesigns>(),
             app.world().resource::<GameTradeProfiles>(),
+            app.world().resource::<GameRecipes>(),
         );
         assert!(opened.is_ok(), "world.lock is free: {opened:?}");
     }

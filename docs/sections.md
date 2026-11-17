@@ -115,8 +115,8 @@ save keeps each job as a `SavedRepairJob` on the ship's frozen state: its
 code, the section by design id (never an `Entity`) and its elapsed time. A
 Load restores it on the thawed sections. A save is refused when a job names
 a section the design lacks, a plate job's section that is lost, or a field
-rebuild's section that is live. A v0.18.0 save carries no jobs and loads
-with none. The HUD repair chip (`nova_hud/src/flight_status.rs`,
+rebuild's section that is live. The job fields are required; a v0.18.0
+save is refused at its catalog digest before they are read. The HUD repair chip (`nova_hud/src/flight_status.rs`,
 `drive_repair_chip`) shows the first job in flight.
 
 ### SOS rescue
@@ -155,9 +155,35 @@ parts and its share of the charge after the fee, moves the player to the
 station's spawn point at rest with the chase camera (`shift_chase_cameras`),
 puts each undocked fleet escort at a clear slot on its `AIFollow::side`, and
 inserts `StationBerth` (`Rescue { frames_left }`). Every end writes one
-`RescueCallEnded`. The save keeps a running call on the ship's frozen state;
-a v0.18.0 save carries none. The berth is not saved: a save between the
+`RescueCallEnded`. The save keeps a running call on the ship's frozen state.
+The berth is not saved: a save between the
 answer and the dock loads the paid, fixed ship undocked beside the station.
+
+### Craft jobs
+
+A recipe is content (`Content::Recipe`, `RecipeDesign` in
+`nova_gameplay/src/crafting.rs`), merged into `GameRecipes` by id and linted
+against the merged item catalog by `item_pack_faults`
+(`nova_assets/src/items.rs`), which refuses the pack that owns a broken
+recipe, or the pack that last priced an item until a recipe pays. The Craft pane
+(`nova_interface/src/craft.rs`) starts a job: `apply_craft_start_commands`
+checks `plan_craft_start` against the live ship and inserts one
+`ShipCraftJob` (`nova_ship/src/sections/craft_job.rs`) on the ship root; a
+start takes nothing. `advance_ship_craft_jobs` (`CraftJobSystems`, after
+`RepairJobSystems`, `Update`) runs it on `Time<Virtual>`, so the TAB interface
+holds it. At each batch end `plan_craft_batch` checks the site, the inputs in
+the hold less what repair jobs hold back (`ShipRepairJobs::free_hold`) and the
+fee, then the inputs leave, the output enters and a `Station` fee moves by
+`CreditChangeCauseType::Craft` to the station `CraftStations::docked_at`
+finds. A `Station` job holds while the ship has no Craft station dock, and
+the undock itself (`DockedShip` removed, `stop_station_craft_on_undock`)
+stops it; a Load thaws the ship before it rebuilds the dock, so a poll would
+stop a resumed job. Every end writes
+one `CraftJobEnded` (the HUD notice reads it); `CraftJobCancelRequest` ends a
+job early and keeps finished batches. The job is saved as is on the ship's
+frozen state; a save is refused when it names a recipe the catalog lacks,
+holds counts no session wrote, or runs a `Station` recipe on a ship not saved
+docked (`check_saved_jobs`). A hull buy (`rehull_ship`) drops the job.
 
 ### Swapping a section
 

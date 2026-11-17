@@ -2759,7 +2759,6 @@ mod tests {
             price_lot: 1,
             ask_cr,
             bid_cr: ask_cr * 3 / 4,
-            refine: None,
         }
     }
 
@@ -4437,7 +4436,6 @@ mod tests {
             price_lot: 1,
             ask_cr: 16,
             bid_cr: 12,
-            refine: None,
         }]);
         let hold = ShipInventory::new(&items, 10_000, [("IronOre".into(), 6)]);
         assert_eq!(

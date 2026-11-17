@@ -206,6 +206,7 @@ pub(crate) fn content_reflect(item: &Content) -> Option<&dyn PartialReflect> {
         Content::Item(config) => config,
         Content::PriceTable(config) => config,
         Content::TradeProfile(config) => config,
+        Content::Recipe(config) => config,
         Content::UiTheme(config) => config.as_ref(),
         Content::Campaign(config) => config,
         Content::Scenario(_) | Content::Ship(_) | Content::Station(_) | Content::Lesson(_) => {
@@ -223,6 +224,7 @@ pub(crate) fn content_reflect_mut(item: &mut Content) -> Option<&mut dyn Partial
         Content::Item(config) => config,
         Content::PriceTable(config) => config,
         Content::TradeProfile(config) => config,
+        Content::Recipe(config) => config,
         Content::UiTheme(config) => config.as_mut(),
         Content::Campaign(config) => config,
         Content::Scenario(_) | Content::Ship(_) | Content::Station(_) | Content::Lesson(_) => {

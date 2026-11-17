@@ -1112,7 +1112,6 @@ fn fixture_item(id: &str) -> ItemDesign {
         price_lot: 1,
         ask_cr: 10,
         bid_cr: 5,
-        refine: None,
     }
 }
 

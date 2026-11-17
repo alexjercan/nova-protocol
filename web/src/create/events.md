@@ -880,7 +880,7 @@ inventory, so a handler counts occurrences, not frames.
 | `OnPickedUp` | the ship whose intake took the stack | none | `canister`, `item`, `count` |
 | `OnJettisoned` | the ship whose intake dropped the stack | none | `canister`, `item`, `count` |
 | `OnTraded` | the ship traded WITH | the player's ship | `trade` (`Buy` or `Sell`, from the player's side), `item`, `count`, `price_cr` |
-| `OnCreditsChanged` | the ship whose purse moved | none | `previous_cr`, `current_cr`, `delta_cr` (signed), `cause` (`Trade`, `Take`, `Rebuild`, `Swap`, `Add`, `ShipBuy`, `EscortHire`, `StationBuy`, `JobReward`, `Settle`, `Refine`, `Rescue`, `Scenario` or `Cheat`) |
+| `OnCreditsChanged` | the ship whose purse moved | none | `previous_cr`, `current_cr`, `delta_cr` (signed), `cause` (`Trade`, `Take`, `Rebuild`, `Swap`, `Add`, `ShipBuy`, `EscortHire`, `StationBuy`, `JobReward`, `Settle`, `Craft`, `Rescue`, `Scenario` or `Cheat`) |
 | `OnRepaired` | the repaired ship | none | `section` (the Ship pane code, `CTL-1`), `item`, `count` (plates the job fitted; one event when the job ends, stops or is cancelled with at least one plate fitted) |
 | `OnRebuilt` | the rebuilt ship | none | `section` (the code the lost section had, `PDC-1`), `parts` (every recipe part, item id to count; for an SOS rescue, only those taken from the hold), `price_cr` (work plus bought parts; 0 for a field rebuild; for an SOS rescue, the section's share of the charge after the fee) |
 | `OnSwapped` | the refitted ship | none | `section` (the Ship pane code, `PDC-1`), `from` and `to` (the old and new section prototype ids), `parts` (every part of the new part's recipe), `price_cr` (work plus bought parts) |
@@ -917,8 +917,9 @@ paid, a swap one per party with `cause: Swap`, an add one per party
 with `cause: Add`, a hull buy one per party with `cause: ShipBuy`, and an
 escort hire one per party with `cause: EscortHire`. A station buy raises
 one, for the player only, with `cause: StationBuy`: the price goes to the
-civilization, so the station's purse does not move. A refine raises one per
-party with `cause: Refine`, the ship paying the fee and the station paid. An
+civilization, so the station's purse does not move. Each batch of a `Station`
+recipe raises one per party with `cause: Craft`, the ship paying the fee and
+the station paid; a `Ship` recipe moves no credits. An
 SOS rescue raises one, for the player only, with `cause: Rescue`, when the
 station answers: the whole charge, fee and rebuilds together. Its
 `OnRebuilt` events, raised at the same answer, each carry that section's

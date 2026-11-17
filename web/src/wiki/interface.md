@@ -1,6 +1,6 @@
 # Interface
 
-Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</kbd> in flight and a full-screen panel opens over the frozen world with four panes: **Map**, **Ship**, **Inventory** and **Jobs**. Docked at a living station, a fifth pane, **Station**, sells ships, escorts and the station itself. Flight resumes the moment you close it.
+Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</kbd> in flight and a full-screen panel opens over the frozen world with five panes: **Map**, **Ship**, **Inventory**, **Craft** and **Jobs**. Docked at a living station, a sixth pane, **Station**, sells ships, escorts and the station itself. Flight resumes the moment you close it.
 
 <figure class="figure">
     <!-- Capture: assets/wiki-interface-map.png -->
@@ -36,8 +36,8 @@ Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</
 | <kbd>Tab</kbd> (or click the right stick) | The interface opens on the Map pane, or on the pane you last used. It needs a live ship, and it does not open over the pause menu. |
 | <kbd>Tab</kbd> again, or click **Close** in the card's head | Close it and return to flight. The **Close** button and the **Next** hint beside it show the keys or pad buttons you would press now. |
 | <kbd>Esc</kbd> or gamepad Start | Back out one level: put away a held part, close the hull **Info**, cancel a Jobs confirm, clear a trade draft or cancel an armed station buy. With none of those open, close the interface. In a text field, <kbd>Esc</kbd> only leaves the field. |
-| <kbd>M</kbd> (or gamepad <kbd>Y</kbd>) | Step to the next pane: Map, Ship, Inventory, Jobs, Station while you are docked at a living station, then Map again. While a text field has the caret, such as the Inventory quantity, <kbd>M</kbd> types instead. |
-| Click **Map**, **Ship**, **Inventory**, **Jobs** or **Station** | Switch to that pane. The **Station** tab shows only while you are docked at a living station; undock and the interface opens on Ship instead. |
+| <kbd>M</kbd> (or gamepad <kbd>Y</kbd>) | Step to the next pane: Map, Ship, Inventory, Craft, Jobs, Station while you are docked at a living station, then Map again. While a text field has the caret, such as the Inventory quantity, <kbd>M</kbd> types instead. |
+| Click **Map**, **Ship**, **Inventory**, **Craft**, **Jobs** or **Station** | Switch to that pane. The **Station** tab shows only while you are docked at a living station; undock and the interface opens on Ship instead. |
 | <kbd>;</kbd> | Open the [command shell](../commands/) over the pane. Close it and you are back on the same pane, with its camera and selection as you left them. |
 
 <details class="explain">
@@ -341,9 +341,7 @@ Docked with a derelict wreck or a neutralized ship, the Inventory pane shows a s
      Take credits: `plan_credit_take`, applied by
      `apply_credit_take_commands`; Take all: `apply_take_all_commands`; Buy and Sell: `plan_item_trade` (a lawful market: `market_deals_in`), prices
      `ItemPrice::buy_cr` and `ItemPrice::sell_cr` of `ItemDesign::reference_price`, balance `ShipCredits` from
-     `SpaceshipConfig::credits`; Refine: `plan_item_refine` over `ItemDesign::refine`,
-     the recipe `GameItems::refined_from`, the gate `REFINE_ADVANCEMENT` in
-     crates/nova_world_base/src/station_layout.rs; Jettison: `plan_item_jettison`; all but Take
+     `SpaceshipConfig::credits`; Jettison: `plan_item_jettison`; all but Take
      credits applied by crates/nova_interface/src/inventory/app.rs
      `apply_inventory_action_commands`; the action a row opens:
      `offered_action`, the Sell/Give switch: `draft_fits`. The intake's door, drop and pickup
@@ -413,29 +411,53 @@ Docked at a living station that offers storage, a **Storage** column lists what 
 
 Your own ships are storage too. Each of your ships docked at the same station, or docked with you directly, shows as its own section of the storage column, headed by its name and its load against its own hold, for example `Escort  300 kg / 400 kg`. Click its item to **Withdraw** it into your hold. To store into it, click an item in your column, then the **To Escort** button. The note line reads `Stored 12 Hull plate in Escort` or `Withdrew 30 Hull plate from Escort`. A move that does not fit is refused whole: `Refused: <ship> has room for 0 kg more`. Docked directly with one of your ships, it does not trade and has no column of its own: its hold is the storage section.
 
-### Refine
-
-Docked at a living station that refines, your ore can become a part. Click an item a recipe uses, such as iron ore, then the **Refine** button beside **Sell**. The form now counts batches and states each one whole: `2 Iron ore + 1 Carbon ore + 30 cr -> 1 Alloy plate`, over your balance after the fee. **Confirm** takes the ore from your hold, adds the alloy plate and pays the fee to the station, and the note line reads `REFINED x1 Alloy plate -30 cr`. The base waystation refines, and so does a generated station of a civilization at advancement 0.25 or more. Alloy plates go into the second-tier section recipes a shipyard builds.
-
-A refine that cannot run changes nothing. The form keeps the batch line, shows the reason under it and disables **Confirm**: `Refused: only 1 Iron ore in <ship>, needs 2`, `Refused: <ship> has only 20 cr, the fee is 30 cr`, `Refused: <ship> has room for 10 kg more`, or `Refused: <station> does not refine`. An item no recipe uses shows no **Refine** button.
-
 ### Quick moves
 
 Double-click an item to move its whole stack at once: the double click confirms the form a click opens, with the stack as the quantity. Hold <kbd>Shift</kbd> while you double-click to move one item instead.
 
 | Double-click | Does |
 | --- | --- |
-| An item in your column | The action the form shows: **Sell** at a trader, **Store** at a station that keeps items, **Refine** at a station that refines, **Give** to a lootable ship. |
+| An item in your column | The action the form shows: **Sell** at a trader, **Store** at a station that keeps items, **Give** to a lootable ship. |
 | An item in the storage column, or in one of your ships' sections | **Withdraw** it into your hold. |
 | An item in the docked ship's or station's column | **Buy** it, or **Take** it from a lootable ship. |
 
-The Give, Sell, Store, Refine and To buttons stay as you set them from item to item, so after one click on **Store**, each double click stores. With **Refine** set, a double click on an ore runs every batch your hold covers, or one with <kbd>Shift</kbd>; an item no recipe uses falls back to **Sell**. A quick move is refused exactly as **Confirm** would refuse it, with the reason on the note line and in the form, and nothing changes: double-clicking a stack the storage cannot take reads `Refused: storage full, 100 kg free`. Jettison has no quick move. Two clicks count as a double click when they land on the same item within half a second.
+The Give, Sell, Store and To buttons stay as you set them from item to item, so after one click on **Store**, each double click stores. A quick move is refused exactly as **Confirm** would refuse it, with the reason on the note line and in the form, and nothing changes: double-clicking a stack the storage cannot take reads `Refused: storage full, 100 kg free`. Jettison has no quick move. Two clicks count as a double click when they land on the same item within half a second.
 
 ### Jettison and pickup
 
 Undocked, with a working [cargo intake](../sections/cargo-intake/), a click on an item in your column opens a **Jettison** form. **Confirm** takes the whole quantity out of your hold at once and packs it into canisters queued on the intake, and the note line reads `Jettisoned 4 Hull plate: 1 canister queued` with the number of canisters now waiting. A canister holds at most 1,000 kg across all its stacks, so a larger quantity fills several: 6 torpedoes of 150 kg, 50 rail slugs of 20 kg, 100 hull plates of 10 kg or 5,000 PDC rounds of 0.2 kg each. A confirmed stack first tops up the last waiting canister where whole items still fit, even in the same frame. A refused jettison changes nothing: `Refused: undock to jettison`, `Refused: no working cargo intake`, `Refused: enter a quantity`, `Refused: quantity is zero`, or `Refused: only 2 Hull plate in Line Warship`.
 
 Once you close the interface, the intake's door folds open and the canisters leave through it one at a time. To take a canister back in, or one a [mining beam](../sections/mining-beam/) cut loose, fly the intake's door onto it. [Cargo intake](../sections/cargo-intake/) has the door, the pickup sight, the drop and the canister rules.
+
+## Crafting
+
+The **Craft** pane turns what your hold carries into ammunition and parts. Each tile is a recipe: its output's icon and name, how many one batch makes and where it runs, `SHIP` or `STATION`. A **SHIP** recipe runs anywhere, in flight too. A **STATION** recipe runs only while you are docked at a living station that offers Craft, and pays that station a fee for each batch. The base waystation offers Craft, and so does a generated station of a civilization at advancement 0.25 or more. The chips over the tiles filter them by category. A tile that cannot start one batch is greyed, with the reason under its name: `Dock at a Craft station`, `Short of stone ore: 0 of 1`, `Short of credits: 20 of 30 cr` or `A craft is running`.
+
+Click a tile to open its card. The card lists each input as what your hold has over what one batch takes, the fee of a STATION recipe and the seconds a batch runs. Set the batches with **-**, **+** or **Max**, which sets every batch your hold and your credits cover. The card states the whole job, such as `Takes 2 iron ore, 2 stone ore` and `Makes 200 PDC round in 16 s`. **Craft** starts it; when the job cannot start, **Craft** is greyed and the reason shows over it. Starting takes nothing.
+
+One craft job runs at a time, and only while you fly: close the interface and the HUD chip over your ship reads `CRAFT PDC ROUND 40%`. At the end of each batch its inputs leave your hold, its output goes in and the fee goes to the station. The pane shows the running job over the tiles: the batch it is on, its bar, the time left and **Cancel**. The HUD notice reads `CRAFTED 200 PDC ROUND` when the job ends. A batch your hold or your credits cannot cover stops the job and keeps the batches already made: `CRAFT STOPPED: NO STONE ORE, 100 MADE`. Undock and a STATION job stops at once. **Cancel** ends the job and keeps the batches already made. A running job is saved with your ship.
+
+The base recipes:
+
+| Recipe | One batch takes | Makes | Time | Where |
+| --- | --- | --- | --- | --- |
+| PDC round | 1 iron ore, 1 stone ore | 100 PDC rounds | 8 s | Ship |
+| Hull plate | 2 iron ore | 1 hull plate | 8 s | Ship |
+| Section panel | 2 carbon ore | 1 section panel | 6 s | Ship |
+| Alloy plate | 2 iron ore, 1 carbon ore, 30 cr | 1 alloy plate | 10 s | Station |
+| Rail slug | 2 iron ore, 10 cr | 1 rail slug | 10 s | Station |
+| Torpedo | 2 alloy plates, 1 actuator pack, 9 carbon ore, 40 cr | 1 torpedo | 30 s | Station |
+
+<!-- Pane: crates/nova_interface/src/craft.rs (`update_craft_pane`,
+     `apply_craft_start_commands`, `on_craft_cancel`). Checks and batch plan:
+     crates/nova_gameplay/src/crafting.rs `plan_craft_start`,
+     `craft_batches_max`, `plan_craft_batch`, `CraftRefusalType::reason`.
+     Job: crates/nova_ship/src/sections/craft_job.rs
+     `advance_ship_craft_jobs`. HUD: crates/nova_hud/src/hud_notice.rs
+     `craft_job_end_line`, crates/nova_hud/src/flight_status.rs
+     `drive_repair_chip`. Base recipes:
+     crates/nova_authoring/src/base_content/recipes.rs `recipe_catalog`.
+     Gate: `CRAFT_ADVANCEMENT` in crates/nova_world_base/src/station_layout.rs. -->
 
 ## The command shell
 

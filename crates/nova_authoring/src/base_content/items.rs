@@ -20,16 +20,14 @@
 //! build recipes name them, so a lost section is rebuilt from them at a
 //! station, and the recipe lint holds each recipe above its strip value.
 //!
-//! The alloy plate is the one item with a refine recipe: a station that
-//! offers Refine makes it from ore in the docked ship's hold for a fee, so
-//! mined ore has a use besides the sell button.
+//! Recipes (`super::recipes`) turn mined ore into rounds, plates, panels,
+//! alloy plates and torpedoes, so mined ore has a use besides the sell
+//! button.
 //!
 //! The unmarked cores are the one contraband item: a lawful station's
 //! market neither buys nor sells them (`nova_gameplay`'s `market_deals_in`).
 
-use nova_gameplay::prelude::{
-    ItemCategoryType, ItemDesign, ItemDesignId, ItemRefineRecipe, ItemRoleType,
-};
+use nova_gameplay::prelude::{ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType};
 
 /// Light structural panel: every section recipe spends some.
 pub(crate) const SECTION_PANEL: &str = "SectionPanel";
@@ -51,7 +49,7 @@ pub(crate) const CAPACITOR_BANK: &str = "CapacitorBank";
 pub(crate) const TORPEDO_TUBE: &str = "TorpedoTube";
 /// Seal ring and latches for a docking port.
 pub(crate) const DOCKING_COLLAR: &str = "DockingCollar";
-/// Refined plate every second-tier section recipe spends one of.
+/// Station-crafted plate every second-tier section recipe spends one of.
 pub(crate) const ALLOY_PLATE: &str = "AlloyPlate";
 /// Flight cores with no registry marks: the base game's one contraband item.
 pub(crate) const UNMARKED_CORES: &str = "UnmarkedCores";
@@ -273,7 +271,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
         (
             ALLOY_PLATE,
             "Alloy plate",
-            "Alloy plate refined from iron and carbon ore at a station. Every second-tier section recipe spends one.",
+            "Alloy plate crafted from iron and carbon ore at a station. Every second-tier section recipe spends one.",
             Parts,
             30_000,
             1,
@@ -302,28 +300,9 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             price_lot,
             ask_cr,
             bid_cr,
-            refine: refine_recipe(id),
         },
     )
     .collect()
-}
-
-/// Credits a station charges to refine one alloy plate. Provisional, like
-/// the prices: with the ore at ask it holds a plate's cost two credits over
-/// its bid, the margin the item lint requires to be at least zero.
-const ALLOY_PLATE_REFINE_FEE_CR: u32 = 30;
-
-/// The refine recipe of `id`, or `None` for an item no station refines. The
-/// alloy plate is the one refined item: two iron ore and one carbon ore, 30 kg
-/// in and 30 kg out.
-fn refine_recipe(id: &str) -> Option<ItemRefineRecipe> {
-    (id == ALLOY_PLATE).then(|| ItemRefineRecipe {
-        inputs: vec![
-            (ItemRoleType::IronOre.into(), 2),
-            (ItemRoleType::CarbonOre.into(), 1),
-        ],
-        fee_cr: ALLOY_PLATE_REFINE_FEE_CR,
-    })
 }
 
 #[cfg(test)]
@@ -349,7 +328,6 @@ mod tests {
                     item.price_lot,
                     item.ask_cr,
                     item.bid_cr,
-                    item.refine.clone(),
                 )
             };
             let mirrored = fixture

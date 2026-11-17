@@ -1,13 +1,13 @@
 //! The base game's authored content inventory.
 //!
 //! The base game is a built-in mod. This domain owns its scenarios, the
-//! campaign that groups chapter scenarios, items, start roles, the price table,
-//! trade profiles,
+//! campaign that groups chapter scenarios, items, recipes, start roles, the
+//! price table, trade profiles,
 //! section prototypes,
 //! semantic craft assemblies, and path-based asset refs. Generic authoring
 //! helpers, lint, and serialization tooling stay outside it.
 
-use nova_gameplay::prelude::{ItemDesign, PriceTable, TradeProfileDesign};
+use nova_gameplay::prelude::{ItemDesign, PriceTable, RecipeDesign, TradeProfileDesign};
 use nova_scenario::prelude::{
     CampaignConfig, ScenarioConfig, ShipDesignPrototype, StartRole, StationDesignPrototype,
 };
@@ -19,6 +19,7 @@ pub(crate) mod campaigns;
 pub(crate) mod items;
 pub(crate) mod lessons;
 pub(crate) mod market;
+pub(crate) mod recipes;
 pub(crate) mod scenarios;
 pub(crate) mod sections;
 pub(crate) mod ships;
@@ -32,6 +33,7 @@ use assets::BaseContentAssets;
 /// Complete built-in content before it is wrapped and serialized as mod items.
 pub(crate) struct BaseContent {
     pub(crate) items: Vec<ItemDesign>,
+    pub(crate) recipes: Vec<RecipeDesign>,
     pub(crate) sections: Vec<SectionConfig>,
     pub(crate) ships: Vec<ShipDesignPrototype>,
     pub(crate) stations: Vec<StationDesignPrototype>,
@@ -49,6 +51,7 @@ pub(crate) fn build() -> BaseContent {
     let assets = BaseContentAssets::from_paths();
     BaseContent {
         items: items::item_catalog(),
+        recipes: recipes::recipe_catalog(),
         sections: sections::section_catalog(&assets),
         ships: ships::ship_catalog(&assets),
         stations: stations::station_catalog(&assets),

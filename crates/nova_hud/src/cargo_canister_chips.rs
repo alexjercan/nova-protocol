@@ -242,7 +242,6 @@ mod tests {
             price_lot: 1,
             ask_cr: 60,
             bid_cr: 45,
-            refine: None,
         };
         let catalog = GameItems::new(
             nova_gameplay::test_support::test_items()

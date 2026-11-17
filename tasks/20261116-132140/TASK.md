@@ -28,6 +28,30 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
   in `crates/nova_ship/src/gallery/`). Share any catalogue UX fix with task
   20261116-133436.
 
+- First slice (owner 2026-11-16: "go with recommended options"; agent
+  calls from `DESIGN.html`, stated 2026-11-17):
+  - Content: a `Recipe` kind (id, inputs, output, duration_secs, site)
+    replaces the item `refine` field. `CraftSiteType::{Ship, Station {
+    fee_cr }}`. Station service `Refine` becomes `Craft` (advancement 0.25).
+    Lint keeps the no-loss price rule and adds output mass <= input mass.
+    **(breaking)**; the example mod migrates. No save alias for `Refine`:
+    a save of another content catalog is refused at the header digest
+    (`crates/nova_assets/src/merge.rs` `content_catalog_digest`), and the
+    base content changed this release, so no v0.18.0 save reaches those
+    fields (agent call, 2026-11-17).
+  - On-ship crafting is built into every hull. No fabricator section yet.
+  - Recipes: PDC rounds, hull plate, section panel on the ship; alloy
+    plate, rail slug, torpedo at a station. Amounts and times per
+    `DESIGN.html`. No new items.
+  - One timed craft job per ship on the gameplay clock, saved and resumed.
+    Inputs and fee are taken at the end of each batch. Station recipes stop
+    on undock and hold while no Craft dock is present (the Load gap);
+    Cancel keeps finished batches. A hull buy or board cancels the job.
+  - UI: a Craft pane in the interface tab row, laid out like the catalogue.
+    The Inventory Refine form and its examples die.
+  - Deferred: consumables, sections as items, market and inventory rework,
+    catalogue UX, fabricator section, craft queue, `OnCrafted` event.
+
 ## Agent findings
 - 23 items in six categories (`assets/base/items/base.content.ron:3-236`,
   `crates/nova_gameplay/src/inventory.rs:391-406`); builders in
@@ -72,3 +96,27 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
 ## Done when
 - The approved design is implemented: on-ship and station recipes work,
   consumables have an effect in flight, and the wiki explains the loop.
+
+## Delivery record (2026-11-17, first slice; task stays OPEN)
+- Landed: `Recipe` content kind and builders (`assets/base/recipes/`), recipe
+  rules (`crates/nova_gameplay/src/crafting.rs`), timed craft job
+  (`crates/nova_ship/src/sections/craft_job.rs`), Craft pane
+  (`crates/nova_interface/src/craft.rs`), HUD chip and notice, saved job,
+  Refine removed (service, credit cause, Inventory form, two examples),
+  example mod migrated, `craft_sandbox` and `system_ship_craft` examples.
+- Review (independent, read-only): 4 defects, 3 low; all fixed. Mod recipe
+  faults refuse the owning pack at load again (price rule against the merged
+  catalog); a docked Station job survives Load; hull buy cancels the job;
+  save job fields are strict (no v0.18.0 exception); batch cap checked on
+  load; website widgets moved to Craft.
+- Verified: targeted unit and save tests (the docked-Station round trip
+  fails with the old stop rule, passes now); content lint base and example;
+  `cargo check --workspace --all-targets --features debug`; live under Xvfb
+  and lavapipe: `system_ship_craft` PASS, `craft_sandbox` PASS, frames of the
+  idle and running pane inspected.
+- Not verified: live save and Load mid job, live Cancel, editor recipe
+  editing, hull-buy cancel (no test). Workspace tests and clippy not run.
+- Open: item names not pluralised; the batch stepper resets on reopen; a
+  job docked at a station that turns derelict holds until undock.
+- Left for later slices: consumables, sections as items, market and
+  inventory rework, fabricator section, craft queue, `OnCrafted`.

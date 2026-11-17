@@ -872,7 +872,7 @@
             ),
         ],
     )),
-    // -- 5. ITEM ---------------------------------------------------------------
+    // -- 5. ITEM AND RECIPE ----------------------------------------------------
     // A NEW item id, so it ADDS to the catalog. Any ship stock, canister or
     // trade may carry it. Every field is required: `mass_g` above 0 grams,
     // `price_lot` above 0 (the count one `ask_cr` and `bid_cr` price: 1 here,
@@ -892,6 +892,24 @@
         price_lot: 1,
         ask_cr: 60,
         bid_cr: 45,
+    )),
+    // A NEW recipe id ADDS a recipe to the Craft pane; a base id such as
+    // "base/pdc_round" replaces that recipe whole. Every field is required.
+    // `inputs` lists each item a batch takes once, in the order the pane shows
+    // them; the output is not an input. `duration_secs` is the game seconds a
+    // batch runs, above 0. `site: Ship` runs anywhere, in flight too;
+    // `site: Station(fee_cr: n)` runs only docked at a living station that
+    // offers Craft and pays it n cr a batch. Lint refuses a recipe whose
+    // inputs at ask plus the fee cost less than its output sells for at bid,
+    // or whose output weighs more than its inputs.
+    Recipe((
+        id: "example/survey_core",
+        inputs: [
+            ("SalvagedParts", 1),
+        ],
+        output: ("example_survey_core", 1),
+        duration_secs: 12.0,
+        site: Ship,
     )),
     // -- 6. BOUNDED GENERATED WORLD -----------------------------------------
     // `world: Generated((seed: Some(n), bounds: Some(..)))` runs the base
@@ -1577,8 +1595,8 @@
     // computer and plating, NO thruster (lint refuses one), authored once and
     // spawned by id with `kind: Station((design: Prototype("example_outpost"),
     // ..))`. `design` holds the station, and every field is required.
-    // `services` is the closed set Rebuild, Refit, Trade, Storage, Jobs,
-    // Roster; at least one, each once. `builds` lists the section prototype
+    // `services` is the closed set Rebuild, Refit, Trade, Storage, Craft,
+    // Jobs, Roster; at least one, each once. Craft runs the Station recipes. `builds` lists the section prototype
     // ids the station crafts (swap, add, rebuild): nonempty exactly when
     // Refit or Rebuild is listed, each a known id, each once. `storage_cap_g`
     // is above zero exactly when Storage is listed. `stock` seeds the hull's

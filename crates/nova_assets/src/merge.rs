@@ -1,7 +1,8 @@
 //! The content MERGE: flatten every enabled bundle's `Content` in dependency
 //! order and overlay it by id into the game's registries (`GameSections`,
 //! `GameShipDesigns`, `GameScenarios`, `GameCampaigns`, `GameStyles`,
-//! `GameItems`, `GameStationDesigns`, `GameStartRoles`, `GameTradeProfiles`), linting the result
+//! `GameItems`, `GameStationDesigns`, `GameStartRoles`, `GameTradeProfiles`,
+//! `GameRecipes`), linting the result
 //! as it goes.
 
 /// Glob-import surface: `use nova_assets::merge::prelude::*` re-exports the
@@ -19,8 +20,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::{
-    price_table_faults, trade_profile_faults, Fnv64, GameItems, GamePriceTable, GameStates,
-    GameTradeProfiles, ItemDesign, PriceTable, TradeProfileDesign,
+    price_table_faults, trade_profile_faults, Fnv64, GameItems, GamePriceTable, GameRecipes,
+    GameStates, GameTradeProfiles, ItemDesign, PriceTable, RecipeDesign, TradeProfileDesign,
 };
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
 use nova_scenario::prelude::{
@@ -71,7 +72,7 @@ use crate::{
 /// [`lint_section_config`](nova_scenario::prelude::lint_section_config), and
 /// every ship design it carries passes
 /// [`section_id_errors`](nova_scenario::prelude::section_id_errors), and every
-/// bundle passes the item rule
+/// bundle passes the item and recipe rule
 /// ([`item_pack_faults`](crate::items::item_pack_faults)), before anything is
 /// published, used or not, and the finding is charged to the bundle that
 /// authored it. Two unrelated bundles that define one item id are both
@@ -173,33 +174,39 @@ pub fn register_bundles(
     };
     // The item rule judges every loaded bundle at once: whether two packs may
     // define one item depends on both, never on which loaded first.
-    let item_packs: Vec<(&str, &BundleAsset, Vec<&ItemDesign>)> = ordered
+    // Recipes are judged with the items: a pack that replaces an item can
+    // make another pack's recipe pay.
+    let item_packs: Vec<crate::items::ItemPack> = ordered
         .iter()
         .filter_map(|(mod_id, handle)| {
             let bundle = bundles.get(*handle)?;
-            let items = bundle
+            let content: Vec<&Content> = bundle
                 .content
                 .iter()
                 .filter_map(|handle| contents.get(handle))
                 .flat_map(|content| content.0.iter())
-                .filter_map(|item| match item {
-                    Content::Item(design) => Some(design),
-                    _ => None,
-                })
                 .collect();
-            Some((*mod_id, bundle, items))
+            Some(crate::items::ItemPack {
+                id: mod_id,
+                dependencies: &bundle.meta.dependencies,
+                items: content
+                    .iter()
+                    .filter_map(|item| match item {
+                        Content::Item(design) => Some(design),
+                        _ => None,
+                    })
+                    .collect(),
+                recipes: content
+                    .iter()
+                    .filter_map(|item| match item {
+                        Content::Recipe(design) => Some(design),
+                        _ => None,
+                    })
+                    .collect(),
+            })
         })
         .collect();
-    let mut item_faults = crate::items::item_pack_faults(
-        &item_packs
-            .iter()
-            .map(|(id, bundle, items)| crate::items::ItemPack {
-                id,
-                dependencies: &bundle.meta.dependencies,
-                items: items.clone(),
-            })
-            .collect::<Vec<_>>(),
-    );
+    let mut item_faults = crate::items::item_pack_faults(&item_packs);
     // Every bundle is checked before any verdict, so a refused base changes no
     // mod: the run ends, and nothing about the enabled set is persisted.
     let mut base_errors = Vec::new();
@@ -785,6 +792,7 @@ pub fn register_bundles(
     commands.insert_resource(GameStationDesigns(outcome.stations));
     commands.insert_resource(GameStartRoles(outcome.start_roles));
     commands.insert_resource(merged_profiles);
+    commands.insert_resource(GameRecipes::new(outcome.recipes));
     // The gate above refuses a base that states no table, so a merge over a
     // loaded catalog always has one. Without a catalog nothing was gated and
     // no generated world arms, so there is no trader to price.
@@ -1084,6 +1092,9 @@ pub struct MergeOutcome {
     /// Trade profiles in registration order, overlaid last-wins by id - so a
     /// mod replaces a base profile by declaring the same id.
     pub trade_profiles: Vec<TradeProfileDesign>,
+    /// Recipes in registration order, overlaid last-wins by id - so a mod
+    /// replaces a base recipe by declaring the same id.
+    pub recipes: Vec<RecipeDesign>,
     /// Human-readable messages, one per intra-bundle duplicate id that was
     /// skipped. Empty on clean data.
     pub conflicts: Vec<String>,
@@ -1227,6 +1238,10 @@ fn merge_content_item(item: &Content, into: &mut MergeOutcome) {
                 None => into.trade_profiles.push(profile.clone()),
             }
         }
+        Content::Recipe(recipe) => match into.recipes.iter_mut().find(|r| r.id == recipe.id) {
+            Some(existing) => *existing = recipe.clone(),
+            None => into.recipes.push(recipe.clone()),
+        },
     }
 }
 

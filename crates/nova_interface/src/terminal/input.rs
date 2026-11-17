@@ -88,7 +88,7 @@ impl InterfaceLevels<'_> {
                 .station
                 .as_mut()
                 .is_some_and(|station| std::mem::take(&mut station.confirm_buy)),
-            InterfacePaneType::Map => false,
+            InterfacePaneType::Map | InterfacePaneType::Craft => false,
         }
     }
 }

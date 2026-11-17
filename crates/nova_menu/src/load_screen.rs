@@ -162,6 +162,7 @@ fn read_listings(
     scenarios: &GameScenarios,
     designs: &GameShipDesigns,
     profiles: &GameTradeProfiles,
+    recipes: &GameRecipes,
     checks: &mut WorldChecks,
 ) -> Result<Vec<WorldListing>, WorldRefusal> {
     let listings = list_worlds(root, packs, roles);
@@ -171,6 +172,7 @@ fn read_listings(
     let scenarios = Arc::new(RegisteredScenarios::from(scenarios));
     let designs = Arc::new(designs.clone());
     let profiles = Arc::new(profiles.clone());
+    let recipes = Arc::new(recipes.clone());
     checks.0 = listings
         .iter()
         .flatten()
@@ -182,9 +184,10 @@ fn read_listings(
             let scenarios = Arc::clone(&scenarios);
             let designs = Arc::clone(&designs);
             let profiles = Arc::clone(&profiles);
+            let recipes = Arc::clone(&recipes);
             let task = IoTaskPool::get().spawn(async move {
                 check_world(
-                    &root, &slug, &packs, &roles, &items, &scenarios, &designs, &profiles,
+                    &root, &slug, &packs, &roles, &items, &scenarios, &designs, &profiles, &recipes,
                 )
             });
             (listing.folder.slug.clone(), task)
@@ -233,6 +236,7 @@ pub(crate) fn on_load_screen(
     scenarios: Res<GameScenarios>,
     designs: Res<GameShipDesigns>,
     profiles: Res<GameTradeProfiles>,
+    recipes: Res<GameRecipes>,
     mut checks: ResMut<WorldChecks>,
     mut listings: ResMut<WorldListings>,
     mut selected: ResMut<SelectedWorldSlug>,
@@ -248,6 +252,7 @@ pub(crate) fn on_load_screen(
             &scenarios,
             &designs,
             &profiles,
+            &recipes,
             &mut checks,
         ),
         None => Ok(Vec::new()),
@@ -319,6 +324,7 @@ pub(crate) fn on_delete_world_confirm(
     scenarios: Res<GameScenarios>,
     designs: Res<GameShipDesigns>,
     profiles: Res<GameTradeProfiles>,
+    recipes: Res<GameRecipes>,
     mut checks: ResMut<WorldChecks>,
     mut step: ResMut<WorldDeleteStep>,
     mut listings: ResMut<WorldListings>,
@@ -339,6 +345,7 @@ pub(crate) fn on_delete_world_confirm(
         &scenarios,
         &designs,
         &profiles,
+        &recipes,
         &mut checks,
     );
     *step = match result {
@@ -361,14 +368,15 @@ pub(crate) fn open_world_task(
     scenarios: &GameScenarios,
     designs: &GameShipDesigns,
     profiles: &GameTradeProfiles,
+    recipes: &GameRecipes,
 ) -> Task<OpenedWorld> {
     let (root, slug) = (root.to_path_buf(), slug.to_string());
     let (packs, roles, items) = (packs.clone(), roles.clone(), items.clone());
     let scenarios = RegisteredScenarios::from(scenarios);
-    let (designs, profiles) = (designs.clone(), profiles.clone());
+    let (designs, profiles, recipes) = (designs.clone(), profiles.clone(), recipes.clone());
     IoTaskPool::get().spawn(async move {
         open_world(
-            &root, &slug, &packs, &roles, &items, &scenarios, &designs, &profiles,
+            &root, &slug, &packs, &roles, &items, &scenarios, &designs, &profiles, &recipes,
         )
     })
 }
@@ -385,6 +393,7 @@ pub(crate) fn on_load_world(
     scenarios: Res<GameScenarios>,
     designs: Res<GameShipDesigns>,
     profiles: Res<GameTradeProfiles>,
+    recipes: Res<GameRecipes>,
     checks: Res<WorldChecks>,
     selected: Res<SelectedWorldSlug>,
     mut opening: ResMut<WorldOpen>,
@@ -400,7 +409,7 @@ pub(crate) fn on_load_world(
     // its prompt back.
     *step = WorldDeleteStep::Idle;
     let task = open_world_task(
-        root, slug, &packs, &roles, &items, &scenarios, &designs, &profiles,
+        root, slug, &packs, &roles, &items, &scenarios, &designs, &profiles, &recipes,
     );
     opening.0 = Some((slug.to_string(), task));
 }
@@ -506,6 +515,7 @@ pub(crate) fn on_continue_world(
     scenarios: Res<GameScenarios>,
     designs: Res<GameShipDesigns>,
     profiles: Res<GameTradeProfiles>,
+    recipes: Res<GameRecipes>,
     mut checks: ResMut<WorldChecks>,
     mut listings: ResMut<WorldListings>,
     mut selected: ResMut<SelectedWorldSlug>,
@@ -526,12 +536,13 @@ pub(crate) fn on_continue_world(
         &scenarios,
         &designs,
         &profiles,
+        &recipes,
         &mut checks,
     );
     selected.0 = Some(button.0.clone());
     *step = WorldDeleteStep::Idle;
     let task = open_world_task(
-        root, &button.0, &packs, &roles, &items, &scenarios, &designs, &profiles,
+        root, &button.0, &packs, &roles, &items, &scenarios, &designs, &profiles, &recipes,
     );
     opening.0 = Some((button.0.clone(), task));
 }
@@ -602,6 +613,7 @@ pub(crate) fn refuse_resumed_world(
     scenarios: Res<GameScenarios>,
     designs: Res<GameShipDesigns>,
     profiles: Res<GameTradeProfiles>,
+    recipes: Res<GameRecipes>,
     mut checks: ResMut<WorldChecks>,
     mut listings: ResMut<WorldListings>,
     mut selected: ResMut<SelectedWorldSlug>,
@@ -624,6 +636,7 @@ pub(crate) fn refuse_resumed_world(
             &scenarios,
             &designs,
             &profiles,
+            &recipes,
             &mut checks,
         ),
         None => Ok(Vec::new()),
