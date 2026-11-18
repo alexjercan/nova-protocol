@@ -34,7 +34,7 @@ fn job_event_info(job: &Job) -> JobEventInfo {
     JobEventInfo {
         id: job.id.to_string(),
         kind: job.kind.name().to_string(),
-        station: job.id.station.to_string(),
+        station: job.id.poster.to_string(),
         reward_cr: job.reward.total_cr(),
         post_key: job.id.post_key().unwrap_or_default().to_string(),
     }
@@ -130,7 +130,7 @@ mod tests {
     #[test]
     fn each_job_step_fires_its_event_once_with_the_job_s_fields() {
         let job = recovery();
-        let station = job.id.station.to_string();
+        let station = job.id.poster.to_string();
         let id = format!("{station}#1.2");
         let job_fields = [
             (ENTITY_ID_COMPONENT_NAME, id.as_str()),
@@ -210,7 +210,7 @@ mod tests {
     #[test]
     fn a_dropped_job_fires_one_event_that_names_its_cause() {
         let job = recovery();
-        let station = job.id.station.to_string();
+        let station = job.id.poster.to_string();
         let id = job.id.to_string();
         let mut app = bridge_app();
 

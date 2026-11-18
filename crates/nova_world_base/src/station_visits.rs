@@ -665,7 +665,7 @@ fn dock_visit(
             }
             let job = Job {
                 id: JobId {
-                    station: visit.station.clone(),
+                    poster: visit.station.clone(),
                     source: JobSourceType::Visit {
                         visit: visit.id.clone(),
                         index: index as u32,
@@ -1082,7 +1082,7 @@ mod tests {
         fn visit_job_ids(&self, visit: &StationVisitId, count: u32) -> Vec<JobId> {
             (0..count)
                 .map(|index| JobId {
-                    station: self.station_id.clone(),
+                    poster: self.station_id.clone(),
                     source: JobSourceType::Visit {
                         visit: visit.clone(),
                         index,

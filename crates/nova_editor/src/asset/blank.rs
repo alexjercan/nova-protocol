@@ -120,6 +120,7 @@ fn blank_content(kind: &str, section: Option<&str>) -> Result<Content, String> {
         "trade profile" => Content::TradeProfile(blank()?),
         "recipe" => Content::Recipe(blank()?),
         "consumable" => Content::Consumable(blank()?),
+        "encounter" => Content::Encounter(blank()?),
         other => return Err(format!("a {other} has no blank")),
     })
 }

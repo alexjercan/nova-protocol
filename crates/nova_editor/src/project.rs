@@ -65,7 +65,7 @@ pub(crate) struct KindRow {
 }
 
 /// Every content kind, in Assets tab order.
-pub(crate) const KINDS: [KindRow; 14] = [
+pub(crate) const KINDS: [KindRow; 15] = [
     KindRow::made("scenario", "Scenarios"),
     KindRow::made("ship", "Ships"),
     KindRow::placed("station", "Stations"),
@@ -80,6 +80,7 @@ pub(crate) const KINDS: [KindRow; 14] = [
     KindRow::made("trade profile", "Trade Profiles"),
     KindRow::made("recipe", "Recipes"),
     KindRow::made("consumable", "Consumables"),
+    KindRow::made("encounter", "Encounters"),
 ];
 
 impl KindRow {

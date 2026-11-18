@@ -12,7 +12,7 @@
 //! Cargo feature unification carries it here.
 
 use nova_gameplay::prelude::{
-    ConsumableDesign, ItemDesign, PriceTable, RecipeDesign, TradeProfileDesign,
+    ConsumableDesign, EncounterDesign, ItemDesign, PriceTable, RecipeDesign, TradeProfileDesign,
 };
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
@@ -31,12 +31,13 @@ use crate::base_content;
 pub mod prelude {
     pub use super::{
         build_campaign_content, build_campaigns, build_consumable_content, build_consumables,
-        build_item_content, build_items, build_lesson_content, build_lessons, build_price_table,
-        build_price_table_content, build_recipe_content, build_recipes, build_scenario_contents,
-        build_scenarios, build_section_catalog, build_section_content, build_ship_content,
-        build_ships, build_start_role_content, build_start_roles, build_station_content,
-        build_stations, build_style_content, build_styles, build_trade_profile_content,
-        build_trade_profiles, content_files, serialize_content, spawned_ship_sections,
+        build_encounter_content, build_encounters, build_item_content, build_items,
+        build_lesson_content, build_lessons, build_price_table, build_price_table_content,
+        build_recipe_content, build_recipes, build_scenario_contents, build_scenarios,
+        build_section_catalog, build_section_content, build_ship_content, build_ships,
+        build_start_role_content, build_start_roles, build_station_content, build_stations,
+        build_style_content, build_styles, build_trade_profile_content, build_trade_profiles,
+        content_files, serialize_content, spawned_ship_sections,
     };
 }
 
@@ -209,6 +210,20 @@ pub fn build_consumable_content() -> Vec<Content> {
         .collect()
 }
 
+/// The base game's encounters, in the order the file carries them.
+pub fn build_encounters() -> Vec<EncounterDesign> {
+    base_content::build().encounters
+}
+
+/// The encounter catalog wrapped as `Content::Encounter` items - the shape
+/// the committed `assets/base/encounters/base.content.ron` file carries.
+pub fn build_encounter_content() -> Vec<Content> {
+    build_encounters()
+        .into_iter()
+        .map(Content::Encounter)
+        .collect()
+}
+
 /// The base game's trade profiles, in the order the file carries them.
 pub fn build_trade_profiles() -> Vec<TradeProfileDesign> {
     base_content::build().trade_profiles
@@ -300,6 +315,10 @@ pub fn content_files() -> Vec<(String, String)> {
         (
             "base/consumables/base.content.ron".to_string(),
             serialize_content(&build_consumable_content()),
+        ),
+        (
+            "base/encounters/base.content.ron".to_string(),
+            serialize_content(&build_encounter_content()),
         ),
         (
             "base/sections/base.content.ron".to_string(),

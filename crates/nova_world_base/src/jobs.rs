@@ -1118,7 +1118,7 @@ pub(crate) fn fly_escort_legs(
         .filter(|(_, leg)| !leg.started)
         .filter_map(|(id, _)| {
             let (player_at, partner) = player_stands.as_ref()?;
-            if partner.is_some_and(|partner| *partner == id.station) {
+            if partner.is_some_and(|partner| *partner == id.poster) {
                 return None;
             }
             let job = jobs.job(id).expect("a leg's escort is held");
@@ -1657,10 +1657,10 @@ mod tests {
     /// the gameplay crate mints; `job` checks the match with `Job::validate`.
     fn spawned(id: &JobId, part: &str, index: u32) -> GeneratedBodyId {
         GeneratedBodyId::new(
-            id.station.origin,
+            id.poster.origin,
             format!(
                 "{}_job_{}_{}_{part}",
-                id.station.stem,
+                id.poster.stem,
                 id.slot_posting().unwrap().0,
                 id.slot_posting().unwrap().1
             ),
@@ -2946,7 +2946,7 @@ mod tests {
         let mut app = board_app();
         let visit_job = |index: u32| Job {
             id: JobId {
-                station: poster(),
+                poster: poster(),
                 source: JobSourceType::Visit {
                     visit: StationVisitId {
                         ship: hull_id(),

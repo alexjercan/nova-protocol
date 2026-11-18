@@ -2,9 +2,9 @@
 
 A Nova Protocol mod is a folder that contains one bundle manifest, one or more
 content files, and any art or audio that the mod owns. Content files can define
-fourteen kinds of reusable item: campaigns, scenarios, ship sections, whole
+fifteen kinds of reusable item: campaigns, scenarios, ship sections, whole
 ships, stations, ship skin styles, training lessons, UI themes, items, start
-roles, price tables, trade profiles, recipes, and consumables.
+roles, price tables, trade profiles, recipes, consumables, and encounters.
 
 The editor writes this same layout. Open **Sandbox** on the main menu to
 make a mod without hand-editing a file. Its Assets tab shows the items as file
@@ -164,7 +164,7 @@ content is rebalanced, prune the entry.
 ## Content files
 
 Every `*.content.ron` file is a RON list. One file may contain any mix of the
-fourteen item kinds:
+fifteen item kinds:
 
 ```ron
 [
@@ -266,6 +266,15 @@ fourteen item kinds:
         effect: Repair(
             health: 120.0,
             duration_secs: 12.0,
+        ),
+    )),
+    Encounter((
+        id: "my_mod/survey_call",
+        weight: 1,
+        player: Any,
+        kind: Hail(
+            job: Supply,
+            line: "Survey boat calling any ship. Our stores are empty. Can you spare some?",
         ),
     )),
 ]
@@ -380,6 +389,53 @@ stock a `Contraband` item. A running repair is saved with the ship by item,
 and resumes on Load. Load refuses a save whose running repair names an item
 the catalog does not make usable, or whose clock is outside its duration.
 
+### Encounters
+
+<!-- Format and rules: crates/nova_gameplay/src/encounter.rs
+     (`EncounterDesign`, `EncounterType`, `EncounterPlayerType`,
+     `HailJobType`, `encounter_faults`, HAIL_LINE_MAX_CHARS 120,
+     `plan_encounter_draw`, ENCOUNTER_GAP_S); pack rules:
+     crates/nova_assets/src/items.rs `item_pack_faults`; base:
+     assets/base/encounters/base.content.ron. -->
+
+An `Encounter` is one thing the open world may put ahead of the player on a
+long flight. The game owns the director: it decides when an encounter is due
+and what each kind does. A mod changes which encounters exist, how often each
+one is drawn and what a hailing crew says. Its key is `id`. Every field is
+required.
+
+| field | meaning |
+|---|---|
+| `id` | the encounter id, prefixed with your mod id |
+| `weight` | its share of the draw among the encounters the player qualifies for: a weight of 3 is drawn three times as often as a weight of 1 |
+| `player` | `Any` for every hull, or `Armed` for a hull that carries a weapon only |
+| `kind` | the kind below |
+
+| kind | fields | is |
+|---|---|---|
+| `Hail` | `job`, `line` | a stranded hull that calls the player and offers a job. `job` is `Distress` (dock with the caller) or `Supply` (bring the caller goods and dock with it). `line` is what the caller says on comms |
+| `Ambush` | none | hostile hulls that wait ahead |
+| `Derelict` | none | a derelict hull that drifts ahead |
+
+The base game defines `base/distress_call`, `base/supply_call`, `base/ambush`
+and `base/derelict_find`. An encounter with the id of one another pack defines
+replaces it whole, so a mod retunes a base weight or rewrites a base line by
+reusing its id. The kinds are a closed set: a mod cannot add one.
+
+The draw is fixed by the world seed and the count of encounters the world has
+had, so one world meets the same encounters in the same order.
+
+Lint, then load, refuse a pack whose encounter:
+
+- has an empty `id`;
+- has a `weight` of 0;
+- hails with an empty `line`, a `line` of more than one line, or a `line` of
+  more than 120 characters;
+- is defined twice in one pack.
+
+A refused pack is switched off with every pack that depends on it, as for an
+item error. A mod with no encounter is valid.
+
 ## The content chapters
 
 <div id="wiki-children"></div>
@@ -416,6 +472,8 @@ the catalog does not make usable, or whose clock is outside its duration.
   a station.
 - A [consumable](#consumables) makes an item usable from the Inventory pane,
   such as a repair kit.
+- An [encounter](#encounters) is one thing the open world may put ahead of the
+  player on a long flight, such as a distress call.
 
 ## Paths and dependencies
 
@@ -434,13 +492,13 @@ the [base content catalog](../base-content/) for reusable base ids and assets.
 Content merges by id:
 
 - A new id adds a campaign, scenario, section, ship, style, lesson, recipe,
-  consumable, or theme.
+  consumable, encounter, or theme.
 - An id that already exists replaces that whole entry.
 - A duplicate id inside one bundle is a conflict: the load logs it, keeps the
   first entry, and loads the rest of the bundle.
 
 For sections, the key is `base.id`. For campaigns, scenarios, ships, styles,
-lessons, recipes, and UI themes, the key is `id`. For consumables, the key is
+lessons, recipes, encounters, and UI themes, the key is `id`. For consumables, the key is
 `item`. Prefix new ids with your mod id to avoid accidental collisions.
 
 An item id follows a stricter rule: a new id adds, but an id another pack

@@ -63,6 +63,10 @@ binary assets it ships).
   survey network: trade jobs handed in at two distinct stations after one
   owned station, shown in the Map's OBJECTIVES block. The wizard binds the
   weapon keys from the hull's sections, so the role binds nothing.
+- **An encounter** - `example/survey_call` is an `Encounter`: one more choice
+  in the open world's encounter draw. It is a `Hail` of weight 1 for any
+  hull: a stranded survey boat that calls the player and offers a `Supply`
+  job with its one comms line.
 
 ## Layout
 

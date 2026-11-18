@@ -23,6 +23,7 @@
         "items/base.content.ron",
         "recipes/base.content.ron",
         "consumables/base.content.ron",
+        "encounters/base.content.ron",
         "sections/base.content.ron",
         "styles/base.content.ron",
         "ships/base.content.ron",

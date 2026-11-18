@@ -13,7 +13,9 @@
 //! the merge keeps, since a pack that replaces an item can break a recipe or
 //! a consumable another pack owns. A station recipe of ammo is judged
 //! against the sections the merge keeps, since a pack that raises a weapon's
-//! advancement can put a recipe's floor below it.
+//! advancement can put a recipe's floor below it. Encounters are judged
+//! here as well, each on its own, so one walk refuses a pack for every
+//! catalog fault it carries.
 //!
 //! The runtime merge (`register_bundles`) and the `content lint` walk both
 //! call [`item_pack_faults`], so a pack lint passes is a pack the game loads.
@@ -21,8 +23,9 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use nova_gameplay::prelude::{
-    consumable_faults, recipe_floor_fault, recipe_shape_faults, recipe_value_faults,
-    ConsumableDesign, GameItems, ItemDesign, ItemRoleType, RecipeDesign, CARGO_CANISTER_MAX_MASS_G,
+    consumable_faults, encounter_faults, recipe_floor_fault, recipe_shape_faults,
+    recipe_value_faults, ConsumableDesign, EncounterDesign, GameItems, ItemDesign, ItemRoleType,
+    RecipeDesign, CARGO_CANISTER_MAX_MASS_G,
 };
 use nova_mod_format::deps::{transitive_deps, DepGraph};
 use nova_modding::prelude::BASE_MOD_ID;
@@ -47,6 +50,8 @@ pub struct ItemPack<'a> {
     pub recipes: Vec<&'a RecipeDesign>,
     /// Every consumable it defines, in authored order.
     pub consumables: Vec<&'a ConsumableDesign>,
+    /// Every encounter it defines, in authored order, repeats included.
+    pub encounters: Vec<&'a EncounterDesign>,
     /// Every section it defines, in authored order: what fires the ammo a
     /// station recipe makes.
     pub sections: Vec<&'a SectionConfig>,
@@ -76,6 +81,11 @@ pub struct ItemPack<'a> {
 /// A consumable is judged against the same catalog: the pack that set the
 /// consumable the merge keeps is refused for each [`consumable_faults`]
 /// finding, and a pack is refused for a second consumable of one item.
+///
+/// An encounter reads no other content, so each pack is refused for every
+/// [`encounter_faults`] finding of an encounter it defines, kept by the
+/// merge or not, and for an encounter id it defines twice. A pack with no
+/// encounter is valid.
 pub fn item_pack_faults(packs: &[ItemPack<'_>]) -> BTreeMap<String, Vec<String>> {
     let mut faults: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut fault = |pack: &str, message: String| {
@@ -242,6 +252,22 @@ pub fn item_pack_faults(packs: &[ItemPack<'_>]) -> BTreeMap<String, Vec<String>>
         }
     }
 
+    for pack in packs {
+        let mut seen = HashSet::new();
+        for encounter in &pack.encounters {
+            for message in encounter_faults(encounter) {
+                fault(pack.id, message);
+            }
+            let id = encounter.id.as_str();
+            if !seen.insert(id) {
+                fault(
+                    pack.id,
+                    format!("the encounter '{id}' is defined more than once"),
+                );
+            }
+        }
+    }
+
     if let Some(base) = packs.iter().find(|pack| pack.id == BASE_MOD_ID) {
         for role in ItemRoleType::ALL {
             if !base.items.iter().any(|item| item.id.as_str() == role.id()) {
@@ -336,6 +362,7 @@ mod tests {
             items: items.iter().collect(),
             recipes: Vec::new(),
             consumables: Vec::new(),
+            encounters: Vec::new(),
             sections: Vec::new(),
         }
     }
@@ -648,5 +675,60 @@ mod tests {
         let faults = item_pack_faults(&[base, broken]);
         assert_eq!(faults.keys().collect::<Vec<_>>(), ["broken"]);
         assert!(faults["broken"][0].contains("heals 0"), "{faults:?}");
+    }
+
+    /// A pack with no encounter loads. A mod replaces a base encounter by
+    /// its id; a pack that defines one id twice, weighs one at zero or hails
+    /// with an empty line is refused, and the base game stays.
+    #[test]
+    fn a_mod_encounter_replaces_by_id_and_a_bad_one_refuses_its_pack() {
+        use nova_gameplay::prelude::{EncounterPlayerType, EncounterType, HailJobType};
+
+        let encounter = |id: &str, weight: u32, line: &str| EncounterDesign {
+            id: id.into(),
+            weight,
+            player: EncounterPlayerType::Any,
+            kind: EncounterType::Hail {
+                job: HailJobType::Distress,
+                line: line.to_string(),
+            },
+        };
+        let items = base_items();
+        let none: [String; 0] = [];
+        let base_call = encounter("base/distress_call", 3, "Mayday.");
+        let mut base = pack(BASE_MOD_ID, &none, &items);
+        assert!(
+            item_pack_faults(std::slice::from_ref(&base)).is_empty(),
+            "an empty encounter set is valid"
+        );
+        base.encounters = vec![&base_call];
+        assert!(item_pack_faults(std::slice::from_ref(&base)).is_empty());
+
+        let rarer = encounter("base/distress_call", 1, "Mayday.");
+        let mut replace = pack("rarer", &none, &[]);
+        replace.encounters = vec![&rarer];
+        assert!(item_pack_faults(&[base.clone(), replace]).is_empty());
+
+        let mut twice = pack("twice", &none, &[]);
+        twice.encounters = vec![&rarer, &rarer];
+        let faults = item_pack_faults(&[base.clone(), twice]);
+        assert_eq!(faults.keys().collect::<Vec<_>>(), ["twice"]);
+        assert_eq!(
+            faults["twice"],
+            ["the encounter 'base/distress_call' is defined more than once"]
+        );
+
+        let never = encounter("broken/never", 0, "");
+        let mut broken = pack("broken", &none, &[]);
+        broken.encounters = vec![&never];
+        let faults = item_pack_faults(&[base, broken]);
+        assert_eq!(faults.keys().collect::<Vec<_>>(), ["broken"]);
+        assert_eq!(
+            faults["broken"],
+            [
+                "the encounter 'broken/never' has a weight of 0; it must be above 0",
+                "the encounter 'broken/never' hails with an empty line",
+            ]
+        );
     }
 }

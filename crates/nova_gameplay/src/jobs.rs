@@ -33,7 +33,10 @@
 //! [`JobBoard`]; the Jobs pane lists it while the player is docked there,
 //! with each offer's remaining time ([`offer_deadline_text`]), and offers
 //! Accept and Hand in. Both happen docked only ([`plan_job_accept`],
-//! [`plan_job_hand_in`]). Every job asks something of the hull
+//! [`plan_job_hand_in`]), but for a job a hull offers in space
+//! ([`JobSourceType::Hail`]): its poster is that hull, it is accepted where
+//! the hull hails ([`plan_hail_accept`]) and paid where it is done
+//! ([`plan_hail_pay`]). Every job asks something of the hull
 //! ([`plan_job_hull_fit`]): the starting station's board
 //! ([`StarterBoardMarker`]) lists only the jobs the current hull can do, and a
 //! renewal there keeps one such offer open while a slot renews; every other
@@ -81,9 +84,10 @@ use crate::{
 pub mod prelude {
     pub use super::{
         escort_raider_counts, escort_raider_size, escort_raider_weapons, is_job_post_key,
-        job_reward, job_title, offer_deadline_text, plan_job_accept, plan_job_hand_in,
-        plan_job_hull_fit, plan_job_offer_refresh, plan_job_supply, station_job_offers, EscortLeg,
-        Job, JobAcceptRefusalType, JobAccepted, JobBoard, JobDone, JobDropped, JobField,
+        job_reward, job_title, offer_deadline_text, plan_hail_accept, plan_hail_pay,
+        plan_job_accept, plan_job_hand_in, plan_job_hull_fit, plan_job_offer_refresh,
+        plan_job_supply, station_job_offers, EscortLeg, HailAcceptRefusalType, HailPayPlan, Job,
+        JobAcceptRefusalType, JobAccepted, JobBoard, JobDone, JobDropped, JobField,
         JobHandInPartner, JobHandInPlan, JobHandInRefusalType, JobHandedIn, JobHull, JobHullFit,
         JobHullRefusalType, JobId, JobMixType, JobOfferRefreshPlan, JobOfferRefreshRefusalType,
         JobPostings, JobReward, JobSourceType, JobType, JobWreck, Jobs, ScenarioPosting,
@@ -240,19 +244,22 @@ impl ShipSizeType {
     }
 }
 
-/// The identity of a posted job: the station that posted it and what
-/// posted it there. The poster is read off the id, never kept twice.
+/// The identity of a posted job: the body that posted it and what posted
+/// it. The poster is read off the id, never kept twice.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct JobId {
-    /// The generated station that posted the job.
-    pub station: GeneratedBodyId,
-    /// The board slot, the station visit or the scenario key that posted it.
+    /// The generated body that posted the job: a station for a board slot,
+    /// a visit and a scenario posting, the hull that hailed for a
+    /// [`JobSourceType::Hail`].
+    pub poster: GeneratedBodyId,
+    /// The board slot, the station visit, the scenario key or the hail that
+    /// posted it.
     pub source: JobSourceType,
 }
 
-/// What posted a job on a station's board.
+/// What posted a job: a place on a station's board, or a hull in space.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum JobSourceType {
@@ -281,12 +288,24 @@ pub enum JobSourceType {
         /// the job events carry as `post_key`.
         key: String,
     },
+    /// A hull that hailed the player in space and offered the job itself.
+    /// No board lists it and no station pays it: the job is about the
+    /// poster hull ([`Job::validate`]) and pays where it is done
+    /// ([`plan_hail_pay`]).
+    Hail {
+        /// The hail's number in the world: the count of encounters fired
+        /// before it, so one poster id and one serial are never paired
+        /// twice.
+        serial: u32,
+    },
 }
 
 /// Whether `key` can key a scenario posting: a lowercase ASCII letter, then
 /// lowercase ASCII letters, digits and `_`. The text of a [`JobId`] writes
-/// the key after `#`. A slot id and a visit id each write a `.` there, and a
-/// key holds none, so the three forms never read as one another.
+/// the key after `#`. A slot id, a visit id and a hail id each write a `.`
+/// there, and a key holds none; a slot id opens with a digit, a visit id
+/// holds `_visit_` and a hail id opens with `hail.`, so the four forms
+/// never read as one another.
 pub fn is_job_post_key(key: &str) -> bool {
     let mut letters = key.bytes();
     letters
@@ -299,7 +318,7 @@ impl JobId {
     /// The id of posting `posting` of slot `slot` on `station`'s board.
     pub fn slot(station: GeneratedBodyId, slot: u32, posting: u32) -> Self {
         Self {
-            station,
+            poster: station,
             source: JobSourceType::Slot { slot, posting },
         }
     }
@@ -307,39 +326,58 @@ impl JobId {
     /// The id of the job a scenario posted on `station` under `key`.
     pub fn scenario(station: GeneratedBodyId, key: impl Into<String>) -> Self {
         Self {
-            station,
+            poster: station,
             source: JobSourceType::Scenario { key: key.into() },
         }
     }
 
+    /// The id of the job the hull `caller` offered on hail `serial`.
+    pub fn hail(caller: GeneratedBodyId, serial: u32) -> Self {
+        Self {
+            poster: caller,
+            source: JobSourceType::Hail { serial },
+        }
+    }
+
     /// The slot and its posting number, for a slot job; `None` for a visit
-    /// posting and a scenario posting.
+    /// posting, a scenario posting and a hail.
     pub fn slot_posting(&self) -> Option<(u32, u32)> {
         match self.source {
             JobSourceType::Slot { slot, posting } => Some((slot, posting)),
-            JobSourceType::Visit { .. } | JobSourceType::Scenario { .. } => None,
+            JobSourceType::Visit { .. }
+            | JobSourceType::Scenario { .. }
+            | JobSourceType::Hail { .. } => None,
         }
     }
 
     /// The key a scenario posted the job under; `None` for a job a board
-    /// slot or a visit posted.
+    /// slot, a visit or a hail posted.
     pub fn post_key(&self) -> Option<&str> {
         match &self.source {
             JobSourceType::Scenario { key } => Some(key),
-            JobSourceType::Slot { .. } | JobSourceType::Visit { .. } => None,
+            JobSourceType::Slot { .. }
+            | JobSourceType::Visit { .. }
+            | JobSourceType::Hail { .. } => None,
         }
+    }
+
+    /// Whether a hull in space offered the job, rather than a station's
+    /// board: its poster is that hull.
+    pub fn is_hail(&self) -> bool {
+        matches!(self.source, JobSourceType::Hail { .. })
     }
 
     /// The id of the same slot's next posting.
     ///
     /// # Panics
     ///
-    /// On a visit posting or a scenario posting, which has no slot to renew.
+    /// On a visit posting, a scenario posting or a hail, which has no slot
+    /// to renew.
     pub fn next_posting(&self) -> Self {
         let (slot, posting) = self
             .slot_posting()
             .unwrap_or_else(|| panic!("JobId renews '{self}', which is no slot posting"));
-        Self::slot(self.station.clone(), slot, posting + 1)
+        Self::slot(self.poster.clone(), slot, posting + 1)
     }
 
     /// The id of body `index` of the kind `part` this job puts in the world:
@@ -348,15 +386,16 @@ impl JobId {
     ///
     /// # Panics
     ///
-    /// On a visit posting or a scenario posting: [`Job::validate`] refuses
-    /// one that puts a body in the world.
+    /// On a visit posting, a scenario posting or a hail: [`Job::validate`]
+    /// refuses a visit or scenario job that puts a body in the world, and a
+    /// hail job names its poster, which stands already.
     fn spawned_body(&self, part: &str, index: u32) -> GeneratedBodyId {
         let (slot, posting) = self.slot_posting().unwrap_or_else(|| {
             panic!("the job '{self}' holds no slot, so it puts no body in the world")
         });
         GeneratedBodyId::new(
-            self.station.origin,
-            format!("{}_job_{slot}_{posting}_{part}", self.station.stem),
+            self.poster.origin,
+            format!("{}_job_{slot}_{posting}_{part}", self.poster.stem),
             index,
         )
     }
@@ -364,7 +403,8 @@ impl JobId {
     /// Every body id an offer under this id could have put in the world,
     /// whatever its kind: the hauler, [`ESCORT_RAIDERS_MAX`] raiders and the
     /// caller. A renewal takes the live ones out of the world first. None
-    /// for a visit posting and a scenario posting, which only procure.
+    /// for a visit posting and a scenario posting, which only procure, and
+    /// none for a hail, whose caller stood before the offer.
     pub fn possible_bodies(&self) -> Vec<GeneratedBodyId> {
         if self.slot_posting().is_none() {
             return Vec::new();
@@ -379,16 +419,18 @@ impl JobId {
 impl fmt::Display for JobId {
     /// `<station id>#<slot>.<posting>` for a slot job,
     /// `<station id>#<visit id>.<index>` for a visit posting,
-    /// `<station id>#<key>` for a scenario posting.
+    /// `<station id>#<key>` for a scenario posting,
+    /// `<hull id>#hail.<serial>` for a hail.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.source {
             JobSourceType::Slot { slot, posting } => {
-                write!(formatter, "{}#{slot}.{posting}", self.station)
+                write!(formatter, "{}#{slot}.{posting}", self.poster)
             }
             JobSourceType::Visit { visit, index } => {
-                write!(formatter, "{}#{visit}.{index}", self.station)
+                write!(formatter, "{}#{visit}.{index}", self.poster)
             }
-            JobSourceType::Scenario { key } => write!(formatter, "{}#{key}", self.station),
+            JobSourceType::Scenario { key } => write!(formatter, "{}#{key}", self.poster),
+            JobSourceType::Hail { serial } => write!(formatter, "{}#hail.{serial}", self.poster),
         }
     }
 }
@@ -517,7 +559,7 @@ impl JobPostings {
 
     /// The scenario posting `id`, while it stands.
     pub fn scenario_posting(&self, id: &JobId) -> Option<&ScenarioPosting> {
-        self.scenario_postings(&id.station)
+        self.scenario_postings(&id.poster)
             .iter()
             .find(|posting| posting.offer.id == *id)
     }
@@ -540,7 +582,7 @@ impl JobPostings {
             offer.id
         );
         self.scenario
-            .entry(offer.id.station.clone())
+            .entry(offer.id.poster.clone())
             .or_default()
             .push(ScenarioPosting {
                 posted_at: now,
@@ -569,13 +611,14 @@ impl JobPostings {
 
     /// Whether the station still offers the unheld job `id` at `now` under
     /// `rule`: its slot or its visit posting stands inside its window, or
-    /// its scenario posting stands.
+    /// its scenario posting stands. Never for a hail: no board carries one.
     pub fn offers(&self, id: &JobId, rule: JobOfferRule, now: f64) -> bool {
         match id.source {
             JobSourceType::Slot { .. } | JobSourceType::Visit { .. } => self
                 .remaining(id, rule, now)
                 .is_some_and(|remaining| remaining > 0.0),
             JobSourceType::Scenario { .. } => self.scenario_posting(id).is_some(),
+            JobSourceType::Hail { .. } => false,
         }
     }
 
@@ -586,21 +629,22 @@ impl JobPostings {
 
     /// The visit posting `id`, while it stands.
     pub fn visit_posting(&self, id: &JobId) -> Option<&VisitPosting> {
-        self.visit_postings(&id.station)
+        self.visit_postings(&id.poster)
             .iter()
             .find(|posting| posting.offer.id == *id)
     }
 
     /// The play seconds the unheld offer `id` has left at `now` under
     /// `rule`, while its slot or its visit posting stands. `None` for a
-    /// scenario posting, which has no window ([`JobPostings::offers`]).
+    /// scenario posting, which has no window ([`JobPostings::offers`]), and
+    /// for a hail, whose window its encounter keeps.
     pub fn remaining(&self, id: &JobId, rule: JobOfferRule, now: f64) -> Option<f64> {
         match id.source {
             JobSourceType::Slot { .. } => self.slot(id).map(|slot| slot.remaining(rule, now)),
             JobSourceType::Visit { .. } => {
                 self.visit_posting(id).map(|posting| posting.remaining(now))
             }
-            JobSourceType::Scenario { .. } => None,
+            JobSourceType::Scenario { .. } | JobSourceType::Hail { .. } => None,
         }
     }
 
@@ -631,7 +675,7 @@ impl JobPostings {
             offer.id
         );
         self.visits
-            .entry(offer.id.station.clone())
+            .entry(offer.id.poster.clone())
             .or_default()
             .push(VisitPosting {
                 posted_at: now,
@@ -691,7 +735,7 @@ impl JobPostings {
     /// the slot is still on that posting.
     pub fn slot(&self, id: &JobId) -> Option<&SlotPosting> {
         let (slot, posting) = id.slot_posting()?;
-        self.board(&id.station)?
+        self.board(&id.poster)?
             .get(slot as usize)
             .filter(|standing| standing.posting == posting)
     }
@@ -715,7 +759,7 @@ impl JobPostings {
             .unwrap_or_else(|| panic!("JobPostings refreshes '{id}', which holds no slot"));
         let slots = self
             .boards
-            .get_mut(&id.station)
+            .get_mut(&id.poster)
             .unwrap_or_else(|| panic!("JobPostings refreshes '{id}', whose station has no board"));
         let standing = slots
             .get_mut(slot as usize)
@@ -742,7 +786,7 @@ impl JobPostings {
             .first()
             .expect("JobPostings posts no offer")
             .id
-            .station
+            .poster
             .clone();
         let Some(slots) = self.boards.get_mut(&station) else {
             assert!(
@@ -768,7 +812,7 @@ impl JobPostings {
         };
         for offer in offers {
             assert_eq!(
-                offer.id.station, station,
+                offer.id.poster, station,
                 "JobPostings posts '{}' beside '{station}'",
                 offer.id
             );
@@ -887,7 +931,7 @@ impl JobPostings {
             }
             for (index, posting) in postings.iter().enumerate() {
                 let id = &posting.offer.id;
-                if id.station != *station || id.slot_posting().is_some() {
+                if id.poster != *station || !matches!(id.source, JobSourceType::Visit { .. }) {
                     return Err(format!(
                         "the visit postings of '{station}' hold '{id}', no visit job of it"
                     ));
@@ -916,7 +960,7 @@ impl JobPostings {
             }
             for (index, posting) in postings.iter().enumerate() {
                 let id = &posting.offer.id;
-                if id.station != *station || id.post_key().is_none() {
+                if id.poster != *station || id.post_key().is_none() {
                     return Err(format!(
                         "the scenario postings of '{station}' hold '{id}', no scenario job of it"
                     ));
@@ -1054,7 +1098,8 @@ pub enum JobType {
     },
     /// Answer the call the accept puts in the world: a neutral derelict
     /// civilian hull. Done on the dock with it; a caller neutralized or
-    /// destroyed before the dock drops the job.
+    /// destroyed before the dock drops the job. The caller of a hail job is
+    /// the hull that hailed, which stands before the accept.
     Distress {
         /// The caller's id.
         caller: GeneratedBodyId,
@@ -1071,7 +1116,8 @@ pub enum JobType {
     /// while the hold carries the whole stack, which the dock takes and
     /// destroys ([`plan_job_supply`]); a dock with the hold short leaves the
     /// job open. A caller neutralized or destroyed before the dock drops the
-    /// job. The item frames the job ([`SupplyFramingType`]).
+    /// job. The item frames the job ([`SupplyFramingType`]). The caller of a
+    /// hail job is the hull that hailed, which stands before the accept.
     Supply {
         /// The caller's id.
         caller: GeneratedBodyId,
@@ -1204,11 +1250,12 @@ impl SupplyFramingType {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Job {
-    /// Its identity: the poster and the board slot.
+    /// Its identity: the poster and what posted it there.
     pub id: JobId,
     /// What it asks.
     pub kind: JobType,
-    /// The station the job hands in at: the poster.
+    /// Where the job ends: the poster. A station job hands in there; a hail
+    /// job is done and paid on the dock with it.
     pub target: GeneratedBodyId,
     /// How far the work lies from the poster when the board posts, in
     /// meters: the drawn leg of an escort ([`ESCORT_LEG_M`]), a distress call
@@ -1336,9 +1383,9 @@ pub fn job_reward(
 }
 
 impl Job {
-    /// The station that posted the job.
+    /// The body that posted the job: a station, or the hull that hailed.
     pub fn posted_by(&self) -> &GeneratedBodyId {
-        &self.id.station
+        &self.id.poster
     }
 
     /// The one line a board or a list calls the job by: `Bring 4 Iron ore`,
@@ -1478,8 +1525,12 @@ impl Job {
     /// Every body the accept puts in the world: the hauler and its raiders,
     /// or the caller of a distress call or a supply job. Empty for a
     /// procurement, a recovery and a neutralize, which name bodies that
-    /// already stand.
+    /// already stand, and for a hail job, whose caller hailed before the
+    /// accept and stays in the world when the job ends.
     pub fn spawned_bodies(&self) -> Vec<GeneratedBodyId> {
+        if self.id.is_hail() {
+            return Vec::new();
+        }
         match &self.kind {
             JobType::Escort { hauler, .. } => std::iter::once(hauler.clone())
                 .chain(self.raider_ids())
@@ -1491,10 +1542,12 @@ impl Job {
         }
     }
 
-    /// Refuse a job no board could have posted: a zero count, cargo or
-    /// reward, a slot past the board, a visit or scenario job that is no
-    /// procurement, a scenario key [`is_job_post_key`] refuses, a hand-in
-    /// elsewhere than the poster, or a spawned body not named by the job.
+    /// Refuse a job no board and no hail could have posted: a zero count,
+    /// cargo or reward, a slot past the board, a visit or scenario job that
+    /// is no procurement, a scenario key [`is_job_post_key`] refuses, a hail
+    /// job that is neither a distress call nor a supply job, a hand-in
+    /// elsewhere than the poster, a spawned body not named by the job, or a
+    /// hail job whose caller is not its poster.
     pub fn validate(&self) -> Result<(), String> {
         match &self.id.source {
             JobSourceType::Slot { slot, .. } if *slot >= JOBS_PER_BOARD => {
@@ -1524,19 +1577,38 @@ impl Job {
                     self.id
                 ));
             }
+            JobSourceType::Hail { .. }
+                if !matches!(self.kind, JobType::Distress { .. } | JobType::Supply { .. }) =>
+            {
+                return Err(format!(
+                    "the hail job '{}' is a {}, not a distress call or a supply job",
+                    self.id,
+                    self.kind.label()
+                ));
+            }
             JobSourceType::Slot { .. }
             | JobSourceType::Visit { .. }
-            | JobSourceType::Scenario { .. } => {}
+            | JobSourceType::Scenario { .. }
+            | JobSourceType::Hail { .. } => {}
         }
         if self.reward.total_cr() == 0 {
             return Err(format!("the job '{}' pays nothing", self.id));
         }
-        if self.target != self.id.station {
+        if self.target != self.id.poster {
             return Err(format!(
                 "the job '{}' hands in at '{}', not at its poster",
                 self.id, self.target
             ));
         }
+        // A board job puts its caller in the world under an id of its own;
+        // a hail job's caller is the hull that hailed.
+        let own_caller = || {
+            if self.id.is_hail() {
+                self.id.poster.clone()
+            } else {
+                self.id.spawned_body("caller", 0)
+            }
+        };
         match &self.kind {
             JobType::Procure { item, count } | JobType::Recover { item, count, .. } => {
                 if *count == 0 {
@@ -1566,7 +1638,7 @@ impl Job {
                 }
             }
             JobType::Distress { caller } => {
-                if *caller != self.id.spawned_body("caller", 0) {
+                if *caller != own_caller() {
                     return Err(format!(
                         "the distress call '{}' names the caller '{caller}', not its own",
                         self.id
@@ -1584,7 +1656,7 @@ impl Job {
                         self.id
                     ));
                 }
-                if *caller != self.id.spawned_body("caller", 0) {
+                if *caller != own_caller() {
                     return Err(format!(
                         "the supply job '{}' names the caller '{caller}', not its own",
                         self.id
@@ -1886,7 +1958,7 @@ impl Jobs {
 
     /// The standing body the held job `job` sends the player to: its poster
     /// once done, else the body its work is about; none for an undone
-    /// procurement.
+    /// procurement. Both are the caller for a hail job.
     pub fn marked_body<'a>(&self, job: &'a Job) -> Option<&'a GeneratedBodyId> {
         if self.is_done(&job.id) {
             Some(job.posted_by())
@@ -2238,10 +2310,10 @@ pub fn station_job_offers(
     let station = &ids
         .first()
         .expect("station_job_offers: no slot to draw")
-        .station;
+        .poster;
     for (index, id) in ids.iter().enumerate() {
         assert!(
-            id.station == *station
+            id.poster == *station
                 && id
                     .slot_posting()
                     .is_some_and(|(slot, _)| slot < JOBS_PER_BOARD)
@@ -2391,7 +2463,7 @@ impl Posting {
             items,
         );
         Job {
-            target: id.station.clone(),
+            target: id.poster.clone(),
             id,
             kind: self.kind,
             leg_m: self.leg_m,
@@ -2425,7 +2497,7 @@ impl SlotDraw {
         let key = Fnv64::new()
             .write(&seed.to_le_bytes())
             .write(b"station_jobs")
-            .write(id.station.to_string().as_bytes())
+            .write(id.poster.to_string().as_bytes())
             .write(&slot.to_le_bytes())
             .write(&posting.to_le_bytes())
             .finish();
@@ -2601,9 +2673,11 @@ fn fitted_posting(
 /// Why an accept changes nothing, in check order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JobAcceptRefusalType {
-    /// The ship is not docked at a living station that posts jobs.
+    /// The ship is not docked at a living station that posts jobs. Read for
+    /// a station job only.
     NotDocked,
-    /// The docked station is not the job's poster.
+    /// The docked station is not the job's poster. Read for a station job
+    /// only.
     NotPostedHere,
     /// The player holds the job already.
     AlreadyHeld,
@@ -2624,6 +2698,10 @@ pub enum JobAcceptRefusalType {
 /// wreck of a recovery still carries its stack, or the hull of a neutralize
 /// still stands un-neutralized, read for those two kinds only. A refusal
 /// changes nothing.
+///
+/// A hail job ([`JobSourceType::Hail`]) is offered in space, so `docked` is
+/// not read for it: every other rule stands. [`plan_hail_accept`] plans one
+/// with the hull's fit.
 pub fn plan_job_accept(
     job: &Job,
     docked: Option<&GeneratedBodyId>,
@@ -2631,9 +2709,11 @@ pub fn plan_job_accept(
     expired: bool,
     target_standing: bool,
 ) -> Result<(), JobAcceptRefusalType> {
-    let docked = docked.ok_or(JobAcceptRefusalType::NotDocked)?;
-    if docked != job.posted_by() {
-        return Err(JobAcceptRefusalType::NotPostedHere);
+    if !job.id.is_hail() {
+        let docked = docked.ok_or(JobAcceptRefusalType::NotDocked)?;
+        if docked != job.posted_by() {
+            return Err(JobAcceptRefusalType::NotPostedHere);
+        }
     }
     if jobs.holds(&job.id) {
         return Err(JobAcceptRefusalType::AlreadyHeld);
@@ -2756,6 +2836,79 @@ pub fn plan_job_hull_fit(
     Ok(())
 }
 
+/// Why accepting a hail offer changes nothing, in check order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum HailAcceptRefusalType {
+    /// An accept rule refuses ([`plan_job_accept`]). A job no hull hailed
+    /// with reads [`JobAcceptRefusalType::NotDocked`]: it is accepted at its
+    /// station.
+    Accept(JobAcceptRefusalType),
+    /// The hull cannot do the job ([`plan_job_hull_fit`]).
+    Hull(JobHullRefusalType),
+}
+
+/// Plan accepting the hail offer `job` in space, docked or not, against the
+/// player's `jobs` with a hull of `fit`. `expired` is whether the offer no
+/// longer stands: its window passed, the player declined it or its caller
+/// is lost. The accept rules of [`plan_job_accept`] run first, then
+/// [`plan_job_hull_fit`]: nothing gates a hail that does not gate a board
+/// offer, but the hull's fit is checked here because no greyed board row
+/// stands between the player and an accept by docking with the caller. A
+/// refusal changes nothing.
+///
+/// # Panics
+///
+/// When a supply offer names an item the catalog lacks
+/// ([`plan_job_hull_fit`]).
+pub fn plan_hail_accept(
+    job: &Job,
+    jobs: &Jobs,
+    expired: bool,
+    items: &GameItems,
+    fit: JobHullFit,
+) -> Result<(), HailAcceptRefusalType> {
+    // A hail job is a distress call or a supply job ([`Job::validate`]), and
+    // neither reads a standing target.
+    plan_job_accept(job, None, jobs, expired, true).map_err(HailAcceptRefusalType::Accept)?;
+    plan_job_hull_fit(job, items, fit).map_err(HailAcceptRefusalType::Hull)
+}
+
+/// What paying a done hail job does: the reward and the balance after.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HailPayPlan {
+    /// The reward paid, [`JobReward::total_cr`].
+    pub reward_cr: u32,
+    /// The player's balance after: before, plus the reward.
+    pub own_cr: u32,
+}
+
+/// Plan paying the held hail job `job` where it was done, from a balance of
+/// `own_cr`; `done` is whether the player's record lists the job done
+/// ([`Jobs::is_done`]). The payment is one-sided: the caller hull keeps no
+/// balance to pay from, so only the player's moves. A refusal changes
+/// nothing: [`JobHandInRefusalType::NotDocked`] for a job no hull hailed
+/// with, which pays docked at its station ([`plan_job_hand_in`]),
+/// [`JobHandInRefusalType::NotDone`] while the work is not done and
+/// [`JobHandInRefusalType::CreditOverflow`] when the balance after would
+/// not fit.
+pub fn plan_hail_pay(
+    job: &Job,
+    own_cr: u32,
+    done: bool,
+) -> Result<HailPayPlan, JobHandInRefusalType> {
+    if !job.id.is_hail() {
+        return Err(JobHandInRefusalType::NotDocked);
+    }
+    if !done {
+        return Err(JobHandInRefusalType::NotDone);
+    }
+    let reward_cr = job.reward.total_cr();
+    let own_cr = own_cr
+        .checked_add(reward_cr)
+        .ok_or(JobHandInRefusalType::CreditOverflow)?;
+    Ok(HailPayPlan { reward_cr, own_cr })
+}
+
 /// The docked station a hand-in reads: its id and its balance.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JobHandInPartner {
@@ -2816,7 +2969,9 @@ pub struct JobHandInPlan {
 /// is not docked at a living station posting jobs, from `hold` with a
 /// balance of `own_cr`; `done` is whether the player's record lists the job
 /// done ([`Jobs::is_done`]), read for a located job only. Checks run in
-/// [`JobHandInRefusalType`] order. A refusal changes nothing.
+/// [`JobHandInRefusalType`] order. A refusal changes nothing. A hail job is
+/// refused at every station: its target is its caller, and it pays where it
+/// is done ([`plan_hail_pay`]).
 pub fn plan_job_hand_in(
     job: &Job,
     partner: Option<&JobHandInPartner>,
@@ -2940,7 +3095,7 @@ pub fn plan_job_offer_refresh(
     if expired {
         return Err(JobOfferRefreshRefusalType::Expired);
     }
-    if docked != Some(&id.station) {
+    if docked != Some(&id.poster) {
         return Err(JobOfferRefreshRefusalType::NotDocked);
     }
     let own_cr = own_cr.checked_sub(JOB_OFFER_REFRESH_FEE_CR).ok_or(
@@ -3480,7 +3635,7 @@ mod tests {
             let key = Fnv64::new()
                 .write(&seed.to_le_bytes())
                 .write(b"station_jobs")
-                .write(id.station.to_string().as_bytes())
+                .write(id.poster.to_string().as_bytes())
                 .write(&slot.to_le_bytes())
                 .write(&posting.to_le_bytes())
                 .finish();
@@ -4954,7 +5109,7 @@ mod tests {
     fn visit_job(station: &GeneratedBodyId, ship: &GeneratedBodyId, index: u32) -> Job {
         Job {
             id: JobId {
-                station: station.clone(),
+                poster: station.clone(),
                 source: JobSourceType::Visit {
                     visit: crate::station_visits::prelude::StationVisitId {
                         ship: ship.clone(),
@@ -5175,5 +5330,289 @@ mod tests {
         elsewhere.scenario.insert(other, vec![posting]);
         let refusal = elsewhere.validate(0.0).unwrap_err();
         assert!(refusal.contains("no scenario job of it"), "{refusal}");
+    }
+
+    fn caller_hull() -> GeneratedBodyId {
+        body("encounter_7_caller", 0)
+    }
+
+    fn hail_distress(serial: u32) -> Job {
+        let caller = caller_hull();
+        Job {
+            id: JobId::hail(caller.clone(), serial),
+            kind: JobType::Distress {
+                caller: caller.clone(),
+            },
+            target: caller,
+            leg_m: 8_000,
+            threat: 0,
+            reward: JobReward::flat(600),
+        }
+    }
+
+    fn hail_supply(serial: u32) -> Job {
+        let mut job = hail_distress(serial);
+        job.kind = JobType::Supply {
+            caller: caller_hull(),
+            item: "Rations".into(),
+            count: 4,
+        };
+        job
+    }
+
+    const FULL_FIT: JobHullFit = JobHullFit {
+        hold_capacity_g: 1_000_000,
+        has_clamp: true,
+        has_weapon: true,
+    };
+
+    #[test]
+    fn a_hail_job_id_never_reads_as_a_slot_a_visit_or_a_scenario_id() {
+        let caller = caller_hull();
+        let id = JobId::hail(caller.clone(), 7);
+        assert_eq!(id.to_string(), format!("{caller}#hail.7"));
+        let source = id.to_string();
+        let source = source.split_once('#').unwrap().1;
+        assert!(!is_job_post_key(source), "no scenario key holds a '.'");
+        assert!(
+            !source.starts_with(|first: char| first.is_ascii_digit()),
+            "a slot id opens with its slot number"
+        );
+        assert!(
+            !source.contains("_visit_"),
+            "a visit id holds its ship and '_visit_'"
+        );
+        assert!(id.is_hail());
+        assert_eq!(id.slot_posting(), None);
+        assert_eq!(id.post_key(), None);
+        assert!(id.possible_bodies().is_empty());
+        assert!(!JobId::slot(caller, 0, 7).is_hail());
+    }
+
+    #[test]
+    fn a_hail_job_is_a_distress_call_or_a_supply_job_about_its_poster() {
+        let distress = hail_distress(0);
+        let supply = hail_supply(1);
+        distress.validate().unwrap();
+        supply.validate().unwrap();
+        for job in [&distress, &supply] {
+            assert_eq!(job.posted_by(), &caller_hull());
+            assert_eq!(job.located_body(), Some(&caller_hull()));
+            assert!(
+                job.spawned_bodies().is_empty(),
+                "the caller hailed before the accept: the accept puts no body in the world"
+            );
+        }
+
+        let mut procure = hail_distress(2);
+        procure.kind = JobType::Procure {
+            item: "IronOre".into(),
+            count: 2,
+        };
+        let mut neutralize = hail_distress(3);
+        neutralize.kind = JobType::Neutralize {
+            hull: caller_hull(),
+            hull_name: "Kessel armored".to_string(),
+        };
+        let mut escort = hail_distress(4);
+        escort.kind = JobType::Escort {
+            hauler: caller_hull(),
+            cargo_cr: 600,
+            raiders: 1,
+        };
+        let mut recover = hail_distress(5);
+        recover.kind = JobType::Recover {
+            wreck: caller_hull(),
+            wreck_name: "Vell derelict".to_string(),
+            item: "IronOre".into(),
+            count: 2,
+        };
+        for job in [procure, neutralize, escort, recover] {
+            let refusal = job.validate().unwrap_err();
+            assert!(
+                refusal.contains("not a distress call or a supply job"),
+                "{refusal}"
+            );
+        }
+
+        let mut elsewhere = hail_distress(6);
+        elsewhere.target = station(1);
+        let refusal = elsewhere.validate().unwrap_err();
+        assert!(refusal.contains("not at its poster"), "{refusal}");
+
+        let other = body("encounter_8_caller", 0);
+        let mut other_caller = hail_distress(7);
+        other_caller.kind = JobType::Distress {
+            caller: other.clone(),
+        };
+        let refusal = other_caller.validate().unwrap_err();
+        assert!(refusal.contains("names the caller"), "{refusal}");
+        let mut other_supply = hail_supply(8);
+        other_supply.kind = JobType::Supply {
+            caller: other,
+            item: "Rations".into(),
+            count: 4,
+        };
+        let refusal = other_supply.validate().unwrap_err();
+        assert!(refusal.contains("names the caller"), "{refusal}");
+
+        let mut held = Jobs::default();
+        held.accept(distress.clone());
+        held.mark_done(&distress.id);
+        held.validate().unwrap();
+        assert_eq!(
+            held.marked_body(&distress),
+            Some(&caller_hull()),
+            "a done hail job still points at its caller"
+        );
+    }
+
+    #[test]
+    fn no_board_lists_a_hail_job() {
+        let job = hail_distress(0);
+        let rule = JobOfferRule {
+            offer_seconds: 60.0,
+            escort_offer_seconds: 60.0,
+        };
+        let mut postings = JobPostings::default();
+        assert!(!postings.offers(&job.id, rule, 0.0));
+        assert_eq!(postings.remaining(&job.id, rule, 0.0), None);
+
+        postings.visits.insert(
+            caller_hull(),
+            vec![VisitPosting {
+                posted_at: 0.0,
+                offer: job,
+            }],
+        );
+        let refusal = postings.validate(0.0).unwrap_err();
+        assert!(refusal.contains("no visit job of it"), "{refusal}");
+    }
+
+    #[test]
+    fn a_hail_offer_is_accepted_undocked_and_refused_by_every_other_accept_rule() {
+        let items = catalog();
+        let job = hail_supply(0);
+        let mut jobs = Jobs::default();
+
+        plan_job_accept(&job, None, &jobs, false, false)
+            .expect("a hail job reads no dock and no standing target");
+        plan_job_accept(&job, Some(&station(1)), &jobs, false, false)
+            .expect("a station dock does not gate a hail job");
+        plan_hail_accept(&job, &jobs, false, &items, FULL_FIT).unwrap();
+
+        assert_eq!(
+            plan_hail_accept(&job, &jobs, true, &items, FULL_FIT),
+            Err(HailAcceptRefusalType::Accept(JobAcceptRefusalType::Expired))
+        );
+        let no_clamp = JobHullFit {
+            has_clamp: false,
+            ..FULL_FIT
+        };
+        assert_eq!(
+            plan_hail_accept(&job, &jobs, false, &items, no_clamp),
+            Err(HailAcceptRefusalType::Hull(JobHullRefusalType::NoClamp))
+        );
+        assert_eq!(
+            plan_hail_accept(&hail_distress(1), &jobs, false, &items, no_clamp),
+            Err(HailAcceptRefusalType::Hull(JobHullRefusalType::NoClamp))
+        );
+        let small_hold = JobHullFit {
+            hold_capacity_g: 3_999,
+            ..FULL_FIT
+        };
+        assert_eq!(
+            plan_hail_accept(&job, &jobs, false, &items, small_hold),
+            Err(HailAcceptRefusalType::Hull(
+                JobHullRefusalType::HoldTooSmall {
+                    need_g: 4_000,
+                    have_g: 3_999,
+                }
+            ))
+        );
+        assert_eq!(
+            plan_hail_accept(&job, &jobs, true, &items, no_clamp),
+            Err(HailAcceptRefusalType::Accept(JobAcceptRefusalType::Expired)),
+            "the accept rules are read before the hull"
+        );
+
+        jobs.accept(job.clone());
+        assert_eq!(
+            plan_hail_accept(&job, &jobs, false, &items, FULL_FIT),
+            Err(HailAcceptRefusalType::Accept(
+                JobAcceptRefusalType::AlreadyHeld
+            ))
+        );
+        jobs.mark_done(&job.id);
+        jobs.complete(&job.id);
+        assert_eq!(
+            plan_hail_accept(&job, &jobs, false, &items, FULL_FIT),
+            Err(HailAcceptRefusalType::Accept(
+                JobAcceptRefusalType::AlreadyDone
+            ))
+        );
+        let declined = hail_distress(2);
+        jobs.accept(declined.clone());
+        jobs.drop(&declined.id);
+        assert_eq!(
+            plan_hail_accept(&declined, &jobs, false, &items, FULL_FIT),
+            Err(HailAcceptRefusalType::Accept(JobAcceptRefusalType::Expired))
+        );
+
+        let poster = station(1);
+        let board_job = scenario_job(&poster, "walk");
+        assert_eq!(
+            plan_hail_accept(&board_job, &Jobs::default(), false, &items, FULL_FIT),
+            Err(HailAcceptRefusalType::Accept(
+                JobAcceptRefusalType::NotDocked
+            )),
+            "a station job is accepted at its station"
+        );
+    }
+
+    #[test]
+    fn a_done_hail_job_pays_the_player_alone_and_refuses_an_overflow() {
+        let items = catalog();
+        let job = hail_distress(0);
+        let reward = job.reward.total_cr();
+
+        assert_eq!(
+            plan_hail_pay(&job, 100, false),
+            Err(JobHandInRefusalType::NotDone)
+        );
+        assert_eq!(
+            plan_hail_pay(&job, 100, true),
+            Ok(HailPayPlan {
+                reward_cr: reward,
+                own_cr: 100 + reward,
+            })
+        );
+        assert_eq!(
+            plan_hail_pay(&job, u32::MAX - reward, true).unwrap().own_cr,
+            u32::MAX
+        );
+        assert_eq!(
+            plan_hail_pay(&job, u32::MAX - reward + 1, true),
+            Err(JobHandInRefusalType::CreditOverflow)
+        );
+
+        let poster = station(1);
+        assert_eq!(
+            plan_hail_pay(&scenario_job(&poster, "walk"), 100, true),
+            Err(JobHandInRefusalType::NotDocked),
+            "a station job pays docked at its station"
+        );
+        let hold = ShipInventory::new(&items, 1_000_000, []);
+        let here = JobHandInPartner {
+            id: poster,
+            credits_cr: 10_000,
+        };
+        assert_eq!(
+            plan_job_hand_in(&job, Some(&here), &hold, 100, true),
+            Err(JobHandInRefusalType::WrongStation {
+                needed: caller_hull(),
+            }),
+            "no station hands a hail job in"
+        );
     }
 }

@@ -485,7 +485,7 @@ impl StationVisits {
                 continue;
             };
             for job in &receipt.jobs {
-                let own = job.station == visit.station
+                let own = job.poster == visit.station
                     && matches!(&job.source, JobSourceType::Visit { visit: posted, .. } if *posted == visit.id);
                 if !own {
                     return Err(format!(

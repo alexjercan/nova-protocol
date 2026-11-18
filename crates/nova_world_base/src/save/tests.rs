@@ -2085,7 +2085,7 @@ fn a_pending_station_visit_resumes_and_a_bad_station_clock_or_layout_is_refused(
 
     let unposted = nova_gameplay::prelude::Job {
         id: nova_gameplay::prelude::JobId {
-            station: station.clone(),
+            poster: station.clone(),
             source: nova_gameplay::prelude::JobSourceType::Visit {
                 visit: id.clone(),
                 index: 0,

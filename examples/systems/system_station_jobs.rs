@@ -1059,7 +1059,7 @@ mod walk {
         );
         let saved: Vec<Job> = world
             .resource::<JobPostings>()
-            .board(&job.id.station)
+            .board(&job.id.poster)
             .expect("station jobs: the Load restored the station's postings")
             .iter()
             .map(|slot| slot.offer.clone())

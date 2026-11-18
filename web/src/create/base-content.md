@@ -168,7 +168,8 @@ reusing its id - see [Campaigns](../campaigns/).
 
 There are no other content kinds - a content file holds `Section`, `Scenario`,
 `Campaign`, `Ship`, `Station`, `StartRole`, `Style`, `Lesson`, `UiTheme`,
-`Item`, `PriceTable` and `TradeProfile` items only;
+`Item`, `PriceTable`, `TradeProfile`, `Recipe`, `Consumable` and `Encounter`
+items only;
 factions are not content, and neither is impact audio, a comms channel or the
 table a generated hull is drawn from - all three are engine-owned. The base
 ship ids are tabled in [Ships](../ships/#base-ships), the start role ids in

@@ -50,7 +50,7 @@ use bevy::{
     reflect::TypePath,
 };
 use nova_gameplay::prelude::{
-    ConsumableDesign, ItemDesign, PriceTable, RecipeDesign, TradeProfileDesign,
+    ConsumableDesign, EncounterDesign, ItemDesign, PriceTable, RecipeDesign, TradeProfileDesign,
 };
 // The pure serde format types live in the engine-free `nova_mod_format`
 // crate so the portal generator builds without bevy; re-exported here so game
@@ -198,6 +198,17 @@ pub enum Content {
     /// consumable of one item in a pack fail at lint and refuse the owning
     /// mod at load.
     Consumable(ConsumableDesign),
+    /// An [`EncounterDesign`] - registers into `GameEncounters` keyed by its
+    /// id. One thing the open world may put ahead of the player on a long
+    /// flight: a hull that hails with a job, an ambush or a derelict, with
+    /// the weight it is drawn by and the player it may fire for.
+    ///
+    /// A mod adds an encounter by declaring a new id and replaces a base one
+    /// by declaring its id, like a recipe. A weight of zero, a hail line
+    /// that is empty, longer than one line or too long, and a second
+    /// encounter of one id in a pack fail at lint and refuse the owning mod
+    /// at load. A catalog with no encounter is valid: none fires.
+    Encounter(EncounterDesign),
 }
 
 /// The fixed [`Content::id`] of the [`Content::PriceTable`] singleton: a
@@ -227,6 +238,7 @@ impl Content {
             Content::TradeProfile(_) => "trade profile",
             Content::Recipe(_) => "recipe",
             Content::Consumable(_) => "consumable",
+            Content::Encounter(_) => "encounter",
         }
     }
 
@@ -248,6 +260,7 @@ impl Content {
             Content::TradeProfile(profile) => profile.id.as_str(),
             Content::Recipe(recipe) => recipe.id.as_str(),
             Content::Consumable(consumable) => consumable.item.as_str(),
+            Content::Encounter(encounter) => encounter.id.as_str(),
         }
     }
 

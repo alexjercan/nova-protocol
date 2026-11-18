@@ -1,0 +1,32 @@
+[
+    Encounter((
+        id: "base/distress_call",
+        weight: 3,
+        player: Any,
+        kind: Hail(
+            job: Distress,
+            line: "Mayday, mayday. Our drive is dead and we are adrift. Any ship, please dock with us.",
+        ),
+    )),
+    Encounter((
+        id: "base/supply_call",
+        weight: 2,
+        player: Any,
+        kind: Hail(
+            job: Supply,
+            line: "Any ship, please respond. We are stranded and out of supplies. Can you bring some?",
+        ),
+    )),
+    Encounter((
+        id: "base/ambush",
+        weight: 2,
+        player: Armed,
+        kind: Ambush,
+    )),
+    Encounter((
+        id: "base/derelict_find",
+        weight: 3,
+        player: Any,
+        kind: Derelict,
+    )),
+]

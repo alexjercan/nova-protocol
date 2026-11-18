@@ -680,7 +680,7 @@ fn update_jobs_pane(
     // The confirming row reads the fee and the shortfall off the same check
     // order as `apply_job_commands`.
     let offer_refresh_gate = |job: &Job| -> VerbGate {
-        let docked = partner.as_ref().filter(|(_, _, id)| *id == job.id.station);
+        let docked = partner.as_ref().filter(|(_, _, id)| *id == job.id.poster);
         let station_cr = docked
             .and_then(|(_, station, _)| q_credits.get(*station).ok())
             .map_or(0, |credits| credits.0);
@@ -2010,7 +2010,7 @@ fn apply_job_commands(
             .is_none_or(|slot| slot.is_expired(table.0.jobs, clock.play_seconds));
         let docked = partner
             .as_ref()
-            .filter(|(_, _, id)| *id == command.id.station);
+            .filter(|(_, _, id)| *id == command.id.poster);
         let (own_cr, station_cr) = match docked {
             Some((player, station, _)) => (
                 q_credits.p0().get(*player).map_or(0, |c| c.0),
@@ -2559,12 +2559,12 @@ mod tests {
     fn post_current(app: &mut App, job: &Job) {
         let iron = ItemDesignId::from(ItemRoleType::IronOre.id());
         let filler = |slot: u32| Job {
-            id: JobId::slot(job.id.station.clone(), slot, 0),
+            id: JobId::slot(job.id.poster.clone(), slot, 0),
             kind: JobType::Procure {
                 item: iron.clone(),
                 count: 1,
             },
-            target: job.id.station.clone(),
+            target: job.id.poster.clone(),
             leg_m: 0,
             threat: 0,
             reward: JobReward::flat(10),
@@ -2814,7 +2814,7 @@ mod tests {
             raised.0.push(("handed in", handed_in.job.clone()));
         });
         let (_, slot_job) = hand_in_fixture(&mut app, neutral_civilization());
-        let station_id = slot_job.id.station.clone();
+        let station_id = slot_job.id.poster.clone();
         let job = Job {
             id: JobId::scenario(station_id.clone(), "walk"),
             kind: JobType::Procure {

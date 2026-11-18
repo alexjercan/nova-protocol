@@ -11,8 +11,8 @@ use std::{
 
 use nova_assets::items::{item_pack_faults, ItemPack};
 use nova_gameplay::prelude::{
-    price_table_faults, trade_profile_faults, ConsumableDesign, GameItems, GameTradeProfiles,
-    ItemDesign, PriceTable, RecipeDesign, SectionClass, TradeProfileDesign,
+    price_table_faults, trade_profile_faults, ConsumableDesign, EncounterDesign, GameItems,
+    GameTradeProfiles, ItemDesign, PriceTable, RecipeDesign, SectionClass, TradeProfileDesign,
 };
 use nova_input::prelude::InputSource;
 use nova_mod_format::{
@@ -70,6 +70,7 @@ struct WalkedBundle {
     trade_profiles: Vec<TradeProfileDesign>,
     recipes: Vec<RecipeDesign>,
     consumables: Vec<ConsumableDesign>,
+    encounters: Vec<EncounterDesign>,
     scenarios: Vec<ScenarioConfig>,
     campaigns: Vec<CampaignConfig>,
     lessons: Vec<Lesson>,
@@ -145,6 +146,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
     let mut trade_profiles = Vec::new();
     let mut recipes = Vec::new();
     let mut consumables = Vec::new();
+    let mut encounters = Vec::new();
     let mut scenarios = Vec::new();
     let mut campaigns = Vec::new();
     let mut lessons = Vec::new();
@@ -161,6 +163,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
             Content::TradeProfile(profile) => trade_profiles.push(profile.clone()),
             Content::Recipe(recipe) => recipes.push(recipe.clone()),
             Content::Consumable(consumable) => consumables.push(consumable.clone()),
+            Content::Encounter(encounter) => encounters.push(encounter.clone()),
             Content::Scenario(scenario) => scenarios.push(scenario.clone()),
             Content::Campaign(campaign) => campaigns.push(campaign.clone()),
             Content::Lesson(lesson) => lessons.push(lesson.clone()),
@@ -179,6 +182,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         trade_profiles,
         recipes,
         consumables,
+        encounters,
         scenarios,
         campaigns,
         lessons,
@@ -1111,7 +1115,7 @@ fn build_report(
         });
     }
 
-    // 1c. Items, recipes, consumables and the ammo floor of station recipes:
+    // 1c. Items, recipes, consumables, encounters and the ammo floor of station recipes:
     // the rule the merge applies, over every walked pack at once, since a player may enable any of them together and the
     // merge then refuses both packs of an unrelated duplicate, or the mod
     // that cheapens a base recipe input. A fault is reported against
@@ -1134,6 +1138,7 @@ fn build_report(
             items: walked.items.iter().collect(),
             recipes: walked.recipes.iter().collect(),
             consumables: walked.consumables.iter().collect(),
+            encounters: walked.encounters.iter().collect(),
             sections: walked.sections.iter().collect(),
         })
         .collect();
@@ -1453,6 +1458,7 @@ mod tests {
             trade_profiles: Vec::new(),
             recipes: Vec::new(),
             consumables: Vec::new(),
+            encounters: Vec::new(),
             scenarios,
             campaigns,
             lessons,

@@ -1017,7 +1017,7 @@ mod walk {
         let postings = world.resource::<JobPostings>().clone();
         for (position, id) in receipt.jobs.iter().enumerate() {
             assert_eq!(
-                id.station, visit.station,
+                id.poster, visit.station,
                 "station visits: '{id}' is posted at the visited station"
             );
             let JobSourceType::Visit {

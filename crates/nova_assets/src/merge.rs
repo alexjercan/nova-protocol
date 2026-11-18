@@ -2,7 +2,7 @@
 //! order and overlay it by id into the game's registries (`GameSections`,
 //! `GameShipDesigns`, `GameScenarios`, `GameCampaigns`, `GameStyles`,
 //! `GameItems`, `GameStationDesigns`, `GameStartRoles`, `GameTradeProfiles`,
-//! `GameRecipes`, `GameConsumables`), linting the result
+//! `GameRecipes`, `GameConsumables`, `GameEncounters`), linting the result
 //! as it goes.
 
 /// Glob-import surface: `use nova_assets::merge::prelude::*` re-exports the
@@ -20,9 +20,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::{
-    price_table_faults, trade_profile_faults, ConsumableDesign, Fnv64, GameConsumables, GameItems,
-    GamePriceTable, GameRecipes, GameStates, GameTradeProfiles, ItemDesign, PriceTable,
-    RecipeDesign, TradeProfileDesign,
+    price_table_faults, trade_profile_faults, ConsumableDesign, EncounterDesign, Fnv64,
+    GameConsumables, GameEncounters, GameItems, GamePriceTable, GameRecipes, GameStates,
+    GameTradeProfiles, ItemDesign, PriceTable, RecipeDesign, TradeProfileDesign,
 };
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
 use nova_scenario::prelude::{
@@ -208,6 +208,13 @@ pub fn register_bundles(
                     .iter()
                     .filter_map(|item| match item {
                         Content::Consumable(design) => Some(design),
+                        _ => None,
+                    })
+                    .collect(),
+                encounters: content
+                    .iter()
+                    .filter_map(|item| match item {
+                        Content::Encounter(design) => Some(design),
                         _ => None,
                     })
                     .collect(),
@@ -809,6 +816,7 @@ pub fn register_bundles(
     commands.insert_resource(merged_profiles);
     commands.insert_resource(GameRecipes::new(outcome.recipes));
     commands.insert_resource(GameConsumables::new(outcome.consumables));
+    commands.insert_resource(GameEncounters::new(outcome.encounters));
     // The gate above refuses a base that states no table, so a merge over a
     // loaded catalog always has one. Without a catalog nothing was gated and
     // no generated world arms, so there is no trader to price.
@@ -1114,6 +1122,9 @@ pub struct MergeOutcome {
     /// Consumables in registration order, overlaid last-wins by item - so a
     /// mod replaces a base consumable by declaring the same item.
     pub consumables: Vec<ConsumableDesign>,
+    /// Encounters in registration order, overlaid last-wins by id - so a mod
+    /// replaces a base encounter by declaring the same id.
+    pub encounters: Vec<EncounterDesign>,
     /// Human-readable messages, one per intra-bundle duplicate id that was
     /// skipped. Empty on clean data.
     pub conflicts: Vec<String>,
@@ -1269,6 +1280,12 @@ fn merge_content_item(item: &Content, into: &mut MergeOutcome) {
             {
                 Some(existing) => *existing = consumable.clone(),
                 None => into.consumables.push(consumable.clone()),
+            }
+        }
+        Content::Encounter(encounter) => {
+            match into.encounters.iter_mut().find(|e| e.id == encounter.id) {
+                Some(existing) => *existing = encounter.clone(),
+                None => into.encounters.push(encounter.clone()),
             }
         }
     }
@@ -1510,6 +1527,35 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![("interceptor", "Rusted Interceptor"), ("raider", "Raider")],
             "the mod's hull must win in place, and its new one must be added",
+        );
+    }
+
+    #[test]
+    fn a_mod_overlays_a_base_encounter_by_id_and_adds_its_own() {
+        use nova_gameplay::prelude::{EncounterPlayerType, EncounterType};
+
+        let encounter = |id: &str, weight: u32| {
+            Content::Encounter(EncounterDesign {
+                id: id.into(),
+                weight,
+                player: EncounterPlayerType::Any,
+                kind: EncounterType::Derelict,
+            })
+        };
+        let base = [encounter("base/ambush", 2), encounter("base/find", 3)];
+        let modded = [encounter("base/ambush", 9), encounter("mod/find", 1)];
+
+        let outcome = merge_bundles([base.iter(), modded.iter()]);
+
+        assert!(outcome.conflicts.is_empty(), "{:?}", outcome.conflicts);
+        let merged = GameEncounters::new(outcome.encounters);
+        assert_eq!(
+            merged
+                .iter()
+                .map(|design| (design.id.as_str(), design.weight))
+                .collect::<Vec<_>>(),
+            vec![("base/ambush", 9), ("base/find", 3), ("mod/find", 1)],
+            "the mod's weight must win and its new encounter must be added, in id order",
         );
     }
 

@@ -539,7 +539,7 @@ mod chain {
     }
 
     fn station_id(world: &World) -> GeneratedBodyId {
-        the_job(world).1.id.station
+        the_job(world).1.id.poster
     }
 
     fn posted_id(world: &World) -> JobId {

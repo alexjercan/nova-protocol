@@ -20,7 +20,9 @@
 //! looks: the solid-collider subtree walk the HUD and the editor both size
 //! from), `chart` (the player's chart of a streamed world, which the Map
 //! reads and a world save carries), `jobs` (station job boards and the
-//! player's held jobs, saved beside the chart) and `hash` (the reproducible FNV-1a derivation every seeded look is
+//! player's held jobs, saved beside the chart), `encounter` (the authored
+//! encounters, the seeded draw that picks one and the record a save
+//! carries) and `hash` (the reproducible FNV-1a derivation every seeded look is
 //! drawn from). Nova owns all of it, engine layers included: health, damage and
 //! destruction (`integrity`), the transform rigs and the mesh toolkit were vendored in from the shared-helpers crate and are nova's to
 //! shape now.
@@ -44,6 +46,7 @@ pub mod contact_model;
 pub mod cooldown;
 pub mod crafting;
 pub mod damage;
+pub mod encounter;
 pub mod freeze;
 pub mod goal;
 pub mod gravity;
@@ -130,11 +133,11 @@ pub mod prelude {
         asset_ref::prelude::*, beacon::prelude::*, bounds::prelude::*, button_cue::prelude::*,
         chart::prelude::*, cheats::prelude::*, civilization::prelude::*, clock::prelude::*,
         consumable::prelude::*, contact_model::prelude::*, cooldown::prelude::*,
-        crafting::prelude::*, damage::prelude::*, freeze::prelude::*, goal::prelude::*,
-        gravity::prelude::*, hash::prelude::*, impact_sound::prelude::*, impact_spark::prelude::*,
-        integrity::prelude::*, inventory::prelude::*, jobs::prelude::*, juice::prelude::*,
-        lifetime::prelude::*, markers::prelude::*, market::prelude::*, math::prelude::*,
-        mesh::prelude::*, narrative_accent::prelude::*, objectives::prelude::*,
+        crafting::prelude::*, damage::prelude::*, encounter::prelude::*, freeze::prelude::*,
+        goal::prelude::*, gravity::prelude::*, hash::prelude::*, impact_sound::prelude::*,
+        impact_spark::prelude::*, integrity::prelude::*, inventory::prelude::*, jobs::prelude::*,
+        juice::prelude::*, lifetime::prelude::*, markers::prelude::*, market::prelude::*,
+        math::prelude::*, mesh::prelude::*, narrative_accent::prelude::*, objectives::prelude::*,
         open_objectives::prelude::*, plugin::prelude::*, projectile_hooks::prelude::*,
         relations::prelude::*, render_target::prelude::*, rescue::prelude::*,
         role_icon::prelude::*, rounds::prelude::*, saved_refs::prelude::*, settings::prelude::*,
