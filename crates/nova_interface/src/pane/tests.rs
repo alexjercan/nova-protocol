@@ -1124,3 +1124,72 @@ fn the_tabs_hold_their_place_as_the_balance_grows_and_the_pane_switches() {
         metrics::CONTROL_H
     );
 }
+
+/// Docked at a station that offers every service, with the widest balance,
+/// the head fits a 1024 px and a 1280 px window: Close and every tab lie
+/// whole inside it, the mode tags give way before the balance, and the
+/// station's name still shows.
+#[test]
+fn close_and_the_tabs_fit_the_head_from_1024_px_while_docked() {
+    use nova_gameplay::prelude::{StationServiceType, StationServices};
+
+    let mut rig = card_rig();
+    rig.app
+        .add_systems(Update, (show_pane_balance, show_pane_mode_tags));
+    let station = dock_the_player(rig.app.world_mut(), true);
+    rig.app.world_mut().entity_mut(station).insert((
+        Name::new("Kestrel Exchange"),
+        StationServices(vec![
+            StationServiceType::Refit,
+            StationServiceType::Craft,
+            StationServiceType::Trade,
+            StationServiceType::Jobs,
+        ]),
+    ));
+    let world = rig.app.world_mut();
+    let player = world
+        .query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
+        .single(world)
+        .expect("one player ship");
+    world.entity_mut(player).insert(ShipCredits(999_999_999));
+
+    for width in [1024, 1280] {
+        resize_window(&mut rig.app, UVec2::new(width, 768));
+        settle(&mut rig.app);
+        let world = rig.app.world_mut();
+        let head = card_ids(world).head;
+        let head = rect_of(world, head);
+        for name in [
+            "InterfaceClose",
+            "InterfaceTabMap",
+            "InterfaceTabShip",
+            "InterfaceTabInventory",
+            "InterfaceTabJobs",
+            "InterfaceTabStation",
+        ] {
+            let rect = rect_named(world, name);
+            assert!(rect.width() > 0.0, "{name} is shown at {width} px");
+            assert!(
+                inside(rect, head),
+                "{name} {rect:?} in the head {head:?} at {width} px"
+            );
+        }
+        let tags = rect_named(world, INTERFACE_MODE_TAGS);
+        let balance = rect_named(world, INTERFACE_PANE_BALANCE);
+        assert!(
+            tags.max.x <= balance.min.x + 0.5,
+            "the mode tags {tags:?} stop left of the balance {balance:?} at {width} px"
+        );
+        let name = world
+            .query::<(Entity, &Text)>()
+            .iter(world)
+            .find(|(_, text)| text.0 == "KESTREL EXCHANGE")
+            .map(|(entity, _)| entity)
+            .expect("the head names the station");
+        let name = rect_of(world, name);
+        assert!(
+            inside(name, tags),
+            "the station name {name:?} shows whole in the tags {tags:?} at {width} px"
+        );
+    }
+}

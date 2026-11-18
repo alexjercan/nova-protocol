@@ -127,6 +127,14 @@ impl GalleryListing {
     }
 }
 
+impl GalleryEntry {
+    /// Whether Place, Enter and Q put this part in hand now: the host can
+    /// craft it and the ship can pay for it.
+    pub fn ready(&self) -> bool {
+        self.placeable && !self.short
+    }
+}
+
 /// One listed part.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GalleryEntry {
@@ -137,8 +145,8 @@ pub struct GalleryEntry {
     /// part that cannot be placed, which its muted tile and its tooltip say.
     pub tile: Option<String>,
     /// Whether the ship cannot pay the price: the tile's price and the focus
-    /// card's price line paint Danger. The part stays placeable; the host
-    /// refuses the paid verb.
+    /// card's price line paint Danger, and Place is disabled. The part is not
+    /// muted: the red price is the one thing that blocks it.
     pub short: bool,
     /// The whole price or refusal. On a placeable part the focus card draws
     /// it as a line above Place; on one that cannot be placed it is only the
@@ -151,8 +159,8 @@ pub struct GalleryEntry {
     /// A second verb on the focus card beside Place, as its button label;
     /// pressing it writes [`GalleryAlternate`].
     pub alternate: Option<String>,
-    /// Whether Place, Enter and Q put this part in hand. A host lists a part
-    /// it cannot craft with `false` and says why in `note`; the grid and the
+    /// Whether the host can craft this part at all. A host lists a part it
+    /// cannot craft with `false` and says why in `note`; the grid and the
     /// focus card draw it muted, and the card disables Place.
     pub placeable: bool,
     /// Whether the part belongs to what the host edits, which puts it in
@@ -391,7 +399,8 @@ impl GalleryState {
     }
 
     /// The selected part's id when its entry may be placed: an unlisted host
-    /// places everything, a listed part places only when `placeable`.
+    /// places everything, a listed part places only when it is
+    /// [`ready`](GalleryEntry::ready).
     pub fn placeable_id(
         &self,
         sections: &GameSections,
@@ -399,7 +408,7 @@ impl GalleryState {
     ) -> Option<String> {
         let id = self.selected_id(sections, listing)?;
         listing
-            .is_none_or(|listing| listing.entry(&id).is_some_and(|entry| entry.placeable))
+            .is_none_or(|listing| listing.entry(&id).is_some_and(GalleryEntry::ready))
             .then_some(id)
     }
 }

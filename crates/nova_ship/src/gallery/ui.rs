@@ -16,7 +16,7 @@ use nova_gameplay::prelude::{cr_text, lot_cr_text};
 use nova_ui::{
     prelude::{
         button, chip, chip_bar, key_chip, metrics, panel, spawn_kv, text, text_toned, verb_row,
-        ButtonSpec, RowAlign, Selected, TextRole, UiText,
+        ButtonSpec, RowAlign, Selected, TextRole, UiText, VerbGate,
     },
     theme,
     theme::{ActiveUiTheme, UiColorType},
@@ -200,8 +200,8 @@ pub(crate) fn rebuild_gallery(
                 Node {
                     width: percent(100),
                     flex_direction: FlexDirection::Row,
-                    // The fixed slots need about 1000 px on one row, so a
-                    // narrow host wraps them rather than pushing paging out.
+                    // One row from a 1024 px window up. A narrower host
+                    // wraps rather than pushing paging out.
                     flex_wrap: FlexWrap::Wrap,
                     align_items: AlignItems::Center,
                     column_gap: px(metrics::GAP),
@@ -237,7 +237,7 @@ pub(crate) fn rebuild_gallery(
                 if !state.filter.is_empty() {
                     header.spawn((
                         Name::new("Gallery Clear Filter Button"),
-                        chip("x", None),
+                        button(ButtonSpec::glyph("x").ghost()),
                         GalleryAction::ClearFilter,
                     ));
                 }
@@ -281,7 +281,7 @@ pub(crate) fn rebuild_gallery(
                     ] {
                         bar.spawn((
                             Name::new(name),
-                            chip(label, None),
+                            button(ButtonSpec::glyph(label).ghost()),
                             GalleryAction::Page(step),
                         ));
                     }
@@ -892,10 +892,12 @@ fn focus_body(
                             GalleryAction::Alternate,
                         ));
                     }
-                    // Enter places only what may be placed, so a muted part's
-                    // verb carries no key chip; the muted card says why.
+                    // Enter places only what is ready, so a blocked part's
+                    // verb carries no key chip. A muted card says why; a short
+                    // one shows its price in Danger over a disabled Place.
+                    let ready = entry.is_none_or(GalleryEntry::ready);
                     let mut spec = ButtonSpec::control("Place").primary();
-                    if placeable {
+                    if ready {
                         spec = spec.key("Enter");
                     }
                     let mut place = verbs.spawn((
@@ -905,6 +907,8 @@ fn focus_body(
                     ));
                     if let Some(entry) = entry.filter(|entry| !entry.placeable) {
                         place.insert((InteractionDisabled, Tooltip(entry.note.clone())));
+                    } else if !ready {
+                        place.insert(VerbGate::Disabled);
                     }
                 });
             });
@@ -912,6 +916,13 @@ fn focus_body(
 
     stages.push((stage, index, true));
 }
+
+/// The narrowest the filter field gets, in logical px: about twelve
+/// characters.
+const FILTER_MIN_W: f32 = 120.0;
+
+/// The widest the filter field grows, in logical px.
+const FILTER_MAX_W: f32 = 190.0;
 
 /// The filter field. Not an editable text widget: the gallery owns the keyboard
 /// while it is up (see `input`), so the box only has to SHOW what was typed.
@@ -932,9 +943,14 @@ fn filter_box(filter: &str, focused: bool) -> impl Bundle {
         GalleryAction::FocusFilter,
         Button,
         Hovered::default(),
+        // The field gives the header row its slack: it is FILTER_MIN_W on a
+        // tight row and grows to FILTER_MAX_W when the row has room. A wrapping
+        // row breaks on the smaller width, so the header stays one line.
         Node {
-            width: px(190),
+            width: px(FILTER_MIN_W),
+            max_width: px(FILTER_MAX_W),
             height: px(metrics::CONTROL_H),
+            flex_grow: 1.0,
             flex_shrink: 0.0,
             justify_content: JustifyContent::FlexStart,
             align_items: AlignItems::Center,

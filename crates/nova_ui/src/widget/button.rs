@@ -414,6 +414,8 @@ pub struct ButtonSpec {
     pub menu: bool,
     /// An icon before the label.
     pub icon: Option<Handle<Image>>,
+    /// A [`CONTROL_H`] square around a one-glyph label.
+    pub square: bool,
 }
 
 impl ButtonSpec {
@@ -428,6 +430,16 @@ impl ButtonSpec {
             fill: false,
             menu: false,
             icon: None,
+            square: false,
+        }
+    }
+
+    /// A [`CONTROL_H`] square verb whose label is one glyph, such as `<` or
+    /// `>`: the size of an icon verb, with no side padding.
+    pub fn glyph(glyph: impl Into<String>) -> Self {
+        Self {
+            square: true,
+            ..Self::control(glyph)
         }
     }
 
@@ -503,6 +515,7 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
         fill,
         menu,
         icon,
+        square,
     } = spec;
     let (height, font_size) = if menu {
         (MENU_H, TEXT_MENU)
@@ -517,6 +530,8 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
     let (width, min_width, padding) = if text.is_empty() && !block {
         // An icon or caller-filled button: a square at least.
         (Val::Auto, px(height), UiRect::ZERO)
+    } else if square {
+        (px(height), px(height), UiRect::ZERO)
     } else {
         (
             if fill { percent(100) } else { Val::Auto },

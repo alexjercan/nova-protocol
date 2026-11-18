@@ -424,64 +424,70 @@ mod tests {
         );
     }
 
-    /// A part the host lists but cannot craft never reaches the hand: not by
-    /// Enter on its card, not by the Place button, not by Q over its tile.
-    /// The gallery stays up on it, and a craftable part still places.
+    /// A part the host lists but cannot craft, or that the ship cannot pay
+    /// for, never reaches the hand: not by Enter on its card, not by the
+    /// Place button, not by Q over its tile. The gallery stays up on it, and
+    /// a ready part still places.
     #[test]
-    fn place_enter_and_pick_leave_the_hand_empty_for_a_muted_entry() {
-        let mut app = gallery_app(GalleryState {
-            open: true,
-            focused: true,
-            selected: 1,
-            ..default()
-        });
-        app.add_message::<GalleryAlternate>();
-        app.add_observer(super::super::ui::on_gallery_action);
-        let entry = |id: &str, placeable| GalleryEntry {
+    fn place_enter_and_pick_leave_the_hand_empty_for_a_muted_or_short_entry() {
+        let entry = |id: &str, placeable, short| GalleryEntry {
             id: id.to_string(),
             tile: None,
-            short: false,
+            short,
             note: String::new(),
             recipe: Vec::new(),
             alternate: None,
             placeable,
             own: false,
         };
-        app.world_mut().spawn((
-            GalleryHost {
-                camera: Entity::PLACEHOLDER,
-                stage: Vec3::ZERO,
-                layers: default(),
-                close_keys: "Esc",
-                close_verb: true,
-            },
-            GalleryListing(vec![entry("hull", true), entry("thruster", false)]),
-        ));
-        let place = app.world_mut().spawn(GalleryAction::Place).id();
+        for (blocked, why) in [
+            (entry("thruster", false, false), "muted"),
+            (entry("thruster", true, true), "short"),
+        ] {
+            let mut app = gallery_app(GalleryState {
+                open: true,
+                focused: true,
+                selected: 1,
+                ..default()
+            });
+            app.add_message::<GalleryAlternate>();
+            app.add_observer(super::super::ui::on_gallery_action);
+            app.world_mut().spawn((
+                GalleryHost {
+                    camera: Entity::PLACEHOLDER,
+                    stage: Vec3::ZERO,
+                    layers: default(),
+                    close_keys: "Esc",
+                    close_verb: true,
+                },
+                GalleryListing(vec![entry("hull", true, false), blocked.clone()]),
+            ));
+            let place = app.world_mut().spawn(GalleryAction::Place).id();
 
-        tap(&mut app, KeyCode::Enter, None);
-        app.world_mut()
-            .trigger(bevy::ui_widgets::Activate { entity: place });
-        app.world_mut().spawn((
-            GalleryCell {
-                listed: 1,
-                placeable: false,
-            },
-            Hovered(true),
-        ));
-        tap(&mut app, KeyCode::KeyQ, Some("q"));
+            tap(&mut app, KeyCode::Enter, None);
+            app.world_mut()
+                .trigger(bevy::ui_widgets::Activate { entity: place });
+            app.world_mut().spawn((
+                GalleryCell {
+                    listed: 1,
+                    placeable: blocked.placeable,
+                },
+                Hovered(true),
+            ));
+            tap(&mut app, KeyCode::KeyQ, Some("q"));
 
-        assert_eq!(app.world().resource::<HeldPart>().id(), None);
-        let state = app.world().resource::<GalleryState>();
-        assert!(state.open && state.focused, "the muted card stays up");
+            assert_eq!(app.world().resource::<HeldPart>().id(), None, "{why}");
+            let state = app.world().resource::<GalleryState>();
+            assert!(state.open && state.focused, "the {why} card stays up");
 
-        app.world_mut().resource_mut::<GalleryState>().selected = 0;
-        tap(&mut app, KeyCode::Enter, None);
-        assert_eq!(
-            app.world().resource::<HeldPart>().id(),
-            Some("hull"),
-            "a craftable part still places"
-        );
+            app.world_mut().resource_mut::<GalleryState>().selected = 0;
+            tap(&mut app, KeyCode::Enter, None);
+            assert_eq!(
+                app.world().resource::<HeldPart>().id(),
+                Some("hull"),
+                "a ready part still places beside a {why} one"
+            );
+        }
     }
 
     /// Q is a character too: with the caret in the filter it types, and the

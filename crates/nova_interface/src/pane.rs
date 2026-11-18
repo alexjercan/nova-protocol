@@ -307,7 +307,8 @@ const INTERFACE_MAX_PX: f32 = 1520.0;
 
 /// The card's title row: the pane title, the pane tabs, the mode tags, the
 /// player balance, the play clock, the next-pane hint and Close. Everything
-/// right of the rule sits in a fixed slot, so the tabs never move.
+/// right of the mode tags sits in a fixed slot, so the tabs never move; a
+/// narrow card takes its room from the rule, then from the mode tags.
 #[derive(Component)]
 pub(crate) struct InterfacePaneHead;
 
@@ -758,13 +759,23 @@ fn spawn_interface_card(
                         }
                     })
                     .id();
+                // The one slot that gives way after the rule: it shrinks to
+                // zero, and a tag that does not fit wraps to a second line its
+                // one-tag height clips, so the last services drop first.
                 head.spawn((
                     InterfaceModeTags::default(),
                     Name::new(INTERFACE_MODE_TAGS),
                     Node {
+                        height: px(metrics::TAG_H),
+                        min_width: px(0),
+                        flex_shrink: 1.0,
+                        flex_wrap: FlexWrap::Wrap,
+                        justify_content: JustifyContent::FlexEnd,
+                        align_content: AlignContent::FlexStart,
                         align_items: AlignItems::Center,
                         column_gap: px(metrics::GAP_S),
-                        flex_shrink: 0.0,
+                        row_gap: px(metrics::GAP_S),
+                        overflow: Overflow::clip(),
                         ..default()
                     },
                 ));

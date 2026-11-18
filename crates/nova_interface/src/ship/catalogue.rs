@@ -13,7 +13,7 @@
 //! carry ([`plan_recipe_payment`] finds a missing part), is listed muted with
 //! one tag word and cannot be placed. Credits do not mute: a part the ship
 //! cannot pay for and a payable one both show the price, the short one in
-//! Danger. A placeable part
+//! Danger over a disabled Place. A placeable part
 //! that can replace the selected section offers Swap with its price as the
 //! focus card's second verb, or, when the swap is refused for a cause of its
 //! own, a second note line with the section and the tag word.
@@ -152,8 +152,8 @@ fn station_listing(
 /// swap. Reasons in `SectionAddRefusalType` order: not built, then payment.
 /// A part not built or short of a recipe item cannot be placed and has no
 /// tile line; its tag word is the disabled Place's tooltip. A credit refusal
-/// stays placeable with its price on its tile, and the placement ghost
-/// refuses the click.
+/// is not muted: its price is on its tile, marked short, and the gallery
+/// disables Place for it.
 fn offered_entry(
     items: &GameItems,
     icons: &InterfaceIcons,
@@ -630,18 +630,18 @@ mod tests {
         assert_eq!(payment.price_cr, 300);
     }
 
-    /// Credits do not mute: a part the ship cannot pay for stays placeable
-    /// and shows the price alone, marked short so it paints Danger; the
-    /// placement ghost refuses the click.
+    /// Credits do not mute: a part the ship cannot pay for shows the price
+    /// alone, marked short so it paints Danger and Place is disabled.
     #[test]
-    fn a_credit_short_part_stays_placeable() {
+    fn a_credit_short_part_shows_its_price_and_is_not_ready() {
         let items = test_items();
         let own = hold(&items, &[("SectionPanel", 2), ("TurretBarrel", 1)]);
         let stock = hold(&items, &[("TurretBody", 1)]);
         let entry = offered_entry(&items, &icons(), &pdc(), &builds_pdc(), &stock, 0, &own, 50);
 
-        assert!(entry.placeable);
+        assert!(entry.placeable, "a short part is not muted");
         assert!(entry.short, "the short price paints Danger");
+        assert!(!entry.ready(), "Place, Enter and Q refuse a short part");
         assert_eq!(entry.tile.as_deref(), Some("300 cr"));
         assert_eq!(entry.note, "300 cr");
         assert_eq!(entry.recipe.len(), 3);

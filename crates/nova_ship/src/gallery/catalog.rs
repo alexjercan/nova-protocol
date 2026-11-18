@@ -109,7 +109,7 @@ pub fn browsable(
             listing.is_none_or(|listing| {
                 listing
                     .entry(&section.base.id)
-                    .is_some_and(|entry| entry.placeable || !available_only)
+                    .is_some_and(|entry| entry.ready() || !available_only)
             })
         })
         .filter(|(_, section)| {
