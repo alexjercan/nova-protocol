@@ -43,13 +43,14 @@ pub(crate) fn fill_ui_font(mut commands: Commands, boot: Res<BootAssets>) {
 /// pins that this set covers exactly the files `UI_SFX_FILES` references, and
 /// that each file exists on disk.
 #[cfg(test)]
-const UI_SFX_COLLECTION_PATHS: [&str; 24] = [
+const UI_SFX_COLLECTION_PATHS: [&str; 25] = [
     "sounds/objective_new.wav",
     "sounds/objective_complete.wav",
     "sounds/menu_select.wav",
     "sounds/ui_toggle.wav",
     "sounds/comms_line.wav",
     "sounds/hud_notice.wav",
+    "sounds/payout.wav",
     "sounds/objective_fail.wav",
     "sounds/menu_back.wav",
     "sounds/menu_focus.wav",
@@ -238,6 +239,7 @@ pub struct GameAssets {
             "sounds/ui_toggle.wav",
             "sounds/comms_line.wav",
             "sounds/hud_notice.wav",
+            "sounds/payout.wav",
             "sounds/objective_fail.wav",
             "sounds/menu_back.wav",
             "sounds/menu_focus.wav",

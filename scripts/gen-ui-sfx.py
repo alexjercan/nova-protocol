@@ -214,6 +214,24 @@ def hud_notice(rng):
     return out
 
 
+def payout(rng):
+    """A job paid at the hand-in. Three soft steps up, and the last one is
+    held.
+
+    `objective_complete`'s shape in triangles, a fourth and a fifth where that
+    one climbs an octave: an objective is news, a payment is a receipt. No
+    square anywhere, so it sits under the click it replaces instead of over
+    it, and no repeat, which is what a coin jingle is made of.
+    """
+    out = silence(0.36)
+    out = place(out, blip(0.024, 1800.0, 1.6, 0.14, rng), 0.0)
+    out = place(out, tone(0.070, 659.0, 0.30, "triangle"), 0.0)
+    out = place(out, tone(0.070, 880.0, 0.28, "triangle"), 0.065)
+    out = place(out, tone(0.200, 1319.0, 0.26, "triangle"), 0.130)
+    out = place(out, tone(0.180, 165.0, 0.14, "triangle"), 0.130)
+    return out
+
+
 def warn_lock(rng):
     """Someone has locked you. Three fast pips on a detuned pair.
 
@@ -417,6 +435,7 @@ CUES = {
     "objective_fail": (objective_fail, "assets/sounds/objective_fail.wav"),
     "comms_line": (comms_line, "assets/sounds/comms_line.wav"),
     "hud_notice": (hud_notice, "assets/sounds/hud_notice.wav"),
+    "payout": (payout, "assets/sounds/payout.wav"),
     "warn_lock": (warn_lock, "assets/base/sounds/warn_lock.wav"),
     "warn_hull": (warn_hull, "assets/base/sounds/warn_hull.wav"),
     "editor_place": (editor_place, "assets/sounds/editor_place.wav"),

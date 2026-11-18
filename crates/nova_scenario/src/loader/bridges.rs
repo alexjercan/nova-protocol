@@ -143,7 +143,10 @@ mod tests {
 
         app.world_mut().trigger(JobAccepted { job: job.clone() });
         app.world_mut().trigger(JobDone { job: job.clone() });
-        app.world_mut().trigger(JobHandedIn { job: job.clone() });
+        app.world_mut().trigger(JobHandedIn {
+            job: job.clone(),
+            code: "JOB-1".to_string(),
+        });
         app.world_mut().flush();
 
         assert_eq!(
@@ -182,7 +185,10 @@ mod tests {
         let mut app = bridge_app();
 
         app.world_mut().trigger(JobAccepted { job: job.clone() });
-        app.world_mut().trigger(JobHandedIn { job: job.clone() });
+        app.world_mut().trigger(JobHandedIn {
+            job: job.clone(),
+            code: "JOB-1".to_string(),
+        });
         app.world_mut().trigger(JobDropped {
             job: job.clone(),
             cause: JobDropCauseType::Abandoned,

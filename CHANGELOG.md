@@ -64,6 +64,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The parts catalogue shares it too: category chips, one Available chip, key chips for the hints, no second Close, and the last tile row in full. A price you cannot pay is red and disables Place.
 - A ghost button such as Cancel, Max or Close has a brighter frame in both themes, so it no longer reads as a disabled one.
 - The Jobs board gains Range and Threat columns, and the job inspector lists each part of the reward that pays: Base, Goods or Cargo, Range with the km, Threat with the weapon count.
+- A job hand-in plays its own payout sound, counts the pane head balance up with `+1,460` beside it, and posts a silent `JOB-1 PAID 1,460 CR` HUD notice.
 - **(breaking)** UiTheme drops `metrics.border_width`, the slider `height` and the badge `bracketed`, `padding_x` and `border_width`. Lint refuses a disabled button state that looks live.
 
 ### Fixes

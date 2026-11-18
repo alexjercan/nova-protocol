@@ -306,9 +306,10 @@ mod tests;
 const INTERFACE_MAX_PX: f32 = 1520.0;
 
 /// The card's title row: the pane title, the pane tabs, the mode tags, the
-/// player balance, the play clock, the next-pane hint and Close. Everything
-/// right of the mode tags sits in a fixed slot, so the tabs never move; a
-/// narrow card takes its room from the rule, then from the mode tags.
+/// player balance, the gain it counts up to, the play clock, the next-pane
+/// hint and Close. Everything right of the mode tags sits in a fixed slot, so
+/// the tabs never move; a narrow card takes its room from the rule, then from
+/// the mode tags.
 #[derive(Component)]
 pub(crate) struct InterfacePaneHead;
 
@@ -349,6 +350,12 @@ const TITLE_SLOT_PX: f32 = 80.0;
 /// and eleven digits with their separators.
 const BALANCE_SLOT_PX: f32 = 120.0;
 
+/// Width of the gain slot in the title row, in logical px: `+999,999` in the
+/// UI font. A wider gain overhangs the slot's right side, toward the clock;
+/// it never moves the balance. Every px here comes off the mode tags of a
+/// 1024 px window.
+const GAIN_SLOT_PX: f32 = 52.0;
+
 /// Width of the play clock slot in the title row, in logical px: `hhh:mm:ss`.
 const CLOCK_SLOT_PX: f32 = 64.0;
 
@@ -360,6 +367,15 @@ fn fixed_slot(width: f32) -> Node {
         align_items: AlignItems::Center,
         justify_content: JustifyContent::FlexEnd,
         ..default()
+    }
+}
+
+/// A [`fixed_slot`] that holds its content at its left edge, against the
+/// slot before it.
+fn fixed_slot_leading(width: f32) -> Node {
+    Node {
+        justify_content: JustifyContent::FlexStart,
+        ..fixed_slot(width)
     }
 }
 
@@ -619,15 +635,156 @@ pub(crate) struct InterfacePaneBalance;
 /// The `Name` of the title row's player balance, for tests and captures.
 pub const INTERFACE_PANE_BALANCE: &str = "InterfacePaneBalance";
 
-/// Write the player ship's [`ShipCredits`] into the title row, and hide the
+/// The gain the title row's balance counts up to, `+1,460`, right of the
+/// balance. Empty while no count runs; its slot keeps its width either way.
+#[derive(Component)]
+pub(crate) struct InterfacePaneGain;
+
+/// The `Name` of the title row's gain figure, for tests and captures.
+pub const INTERFACE_PANE_GAIN: &str = "InterfacePaneGain";
+
+/// Real seconds the title row's balance takes to count up to a gain.
+const BALANCE_COUNT_SECS: f32 = 0.8;
+
+/// Real seconds the gain figure shows, from the start of its count.
+const BALANCE_GAIN_SECS: f32 = 2.5;
+
+/// The most real time one frame steps a count by, in seconds. The frame
+/// after a hand-in rebuilds the Jobs pane body; a frame as long as the count
+/// would otherwise show its end only.
+const BALANCE_COUNT_STEP_MAX_SECS: f32 = 0.1;
+
+/// One count of the title row's balance: the figure rises from `from_cr` to
+/// `to_cr`, and `gain_cr` shows beside it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct BalanceCount {
+    /// The figure the head showed when the count began.
+    from_cr: u64,
+    /// The true balance the count ends on.
+    to_cr: u64,
+    /// The gain shown beside the balance.
+    gain_cr: u64,
+    /// Real seconds since the count began, stepped by at most
+    /// [`BALANCE_COUNT_STEP_MAX_SECS`] a frame.
+    age_secs: f32,
+}
+
+impl BalanceCount {
+    /// The figure to show now: an ease-out from `from_cr` that reaches
+    /// `to_cr` at [`BALANCE_COUNT_SECS`] and never exceeds it.
+    fn shown_cr(&self) -> u64 {
+        let left = 1.0 - (self.age_secs / BALANCE_COUNT_SECS).clamp(0.0, 1.0);
+        if left <= 0.0 {
+            return self.to_cr;
+        }
+        let span = (self.to_cr - self.from_cr) as f64;
+        let risen = span * (1.0 - f64::from(left).powi(3));
+        (self.from_cr + risen as u64).min(self.to_cr)
+    }
+
+    /// Whether the count and the gain's dwell are both over.
+    fn is_over(&self) -> bool {
+        self.age_secs >= BALANCE_GAIN_SECS
+    }
+}
+
+/// What the title row's balance slot and gain slot show this frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct BalanceFigures {
+    /// The balance figure.
+    balance_cr: u64,
+    /// The gain beside it, while a count or its dwell runs.
+    gain_cr: Option<u64>,
+}
+
+/// The title row's balance count-up: a gain the player was just paid shows
+/// as the balance rising to the true figure over [`BALANCE_COUNT_SECS`], with
+/// `+<gain>` beside it for [`BALANCE_GAIN_SECS`] in all.
+///
+/// A caller pays the player ship first and calls [`raise`](Self::raise) in
+/// the same frame; [`show_pane_balance`] does the rest. The count runs on
+/// real time: the interface holds virtual time. The head always ends on the
+/// true balance:
+///
+/// - A balance change with no gain raised (a purchase, a fee) ends a running
+///   count at once and shows the true balance.
+/// - A gain raised during a count starts a new count from the figure shown.
+/// - The count ends with the title row: a closed interface runs none, and a
+///   gain raised while it is closed shows nothing when it opens.
+#[derive(Resource, Default, Debug, PartialEq)]
+pub struct BalanceCountUp {
+    /// The gain raised since [`show_pane_balance`] last ran.
+    raised_cr: Option<u64>,
+    /// The running count, kept through the gain's dwell.
+    count: Option<BalanceCount>,
+    /// The balance figure the title row shows, or `None` while it shows none.
+    shown_cr: Option<u64>,
+}
+
+impl BalanceCountUp {
+    /// Count the title row's balance up to the player's balance and show
+    /// `+gain_cr` beside it. Two gains raised in one frame show as their sum.
+    pub fn raise(&mut self, gain_cr: u32) {
+        let raised = self.raised_cr.unwrap_or(0);
+        self.raised_cr = Some(raised.saturating_add(gain_cr.into()));
+    }
+
+    /// The gain the title row shows beside the balance, while a count or its
+    /// dwell runs.
+    pub fn gain_cr(&self) -> Option<u64> {
+        self.count.map(|count| count.gain_cr)
+    }
+
+    /// Whether the balance figure is still short of the true balance.
+    pub fn is_counting(&self) -> bool {
+        self.count
+            .is_some_and(|count| count.shown_cr() < count.to_cr)
+    }
+
+    /// Advance one frame of `delta_secs` real seconds against the true
+    /// balance `true_cr`, and give what the title row shows.
+    fn step(&mut self, true_cr: u64, delta_secs: f32) -> BalanceFigures {
+        if let Some(gain_cr) = self.raised_cr.take() {
+            // A figure at or above the true balance has nothing to count
+            // up to: the gain was spent in the frame that paid it.
+            let from_cr = self.shown_cr.unwrap_or(true_cr);
+            self.count = (from_cr < true_cr).then_some(BalanceCount {
+                from_cr,
+                to_cr: true_cr,
+                gain_cr,
+                age_secs: 0.0,
+            });
+        } else if let Some(count) = &mut self.count {
+            count.age_secs += delta_secs.min(BALANCE_COUNT_STEP_MAX_SECS);
+            if count.to_cr != true_cr || count.is_over() {
+                self.count = None;
+            }
+        }
+        let balance_cr = self.count.map_or(true_cr, |count| count.shown_cr());
+        self.shown_cr = Some(balance_cr);
+        BalanceFigures {
+            balance_cr,
+            gain_cr: self.gain_cr(),
+        }
+    }
+}
+
+/// Write the player ship's [`ShipCredits`] into the title row, or the figure
+/// a [`BalanceCountUp`] count stands at with its gain beside it, and hide the
 /// balance figure while there is not exactly one player ship root. Runs with
 /// the pane shut too, as [`show_pane_clock`] does.
 pub(crate) fn show_pane_balance(
+    time: Res<Time<Real>>,
+    mut count_up: ResMut<BalanceCountUp>,
     q_player: Query<&ShipCredits, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
     mut q_balance: Query<(&mut Text, &ChildOf), With<InterfacePaneBalance>>,
+    mut q_gain: Query<&mut Text, (With<InterfacePaneGain>, Without<InterfacePaneBalance>)>,
     mut q_row: Query<&mut Node>,
 ) {
     let Ok((mut text, child_of)) = q_balance.single_mut() else {
+        // The title row is gone: its count ends with it, and a gain raised
+        // with the interface shut starts none.
+        count_up.set_if_neq(BalanceCountUp::default());
         return;
     };
     let mut row = q_row
@@ -642,11 +799,25 @@ pub(crate) fn show_pane_balance(
     if row.display != display {
         row.display = display;
     }
-    if let Some(credits) = credits {
-        let shown = cr_digits(credits.0.into());
+    let figures = credits.map(|credits| count_up.step(credits.0.into(), time.delta_secs()));
+    if figures.is_none() {
+        count_up.set_if_neq(BalanceCountUp::default());
+    }
+    if let Some(figures) = figures {
+        let shown = cr_digits(figures.balance_cr);
         if text.0 != shown {
             text.0 = shown;
         }
+    }
+    let gain = figures
+        .and_then(|figures| figures.gain_cr)
+        .map(|gain_cr| format!("+{}", cr_digits(gain_cr)))
+        .unwrap_or_default();
+    let mut gain_text = q_gain
+        .single_mut()
+        .expect("the title row with a balance has its gain slot");
+    if gain_text.0 != gain {
+        gain_text.0 = gain;
     }
 }
 
@@ -792,6 +963,16 @@ fn spawn_interface_card(
                             (InterfacePaneBalance, Name::new(INTERFACE_PANE_BALANCE)),
                         );
                     });
+                head.spawn(fixed_slot_leading(GAIN_SLOT_PX))
+                    .with_children(|slot| {
+                        slot.spawn((
+                            InterfacePaneGain,
+                            Name::new(INTERFACE_PANE_GAIN),
+                            text_toned("", TextRole::Value, UiColorType::Nominal),
+                            TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                            Pickable::IGNORE,
+                        ));
+                    });
                 head.spawn(fixed_slot(CLOCK_SLOT_PX)).with_children(|slot| {
                     slot.spawn((
                         InterfacePaneClock,
@@ -873,18 +1054,21 @@ fn on_interface_tab_click(
     }
 }
 
-/// Whether a pane action went through or was refused: which cue it plays.
+/// How a pane action ended: which cue it plays.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ActionOutcomeType {
     /// The action went through.
     Done,
+    /// The action went through and paid the player a job reward.
+    Paid,
     /// The action changed nothing.
     Refused,
 }
 
 /// Play the one cue an action outcome gets, if the sound bank has loaded:
-/// the interface click for Done, the deny buzz for Refused. A button whose
-/// outcome plays this does not click on press, so one action is one sound.
+/// the interface click for Done, the payout cue for Paid, the deny buzz for
+/// Refused. A button whose outcome plays this does not click on press, so one
+/// action is one sound.
 pub(crate) fn play_outcome_cue(
     commands: &mut Commands,
     bank: Option<&SoundBank<UiSfx>>,
@@ -895,6 +1079,7 @@ pub(crate) fn play_outcome_cue(
     };
     let (cue, category) = match outcome {
         ActionOutcomeType::Done => (UiSfx::MenuSelect, SoundCategoryType::UiClick),
+        ActionOutcomeType::Paid => (UiSfx::Payout, SoundCategoryType::UiConfirm),
         ActionOutcomeType::Refused => (UiSfx::EditorDeny, SoundCategoryType::UiError),
     };
     commands.trigger(PlaySound::ui(bank.get(cue), category));

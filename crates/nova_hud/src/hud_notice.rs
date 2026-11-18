@@ -7,7 +7,11 @@
 //! dock refusal ([`FlightVerbHints::dock_refusal`]) posts here when it starts
 //! or names another station; the DOCK chip only goes dark. A held job whose
 //! work is done ([`JobDone`]) posts `JOB-n done: hand in at STN-m`, naming
-//! no credits: payment stays at the hand-in. A dock with a held supply job's
+//! no credits: the hand-in pays. A paid hand-in ([`JobHandedIn`]) posts
+//! `JOB-n PAID 1,460 CR` without the cue ([`HudNotice::silent`]): the Jobs
+//! pane plays the payout sound, and the pane hides the HUD and holds its
+//! clock, so the line shows for its whole dwell once the pane shuts. A dock
+//! with a held supply job's
 //! caller that delivers nothing ([`SupplyRefused`]) posts what the hold
 //! lacks, `JOB-n: SHORT 3 MEDKIT`, once per dock; it is raised after the
 //! clamp closes, so it replaces that dock's `DOCKED <NAME>`. A MATCH refused
@@ -35,9 +39,10 @@
 //! LOW or DRY ([`AmmoReserveCrossed`]) posts `PDC ROUND LOW: 400` or
 //! `TORPEDO DRY`, once per crossing.
 //!
-//! One slot, no queue: a new text replaces the shown one and plays the cue; the
-//! same text again while it shows restarts the dwell and stays quiet. The dwell
-//! runs on virtual time, so a paused game holds the notice.
+//! One slot, no queue: a new text replaces the shown one and plays the cue,
+//! unless it was posted silent; the same text again while it shows restarts
+//! the dwell and stays quiet. The dwell runs on virtual time, so a paused game
+//! holds the notice.
 //!
 //! The box's left edge sits on the screen midline, not centred on it: the comms
 //! panel spans the bottom-left from 16 px to 48 % of the width (`comms_panel`),
@@ -93,7 +98,31 @@ pub(crate) const NOTICE_MAX_HEIGHT_PX: f32 = 26.0;
 
 /// A line to post to the HUD notice slot.
 #[derive(Message, Clone, Debug, PartialEq, Eq)]
-pub struct HudNotice(pub String);
+pub struct HudNotice {
+    /// The line.
+    pub text: String,
+    /// Whether a new text plays the notice cue. False for a line whose event
+    /// plays a sound of its own.
+    pub cue: bool,
+}
+
+impl HudNotice {
+    /// A line that plays the notice cue when it shows.
+    pub fn new(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            cue: true,
+        }
+    }
+
+    /// A line that shows without the notice cue: its event has its own sound.
+    pub fn silent(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            cue: false,
+        }
+    }
+}
 
 /// The notice on screen and how long it has been there, or `None` when the
 /// slot is empty.
@@ -193,8 +222,8 @@ impl HudNoticeKeepOut<'_, '_> {
 
 /// Registers [`HudNotice`], posts a station's dock refusal, a MATCH refusal,
 /// a refused `DOCK` press, the player's clamp closing and letting go, a
-/// held job's done, a refused supply dock and a player repair job's end to
-/// it, and runs `post_dock_refusal_notice`, `post_match_refusal_notice`,
+/// held job's done, a paid hand-in, a refused supply dock and a player repair
+/// job's end to it, and runs `post_dock_refusal_notice`, `post_match_refusal_notice`,
 /// `post_dock_press_notice`, `post_repair_job_notice`, `post_rescue_notice`,
 /// `post_craft_job_notice`, `show_hud_notice` and
 /// `paint_hud_notice` chained
@@ -217,6 +246,7 @@ impl Plugin for HudNoticePlugin {
         app.register_type::<HudNoticeMarker>();
         app.register_type::<HudNoticeText>();
         app.add_observer(post_job_done_notice);
+        app.add_observer(post_job_paid_notice);
         app.add_observer(post_supply_refused_notice);
         app.add_observer(post_dock_clamped_notice);
         app.add_observer(post_dock_released_notice);
@@ -250,7 +280,7 @@ fn post_dock_refusal_notice(
         return;
     }
     if let Some(line) = &hints.dock_refusal {
-        notices.write(HudNotice(line.clone()));
+        notices.write(HudNotice::new(line.clone()));
     }
     *last = hints.dock_refusal.clone();
 }
@@ -261,7 +291,7 @@ fn post_match_refusal_notice(
     mut notices: MessageWriter<HudNotice>,
 ) {
     for MatchRefusal(refusal) in refusals.read() {
-        notices.write(HudNotice(match_refusal_line(*refusal).to_string()));
+        notices.write(HudNotice::new(match_refusal_line(*refusal)));
     }
 }
 
@@ -282,7 +312,7 @@ fn post_dock_press_notice(
     mut notices: MessageWriter<HudNotice>,
 ) {
     for DockPressRefusal(refusal) in refusals.read() {
-        notices.write(HudNotice(dock_press_refusal_line(*refusal).to_string()));
+        notices.write(HudNotice::new(dock_press_refusal_line(*refusal)));
     }
 }
 
@@ -309,7 +339,7 @@ fn post_repair_job_notice(
         }
         if let Some(line) = repair_job_end_line(&ended.code, &ended.end) {
             debug!("hud_notice: {line}");
-            notices.write(HudNotice(line));
+            notices.write(HudNotice::new(line));
         }
     }
 }
@@ -327,7 +357,7 @@ fn post_rescue_notice(
         }
         if let Some(line) = rescue_end_line(&ended.end) {
             debug!("hud_notice: {line}");
-            notices.write(HudNotice(line));
+            notices.write(HudNotice::new(line));
         }
     }
 }
@@ -350,7 +380,7 @@ fn post_craft_job_notice(
         };
         if let Some(line) = craft_job_end_line(items, recipes.design(&ended.recipe), &ended.end) {
             debug!("hud_notice: {line}");
-            notices.write(HudNotice(line));
+            notices.write(HudNotice::new(line));
         }
     }
 }
@@ -488,7 +518,7 @@ fn post_dock_clamped_notice(
         Err(_) => "DOCKED".to_string(),
     };
     debug!("hud_notice: {line}");
-    notices.write(HudNotice(line));
+    notices.write(HudNotice::new(line));
 }
 
 /// Post `UNDOCKED` when the player's dock lets go on a request, from either
@@ -503,7 +533,7 @@ fn post_dock_released_notice(
         return;
     }
     debug!("hud_notice: UNDOCKED");
-    notices.write(HudNotice("UNDOCKED".to_string()));
+    notices.write(HudNotice::new("UNDOCKED"));
 }
 
 /// Post `JOB-n done: hand in at STN-m` when a held job's work is done. The
@@ -526,7 +556,21 @@ fn post_job_done_notice(
     let station = chart
         .station_code(&done.job.target)
         .expect("a held job's poster is charted: the accept docked there");
-    notices.write(HudNotice(format!("{code} done: hand in at {station}")));
+    notices.write(HudNotice::new(format!("{code} done: hand in at {station}")));
+}
+
+/// Post `JOB-n PAID <reward> CR` when a held job is handed in, without the
+/// notice cue: the hand-in plays the payout sound.
+fn post_job_paid_notice(handed_in: On<JobHandedIn>, mut notices: MessageWriter<HudNotice>) {
+    let line = job_paid_line(&handed_in.code, handed_in.job.reward.total_cr());
+    debug!("hud_notice: {line} ('{}')", handed_in.job.id);
+    notices.write(HudNotice::silent(line));
+}
+
+/// The notice line of the held job `code` for a hand-in that paid
+/// `reward_cr`.
+fn job_paid_line(code: &str, reward_cr: u32) -> String {
+    format!("{code} PAID {}", cr_text(reward_cr).to_uppercase())
 }
 
 /// Post what the hold lacks when a dock with a held supply job's caller
@@ -547,7 +591,7 @@ fn post_supply_refused_notice(
         .expect("a refused supply job is held: the world refuses a held job's dock");
     let line = supply_refusal_line(&code, &refused.refusal, &items);
     debug!("hud_notice: {line} ('{}')", refused.id);
-    notices.write(HudNotice(line));
+    notices.write(HudNotice::new(line));
 }
 
 /// The notice line of the held job `code` for a refused supply dock.
@@ -576,7 +620,7 @@ fn post_ammo_reserve_notice(
     }
     let line = ammo_reserve_line(&crossed, &items);
     debug!("hud_notice: {line}");
-    notices.write(HudNotice(line));
+    notices.write(HudNotice::new(line));
 }
 
 /// The notice line for a reserve crossing.
@@ -593,7 +637,8 @@ fn ammo_reserve_line(crossed: &AmmoReserveCrossed, items: &GameItems) -> String 
 
 /// Age the shown notice and take the latest posting into the slot. A new text
 /// plays the cue once on the interface route, so the master, interface and
-/// harness mutes apply; the same text again only restarts the dwell.
+/// harness mutes apply, unless the posting is silent; the same text again
+/// only restarts the dwell.
 ///
 /// The slot empties while no notice box exists: the box is player-scoped, and
 /// a notice left over from a ship that despawned must not show on the next
@@ -624,7 +669,7 @@ fn show_hud_notice(
             shown.0 = None;
         }
     }
-    let Some(HudNotice(text)) = notices.read().last() else {
+    let Some(HudNotice { text, cue }) = notices.read().last() else {
         return;
     };
     let repeat = shown.0.as_ref().is_some_and(|notice| notice.text == *text);
@@ -632,7 +677,7 @@ fn show_hud_notice(
         text: text.clone(),
         age_secs: 0.0,
     });
-    if !repeat {
+    if *cue && !repeat {
         if let Some(bank) = bank {
             commands.trigger(PlaySound::ui(
                 bank.get(UiSfx::HudNotice),
@@ -844,6 +889,56 @@ mod tests {
             1,
             "one done, one cue"
         );
+    }
+
+    /// A paid hand-in posts `JOB-n PAID <reward> CR`, the terms summed, and
+    /// plays no cue: the Jobs pane plays the payout sound. The next notice
+    /// plays its cue as before.
+    #[test]
+    fn a_hand_in_posts_what_it_paid_and_plays_no_notice_cue() {
+        use nova_events::prelude::{GeneratedBodyId, SectorCoord};
+
+        let mut app = notice_app();
+        let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+        let job = Job {
+            id: JobId::slot(station.clone(), 0, 0),
+            kind: JobType::Escort {
+                hauler: GeneratedBodyId::new(
+                    SectorCoord::ORIGIN,
+                    "cluster_0_0_0_station_job_0_0_hauler",
+                    0,
+                ),
+                cargo_cr: 1_600,
+                raiders: 1,
+            },
+            target: station,
+            leg_m: 8_000,
+            threat: 1,
+            reward: JobReward {
+                base_cr: 520,
+                goods_cr: 400,
+                range_cr: 240,
+                threat_cr: 300,
+            },
+        };
+
+        app.world_mut().trigger(JobHandedIn {
+            job,
+            code: "JOB-2".to_string(),
+        });
+        app.update();
+        assert_eq!(rendered(&mut app), ("JOB-2 PAID 1,460 CR".to_string(), 1.0));
+        let cues = app.world().resource::<NoticeCues>();
+        assert_eq!(
+            (cues.interface, cues.other),
+            (0, 0),
+            "the paid notice plays no cue"
+        );
+
+        refuse(&mut app, Some("RELAY DOCK OCCUPIED"));
+        app.update();
+        assert_eq!(rendered(&mut app).0, "RELAY DOCK OCCUPIED");
+        assert_eq!(app.world().resource::<NoticeCues>().interface, 1);
     }
 
     /// A refused supply dock posts `JOB-n: SHORT <missing> <ITEM>` with one

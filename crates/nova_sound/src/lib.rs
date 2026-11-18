@@ -177,6 +177,9 @@ pub enum UiSfx {
     /// The pause overlay or TAB interface opening or closing - a soft
     /// two-state UI blip.
     UiToggle,
+    /// A job was handed in and paid - three soft steps up. Played by
+    /// `nova_interface`'s Jobs pane in place of the action click.
+    Payout,
     // NOVA OS terminal cues: the offline-rendered `nova_*.wav` family
     // (`scripts/gen-nova-os-sfx.py`), mirroring the PoC's WebAudio recipes.
     // Gated on `NovaOsMonitorSettings::sound_enabled` at each fire site.
@@ -206,7 +209,7 @@ pub enum UiSfx {
 /// `nova_assets::register_sounds` via `SoundBank::load`, whose
 /// `sounds/<name>.wav` convention maps these to the root `assets/sounds/` -
 /// engine chrome, outside every mod.
-pub const UI_SFX_FILES: [(UiSfx, &str); 24] = [
+pub const UI_SFX_FILES: [(UiSfx, &str); 25] = [
     (UiSfx::ObjectiveNew, "objective_new"),
     (UiSfx::ObjectiveComplete, "objective_complete"),
     (UiSfx::ObjectiveFail, "objective_fail"),
@@ -217,6 +220,7 @@ pub const UI_SFX_FILES: [(UiSfx, &str); 24] = [
     (UiSfx::UiTick, "ui_tick"),
     (UiSfx::CommsLine, "comms_line"),
     (UiSfx::HudNotice, "hud_notice"),
+    (UiSfx::Payout, "payout"),
     (UiSfx::EditorPlace, "editor_place"),
     (UiSfx::EditorRemove, "editor_remove"),
     (UiSfx::EditorRotate, "editor_rotate"),
@@ -336,6 +340,7 @@ mod tests {
             CommsLine,
             HudNotice,
             UiToggle,
+            Payout,
             NovaOsKey,
             NovaOsBack,
             NovaOsEnter,

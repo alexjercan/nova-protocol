@@ -16,7 +16,9 @@
 //! gone, and selecting the held row reads where it hands in; Show on Map opens
 //! the Map's chart view on the job's mark, `JOB-1` in the cell of the body
 //! it is about. A procurement hands in at once: dock again and Hand in, the
-//! goods leave the hold and the reward lands on the balance. A located job
+//! goods leave the hold, the payout sound plays, the balance in the pane head
+//! counts up to the reward with `+<reward>` beside it, and after TAB the HUD
+//! notice reads `JOB-1 PAID <reward> CR`. A located job
 //! (recover, escort, distress, neutralize) greys Hand in until the world
 //! marks it done: fly to the mark, do the work and come back. The
 //! diagnostics panel (`F3`) lists the board with each job's task and state,
@@ -38,18 +40,28 @@
 //! the inspector and, after Show on Map, in the chart view. With the chart
 //! open it drops the second job by hand, where the world drops one whose
 //! body is lost: the chart returns to its overview, and so does the Jobs
-//! inspector. It docks again and hands the procurement in. `NOVA_CAPTURE=1`
-//! shoots
+//! inspector. It docks again and hands the procurement in: the pane head
+//! shows the reward as `+<reward>` and counts the balance up to the true
+//! figure, then the gain goes; with the interface shut the HUD notice reads
+//! what the job paid. `NOVA_CAPTURE=1` shoots
 //! `sandbox-jobs-starter.png`, `sandbox-jobs-board.png`,
 //! `sandbox-jobs-terms-<row>.png` for each row the board lists,
 //! `sandbox-jobs-held.png`, `sandbox-jobs-map.png`,
 //! `sandbox-jobs-map-dropped.png`, `sandbox-jobs-dropped.png`,
-//! `sandbox-jobs-hand-in.png` and `sandbox-jobs-done.png`. Unset, no walk and no deadline run.
+//! `sandbox-jobs-hand-in.png`, `sandbox-jobs-count.png` during the count,
+//! `sandbox-jobs-done.png` after it and `sandbox-jobs-paid.png` with the
+//! notice. Unset, no walk and no deadline run.
 
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
 use clap::Parser;
-use nova_protocol::{nova_debug::diagnostics, nova_interface::pane::InterfacePaneType, prelude::*};
+use nova_protocol::{
+    nova_debug::diagnostics,
+    nova_interface::pane::{
+        BalanceCountUp, InterfacePaneType, INTERFACE_PANE_BALANCE, INTERFACE_PANE_GAIN,
+    },
+    prelude::*,
+};
 use nova_world::prelude::{desired_sectors, SectorRoot, WorldConfig};
 
 #[derive(Parser)]
@@ -639,7 +651,9 @@ mod smoke {
     const MAP_DROPPED_SHOT: &str = "sandbox-jobs-map-dropped.png";
     const DROPPED_SHOT: &str = "sandbox-jobs-dropped.png";
     const HAND_IN_SHOT: &str = "sandbox-jobs-hand-in.png";
+    const COUNT_SHOT: &str = "sandbox-jobs-count.png";
     const DONE_SHOT: &str = "sandbox-jobs-done.png";
+    const PAID_SHOT: &str = "sandbox-jobs-paid.png";
 
     /// Hold the virtual clock's clamp every frame: a scenario load hands
     /// `Time<Virtual>` back at its default.
@@ -964,6 +978,76 @@ mod smoke {
         })
     }
 
+    /// The text of the UI node named `name`.
+    fn text_named(world: &World, name: &str) -> Option<String> {
+        let mut texts = world.try_query::<(&Name, &Text)>()?;
+        texts
+            .iter(world)
+            .find(|(found, _)| found.as_str() == name)
+            .map(|(_, text)| text.0.clone())
+    }
+
+    /// The player's balance and the reward of the one completed job.
+    fn balance_and_reward(world: &World) -> Option<(u64, u64)> {
+        let player = one_player(world)?;
+        let balance = world.get::<ShipCredits>(player)?.0;
+        let [job] = world.resource::<Jobs>().completed() else {
+            return None;
+        };
+        Some((balance.into(), job.reward.total_cr().into()))
+    }
+
+    /// The pane head counts up to the hand-in: the gain reads `+<reward>`
+    /// and the balance figure stands at or above the balance before the
+    /// hand-in and short of the true one.
+    fn the_head_counts_up() -> Arc<Predicate> {
+        when(|world| {
+            let Some((balance, reward)) = balance_and_reward(world) else {
+                return false;
+            };
+            let shown = text_named(world, INTERFACE_PANE_BALANCE)
+                .and_then(|text| text.replace(',', "").parse::<u64>().ok());
+            world
+                .get_resource::<BalanceCountUp>()
+                .is_some_and(|count| count.is_counting() && count.gain_cr() == Some(reward))
+                && text_named(world, INTERFACE_PANE_GAIN) == Some(format!("+{}", cr_digits(reward)))
+                && shown.is_some_and(|shown| shown >= balance - reward && shown < balance)
+        })
+    }
+
+    /// The count is over: the pane head reads the true balance and no gain.
+    fn the_head_reads_the_balance() -> Arc<Predicate> {
+        when(|world| {
+            let Some((balance, _)) = balance_and_reward(world) else {
+                return false;
+            };
+            world
+                .get_resource::<BalanceCountUp>()
+                .is_some_and(|count| count.gain_cr().is_none())
+                && text_named(world, INTERFACE_PANE_BALANCE) == Some(cr_digits(balance))
+                && text_named(world, INTERFACE_PANE_GAIN).as_deref() == Some("")
+        })
+    }
+
+    /// The HUD notice line of the hand-in: the walk's procurement was held
+    /// first, so it was `JOB-1`.
+    fn paid_line(world: &World) -> Option<String> {
+        let (_, reward) = balance_and_reward(world)?;
+        Some(format!("JOB-1 PAID {}", cr_text(reward).to_uppercase()))
+    }
+
+    /// The HUD notice slot reads what the hand-in paid.
+    fn the_paid_notice_shows() -> Arc<Predicate> {
+        when(|world| {
+            let Some(line) = paid_line(world) else {
+                return false;
+            };
+            world
+                .try_query_filtered::<&Text, With<HudNoticeText>>()
+                .is_some_and(|mut texts| texts.iter(world).any(|text| text.0 == line))
+        })
+    }
+
     /// Press and release a key action, one frame each.
     fn tap(
         script: AutopilotPlugin<GameStates>,
@@ -986,7 +1070,9 @@ mod smoke {
     /// The smoke walk: read the starter board, move to the chosen station,
     /// accept the first procurement and a second job, undock, read the
     /// second held row and Show on Map, drop it with the chart open, dock
-    /// again and hand the procurement in, shooting each surface.
+    /// again and hand the procurement in, watch the pane head count up to
+    /// the reward, shut the interface and read the paid notice, shooting
+    /// each surface.
     pub(super) fn script() -> AutopilotPlugin<GameStates> {
         let script = AutopilotPlugin::<GameStates>::new()
             .step("job sandbox: docked at the starting station on the Jobs tab")
@@ -1232,7 +1318,7 @@ mod smoke {
             .until(player_docked(true))
             .deadline(SETUP_SECS)
             .add();
-        tap(
+        let script = tap(
             script,
             "the interface key",
             "interface_toggle",
@@ -1255,15 +1341,57 @@ mod smoke {
         .until(shot_written(HAND_IN_SHOT))
         .deadline(SHOT_SECS)
         .add()
-        .step("job sandbox: hand the job in")
+        .step("job sandbox: hand the job in and the pane head counts up to the reward")
         .on_enter(|world: &mut World| activate_named(world, &format!("{JOB_HAND_IN_PREFIX}0")))
-        .until(and(completed_count(1), frames(SETTLE_FRAMES)))
+        .until(and(completed_count(1), the_head_counts_up()))
+        .diagnose(|world| {
+            format!(
+                "balance and reward {:?}, head '{:?}' gain '{:?}', {:?}",
+                balance_and_reward(world),
+                text_named(world, INTERFACE_PANE_BALANCE),
+                text_named(world, INTERFACE_PANE_GAIN),
+                world.get_resource::<BalanceCountUp>()
+            )
+        })
+        .deadline(BEAT_SECS)
+        .add()
+        // No settle before this shot: the count runs on real time and is
+        // over in under a second.
+        .step("job sandbox: shoot the pane head during the count")
+        .on_enter(|world: &mut World| shoot(world, COUNT_SHOT))
+        .until(shot_written(COUNT_SHOT))
+        .deadline(SHOT_SECS)
+        .add()
+        .step("job sandbox: the count lands on the true balance and the gain goes")
+        .until(and(the_head_reads_the_balance(), frames(SETTLE_FRAMES)))
+        .diagnose(|world| {
+            format!(
+                "balance and reward {:?}, head '{:?}' gain '{:?}', {:?}",
+                balance_and_reward(world),
+                text_named(world, INTERFACE_PANE_BALANCE),
+                text_named(world, INTERFACE_PANE_GAIN),
+                world.get_resource::<BalanceCountUp>()
+            )
+        })
         .deadline(BEAT_SECS)
         .add()
         .step("job sandbox: shoot the Jobs tab after the hand-in")
         .on_enter(|world: &mut World| shoot(world, DONE_SHOT))
         .until(shot_written(DONE_SHOT))
         .deadline(SHOT_SECS)
-        .add()
+        .add();
+        // The notice was posted under the pane, where the HUD is hidden and
+        // its clock held: its dwell starts when the interface shuts.
+        tap(script, "the interface key", "interface_toggle", unpaused())
+            .step("job sandbox: the HUD notice reads what the job paid")
+            .until(the_paid_notice_shows())
+            .diagnose(|world| format!("expected {:?}", paid_line(world)))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("job sandbox: shoot the paid notice")
+            .on_enter(|world: &mut World| shoot(world, PAID_SHOT))
+            .until(shot_written(PAID_SHOT))
+            .deadline(SHOT_SECS)
+            .add()
     }
 }

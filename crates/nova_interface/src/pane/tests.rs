@@ -108,6 +108,7 @@ fn card_rig() -> PanePointerRig {
     let app = &mut rig.app;
     app.insert_resource(InterfaceIcons::blank());
     app.init_resource::<InterfacePaneType>();
+    app.init_resource::<BalanceCountUp>();
     app.init_resource::<crate::inventory::InventoryRuntime>();
     app.add_observer(button_on_setting::<InterfacePaneType>);
     app.register_input_actions(crate::bindings::interface_bindings());
@@ -1125,10 +1126,10 @@ fn the_tabs_hold_their_place_as_the_balance_grows_and_the_pane_switches() {
     );
 }
 
-/// Docked at a station that offers every service, with the widest balance,
-/// the head fits a 1024 px and a 1280 px window: Close and every tab lie
-/// whole inside it, the mode tags give way before the balance, and the
-/// station's name still shows.
+/// Docked at a station that offers every service, with the widest balance
+/// and a gain beside it, the head fits a 1024 px and a 1280 px window: Close
+/// and every tab lie whole inside it, the mode tags give way before the
+/// balance, the gain fits its slot and the station's name still shows.
 #[test]
 fn close_and_the_tabs_fit_the_head_from_1024_px_while_docked() {
     use nova_gameplay::prelude::{StationServiceType, StationServices};
@@ -1151,12 +1152,17 @@ fn close_and_the_tabs_fit_the_head_from_1024_px_while_docked() {
         .query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
         .single(world)
         .expect("one player ship");
-    world.entity_mut(player).insert(ShipCredits(999_999_999));
+    world.entity_mut(player).insert(ShipCredits(999_900_000));
+    settle(&mut rig.app);
+    // The widest balance, and the widest gain that fits the slot in this
+    // rig's fallback font, whose digits are a fifth wider than the UI font's.
+    pay(rig.app.world_mut(), 99_999);
 
     for width in [1024, 1280] {
         resize_window(&mut rig.app, UVec2::new(width, 768));
         settle(&mut rig.app);
         let world = rig.app.world_mut();
+        assert_eq!(gain_of(world), "+99,999", "the gain shows at {width} px");
         let head = card_ids(world).head;
         let head = rect_of(world, head);
         for name in [
@@ -1180,6 +1186,17 @@ fn close_and_the_tabs_fit_the_head_from_1024_px_while_docked() {
             tags.max.x <= balance.min.x + 0.5,
             "the mode tags {tags:?} stop left of the balance {balance:?} at {width} px"
         );
+        let gain = rect_named(world, INTERFACE_PANE_GAIN);
+        let close = rect_named(world, "InterfaceClose");
+        assert!(
+            gain.width() > 0.0 && balance.max.x <= gain.min.x + 0.5 && gain.max.x <= close.min.x,
+            "the gain {gain:?} stands between the balance {balance:?} and Close {close:?} at \
+             {width} px"
+        );
+        assert!(
+            gain.width() <= GAIN_SLOT_PX + 0.5,
+            "the gain {gain:?} fits its {GAIN_SLOT_PX} px slot at {width} px"
+        );
         let name = world
             .query::<(Entity, &Text)>()
             .iter(world)
@@ -1192,4 +1209,306 @@ fn close_and_the_tabs_fit_the_head_from_1024_px_while_docked() {
             "the station name {name:?} shows whole in the tags {tags:?} at {width} px"
         );
     }
+}
+
+/// Pay the one player ship `gain_cr` and raise the gain on the title row, as
+/// a job hand-in does.
+fn pay(world: &mut World, gain_cr: u32) {
+    let mut credits = world
+        .query_filtered::<&mut ShipCredits, With<PlayerSpaceshipMarker>>()
+        .single_mut(world)
+        .expect("one player ship");
+    credits.0 += gain_cr;
+    world.resource_mut::<BalanceCountUp>().raise(gain_cr);
+}
+
+/// The title row's balance text.
+fn balance_of(world: &mut World) -> String {
+    world
+        .query_filtered::<&Text, With<InterfacePaneBalance>>()
+        .single(world)
+        .map(|text| text.0.clone())
+        .expect("the title row has one balance")
+}
+
+/// The title row's gain text.
+fn gain_of(world: &mut World) -> String {
+    world
+        .query_filtered::<&Text, With<InterfacePaneGain>>()
+        .single(world)
+        .map(|text| text.0.clone())
+        .expect("the title row has one gain slot")
+}
+
+/// One frame of the count, in seconds: 60 a second.
+const COUNT_FRAME_SECS: f32 = 1.0 / 60.0;
+
+/// A raised gain counts the balance from the figure shown to the true
+/// balance in [`BALANCE_COUNT_SECS`], never down and never past it, with the
+/// gain beside it until [`BALANCE_GAIN_SECS`]; then the gain goes and the
+/// true balance stays.
+#[test]
+fn a_count_up_ends_on_the_true_balance_and_never_passes_it() {
+    let mut count_up = BalanceCountUp::default();
+    let quiet = BalanceFigures {
+        balance_cr: 2_000,
+        gain_cr: None,
+    };
+    assert_eq!(count_up.step(2_000, COUNT_FRAME_SECS), quiet);
+
+    count_up.raise(1_460);
+    let start = count_up.step(3_460, COUNT_FRAME_SECS);
+    assert_eq!(
+        start,
+        BalanceFigures {
+            balance_cr: 2_000,
+            gain_cr: Some(1_460),
+        },
+        "the count starts on the figure shown"
+    );
+    assert!(count_up.is_counting());
+
+    let mut last = start.balance_cr;
+    let mut age = 0.0;
+    let mut landed_at = None;
+    let mut gain_gone_at = None;
+    while gain_gone_at.is_none() {
+        age += COUNT_FRAME_SECS;
+        let figures = count_up.step(3_460, COUNT_FRAME_SECS);
+        assert!(
+            (last..=3_460).contains(&figures.balance_cr),
+            "the figure {} at {age:.2} s rises from {last} and stays at or under 3,460",
+            figures.balance_cr
+        );
+        last = figures.balance_cr;
+        if figures.balance_cr == 3_460 && landed_at.is_none() {
+            landed_at = Some(age);
+            assert!(!count_up.is_counting());
+        }
+        if figures.gain_cr.is_none() {
+            gain_gone_at = Some(age);
+        }
+        assert!(age < 10.0, "the count ends");
+    }
+    let landed_at = landed_at.expect("the count lands on the true balance");
+    assert!(
+        (landed_at - BALANCE_COUNT_SECS).abs() < 2.0 * COUNT_FRAME_SECS,
+        "the count lands at {landed_at:.2} s"
+    );
+    let gain_gone_at = gain_gone_at.expect("the gain goes");
+    assert!(
+        (gain_gone_at - BALANCE_GAIN_SECS).abs() < 2.0 * COUNT_FRAME_SECS,
+        "the gain goes at {gain_gone_at:.2} s"
+    );
+    assert_eq!(
+        count_up.step(3_460, COUNT_FRAME_SECS),
+        BalanceFigures {
+            balance_cr: 3_460,
+            gain_cr: None,
+        }
+    );
+}
+
+/// A frame longer than the whole count steps it by
+/// [`BALANCE_COUNT_STEP_MAX_SECS`] only, so the count still shows.
+#[test]
+fn a_long_frame_does_not_skip_the_count() {
+    let mut count_up = BalanceCountUp::default();
+    count_up.step(2_000, COUNT_FRAME_SECS);
+    count_up.raise(1_460);
+    count_up.step(3_460, 5.0);
+    let figures = count_up.step(3_460, 5.0);
+    assert!(
+        figures.balance_cr > 2_000 && figures.balance_cr < 3_460,
+        "one long frame leaves the figure {} between the two balances",
+        figures.balance_cr
+    );
+    assert_eq!(figures.gain_cr, Some(1_460));
+}
+
+/// A balance change with no gain raised, such as a purchase or a fee, ends a
+/// running count on that frame: the head shows the true balance and no gain.
+#[test]
+fn a_credit_change_that_is_no_job_reward_ends_a_running_count() {
+    let mut count_up = BalanceCountUp::default();
+    count_up.step(2_000, COUNT_FRAME_SECS);
+    count_up.raise(1_460);
+    count_up.step(3_460, COUNT_FRAME_SECS);
+    let counting = count_up.step(3_460, COUNT_FRAME_SECS);
+    assert!(counting.balance_cr < 3_460 && counting.gain_cr == Some(1_460));
+
+    // A 100 cr fee.
+    assert_eq!(
+        count_up.step(3_360, COUNT_FRAME_SECS),
+        BalanceFigures {
+            balance_cr: 3_360,
+            gain_cr: None,
+        }
+    );
+    assert!(!count_up.is_counting());
+
+    // Through the gain's dwell too: the count has landed, the gain still shows.
+    count_up.raise(40);
+    count_up.step(3_400, COUNT_FRAME_SECS);
+    for _ in 0..60 {
+        count_up.step(3_400, COUNT_FRAME_SECS);
+    }
+    assert_eq!(count_up.gain_cr(), Some(40));
+    assert_eq!(
+        count_up.step(3_300, COUNT_FRAME_SECS),
+        BalanceFigures {
+            balance_cr: 3_300,
+            gain_cr: None,
+        }
+    );
+
+    // A gain spent in the frame that paid it has nothing to count up to.
+    count_up.raise(50);
+    assert_eq!(
+        count_up.step(3_250, COUNT_FRAME_SECS),
+        BalanceFigures {
+            balance_cr: 3_250,
+            gain_cr: None,
+        }
+    );
+}
+
+/// A second gain raised during a count starts a new count from the figure
+/// shown, to the new true balance, and shows the new gain.
+#[test]
+fn a_second_gain_during_a_count_restarts_from_the_figure_shown() {
+    let mut count_up = BalanceCountUp::default();
+    count_up.step(2_000, COUNT_FRAME_SECS);
+    count_up.raise(1_000);
+    count_up.step(3_000, COUNT_FRAME_SECS);
+    let mut shown = 2_000;
+    for _ in 0..10 {
+        shown = count_up.step(3_000, COUNT_FRAME_SECS).balance_cr;
+    }
+    assert!(shown > 2_000 && shown < 3_000);
+
+    count_up.raise(500);
+    assert_eq!(
+        count_up.step(3_500, COUNT_FRAME_SECS),
+        BalanceFigures {
+            balance_cr: shown,
+            gain_cr: Some(500),
+        }
+    );
+    let mut last = shown;
+    for _ in 0..60 {
+        let figures = count_up.step(3_500, COUNT_FRAME_SECS);
+        assert!((last..=3_500).contains(&figures.balance_cr));
+        last = figures.balance_cr;
+    }
+    assert_eq!(last, 3_500);
+}
+
+/// On the live card a raised gain writes `+N` into its slot and counts the
+/// balance up, and nothing in the head moves when the gain shows or goes.
+/// The count ends with the title row: a card opened again shows the true
+/// balance and no gain, and a gain raised with the card shut shows nothing.
+#[test]
+fn a_gain_shows_beside_the_balance_moves_nothing_and_ends_with_the_title_row() {
+    use bevy::time::TimeUpdateStrategy;
+
+    let mut rig = card_rig();
+    rig.app.insert_resource(TimeUpdateStrategy::ManualDuration(
+        core::time::Duration::from_secs_f32(COUNT_FRAME_SECS),
+    ));
+    rig.app.add_systems(Update, show_pane_balance);
+    rig.app
+        .world_mut()
+        .spawn((PlayerSpaceshipMarker, ShipCredits(2_000)));
+    settle(&mut rig.app);
+    assert_eq!(balance_of(rig.app.world_mut()), "2,000");
+    assert_eq!(gain_of(rig.app.world_mut()), "");
+
+    let head_layout = |world: &mut World| {
+        let tabs: Vec<Vec2> = InterfacePaneType::ALL
+            .iter()
+            .filter(|(pane, _)| *pane != InterfacePaneType::Station)
+            .map(|(pane, _)| tab_centre(world, *pane))
+            .collect();
+        (
+            tabs,
+            rect_named(world, INTERFACE_MODE_TAGS),
+            rect_named(world, INTERFACE_PANE_CLOCK),
+            rect_named(world, "InterfaceClose"),
+        )
+    };
+    let before = head_layout(rig.app.world_mut());
+    let balance_right = rect_named(rig.app.world_mut(), INTERFACE_PANE_BALANCE)
+        .max
+        .x;
+
+    pay(rig.app.world_mut(), 1_460);
+    settle(&mut rig.app);
+    let world = rig.app.world_mut();
+    assert_eq!(gain_of(world), "+1,460");
+    let counting: u64 = balance_of(world).replace(',', "").parse().unwrap();
+    assert!(
+        counting > 2_000 && counting < 3_460,
+        "the balance reads {counting} during the count"
+    );
+    assert_eq!(head_layout(world), before, "a shown gain moves nothing");
+    let balance = rect_named(world, INTERFACE_PANE_BALANCE);
+    assert!(
+        (balance.max.x - balance_right).abs() < 0.5,
+        "the balance keeps its right edge"
+    );
+    let gain = rect_named(world, INTERFACE_PANE_GAIN);
+    let clock = world
+        .query_filtered::<&ChildOf, With<InterfacePaneClock>>()
+        .single(world)
+        .map(ChildOf::parent)
+        .expect("the clock sits in its slot");
+    let clock = rect_of(world, clock);
+    assert!(
+        gain.width() > 0.0 && gain.min.x >= balance.max.x && gain.max.x <= clock.min.x,
+        "the gain {gain:?} stands between the balance {balance:?} and the clock slot {clock:?}"
+    );
+
+    // Through the count and the dwell.
+    for _ in 0..(BALANCE_GAIN_SECS / COUNT_FRAME_SECS) as usize + 2 {
+        rig.app.update();
+    }
+    let world = rig.app.world_mut();
+    assert_eq!(balance_of(world), "3,460");
+    assert_eq!(gain_of(world), "");
+    assert_eq!(head_layout(world), before, "a gain that went moves nothing");
+
+    // The card shut during a count, then open again.
+    pay(rig.app.world_mut(), 540);
+    settle(&mut rig.app);
+    assert_eq!(gain_of(rig.app.world_mut()), "+540");
+    let world = rig.app.world_mut();
+    let root = world
+        .query_filtered::<Entity, With<InterfaceRootMarker>>()
+        .single(world)
+        .expect("one interface root");
+    world.despawn(root);
+    rig.app.update();
+    assert_eq!(
+        *rig.app.world().resource::<BalanceCountUp>(),
+        BalanceCountUp::default(),
+        "the count ends with the title row"
+    );
+    // Paid with the card shut.
+    pay(rig.app.world_mut(), 1_000);
+    rig.app.update();
+    rig.app.world_mut().spawn((
+        InterfaceRootMarker,
+        Node {
+            position_type: PositionType::Absolute,
+            width: percent(100),
+            height: percent(100),
+            flex_direction: FlexDirection::Column,
+            ..default()
+        },
+    ));
+    settle(&mut rig.app);
+    let world = rig.app.world_mut();
+    assert_eq!(balance_of(world), "5,000");
+    assert_eq!(gain_of(world), "");
 }

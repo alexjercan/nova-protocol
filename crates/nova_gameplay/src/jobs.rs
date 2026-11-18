@@ -1734,6 +1734,9 @@ pub struct JobDone {
 pub struct JobHandedIn {
     /// The job just completed.
     pub job: Job,
+    /// The code the job was held under ([`Jobs::mark_code`]), read before
+    /// the hand-in took it off the held list.
+    pub code: String,
 }
 
 /// Raised where a held job is dropped ([`Jobs::drop`]): by the open world

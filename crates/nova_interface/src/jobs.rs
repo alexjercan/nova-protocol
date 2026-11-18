@@ -29,7 +29,9 @@
 //! credits, moves the job in [`Jobs`] and raises [`JobAccepted`] so the open
 //! world puts the job's bodies in place. The result plays one sound and the
 //! changed balance and lists show it; the buttons are silent on press. A
-//! verb that cannot work is hidden or disabled by its [`VerbGate`].
+//! paid hand-in plays the payout cue in place of the click, and the pane
+//! head counts the balance up to the reward ([`BalanceCountUp`]). A verb
+//! that cannot work is hidden or disabled by its [`VerbGate`].
 //!
 //! A held row's `X` drops nothing: it asks. The row then reads `Drop?
 //! <title>` and swaps Hand in and `X` for Back and Drop. Back leaves the
@@ -78,7 +80,7 @@ use crate::{
     icons::{icon_node, ChartIconType, InterfaceIcons, JobIconType},
     map::{job_cell, MapChartMarkType, MapRuntime},
     pane::{
-        gated_verb, spawn_credit_figure, view_split, ActionCue, ActionOutcomeType,
+        gated_verb, spawn_credit_figure, view_split, ActionCue, ActionOutcomeType, BalanceCountUp,
         InterfacePaneType,
     },
     ship::StationSite,
@@ -1784,8 +1786,10 @@ fn play_jobs_cue(
 /// [`JobHandInCommand`]s by the [`plan_job_hand_in`] rule: an accept holds
 /// the job and raises [`JobAccepted`]; a hand-in takes a procurement's goods
 /// out of the hold, pays the reward with `JobReward` credit changes on both
-/// sides, completes the job and raises [`JobHandedIn`]. Each result raises
-/// one cue; a refusal changes nothing. An accept of a job the docked
+/// sides, completes the job, raises [`JobHandedIn`] under the code the job
+/// was held by and starts the pane head's count-up ([`BalanceCountUp`]). Each
+/// result raises one cue, a paid hand-in the payout cue; a refusal changes
+/// nothing. An accept of a job the docked
 /// station's board no longer posts is refused as expired: the slot renewed
 /// between the click and this frame. A [`JobDropCommand`] drops the held job
 /// ([`Jobs::drop`]) with no payout, raises [`JobDropped`] with the cause
@@ -1810,7 +1814,7 @@ fn play_jobs_cue(
 /// station carries no `ShipCredits`: a station the board lists always does.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading the four commands, the board, the jobs, the postings, the clock, the table, the site, the bodies, the targets, the hold, both balances and the stances"
+    reason = "one system reading the four commands, the board, the jobs, the postings, the clock, the table, the site, the bodies, the targets, the hold, both balances, the count-up and the stances"
 )]
 #[expect(
     clippy::type_complexity,
@@ -1825,6 +1829,7 @@ fn apply_job_commands(
         MessageReader<JobOfferRefreshCommand>,
     ),
     mut runtime: ResMut<JobsRuntime>,
+    mut count_up: ResMut<BalanceCountUp>,
     items: Option<Res<GameItems>>,
     table: Option<Res<GamePriceTable>>,
     mut jobs: ResMut<Jobs>,
@@ -1943,16 +1948,18 @@ fn apply_job_commands(
             plan.station_cr,
             CreditChangeCauseType::JobReward,
         );
+        count_up.raise(plan.reward_cr);
+        let code = jobs
+            .mark_code(&job.id)
+            .expect("the hand-in was planned for a held job");
         let handed_in = jobs.complete(&job.id);
-        commands.trigger(JobHandedIn { job: handed_in });
+        commands.trigger(JobHandedIn {
+            job: handed_in,
+            code,
+        });
         info!(
             "nova_interface: handed in the job '{}' ({title}) for {} cr",
             job.id, plan.reward_cr
-        );
-        let mut line = format!(
-            "handed in {title} for {}; balance {}",
-            cr_text(plan.reward_cr),
-            cr_text(own_cr.0)
         );
         if let Ok(market) = q_markets.get(*station) {
             if let Some(step) = record_merit(&mut stances, market.civilization, clock.play_seconds)
@@ -1965,14 +1972,9 @@ fn apply_job_commands(
                     step.to,
                     clock.play_seconds
                 );
-                line.push_str(&format!(
-                    "; {} now holds you {}",
-                    step.civilization.name(),
-                    format!("{:?}", step.to).to_lowercase()
-                ));
             }
         }
-        runtime.cue.raise(ActionOutcomeType::Done);
+        runtime.cue.raise(ActionOutcomeType::Paid);
     }
     for command in drops.read() {
         if !jobs.holds(&command.id) {
@@ -2139,6 +2141,7 @@ mod tests {
         app.insert_resource(test_items());
         app.insert_resource(GamePriceTable(price_table()));
         app.init_resource::<JobsRuntime>();
+        app.init_resource::<BalanceCountUp>();
         app.init_resource::<Chart>();
         app.init_resource::<Jobs>();
         app.init_resource::<JobPostings>();
@@ -2251,10 +2254,10 @@ mod tests {
         (player, job)
     }
 
-    /// A hand-in pays the reward, completes the job and clicks once; the
-    /// frame after is silent.
+    /// A hand-in pays the reward, completes the job and plays the payout cue
+    /// once, with no click; the frame after is silent.
     #[test]
-    fn a_hand_in_pays_completes_the_job_and_clicks_once() {
+    fn a_hand_in_pays_completes_the_job_and_plays_the_payout_cue_once_with_no_click() {
         let civilization = neutral_civilization();
         let mut app = jobs_app();
         let (player, job) = hand_in_fixture(&mut app, civilization);
@@ -2267,7 +2270,7 @@ mod tests {
             Some(&ShipCredits(2_146))
         );
         assert!(app.world().resource::<Jobs>().is_completed(&job.id));
-        assert_eq!(take_cues(&mut app), [UiSfx::MenuSelect]);
+        assert_eq!(take_cues(&mut app), [UiSfx::Payout]);
         app.update();
         assert!(take_cues(&mut app).is_empty(), "the cue plays once");
     }
@@ -2321,6 +2324,7 @@ mod tests {
         app.insert_resource(test_items());
         app.insert_resource(GamePriceTable(price_table()));
         app.init_resource::<JobsRuntime>();
+        app.init_resource::<BalanceCountUp>();
         app.init_resource::<Chart>();
         app.init_resource::<Jobs>();
         app.init_resource::<JobPostings>();
@@ -2893,6 +2897,7 @@ mod tests {
         app.insert_resource(test_items());
         app.insert_resource(GamePriceTable(price_table()));
         app.init_resource::<JobsRuntime>();
+        app.init_resource::<BalanceCountUp>();
         app.init_resource::<Chart>();
         app.init_resource::<Jobs>();
         app.init_resource::<JobPostings>();

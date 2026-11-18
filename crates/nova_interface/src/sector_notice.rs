@@ -56,7 +56,7 @@ pub fn post_sector_crossing_notice(
     for crossing in crossings.read() {
         let line = sector_notice_line(crossing.to, !chart.has_visited(crossing.to));
         debug!("hud_notice: {line} (from {})", crossing.from);
-        notices.write(HudNotice(line));
+        notices.write(HudNotice::new(line));
     }
 }
 
@@ -84,7 +84,7 @@ mod tests {
         app.world()
             .resource::<Messages<HudNotice>>()
             .iter_current_update_messages()
-            .map(|notice| notice.0.clone())
+            .map(|notice| notice.text.clone())
             .collect()
     }
 

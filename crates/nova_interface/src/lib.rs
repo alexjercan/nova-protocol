@@ -72,7 +72,7 @@ pub mod prelude {
         inventory::prelude::*,
         jobs::prelude::*,
         map::prelude::*,
-        pane::{add_interface_clock_hold, ActionOutcomeType, InterfacePaneType},
+        pane::{add_interface_clock_hold, ActionOutcomeType, BalanceCountUp, InterfacePaneType},
         sector_notice::{post_sector_crossing_notice, sector_notice_line, SectorNoticePlugin},
         ship::prelude::*,
         station::prelude::*,
@@ -102,7 +102,7 @@ use crate::{
         next_interface_pane, play_interface_toggle, rebuild_interface_body, refresh_card_head_keys,
         refresh_pane_input_hints, show_pane_balance, show_pane_clock, show_pane_input_hints,
         show_pane_mode_tags, show_station_tab, spawn_interface_root, sync_nova_os_contexts,
-        toggle_interface, InterfacePaneType,
+        toggle_interface, BalanceCountUp, InterfacePaneType,
     },
     ship::ShipPaneSystems,
     station::StationPaneSystems,
@@ -120,6 +120,7 @@ pub struct InterfacePlugin;
 impl Plugin for InterfacePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<InterfacePaneType>();
+        app.init_resource::<BalanceCountUp>();
         app.add_systems(Startup, icons::init_interface_icons);
         app.register_input_actions(bindings::interface_bindings());
         app.add_observer(button_on_setting::<InterfacePaneType>);
