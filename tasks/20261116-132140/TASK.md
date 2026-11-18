@@ -165,8 +165,10 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
   idle and running pane inspected.
 - Not verified: live save and Load mid job, live Cancel, editor recipe
   editing, hull-buy cancel (no test). Workspace tests and clippy not run.
-- Open: item names not pluralised; the batch stepper resets on reopen; a
-  job docked at a station that turns derelict holds until undock.
+- Open: item names not pluralised. Fixed 2026-11-18: a docked station that
+  turns derelict stops a Station job at once, as an undock does (a dock not
+  rebuilt yet after Load still holds); the batch count survives a Craft view
+  reopen (the amount row no longer reads its spawn values as a move).
 - Left for later slices: consumables, sections as items, market and
   inventory rework, fabricator section, craft queue, `OnCrafted`.
 

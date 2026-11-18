@@ -862,10 +862,13 @@ pub(super) fn sync_amount_rows(
     if q_rows.is_empty() {
         return;
     }
-    // The player's moves first: a typed field, a dragged slider.
+    // The player's moves first: a typed field, a dragged slider. A part
+    // spawned this frame holds the row's spawn values, not a move: a caller
+    // that writes the [`Amount`] on the row's first frame (a view reopened
+    // on a kept count) would otherwise get it reset to 1.
     let mut moved: Vec<(Entity, u32, bool)> = Vec::new();
     for (field, value, _) in &mut q_field {
-        if !value.is_changed() {
+        if !value.is_changed() || value.is_added() {
             continue;
         }
         if let Ok(typed) = value.0.trim().parse::<u32>() {
@@ -873,7 +876,7 @@ pub(super) fn sync_amount_rows(
         }
     }
     for (slider, value, _) in &q_slider {
-        if value.is_changed() {
+        if value.is_changed() && !value.is_added() {
             moved.push((slider, value.0.round().max(0.0) as u32, false));
         }
     }

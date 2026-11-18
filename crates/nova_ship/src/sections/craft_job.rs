@@ -20,8 +20,10 @@
 //! [`DockedShip`] going away while the ship stays) stops it. A Load spawns
 //! the ship before it rebuilds the dock, so the job holds over those frames
 //! and runs on once the dock is back; a poll for the dock would stop it
-//! there. A station that dies takes the dock with it; one that turns
-//! derelict holds the job until the undock. A cancel
+//! there. A docked station that no longer offers Craft (it turned derelict
+//! when its last turret died; the dock holds) stops the job at once, as the
+//! undock does: [`CraftStations::docked_without_craft`] reads that from the
+//! station itself, so a dock not rebuilt yet still holds. A cancel
 //! ([`CraftJobCancelRequest`]) keeps finished batches and takes nothing more.
 //! Nothing is ever held by a running job, so nothing is refunded.
 //!
@@ -119,12 +121,7 @@ impl CraftStations<'_, '_> {
     /// When that station carries no [`StationAdvancement`]: every station
     /// root spawns and thaws with one.
     pub fn docked_at(&self, ship: Entity, docked: Option<&DockedShip>) -> Option<(Entity, f32)> {
-        let connection = self.connections.get(docked?.connection).ok()?;
-        let partner = if connection.first_ship == ship {
-            connection.second_ship
-        } else {
-            connection.first_ship
-        };
+        let partner = self.partner(ship, docked?)?;
         let (services, advancement, derelict) = self.stations.get(partner).ok()?;
         if !station_offers(Some(services), derelict, StationServiceType::Craft) {
             return None;
@@ -133,6 +130,29 @@ impl CraftStations<'_, '_> {
             panic!("station {partner:?} offers Craft but carries no StationAdvancement");
         };
         Some((partner, advancement.0))
+    }
+
+    /// Whether `ship` is docked at a station that does not offer Craft now:
+    /// a derelict one, or one without the service. A dock not rebuilt yet
+    /// after a Load (no [`DockedShip`], no connection, no station) is not
+    /// such a dock.
+    pub fn docked_without_craft(&self, ship: Entity, docked: Option<&DockedShip>) -> bool {
+        docked
+            .and_then(|docked| self.partner(ship, docked))
+            .and_then(|partner| self.stations.get(partner).ok())
+            .is_some_and(|(services, _, derelict)| {
+                !station_offers(Some(services), derelict, StationServiceType::Craft)
+            })
+    }
+
+    /// The other root of `ship`'s dock, while its connection exists.
+    fn partner(&self, ship: Entity, docked: &DockedShip) -> Option<Entity> {
+        let connection = self.connections.get(docked.connection).ok()?;
+        Some(if connection.first_ship == ship {
+            connection.second_ship
+        } else {
+            connection.first_ship
+        })
     }
 }
 
@@ -233,11 +253,18 @@ pub fn advance_ship_craft_jobs(
             .expect("craft job: a job runs only after the item catalog loads");
         let recipe = recipes.design(&job.recipe);
         let station = sites.docked_at(ship, docked);
-        if matches!(recipe.site, CraftSiteType::Station { .. }) && station.is_none() {
-            continue;
-        }
-        job.elapsed_secs += dt;
         let mut end = None;
+        if matches!(recipe.site, CraftSiteType::Station { .. }) && station.is_none() {
+            if !sites.docked_without_craft(ship, docked) {
+                continue;
+            }
+            end = Some(CraftJobEndType::Stopped {
+                batches: job.done,
+                reason: CraftRefusalType::NotAtCraftStation,
+            });
+        } else {
+            job.elapsed_secs += dt;
+        }
         while end.is_none() && job.elapsed_secs >= recipe.duration_secs {
             job.elapsed_secs -= recipe.duration_secs;
             let free = match repairs {
@@ -628,6 +655,40 @@ mod tests {
         assert_eq!(
             ends(&mut app),
             vec![CraftJobEndType::Crafted { batches: 1 }]
+        );
+    }
+
+    /// A docked station that turns derelict mid job (its last turret died;
+    /// the dock holds) stops the job at once, as an undock does: the
+    /// finished batch stays and the unfinished one takes nothing.
+    #[test]
+    fn a_station_job_stops_when_its_docked_station_turns_derelict() {
+        let (mut app, ship) = craft_app(10.0, &[("IronOre", 6), ("CarbonOre", 3)]);
+        let station = dock_at_craft_station(&mut app, ship, 0.25);
+        start(&mut app, ship, "base/alloy_plate", 3);
+        app.update();
+        assert_eq!(count(&app, ship, "AlloyPlate"), 1);
+        assert!(ends(&mut app).is_empty());
+
+        app.world_mut()
+            .entity_mut(station)
+            .insert(DerelictShipMarker);
+        app.update();
+        assert!(app.world().get::<DockedShip>(ship).is_some());
+        assert!(app.world().get::<ShipCraftJob>(ship).is_none());
+        assert_eq!(count(&app, ship, "AlloyPlate"), 1);
+        assert_eq!(count(&app, ship, "IronOre"), 4);
+        assert_eq!(app.world().get::<ShipCredits>(ship), Some(&ShipCredits(70)));
+        assert_eq!(
+            app.world().get::<ShipCredits>(station),
+            Some(&ShipCredits(1_030))
+        );
+        assert_eq!(
+            ends(&mut app),
+            vec![CraftJobEndType::Stopped {
+                batches: 1,
+                reason: CraftRefusalType::NotAtCraftStation,
+            }]
         );
     }
 

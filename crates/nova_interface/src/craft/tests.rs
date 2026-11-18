@@ -401,3 +401,79 @@ fn the_craft_view_lays_out_on_the_kit() {
         );
     }
 }
+
+/// A Craft view closed and opened again shows the batch count picked
+/// before: the new amount row's spawn values are not a move of it.
+#[test]
+fn the_batch_count_survives_a_craft_view_reopen() {
+    use nova_ui::{
+        theme::{base::base_ui_themes, GameUiThemes, SelectedUiTheme, PHOSPHOR_THEME_ID},
+        widget::WidgetSystems,
+        NovaUiPlugin,
+    };
+
+    use crate::pointer_rig::{pane_pointer_rig, settle};
+
+    let mut rig = pane_pointer_rig();
+    rig.app.add_plugins(NovaUiPlugin);
+    rig.app.insert_resource(GameUiThemes(base_ui_themes()));
+    rig.app
+        .insert_resource(SelectedUiTheme(PHOSPHOR_THEME_ID.to_string()));
+    rig.app.insert_resource(InterfaceIcons::blank());
+    rig.app.insert_resource(test_items());
+    rig.app
+        .insert_resource(GameRecipes::new([ship_rounds(), station_slug()]));
+    rig.app.init_resource::<CraftRuntime>();
+    rig.app.add_message::<CraftStartCommand>();
+    // As in the app: the view writes the amount before the kit syncs it.
+    rig.app.add_systems(
+        Update,
+        (apply_craft_start_commands, update_craft_view)
+            .chain()
+            .before(WidgetSystems),
+    );
+    spawn_player(rig.app.world_mut());
+    let open = |app: &mut App, root: Entity| {
+        app.world_mut()
+            .run_system_once_with(
+                |parent: In<Entity>, mut commands: Commands| {
+                    commands
+                        .spawn((Node::default(), ChildOf(*parent)))
+                        .with_children(craft_body)
+                        .id()
+                },
+                root,
+            )
+            .expect("building the Craft view")
+    };
+    let amount = |app: &mut App| {
+        let world = app.world_mut();
+        let row = world
+            .query_filtered::<Entity, With<CraftBatchAmount>>()
+            .single(world)
+            .expect("the Batches block has one amount row");
+        world.get::<Amount>(row).map(|amount| amount.value)
+    };
+    let root = rig.content_root;
+    let view = open(&mut rig.app, root);
+    settle(&mut rig.app);
+    let row = rig
+        .app
+        .world_mut()
+        .query_filtered::<Entity, With<CraftBatchAmount>>()
+        .single(rig.app.world())
+        .unwrap();
+    rig.app.world_mut().trigger(AmountChanged {
+        entity: row,
+        value: 2,
+    });
+    settle(&mut rig.app);
+    assert_eq!(rig.app.world().resource::<CraftRuntime>().batches(), 2);
+
+    rig.app.world_mut().entity_mut(view).despawn();
+    rig.app.update();
+    open(&mut rig.app, root);
+    settle(&mut rig.app);
+    assert_eq!(rig.app.world().resource::<CraftRuntime>().batches(), 2);
+    assert_eq!(amount(&mut rig.app), Some(2));
+}
