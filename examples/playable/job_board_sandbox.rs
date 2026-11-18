@@ -30,7 +30,9 @@
 //! With `NOVA_AUTOPILOT=1` a smoke walk first holds the start docked at its
 //! starting station and reads its starter board on the Jobs tab: it lists
 //! exactly the jobs the hull can do (the transport has no weapon, so its
-//! escorts stay off). Then it moves to the chosen station, reads and accepts
+//! escorts stay off). Then it moves to the chosen station, checks that every
+//! board row is one line with its Accept inside the board, selects each row
+//! and reads the reward terms the inspector lists for it, reads and accepts
 //! the first procurement and a second job at another reward, undocks,
 //! selects the second held row and reads its reward, not the first's, in
 //! the inspector and, after Show on Map, in the chart view. With the chart
@@ -39,6 +41,7 @@
 //! inspector. It docks again and hands the procurement in. `NOVA_CAPTURE=1`
 //! shoots
 //! `sandbox-jobs-starter.png`, `sandbox-jobs-board.png`,
+//! `sandbox-jobs-terms-<row>.png` for each row the board lists,
 //! `sandbox-jobs-held.png`, `sandbox-jobs-map.png`,
 //! `sandbox-jobs-map-dropped.png`, `sandbox-jobs-dropped.png`,
 //! `sandbox-jobs-hand-in.png` and `sandbox-jobs-done.png`. Unset, no walk and no deadline run.
@@ -595,7 +598,7 @@ mod jobs_overlay {
                 panel.detail(format!(
                     "{} - {} cr - {state} - {}",
                     job.title(&items),
-                    job.reward_cr,
+                    job.reward.total_cr(),
                     job.task(&items)
                 ));
             }
@@ -626,6 +629,9 @@ mod smoke {
     const SETTLE_FRAMES: u32 = 10;
     /// The virtual clock's clamp on the software rasterizer.
     const WALK_CLOCK_SECS: f32 = 1.0;
+    /// The most a board row of one line stands high, in logical px: a list
+    /// row, its border and layout rounding. A row that wrapped is two.
+    const ROW_LINE_PX: f32 = 32.0;
     const STARTER_SHOT: &str = "sandbox-jobs-starter.png";
     const BOARD_SHOT: &str = "sandbox-jobs-board.png";
     const HELD_SHOT: &str = "sandbox-jobs-held.png";
@@ -813,6 +819,98 @@ mod smoke {
             .expect("job sandbox: the board posts a procurement")
     }
 
+    /// The chosen station's board as the pane lists it while no job is
+    /// held: every job, or on the starter board only those the hull can do.
+    fn listed_jobs(world: &World) -> Vec<Job> {
+        let Some((id, ..)) = world
+            .get_resource::<Sandbox>()
+            .and_then(|sandbox| sandbox.station.clone())
+        else {
+            return Vec::new();
+        };
+        let Some(mut boards) =
+            world.try_query::<(&GeneratedBodyId, &JobBoard, Has<StarterBoardMarker>)>()
+        else {
+            return Vec::new();
+        };
+        let Some((_, board, starter)) = boards.iter(world).find(|(worn, ..)| **worn == id) else {
+            return Vec::new();
+        };
+        let items = world.resource::<GameItems>();
+        let fit = player_fit(world);
+        board
+            .0
+            .iter()
+            .filter(|job| !starter || plan_job_hull_fit(job, items, fit).is_ok())
+            .cloned()
+            .collect()
+    }
+
+    /// The inspector lists a row for each term of board job `row` that pays
+    /// and none for a term that pays nothing; a reward of one term lists no
+    /// row at all. `Range` and `Threat` carry their measure after the word,
+    /// which tells them from the board's column heads.
+    fn reads_the_terms_of(row: usize) -> Arc<Predicate> {
+        when(move |world| {
+            let listed = listed_jobs(world);
+            if listed.len() != named_count(world, "JobRowPosted-") {
+                return false;
+            }
+            // A board lists fewer rows than slots when the hull cannot do
+            // a starter board's job.
+            let Some(job) = listed.get(row) else {
+                return true;
+            };
+            let goods = if matches!(job.kind, JobType::Escort { .. }) {
+                ("Cargo", "Goods")
+            } else {
+                ("Goods", "Cargo")
+            };
+            let terms = [
+                (job.reward.base_cr, "Base"),
+                (job.reward.goods_cr, goods.0),
+                (job.reward.range_cr, "Range "),
+                (job.reward.threat_cr, "Threat "),
+            ];
+            let shown = terms.iter().filter(|(cr, _)| *cr > 0).count() > 1;
+            let reads = |word: &str| {
+                world.try_query::<&Text>().is_some_and(|mut query| {
+                    query.iter(world).any(|text| {
+                        if word.ends_with(' ') {
+                            text.0.starts_with(word)
+                        } else {
+                            text.0 == word
+                        }
+                    })
+                })
+            };
+            terms
+                .iter()
+                .all(|(cr, word)| reads(word) == (shown && *cr > 0))
+                && !reads(goods.1)
+        })
+    }
+
+    /// Every board row is one list row high, so no cell wrapped under its
+    /// title, and its Accept lies inside the board panel.
+    fn board_rows_fit() -> Arc<Predicate> {
+        when(|world| {
+            let Some(board) = ui_node_rect(world, JOBS_BOARD) else {
+                return false;
+            };
+            let rows = named_count(world, "JobRowPosted-");
+            rows > 0
+                && (0..rows).all(|row| {
+                    let line = ui_node_rect(world, &format!("JobRowPosted-{row}"));
+                    let accept = ui_node_rect(world, &format!("{JOB_ACCEPT_PREFIX}{row}"));
+                    line.is_some_and(|line| line.height() <= ROW_LINE_PX)
+                        && accept.is_some_and(|accept| {
+                            accept.min.x >= board.min.x && accept.max.x <= board.max.x
+                        })
+                })
+        })
+    }
+
     /// No text node reads what `check` accepts.
     fn no_text_reads(check: impl Fn(&str) -> bool + Send + Sync + 'static) -> Arc<Predicate> {
         when(move |world| {
@@ -838,7 +936,7 @@ mod smoke {
             .iter()
             .find(|job| {
                 !jobs.holds(&job.id)
-                    && job.reward_cr != first.reward_cr
+                    && job.reward.total_cr() != first.reward.total_cr()
                     && plan_job_hull_fit(job, items, fit).is_ok()
             })
             .map(|job| job.id.clone())
@@ -861,8 +959,8 @@ mod smoke {
                         .any(|text| text.0.replace(',', "") == reward)
                 })
             };
-            reads(format!("{prefix}{}{suffix}", second.reward_cr))
-                && !reads(format!("{prefix}{}{suffix}", first.reward_cr))
+            reads(format!("{prefix}{}{suffix}", second.reward.total_cr()))
+                && !reads(format!("{prefix}{}{suffix}", first.reward.total_cr()))
         })
     }
 
@@ -940,6 +1038,54 @@ mod smoke {
             .until(shot_written(BOARD_SHOT))
             .deadline(SHOT_SECS)
             .add()
+            .step("job sandbox: every board row is one line with its Accept inside the board")
+            .until(and(board_rows_fit(), frames(SETTLE_FRAMES)))
+            .diagnose(|world| {
+                format!(
+                    "board {:?}, row 0 {:?}, Accept 0 {:?}",
+                    ui_node_rect(world, JOBS_BOARD),
+                    ui_node_rect(world, "JobRowPosted-0"),
+                    ui_node_rect(world, "JobAccept-0")
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add();
+        let mut script = script;
+        for row in 0..JOBS_PER_BOARD as usize {
+            let shot = format!("sandbox-jobs-terms-{row}.png");
+            let written = shot.clone();
+            script = script
+                .step(format!(
+                    "job sandbox: row {row}'s inspector lists the terms that pay"
+                ))
+                .on_enter(move |world: &mut World| {
+                    if row < listed_jobs(world).len() {
+                        activate_named(world, &format!("JobRowPosted-{row}"));
+                    }
+                })
+                .until(and(reads_the_terms_of(row), frames(SETTLE_FRAMES)))
+                .diagnose(move |world| {
+                    format!(
+                        "{} rows, listed {:?}",
+                        named_count(world, "JobRowPosted-"),
+                        listed_jobs(world).get(row)
+                    )
+                })
+                .deadline(BEAT_SECS)
+                .add()
+                .step(format!("job sandbox: shoot row {row}'s terms"))
+                .on_enter(move |world: &mut World| {
+                    if row < listed_jobs(world).len() {
+                        shoot(world, &shot);
+                    }
+                })
+                .until(when(move |world| {
+                    row >= listed_jobs(world).len() || shot_written(written.clone())(world)
+                }))
+                .deadline(SHOT_SECS)
+                .add();
+        }
+        let script = script
             .step("job sandbox: accept the first procurement")
             .on_enter(|world: &mut World| {
                 let row = procurement_row(world);

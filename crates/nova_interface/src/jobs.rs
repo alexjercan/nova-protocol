@@ -348,6 +348,67 @@ fn target_name(job: &Job, chart: &Chart) -> String {
     }
 }
 
+/// A job's leg as a list writes it: to the tenth of a kilometre under
+/// 10 km (`4.2 km`), to the kilometre from there (`33 km`), so the widest
+/// is six characters, and nothing for a job with no leg.
+fn range_text(leg_m: u32) -> String {
+    let tenths = leg_m.saturating_add(50) / 100;
+    match (tenths / 10, tenths % 10) {
+        (0, 0) => String::new(),
+        (10.., _) => format!("{} km", leg_m.saturating_add(500) / 1_000),
+        (km, 0) => format!("{km} km"),
+        (km, tenth) => format!("{km}.{tenth} km"),
+    }
+}
+
+/// A job's threat as a list writes it: the weapon count, and nothing for a
+/// job that puts none against the player.
+fn threat_text(threat: u32) -> String {
+    if threat == 0 {
+        String::new()
+    } else {
+        threat.to_string()
+    }
+}
+
+/// One term of a reward as the inspector lists it under the total.
+#[derive(Clone, Debug, PartialEq)]
+struct RewardTermRow {
+    /// The term's name, with its measure after it: `Range 12 km`,
+    /// `Threat 3`.
+    label: String,
+    cr: u32,
+}
+
+/// The rows the inspector lists under a job's reward: one per term that
+/// pays, in the order base, goods, range, threat. A reward of one term
+/// lists none: the total already says it.
+fn reward_term_rows(job: &Job) -> Vec<RewardTermRow> {
+    let goods = if matches!(job.kind, JobType::Escort { .. }) {
+        "Cargo"
+    } else {
+        "Goods"
+    };
+    let rows: Vec<RewardTermRow> = [
+        ("Base".to_string(), job.reward.base_cr),
+        (goods.to_string(), job.reward.goods_cr),
+        (
+            format!("Range {}", range_text(job.leg_m)),
+            job.reward.range_cr,
+        ),
+        (format!("Threat {}", job.threat), job.reward.threat_cr),
+    ]
+    .into_iter()
+    .filter(|(_, cr)| *cr > 0)
+    .map(|(label, cr)| RewardTermRow { label, cr })
+    .collect();
+    if rows.len() < 2 {
+        Vec::new()
+    } else {
+        rows
+    }
+}
+
 /// How Accept answers a hull that cannot do a job: one word for the part
 /// the hull lacks.
 fn hull_gate(refusal: &JobHullRefusalType) -> VerbGate {
@@ -426,6 +487,10 @@ struct PostedRow {
     id: JobId,
     icon: JobIconType,
     title: String,
+    /// The job's leg ([`range_text`]), empty for a job with none.
+    range: String,
+    /// The weapons against the player ([`threat_text`]), empty for none.
+    threat: String,
     reward_cr: u64,
     /// The offer's window left: the share and the minutes. A scenario
     /// posting has no window: a full meter and [`NO_WINDOW_TEXT`].
@@ -473,6 +538,8 @@ struct InspectorView {
     target: String,
     hand_in: String,
     reward_cr: u64,
+    /// The reward's terms ([`reward_term_rows`]).
+    terms: Vec<RewardTermRow>,
     /// A posted offer's window left: the share and the minutes.
     time_left: Option<(f32, String)>,
     /// A held job's `have / need`.
@@ -672,7 +739,9 @@ fn update_jobs_pane(
                     id: job.id.clone(),
                     icon: JobIconType::of(&job.kind),
                     title: job.title(&items),
-                    reward_cr: job.reward_cr.into(),
+                    range: range_text(job.leg_m),
+                    threat: threat_text(job.threat),
+                    reward_cr: job.reward.total_cr().into(),
                     time_left,
                     gate,
                     refreshable: postings.slot(&job.id).is_some(),
@@ -735,7 +804,8 @@ fn update_jobs_pane(
             task: job.task(&items),
             target: format!("{}\n{}", target_name(job, &chart), place(job_cell(job))),
             hand_in: station_name(&chart, &job.target),
-            reward_cr: job.reward_cr.into(),
+            reward_cr: job.reward.total_cr().into(),
+            terms: reward_term_rows(job),
             time_left: postings
                 .remaining(&job.id, rule, now)
                 .filter(|_| !held)
@@ -801,24 +871,32 @@ fn update_jobs_pane(
     *built = Some(view);
 }
 
-/// Width of the reward column.
-const REWARD_PX: f32 = 90.0;
+/// Width of the range column: the widest leg ([`range_text`]), `9.9 km`.
+const RANGE_PX: f32 = 44.0;
+/// Width of the threat column: its head, over a count of two digits.
+const THREAT_PX: f32 = 40.0;
+/// Width of the reward column: the credit mask and six digits, `123,456`.
+const REWARD_PX: f32 = 68.0;
 /// Width of a held row's hand-in column: the HAND IN HERE badge.
 const HAND_IN_PX: f32 = 90.0;
-/// Width of the time-left column.
-const TIME_PX: f32 = 120.0;
+/// Width of the time-left column: its meter and the widest `nn min`.
+const TIME_PX: f32 = 92.0;
+/// Width of the time-left meter, so its minutes fit beside it.
+const TIME_METER_PX: f32 = 40.0;
 /// Width of a meter inside a row column, so its text fits beside it.
 const ROW_METER_PX: f32 = 72.0;
 /// Width of the progress column: a row meter and the widest `nn / nn`.
 const PROGRESS_PX: f32 = 130.0;
 /// Width of a row's verb column: the widest tag (`NO WEAPON`), Accept and
 /// the `X`, [`metrics::GAP`] apart, or Back and Delete.
-const VERBS_PX: f32 = 172.0;
+const VERBS_PX: f32 = 160.0;
 /// Width of a row's icon column.
 const ICON_PX: f32 = 28.0;
 /// Least width of a row's title cell. A row whose fixed cells leave the title
-/// less than this wraps them onto a second line.
-const TITLE_MIN_PX: f32 = 160.0;
+/// less than this wraps them onto a second line. It is what a board row's
+/// fixed cells leave of the pane in a 1024 px window, so from that width
+/// every row is one line and the title is the cell that gives way.
+const TITLE_MIN_PX: f32 = 100.0;
 /// The scrollbar's track and its margin, which narrow a list's rows. A table
 /// head pads its right side by this much to stay over the same columns.
 const SCROLL_GUTTER_PX: f32 = 12.0;
@@ -1208,6 +1286,8 @@ fn board_panel(
                 &[
                     (ICON_PX, ""),
                     (0.0, "Job"),
+                    (RANGE_PX, "Range"),
+                    (THREAT_PX, "Threat"),
                     (REWARD_PX, "Reward"),
                     (TIME_PX, "Time left"),
                     (VERBS_PX, ""),
@@ -1227,8 +1307,9 @@ fn board_panel(
         });
 }
 
-/// One board row's cells: icon | title | reward | time left | Accept `X`,
-/// or, asking, icon | `Delete?` title | fee | blank | Back Delete.
+/// One board row's cells: icon | title | range | threat | reward | time left
+/// | Accept `X`, or, asking, icon | `Delete?` title | blank | fee | blank |
+/// Back Delete.
 fn posted_row(r: &mut ChildSpawnerCommands, icons: &InterfaceIcons, index: usize, row: &PostedRow) {
     r.spawn(fixed(
         ICON_PX,
@@ -1236,6 +1317,9 @@ fn posted_row(r: &mut ChildSpawnerCommands, icons: &InterfaceIcons, index: usize
     ));
     if row.confirming {
         r.spawn(ask_title_cell("Delete?", &row.title, TextRole::Value));
+        // One blank for the range and threat columns, so the fee stays
+        // under Reward.
+        r.spawn(fixed(RANGE_PX + THREAT_PX + metrics::GAP_L, ()));
         // A short balance paints the fee it cannot pay.
         let tone = if row.refresh_gate == VerbGate::Disabled {
             UiColorType::Danger
@@ -1276,6 +1360,18 @@ fn posted_row(r: &mut ChildSpawnerCommands, icons: &InterfaceIcons, index: usize
         return;
     }
     r.spawn(title_cell(&row.title, TextRole::Value, UiColorType::Text));
+    r.spawn(text_cell(
+        RANGE_PX,
+        &row.range,
+        TextRole::Body,
+        UiColorType::TextBody,
+    ));
+    r.spawn(text_cell(
+        THREAT_PX,
+        &row.threat,
+        TextRole::Body,
+        UiColorType::TextBody,
+    ));
     r.spawn(fixed(REWARD_PX, ())).with_children(|reward| {
         spawn_credit_figure(
             reward,
@@ -1296,7 +1392,7 @@ fn posted_row(r: &mut ChildSpawnerCommands, icons: &InterfaceIcons, index: usize
             },
             Pickable::IGNORE,
             children![
-                bare_meter(ROW_METER_PX, row.time_left.0),
+                bare_meter(TIME_METER_PX, row.time_left.0),
                 text_nowrap(&row.time_left.1, TextRole::Body, UiColorType::TextBody),
             ],
         ),
@@ -1524,6 +1620,9 @@ fn inspector_panel(
             "Reward",
             text_toned(cr_text(job.reward_cr), TextRole::Value, UiColorType::Accent),
         );
+        for term in &job.terms {
+            spawn_kv(block, &term.label, text(cr_text(term.cr), TextRole::Value));
+        }
         if let Some((_, minutes)) = &job.time_left {
             spawn_kv(block, "Time left", text(minutes, TextRole::Value));
         }
@@ -2092,7 +2191,9 @@ mod tests {
                 count: 4,
             },
             target: station_id.clone(),
-            reward_cr: 146,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(146),
         };
         let world = app.world_mut();
         world.resource_mut::<Jobs>().accept(job.clone());
@@ -2238,7 +2339,9 @@ mod tests {
                 caller: caller.clone(),
             },
             target: station,
-            reward_cr: 146,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(146),
         };
         app.world_mut().resource_mut::<Jobs>().accept(job.clone());
         let player = app
@@ -2347,7 +2450,9 @@ mod tests {
             id: JobId::slot(station_id.clone(), 0, 0),
             kind: JobType::Distress { caller },
             target: station_id.clone(),
-            reward_cr: 146,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(146),
         };
         let world = app.world_mut();
         world.resource_mut::<Jobs>().accept(job.clone());
@@ -2402,7 +2507,9 @@ mod tests {
             id: JobId::slot(station_id.clone(), 0, 0),
             kind: JobType::Distress { caller },
             target: station_id.clone(),
-            reward_cr: 146,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(146),
         };
         let world = app.world_mut();
         let player = world
@@ -2454,7 +2561,9 @@ mod tests {
                 count: 1,
             },
             target: job.id.station.clone(),
-            reward_cr: 10,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(10),
         };
         app.world_mut()
             .resource_mut::<JobPostings>()
@@ -2709,7 +2818,9 @@ mod tests {
                 count: 4,
             },
             target: station_id,
-            reward_cr: 90,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(90),
         };
         let world = app.world_mut();
         world
@@ -3081,6 +3192,206 @@ mod tests {
                 && label.min.x >= panel.min.x - 0.5
                 && label.max.x <= panel.max.x + 0.5,
             "the title keeps room inside the panel: {label:?} in {panel:?}"
+        );
+    }
+
+    #[test]
+    fn a_leg_reads_in_kilometres_to_one_decimal_and_a_job_without_one_reads_nothing() {
+        assert_eq!(range_text(0), "");
+        assert_eq!(range_text(12_000), "12 km");
+        assert_eq!(range_text(4_200), "4.2 km");
+        assert_eq!(range_text(9_940), "9.9 km");
+        assert_eq!(range_text(9_960), "10 km", "rounds to the tenth");
+        assert_eq!(range_text(33_440), "33 km", "whole kilometres from 10 km");
+        assert_eq!(range_text(u32::MAX), "4294967 km");
+        assert_eq!(threat_text(0), "");
+        assert_eq!(threat_text(3), "3");
+    }
+
+    #[test]
+    fn the_inspector_lists_each_term_that_pays_and_none_for_a_reward_of_one_term() {
+        let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+        let id = JobId::slot(station.clone(), 0, 0);
+        let escort = Job {
+            id: id.clone(),
+            kind: JobType::Escort {
+                hauler: GeneratedBodyId::new(SectorCoord::ORIGIN, "hauler", 0),
+                cargo_cr: 1_200,
+                raiders: 2,
+            },
+            target: station.clone(),
+            leg_m: 12_000,
+            threat: 4,
+            reward: JobReward {
+                base_cr: 250,
+                goods_cr: 300,
+                range_cr: 360,
+                threat_cr: 1_200,
+            },
+        };
+        let rows: Vec<(String, u32)> = reward_term_rows(&escort)
+            .into_iter()
+            .map(|row| (row.label, row.cr))
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                ("Base".to_string(), 250),
+                ("Cargo".to_string(), 300),
+                ("Range 12 km".to_string(), 360),
+                ("Threat 4".to_string(), 1_200),
+            ]
+        );
+
+        let procure = Job {
+            id: id.clone(),
+            kind: JobType::Procure {
+                item: ItemDesignId::from(ItemRoleType::IronOre),
+                count: 4,
+            },
+            target: station.clone(),
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward {
+                base_cr: 100,
+                goods_cr: 46,
+                range_cr: 0,
+                threat_cr: 0,
+            },
+        };
+        let labels: Vec<String> = reward_term_rows(&procure)
+            .into_iter()
+            .map(|row| row.label)
+            .collect();
+        assert_eq!(
+            labels,
+            ["Base", "Goods"],
+            "a term that pays nothing has no row"
+        );
+
+        let flat = Job {
+            reward: JobReward::flat(90),
+            ..procure
+        };
+        assert_eq!(reward_term_rows(&flat), [], "the total already says it");
+    }
+
+    /// At 1024 logical px a board row with a long title, a leg, a threat and
+    /// a gate tag keeps every cell on one line: its verbs stay whole inside
+    /// the panel and the title is the cell that gives way.
+    #[test]
+    fn a_board_row_stays_on_one_line_with_its_verbs_whole_at_1024_px() {
+        use crate::pointer_rig::{pane_pointer_rig, settle};
+
+        let mut rig = pane_pointer_rig();
+        rig.app.add_plugins(nova_ui::NovaUiPlugin);
+        let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+        let board = BoardView {
+            rows: vec![PostedRow {
+                id: JobId::slot(station, 0, 0),
+                icon: JobIconType::Neutralize,
+                title: "Neutralize the raider flagship Marianne Lament beyond the belt".to_string(),
+                range: "9.9 km".to_string(),
+                threat: "12".to_string(),
+                reward_cr: 12_345,
+                time_left: (0.5, "60 min".to_string()),
+                gate: VerbGate::Tagged("NO WEAPON"),
+                refreshable: true,
+                confirming: false,
+                refresh_gate: VerbGate::Ready,
+            }],
+        };
+        let icons = InterfaceIcons::blank();
+        // The pane's inner width at 1024: the window less, on each side, the
+        // root padding (16), the card border (1) and the body padding (12).
+        let content = rig.content_root;
+        rig.app
+            .world_mut()
+            .commands()
+            .entity(content)
+            .with_children(|content| {
+                content
+                    .spawn(Node {
+                        width: px(1024.0 - 2.0 * (16.0 + 1.0 + 12.0)),
+                        height: px(400),
+                        flex_grow: 0.0,
+                        ..view_split()
+                    })
+                    .with_children(|split| {
+                        split.spawn(column()).with_children(|col| {
+                            board_panel(col, &icons, &board, None, ScrollPosition::default());
+                        });
+                        split.spawn(inspector(Overflow::scroll_y()));
+                    });
+            });
+        settle(&mut rig.app);
+        settle(&mut rig.app);
+
+        let world = rig.app.world_mut();
+        let rect = |world: &World, entity: Entity| {
+            let node = world.get::<ComputedNode>(entity).expect("a laid-out node");
+            let centre = world
+                .get::<UiGlobalTransform>(entity)
+                .expect("a laid-out node")
+                .translation;
+            Rect::from_center_size(centre, node.size())
+        };
+        let by_name = |world: &mut World, name: &str| {
+            world
+                .query::<(Entity, &Name)>()
+                .iter(world)
+                .find(|(_, each)| each.as_str() == name)
+                .map(|(entity, _)| entity)
+                .unwrap_or_else(|| panic!("a node named {name}"))
+        };
+        let panel = by_name(world, JOBS_BOARD);
+        let panel = rect(world, panel);
+        let row = by_name(world, "JobRowPosted-0");
+        let row_rect = rect(world, row);
+        assert!(
+            row_rect.height() <= metrics::LIST_ROW_H + 2.0 * BORDER_W + 0.5,
+            "the row is one line high: {row_rect:?}"
+        );
+        let cells: Vec<Rect> = world
+            .get::<Children>(row)
+            .expect("the row has cells")
+            .iter()
+            .collect::<Vec<_>>()
+            .into_iter()
+            .map(|cell| rect(world, cell))
+            .collect();
+        for pair in cells.windows(2) {
+            assert!(
+                pair[1].min.x >= pair[0].max.x + metrics::GAP_L - 0.5,
+                "cells stand side by side, a gap apart: {cells:?}"
+            );
+        }
+        let verbs = cells.last().expect("the verbs cell");
+        assert!(
+            verbs.max.x <= panel.max.x + 0.5 && verbs.min.x >= panel.min.x - 0.5,
+            "the verbs cell is inside the panel: {verbs:?} in {panel:?}"
+        );
+        let buttons: Vec<Rect> = world
+            .query_filtered::<Entity, With<ThemedButton>>()
+            .iter(world)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .map(|button| rect(world, button))
+            .collect();
+        assert_eq!(buttons.len(), 2, "Accept and the X ask: {buttons:?}");
+        for button in &buttons {
+            assert!(
+                button.min.x >= verbs.min.x - 0.5 && button.max.x <= verbs.max.x + 0.5,
+                "the verb {button:?} is whole inside its cell {verbs:?}"
+            );
+        }
+        // The tag's own width is not judged here: this rig lays text out in
+        // the engine's fallback font, a fifth wider than the game's.
+        // Icon, then the title: the one cell that gives way.
+        let title = cells[1];
+        assert!(
+            title.width() >= TITLE_MIN_PX - 0.5,
+            "the title keeps its least width: {title:?}"
         );
     }
 

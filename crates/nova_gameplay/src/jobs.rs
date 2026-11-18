@@ -73,23 +73,24 @@ use crate::{
     inventory::prelude::{
         cr_text, GameItems, ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType, ShipInventory,
     },
-    market::prelude::JobOfferRule,
+    market::prelude::{JobOfferRule, ShipRoleType},
     station_visits::prelude::StationVisitId,
 };
 
 /// Glob-import surface: `use nova_gameplay::jobs::prelude::*`.
 pub mod prelude {
     pub use super::{
-        escort_raider_counts, escort_raider_size, is_job_post_key, job_title, offer_deadline_text,
-        plan_job_accept, plan_job_hand_in, plan_job_hull_fit, plan_job_offer_refresh,
-        plan_job_supply, station_job_offers, EscortLeg, Job, JobAcceptRefusalType, JobAccepted,
-        JobBoard, JobDone, JobDropped, JobField, JobHandInPartner, JobHandInPlan,
-        JobHandInRefusalType, JobHandedIn, JobHull, JobHullFit, JobHullRefusalType, JobId,
-        JobMixType, JobOfferRefreshPlan, JobOfferRefreshRefusalType, JobPostings, JobSourceType,
-        JobType, JobWreck, Jobs, ScenarioPosting, ShipSizeType, SlotPosting, StarterBoardMarker,
-        SupplyFramingType, SupplyRefusalType, SupplyRefused, VisitPosting,
-        ESCORT_PAY_PER_RAIDER_CR, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, JOB_OFFER_REFRESH_FEE_CR,
-        SUPPLY_MASS_CAP_G, VISIT_EXTRAS_MAX, VISIT_EXTRA_OFFER_SECONDS,
+        escort_raider_counts, escort_raider_size, escort_raider_weapons, is_job_post_key,
+        job_reward, job_title, offer_deadline_text, plan_job_accept, plan_job_hand_in,
+        plan_job_hull_fit, plan_job_offer_refresh, plan_job_supply, station_job_offers, EscortLeg,
+        Job, JobAcceptRefusalType, JobAccepted, JobBoard, JobDone, JobDropped, JobField,
+        JobHandInPartner, JobHandInPlan, JobHandInRefusalType, JobHandedIn, JobHull, JobHullFit,
+        JobHullRefusalType, JobId, JobMixType, JobOfferRefreshPlan, JobOfferRefreshRefusalType,
+        JobPostings, JobReward, JobSourceType, JobType, JobWreck, Jobs, ScenarioPosting,
+        ShipSizeType, SlotPosting, StarterBoardMarker, SupplyFramingType, SupplyRefusalType,
+        SupplyRefused, VisitPosting, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, JOB_LEG_M, JOB_LEG_STEP_M,
+        JOB_OFFER_REFRESH_FEE_CR, JOB_RANGE_CR_PER_KM, JOB_THREAT_CR_PER_WEAPON,
+        RECOVER_GOODS_CAP_CR, SUPPLY_MASS_CAP_G, VISIT_EXTRAS_MAX, VISIT_EXTRA_OFFER_SECONDS,
     };
 }
 
@@ -113,20 +114,40 @@ pub const VISIT_EXTRA_OFFER_SECONDS: f64 = 1_200.0;
 
 /// The fewest and the most units one procurement asks for, both included.
 const PROCURE_COUNT: (u32, u32) = (2, 8);
-/// The flat fee a job adds over its base, in multiples of this many
-/// credits, one to [`FEE_STEPS`] times.
+/// The flat fee a job adds to its base, in multiples of this many credits,
+/// one to [`FEE_STEPS`] times. The poster's advancement does not scale it.
 const FEE_STEP_CR: u32 = 50;
 /// How many fee steps a job may add.
 const FEE_STEPS: u32 = 5;
 /// The least and the most cargo an escorted hauler carries, at ask, both
-/// included; the reward is half of it, [`ESCORT_PAY_PER_RAIDER_CR`] a
-/// raider and the fee.
+/// included; the reward's cargo term is a quarter of it.
 const ESCORT_CARGO_CR: (u32, u32) = (300, 2_400);
-/// What a distress call pays before the fee.
-pub(crate) const DISTRESS_BASE_CR: u32 = 200;
-/// What a supply job pays for the leg out to its caller, over its goods at
-/// ask plus half and twice the fee: a distress call's base.
-const SUPPLY_BASE_CR: u32 = DISTRESS_BASE_CR;
+/// What a recovery pays before the fee, at advancement 0.
+const RECOVER_BASE_CR: u32 = 100;
+/// What an escort pays before the fee, at advancement 0.
+const ESCORT_BASE_CR: u32 = 200;
+/// What a distress call pays before the fee, at advancement 0.
+const DISTRESS_BASE_CR: u32 = 200;
+/// What a supply job pays before the fee, at advancement 0.
+const SUPPLY_BASE_CR: u32 = 200;
+/// What a neutralize pays before the fee, at advancement 0.
+const NEUTRALIZE_BASE_CR: u32 = 300;
+/// What a job pays per kilometre of its leg ([`Job::leg_m`]), at
+/// advancement 0.
+pub const JOB_RANGE_CR_PER_KM: u32 = 30;
+/// What a job pays per weapon it puts against the player
+/// ([`Job::threat`]), at every advancement.
+pub const JOB_THREAT_CR_PER_WEAPON: u32 = 300;
+/// The most a recovery's goods term pays: the player keeps the stack, so
+/// the term is a finder's fee, not the stack's worth.
+pub const RECOVER_GOODS_CAP_CR: u32 = 2_000;
+/// The shortest and the longest leg an escort, a distress call and a supply
+/// job draw, in meters, both included, in steps of [`JOB_LEG_STEP_M`]. The
+/// open world looks for a mark inside the poster's cell, so the longest is
+/// half a 32 km cell: a longer leg leaves the cell from every station.
+pub const JOB_LEG_M: (u32, u32) = (6_000, 16_000);
+/// The step between two drawn legs, in meters.
+pub const JOB_LEG_STEP_M: u32 = 2_000;
 /// The most a supply job's goods weigh, in grams: 200 kg, two hull
 /// sections of hold. Every start hull's hold takes its start kit, and the
 /// lightest kit weighs 200 kg, so every start hold takes any supply stack.
@@ -135,13 +156,8 @@ pub const SUPPLY_MASS_CAP_G: u32 = 200_000;
 /// supply job's pool: cheap bulk a stranded ship can use, not salvage worth
 /// more than the leg.
 const SUPPLY_RUN_ASK_MAX_CR: u32 = 20;
-/// What a neutralize pays before the fee, doubled for the risk.
-const NEUTRALIZE_BASE_CR: u32 = 400;
 /// The most raiders one escort meets.
 pub const ESCORT_RAIDERS_MAX: u32 = 3;
-/// What an escort pays per raider lying in wait, before the cargo share and
-/// the fee.
-pub const ESCORT_PAY_PER_RAIDER_CR: u32 = 150;
 /// The raiders an escort meets by its poster's civilization's advancement,
 /// in rising order: each band's least advancement, the least and the most
 /// raiders it draws, both included, and how large each raider's hull may
@@ -203,6 +219,19 @@ pub enum ShipSizeType {
         /// The most turrets the hull mounts.
         turrets: u32,
     },
+}
+
+impl ShipSizeType {
+    /// How many weapon slots a hull of `role` fills at `advancement` under
+    /// this size: the role's own count ([`ShipRoleType::weapon_slots`]), cut
+    /// to a budget's turrets.
+    pub fn weapon_slots(self, role: ShipRoleType, advancement: f32) -> u32 {
+        let slots = role.weapon_slots(advancement);
+        match self {
+            ShipSizeType::Advancement => slots,
+            ShipSizeType::Budget { turrets, .. } => slots.min(turrets),
+        }
+    }
 }
 
 /// The identity of a posted job: the station that posted it and what
@@ -1175,8 +1204,129 @@ pub struct Job {
     pub kind: JobType,
     /// The station the job hands in at: the poster.
     pub target: GeneratedBodyId,
-    /// What the poster pays on the hand-in, above zero.
-    pub reward_cr: u32,
+    /// How far the work lies from the poster when the board posts, in
+    /// meters: the drawn leg of an escort, a distress call and a supply job
+    /// ([`JOB_LEG_M`]), the way to the wreck of a recovery or the hull of a
+    /// neutralize. Zero for a procurement.
+    pub leg_m: u32,
+    /// The weapons the job puts against the player when the board posts: an
+    /// escort's raiders times the weapons of each
+    /// ([`escort_raider_weapons`]), a neutralize's hull's live weapon
+    /// sections. Zero for every other kind.
+    pub threat: u32,
+    /// What the poster pays on the hand-in, by term; the total is above
+    /// zero.
+    pub reward: JobReward,
+}
+
+/// What a job pays, as the terms the Jobs pane lists. The hand-in pays
+/// [`JobReward::total_cr`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct JobReward {
+    /// The kind's base at the poster's advancement, plus the fee. An
+    /// authored reward is this term alone ([`JobReward::flat`]).
+    pub base_cr: u32,
+    /// The share of the goods the job moves: a procurement's or a supply
+    /// job's stack, an escort's cargo, a recovery's stack.
+    pub goods_cr: u32,
+    /// The pay for the job's leg ([`Job::leg_m`]).
+    pub range_cr: u32,
+    /// The pay for the weapons the job puts against the player
+    /// ([`Job::threat`]).
+    pub threat_cr: u32,
+}
+
+impl JobReward {
+    /// An authored reward of `cr`: one flat figure, with no goods, range or
+    /// threat term. What a visit profile's job and a scenario's `PostJob`
+    /// pay.
+    pub const fn flat(cr: u32) -> Self {
+        Self {
+            base_cr: cr,
+            goods_cr: 0,
+            range_cr: 0,
+            threat_cr: 0,
+        }
+    }
+
+    /// What the hand-in pays: the terms summed, saturating at a credit
+    /// balance.
+    pub const fn total_cr(&self) -> u32 {
+        self.base_cr
+            .saturating_add(self.goods_cr)
+            .saturating_add(self.range_cr)
+            .saturating_add(self.threat_cr)
+    }
+}
+
+/// What a job of `kind` pays, by term, posted by a station whose
+/// civilization has `advancement`, with a leg of `leg_m` meters, `threat`
+/// weapons against the player and a drawn fee of `fee_cr`. The one rule
+/// every board offer is priced by.
+///
+/// The advancement factor is `A = 1 + 2 x advancement`: 1 at the start
+/// rings, 3 at full advancement.
+///
+/// - Base: the kind's base times `A`, plus `fee_cr` once. The bases are 0
+///   for a procurement, [`RECOVER_BASE_CR`], [`ESCORT_BASE_CR`],
+///   [`DISTRESS_BASE_CR`], [`SUPPLY_BASE_CR`] and [`NEUTRALIZE_BASE_CR`].
+///   The fee is not scaled.
+/// - Goods: a procurement's and a supply job's stack at its reference ask
+///   times 3/2; a quarter of an escort's cargo; half a recovery's stack at
+///   its reference ask, at most [`RECOVER_GOODS_CAP_CR`]. Advancement does
+///   not scale it: the catalog's prices already carry the goods' worth.
+/// - Range: [`JOB_RANGE_CR_PER_KM`] times `A` per kilometre of `leg_m`.
+/// - Threat: [`JOB_THREAT_CR_PER_WEAPON`] per weapon of `threat`, not
+///   scaled.
+///
+/// Rounding: the scaled base and the range term round to the nearest whole
+/// credit; a goods share rounds down. Every term saturates at a credit
+/// balance, and so does the total ([`JobReward::total_cr`]).
+///
+/// # Panics
+///
+/// When `advancement` lies outside `[0, 1]`, or when `kind` names an item
+/// the catalog lacks: a board draws its items from the catalog and a
+/// civilization's advancement is clamped, so either is an assembly fault.
+pub fn job_reward(
+    kind: &JobType,
+    leg_m: u32,
+    threat: u32,
+    advancement: f32,
+    fee_cr: u32,
+    items: &GameItems,
+) -> JobReward {
+    assert!(
+        (0.0..=1.0).contains(&advancement),
+        "job_reward: the advancement {advancement} lies outside [0, 1]"
+    );
+    let factor = 1.0 + 2.0 * f64::from(advancement);
+    // A float past u32 saturates on the cast; the terms are never negative.
+    let scaled = |cr: f64| (cr * factor).round() as u32;
+    let saturated = |cr: u64| u32::try_from(cr).unwrap_or(u32::MAX);
+    let at_ask =
+        |item: &ItemDesignId, count: u32| items.design(item).reference_price().buy_cr(count);
+    let (base_cr, goods_cr) = match kind {
+        JobType::Procure { item, count } => (0, at_ask(item, *count).saturating_mul(3) / 2),
+        JobType::Recover { item, count, .. } => (
+            RECOVER_BASE_CR,
+            (at_ask(item, *count) / 2).min(u64::from(RECOVER_GOODS_CAP_CR)),
+        ),
+        JobType::Escort { cargo_cr, .. } => (ESCORT_BASE_CR, u64::from(cargo_cr / 4)),
+        JobType::Distress { .. } => (DISTRESS_BASE_CR, 0),
+        JobType::Supply { item, count, .. } => {
+            (SUPPLY_BASE_CR, at_ask(item, *count).saturating_mul(3) / 2)
+        }
+        JobType::Neutralize { .. } => (NEUTRALIZE_BASE_CR, 0),
+    };
+    JobReward {
+        base_cr: scaled(f64::from(base_cr)).saturating_add(fee_cr),
+        goods_cr: saturated(goods_cr),
+        range_cr: scaled(f64::from(JOB_RANGE_CR_PER_KM) * f64::from(leg_m) / 1_000.0),
+        threat_cr: JOB_THREAT_CR_PER_WEAPON.saturating_mul(threat),
+    }
 }
 
 impl Job {
@@ -1372,7 +1522,7 @@ impl Job {
             | JobSourceType::Visit { .. }
             | JobSourceType::Scenario { .. } => {}
         }
-        if self.reward_cr == 0 {
+        if self.reward.total_cr() == 0 {
             return Err(format!("the job '{}' pays nothing", self.id));
         }
         if self.target != self.id.station {
@@ -1503,6 +1653,22 @@ pub fn escort_raider_counts(advancement: f32) -> (u32, u32) {
 /// is clamped there, so another value is an assembly fault.
 pub fn escort_raider_size(advancement: f32) -> ShipSizeType {
     escort_raider_band(advancement, "escort_raider_size").3
+}
+
+/// The weapons each raider of an escort posted by a civilization of
+/// `advancement` carries: the weapon slots of a scavenger of its band's
+/// size ([`ShipSizeType::weapon_slots`]). A budget raider mounts one turret
+/// per slot; a slot of the last band's raider may mount a mirrored pair,
+/// which counts once.
+///
+/// # Panics
+///
+/// When `advancement` lies outside `[0, 1]`: a civilization's advancement
+/// is clamped there, so another value is an assembly fault.
+pub fn escort_raider_weapons(advancement: f32) -> u32 {
+    escort_raider_band(advancement, "escort_raider_weapons")
+        .3
+        .weapon_slots(ShipRoleType::Scavenger, advancement)
 }
 
 /// The [`ESCORT_RAIDER_BANDS`] row `advancement` falls in, for `caller`'s
@@ -1933,6 +2099,9 @@ pub struct JobWreck {
     pub name: String,
     /// Its hold's stacks, each above zero.
     pub stacks: Vec<(ItemDesignId, u32)>,
+    /// How far it stands from the poster, in meters: the leg of a recovery
+    /// that names it.
+    pub leg_m: u32,
 }
 
 /// A hostile intact hull standing near a station when its board posts: a
@@ -1943,6 +2112,12 @@ pub struct JobHull {
     pub id: GeneratedBodyId,
     /// What it is called.
     pub name: String,
+    /// How far it stands from the poster, in meters: the leg of a
+    /// neutralize that names it.
+    pub leg_m: u32,
+    /// Its live weapon sections: turrets, torpedo bays and railguns. The
+    /// threat of a neutralize that names it; an unarmed hull counts zero.
+    pub weapons: u32,
 }
 
 /// What stands around a station when its board posts: the located bodies
@@ -2005,17 +2180,17 @@ fn wanted_categories(clusters: &[ClusterType]) -> Vec<ItemCategoryType> {
 ///
 /// A procurement asks for an item from the categories the cell asks for
 /// ([`wanted_categories`]), distinct while the pool allows, [`PROCURE_COUNT`]
-/// units at the item's ask plus half. A recovery names a wreck of the field
-/// and one of its stacks, whole, at ask twice; an escort a hauler carrying
-/// [`ESCORT_CARGO_CR`] at ask, for half of it; a distress call pays
-/// [`DISTRESS_BASE_CR`]; a neutralize names a hostile of the field for
-/// [`NEUTRALIZE_BASE_CR`]. A supply job draws a framing, then an item of it
-/// from its own pool ([`supply_pool`]), [`supply_count`] units, and pays
-/// [`SUPPLY_BASE_CR`] and the goods at ask plus half.
-/// Every job adds a flat fee of one to [`FEE_STEPS`] times [`FEE_STEP_CR`],
-/// doubled for a distress call, a neutralize and a supply job. A kind drawn
-/// with no candidate left in the field, or a supply job with an empty pool,
-/// posts a procurement instead; a wreck or a hull is named once per board.
+/// units. A recovery names a wreck of the field and one of its stacks,
+/// whole; an escort a hauler carrying [`ESCORT_CARGO_CR`] at ask past the
+/// raiders its poster's advancement draws; a neutralize names a hostile of
+/// the field. A supply job draws a framing, then an item of it from its own
+/// pool ([`supply_pool`]), [`supply_count`] units. An escort, a distress
+/// call and a supply job draw their leg ([`JOB_LEG_M`]); a recovery and a
+/// neutralize read theirs off the field body. Every offer is priced by
+/// [`job_reward`] on a drawn fee of one to [`FEE_STEPS`] times
+/// [`FEE_STEP_CR`]. A kind drawn with no candidate left in the field, or a
+/// supply job with an empty pool, posts a procurement instead; a wreck or a
+/// hull is named once per board.
 ///
 /// Each slot's draws come off its own `WyRand`, seeded from the world seed,
 /// the station id, the slot and its posting, in a fixed number, so the same
@@ -2121,7 +2296,7 @@ pub fn station_job_offers(
             {
                 kind = JobKindType::Procure;
             }
-            let (kind, reward_cr) = match kind {
+            let posting = match kind {
                 JobKindType::Procure => {
                     let at = draw.pick as usize % pool.len();
                     let item = if pool.len() > 1 {
@@ -2129,7 +2304,7 @@ pub fn station_job_offers(
                     } else {
                         pool[at]
                     };
-                    procurement(item, draw.count, draw.fee, items)
+                    procurement(item, draw.count)
                 }
                 JobKindType::Recover => {
                     let wreck = wrecks.swap_remove(draw.pick as usize % wrecks.len());
@@ -2139,37 +2314,33 @@ pub fn station_job_offers(
                         .filter(|(_, count)| *count > 0)
                         .collect();
                     let (item, count) = stacks[(draw.pick / 7) as usize % stacks.len()].clone();
-                    let goods = items.design(&item).reference_price().buy_cr(count) * 2;
-                    (
-                        JobType::Recover {
+                    Posting {
+                        kind: JobType::Recover {
                             wreck: wreck.id.clone(),
                             wreck_name: wreck.name.clone(),
                             item,
                             count,
                         },
-                        job_reward(goods, draw.fee),
-                    )
+                        leg_m: wreck.leg_m,
+                        threat: 0,
+                    }
                 }
-                JobKindType::Escort => escort_posting(&id, draw.cargo_cr, draw.raiders, draw.fee),
-                JobKindType::Distress => distress_posting(&id, draw.fee),
+                JobKindType::Escort => escort_posting(&id, draw, advancement),
+                JobKindType::Distress => distress_posting(&id, draw),
                 JobKindType::Supply => supply_posting(&id, draw, &supplies),
                 JobKindType::Neutralize => {
                     let hull = hostiles.swap_remove(draw.pick as usize % hostiles.len());
-                    (
-                        JobType::Neutralize {
+                    Posting {
+                        kind: JobType::Neutralize {
                             hull: hull.id.clone(),
                             hull_name: hull.name.clone(),
                         },
-                        job_reward(u64::from(NEUTRALIZE_BASE_CR), draw.fee * 2),
-                    )
+                        leg_m: hull.leg_m,
+                        threat: hull.weapons,
+                    }
                 }
             };
-            Job {
-                id,
-                kind,
-                target: station.clone(),
-                reward_cr,
-            }
+            posting.job(id, draw.fee, advancement, items)
         })
         .collect();
     if let Some(fit) = assured {
@@ -2177,15 +2348,47 @@ pub fn station_job_offers(
             .iter()
             .any(|offer| plan_job_hull_fit(offer, items, fit).is_ok());
         if !fitted {
-            let draw = SlotDraw::of(seed, &offers[0].id, mix, advancement);
-            if let Some((kind, reward_cr)) = fitted_posting(&offers[0].id, draw, &pool, items, fit)
-            {
-                offers[0].kind = kind;
-                offers[0].reward_cr = reward_cr;
+            let id = offers[0].id.clone();
+            let draw = SlotDraw::of(seed, &id, mix, advancement);
+            if let Some(posting) = fitted_posting(&id, draw, advancement, &pool, items, fit) {
+                offers[0] = posting.job(id, draw.fee, advancement, items);
             }
         }
     }
     offers
+}
+
+/// What one slot posts before it is priced: the kind and the two posting
+/// facts the reward reads.
+#[derive(Debug, PartialEq, Eq)]
+struct Posting {
+    kind: JobType,
+    leg_m: u32,
+    threat: u32,
+}
+
+impl Posting {
+    /// The job the slot `id` posts for this, handed in at its poster and
+    /// priced by [`job_reward`] on the drawn `fee_cr` at the poster's
+    /// `advancement`.
+    fn job(self, id: JobId, fee_cr: u32, advancement: f32, items: &GameItems) -> Job {
+        let reward = job_reward(
+            &self.kind,
+            self.leg_m,
+            self.threat,
+            advancement,
+            fee_cr,
+            items,
+        );
+        Job {
+            target: id.station.clone(),
+            id,
+            kind: self.kind,
+            leg_m: self.leg_m,
+            threat: self.threat,
+            reward,
+        }
+    }
 }
 
 /// One slot's draws: a fixed number off the slot's own `WyRand`, whatever
@@ -2198,6 +2401,8 @@ struct SlotDraw {
     count: u32,
     cargo_cr: u32,
     raiders: u32,
+    /// The leg of an escort, a distress call and a supply job, in meters.
+    leg_m: u32,
 }
 
 impl SlotDraw {
@@ -2221,53 +2426,51 @@ impl SlotDraw {
             count: rng.random_range(PROCURE_COUNT.0..=PROCURE_COUNT.1),
             cargo_cr: rng.random_range(ESCORT_CARGO_CR.0..=ESCORT_CARGO_CR.1),
             raiders: draw_escort_raiders(advancement, &mut rng),
+            leg_m: JOB_LEG_M.0
+                + rng.random_range(0..=(JOB_LEG_M.1 - JOB_LEG_M.0) / JOB_LEG_STEP_M)
+                    * JOB_LEG_STEP_M,
         }
     }
 }
 
-/// `base` credits plus `fee`, saturating at a credit balance.
-fn job_reward(base: u64, fee: u32) -> u32 {
-    u32::try_from(base + u64::from(fee)).unwrap_or(u32::MAX)
-}
-
-/// A procurement of `count` units of `item`, and its reward.
-fn procurement(item: &ItemDesignId, count: u32, fee: u32, items: &GameItems) -> (JobType, u32) {
-    let goods = items.design(item).reference_price().buy_cr(count) * 3 / 2;
-    (
-        JobType::Procure {
+/// A procurement of `count` units of `item`: no leg, no threat.
+fn procurement(item: &ItemDesignId, count: u32) -> Posting {
+    Posting {
+        kind: JobType::Procure {
             item: item.clone(),
             count,
         },
-        job_reward(goods, fee),
-    )
+        leg_m: 0,
+        threat: 0,
+    }
 }
 
-/// The escort `id` posts with `cargo_cr` aboard its hauler and `raiders`
-/// lying in wait, and its reward: half the cargo,
-/// [`ESCORT_PAY_PER_RAIDER_CR`] a raider and the fee.
-fn escort_posting(id: &JobId, cargo_cr: u32, raiders: u32, fee: u32) -> (JobType, u32) {
-    (
-        JobType::Escort {
+/// The escort `id` posts on `draw` at a station whose civilization has
+/// `advancement`: the drawn cargo aboard its hauler, the drawn raiders lying
+/// in wait on the drawn leg, and the raiders' weapons as its threat
+/// ([`escort_raider_weapons`]).
+fn escort_posting(id: &JobId, draw: SlotDraw, advancement: f32) -> Posting {
+    Posting {
+        kind: JobType::Escort {
             hauler: id.spawned_body("hauler", 0),
-            cargo_cr,
-            raiders,
+            cargo_cr: draw.cargo_cr,
+            raiders: draw.raiders,
         },
-        job_reward(
-            u64::from(cargo_cr / 2) + u64::from(ESCORT_PAY_PER_RAIDER_CR) * u64::from(raiders),
-            fee,
-        ),
-    )
+        leg_m: draw.leg_m,
+        threat: draw.raiders * escort_raider_weapons(advancement),
+    }
 }
 
-/// The distress call `id` posts, and its reward: the base and twice the
-/// fee.
-fn distress_posting(id: &JobId, fee: u32) -> (JobType, u32) {
-    (
-        JobType::Distress {
+/// The distress call `id` posts on `draw`: its caller at the end of the
+/// drawn leg.
+fn distress_posting(id: &JobId, draw: SlotDraw) -> Posting {
+    Posting {
+        kind: JobType::Distress {
             caller: id.spawned_body("caller", 0),
         },
-        job_reward(u64::from(DISTRESS_BASE_CR), fee * 2),
-    )
+        leg_m: draw.leg_m,
+        threat: 0,
+    }
 }
 
 /// The items a supply job may ask for, in id order: the medkit and every
@@ -2306,11 +2509,10 @@ fn supply_count(design: &ItemDesign, drawn: u32) -> u32 {
 }
 
 /// The supply job `id` posts on `draw` from `pool` ([`supply_pool`], not
-/// empty), and its reward: [`SUPPLY_BASE_CR`], the goods at their reference
-/// ask plus half, and twice the fee. The draw picks a framing among the ones
-/// the pool fills, in [`SupplyFramingType`] order, then an item of it, so a
-/// pool rich in raw material does not crowd out the rescue.
-fn supply_posting(id: &JobId, draw: SlotDraw, pool: &[&ItemDesign]) -> (JobType, u32) {
+/// empty), its caller at the end of the drawn leg. The draw picks a framing
+/// among the ones the pool fills, in [`SupplyFramingType`] order, then an
+/// item of it, so a pool rich in raw material does not crowd out the rescue.
+fn supply_posting(id: &JobId, draw: SlotDraw, pool: &[&ItemDesign]) -> Posting {
     let framings: Vec<SupplyFramingType> = SupplyFramingType::ALL
         .into_iter()
         .filter(|framing| {
@@ -2325,19 +2527,20 @@ fn supply_posting(id: &JobId, draw: SlotDraw, pool: &[&ItemDesign]) -> (JobType,
         .collect();
     let design = framed[(draw.pick / 7) as usize % framed.len()];
     let count = supply_count(design, draw.count);
-    let goods = design.reference_price().buy_cr(count) * 3 / 2;
-    (
-        JobType::Supply {
+    Posting {
+        kind: JobType::Supply {
             caller: id.spawned_body("caller", 0),
             item: design.id.clone(),
             count,
         },
-        job_reward(u64::from(SUPPLY_BASE_CR) + goods, draw.fee * 2),
-    )
+        leg_m: draw.leg_m,
+        threat: 0,
+    }
 }
 
-/// The first kind a hull of `fit` can do on the slot `id`, from `draw`, and
-/// its reward: a procurement while the hold takes the least stack of an item
+/// The first kind a hull of `fit` can do on the slot `id`, from `draw` at a
+/// station whose civilization has `advancement`, priced like any other
+/// offer: a procurement while the hold takes the least stack of an item
 /// of `pool`, else of any catalog item that is not contraband, of the drawn
 /// count or the most under
 /// it the hold takes; else a distress call for a clamp; else an escort for a
@@ -2346,10 +2549,11 @@ fn supply_posting(id: &JobId, draw: SlotDraw, pool: &[&ItemDesign]) -> (JobType,
 fn fitted_posting(
     id: &JobId,
     draw: SlotDraw,
+    advancement: f32,
     pool: &[&ItemDesignId],
     items: &GameItems,
     fit: JobHullFit,
-) -> Option<(JobType, u32)> {
+) -> Option<Posting> {
     let hold = u64::from(fit.hold_capacity_g);
     let stowed = |item: &ItemDesignId| items.design(item).stack_mass_g(PROCURE_COUNT.0) <= hold;
     let mut stowable: Vec<&ItemDesignId> =
@@ -2368,13 +2572,13 @@ fn fitted_posting(
             .rev()
             .find(|count| items.design(item).stack_mass_g(*count) <= hold)
             .expect("the stowable items hold their least stack");
-        return Some(procurement(item, count, draw.fee, items));
+        return Some(procurement(item, count));
     }
     if fit.has_clamp {
-        return Some(distress_posting(id, draw.fee));
+        return Some(distress_posting(id, draw));
     }
     fit.has_weapon
-        .then(|| escort_posting(id, draw.cargo_cr, draw.raiders, draw.fee))
+        .then(|| escort_posting(id, draw, advancement))
 }
 
 /// Why an accept changes nothing, in check order.
@@ -2632,18 +2836,19 @@ pub fn plan_job_hand_in(
             None
         }
     };
-    let Some(station_cr) = partner.credits_cr.checked_sub(job.reward_cr) else {
+    let reward_cr = job.reward.total_cr();
+    let Some(station_cr) = partner.credits_cr.checked_sub(reward_cr) else {
         return Err(JobHandInRefusalType::StationCannotPay {
-            need: job.reward_cr,
+            need: reward_cr,
             have: partner.credits_cr,
         });
     };
     let own_cr = own_cr
-        .checked_add(job.reward_cr)
+        .checked_add(reward_cr)
         .ok_or(JobHandInRefusalType::CreditOverflow)?;
     Ok(JobHandInPlan {
         goods,
-        reward_cr: job.reward_cr,
+        reward_cr,
         own_cr,
         station_cr,
     })
@@ -2786,21 +2991,27 @@ mod tests {
                     id: body("cluster_1_0_0_hull", 2),
                     name: "Vell derelict".to_string(),
                     stacks: vec![("FrameSpar".into(), 3), ("Rations".into(), 5)],
+                    leg_m: 4_200,
                 },
                 JobWreck {
                     id: body("cluster_1_0_0_hull", 4),
                     name: "Harrow derelict".to_string(),
                     stacks: vec![("HullPlate".into(), 2)],
+                    leg_m: 33_000,
                 },
             ],
             hostiles: vec![
                 JobHull {
                     id: body("cluster_1_0_0_hull", 0),
                     name: "Kessel armored".to_string(),
+                    leg_m: 6_500,
+                    weapons: 4,
                 },
                 JobHull {
                     id: body("cluster_1_0_0_hull", 1),
                     name: "Kessel scavenger".to_string(),
+                    leg_m: 9_000,
+                    weapons: 0,
                 },
             ],
         }
@@ -2907,12 +3118,14 @@ mod tests {
                     );
                     assert!((PROCURE_COUNT.0..=PROCURE_COUNT.1).contains(count));
                     let goods = items.design(item).reference_price().buy_cr(*count) * 3 / 2;
+                    assert_eq!((job.leg_m, job.threat), (0, 0));
+                    assert_eq!(u64::from(job.reward.goods_cr), goods);
                     assert!(
-                        u64::from(job.reward_cr) > goods
-                            && u64::from(job.reward_cr)
-                                <= goods + u64::from(FEE_STEPS * FEE_STEP_CR),
-                        "the reward pays the goods and a fee: {job:?}"
+                        (FEE_STEP_CR..=FEE_STEPS * FEE_STEP_CR).contains(&job.reward.base_cr)
+                            && job.reward.base_cr % FEE_STEP_CR == 0,
+                        "a procurement's base is its fee alone: {job:?}"
                     );
+                    assert_eq!((job.reward.range_cr, job.reward.threat_cr), (0, 0));
                     seen.push(item.clone());
                 }
                 JobType::Recover { .. } | JobType::Neutralize { .. } => {
@@ -2983,9 +3196,14 @@ mod tests {
                         let source = field.wrecks.iter().find(|w| w.id == *wreck).unwrap();
                         assert_eq!(wreck_name, &source.name);
                         assert!(source.stacks.contains(&(item.clone(), *count)));
-                        assert!(
-                            u64::from(job.reward_cr)
-                                >= items.design(item).reference_price().buy_cr(*count) * 2
+                        assert_eq!(
+                            (job.leg_m, job.threat),
+                            (source.leg_m, 0),
+                            "a recovery's leg is the way to its wreck"
+                        );
+                        assert_eq!(
+                            u64::from(job.reward.goods_cr),
+                            items.design(item).reference_price().buy_cr(*count) / 2
                         );
                         assert!(!named.contains(wreck), "a wreck is named once per board");
                         named.push(wreck.clone());
@@ -3000,7 +3218,15 @@ mod tests {
                         assert!(!named.contains(hull), "a hull is named once per board");
                         named.push(hull.clone());
                         assert_eq!(job.title(&items), format!("Neutralize {hull_name}"));
-                        assert!(job.reward_cr >= NEUTRALIZE_BASE_CR + 2 * FEE_STEP_CR);
+                        assert_eq!(
+                            (job.leg_m, job.threat),
+                            (source.leg_m, source.weapons),
+                            "a neutralize reads its leg and its threat off the hull"
+                        );
+                        assert_eq!(
+                            job.reward.threat_cr,
+                            JOB_THREAT_CR_PER_WEAPON * source.weapons
+                        );
                     }
                     JobType::Escort {
                         hauler,
@@ -3017,13 +3243,17 @@ mod tests {
                                 job.id.slot_posting().unwrap().0
                             )
                         );
-                        assert!(job.reward_cr > cargo_cr / 2 + ESCORT_PAY_PER_RAIDER_CR * raiders);
+                        assert_eq!(job.threat, 1, "one raider with one turret");
+                        assert!(drawn_leg(job.leg_m), "an escort draws its leg: {job:?}");
+                        assert_eq!(job.reward.goods_cr, cargo_cr / 4);
                     }
                     JobType::Distress { caller } => {
                         assert_eq!(job.spawned_bodies(), vec![caller.clone()]);
                         assert_eq!(job.title(&items), "Answer a distress call");
                         assert_eq!(job.task(&items), "Dock with the stranded caller.");
                         assert_eq!(job.item_ids().count(), 0);
+                        assert!(drawn_leg(job.leg_m), "a call draws its leg: {job:?}");
+                        assert_eq!(job.threat, 0);
                     }
                     JobType::Supply {
                         caller,
@@ -3034,23 +3264,217 @@ mod tests {
                         assert_eq!(job.located_body(), Some(caller));
                         assert_eq!(job.item_ids().collect::<Vec<_>>(), vec![item]);
                         let goods = items.design(item).reference_price().buy_cr(*count) * 3 / 2;
-                        assert!(
-                            u64::from(job.reward_cr)
-                                >= u64::from(SUPPLY_BASE_CR) + goods + u64::from(2 * FEE_STEP_CR)
-                        );
+                        assert_eq!(u64::from(job.reward.goods_cr), goods);
+                        assert!(drawn_leg(job.leg_m), "a supply job draws its leg: {job:?}");
                     }
                     JobType::Procure { .. } => {}
+                }
+                assert_eq!(
+                    job.reward.range_cr,
+                    JOB_RANGE_CR_PER_KM * job.leg_m / 1_000,
+                    "at advancement 0 the range pays its plain rate: {job:?}"
+                );
+            }
+        }
+    }
+
+    /// Whether `leg_m` is one of the legs a slot draws.
+    fn drawn_leg(leg_m: u32) -> bool {
+        (JOB_LEG_M.0..=JOB_LEG_M.1).contains(&leg_m) && (leg_m - JOB_LEG_M.0) % JOB_LEG_STEP_M == 0
+    }
+
+    /// One job of each kind over the test catalog, for the reward rule.
+    fn kinds() -> [JobType; 6] {
+        let id = JobId::slot(station(1), 0, 0);
+        [
+            JobType::Procure {
+                item: "IronOre".into(),
+                count: 5,
+            },
+            JobType::Recover {
+                wreck: body("cluster_1_0_0_hull", 2),
+                wreck_name: "Vell derelict".to_string(),
+                item: "FrameSpar".into(),
+                count: 3,
+            },
+            JobType::Escort {
+                hauler: id.spawned_body("hauler", 0),
+                cargo_cr: 1_001,
+                raiders: 2,
+            },
+            JobType::Distress {
+                caller: id.spawned_body("caller", 0),
+            },
+            JobType::Supply {
+                caller: id.spawned_body("caller", 0),
+                item: "Medkit".into(),
+                count: 3,
+            },
+            JobType::Neutralize {
+                hull: body("cluster_1_0_0_hull", 0),
+                hull_name: "Kessel armored".to_string(),
+            },
+        ]
+    }
+
+    #[test]
+    fn a_job_s_base_is_its_kind_s_base_times_the_advancement_factor_plus_the_fee_once() {
+        let items = catalog();
+        // Procure, Recover, Escort, Distress, Supply, Neutralize.
+        let bases = [0, 100, 200, 200, 200, 300];
+        for (advancement, factor) in [(0.0, 1.0), (0.15, 1.3), (0.5, 2.0), (1.0, 3.0)] {
+            for (kind, base) in kinds().iter().zip(bases) {
+                for fee in [50, 250] {
+                    assert_eq!(
+                        job_reward(kind, 0, 0, advancement, fee, &items).base_cr,
+                        (f64::from(base) * factor).round() as u32 + fee,
+                        "{} at advancement {advancement} with a fee of {fee}",
+                        kind.name()
+                    );
                 }
             }
         }
     }
 
     #[test]
-    fn a_distress_call_pays_its_base_and_twice_the_fee() {
-        let id = JobId::slot(station(1), 0, 0);
-        let (kind, reward_cr) = distress_posting(&id, 100);
-        assert!(matches!(kind, JobType::Distress { .. }));
-        assert_eq!(reward_cr, DISTRESS_BASE_CR + 200);
+    fn a_job_s_goods_term_is_a_share_of_its_goods_at_ask_whatever_the_advancement() {
+        let items = catalog();
+        // 5 iron ore at 16; 3 frame spars at 60; 1,001 cr of cargo; 3
+        // medkits at 60.
+        let goods = [5 * 16 * 3 / 2, 3 * 60 / 2, 1_001 / 4, 0, 3 * 60 * 3 / 2, 0];
+        for advancement in [0.0, 0.5, 1.0] {
+            for (kind, goods) in kinds().iter().zip(goods) {
+                assert_eq!(
+                    job_reward(kind, 8_000, 2, advancement, 100, &items).goods_cr,
+                    goods,
+                    "{} at advancement {advancement}",
+                    kind.name()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_recovery_s_goods_term_stops_at_its_cap() {
+        let items = catalog();
+        let recover = |count| JobType::Recover {
+            wreck: body("cluster_1_0_0_hull", 2),
+            wreck_name: "Vell derelict".to_string(),
+            item: "FrameSpar".into(),
+            count,
+        };
+        let goods = |count| job_reward(&recover(count), 0, 0, 0.0, 50, &items).goods_cr;
+        assert_eq!(goods(66), 66 * 60 / 2, "under the cap half the stack");
+        assert_eq!(goods(67), RECOVER_GOODS_CAP_CR);
+        assert_eq!(goods(40_000), RECOVER_GOODS_CAP_CR);
+    }
+
+    #[test]
+    fn a_job_s_range_term_is_30_cr_a_km_times_the_advancement_factor() {
+        let items = catalog();
+        let [_, _, escort, ..] = kinds();
+        let range =
+            |leg_m, advancement| job_reward(&escort, leg_m, 0, advancement, 50, &items).range_cr;
+        assert_eq!(range(0, 1.0), 0, "no leg, no range pay");
+        assert_eq!(range(6_000, 0.0), 180);
+        assert_eq!(range(16_000, 0.0), 480);
+        assert_eq!(range(10_000, 0.15), 390);
+        assert_eq!(range(10_000, 0.5), 600);
+        assert_eq!(range(10_000, 1.0), 900);
+        assert_eq!(range(4_200, 0.0), 126);
+        assert_eq!(range(4_250, 0.0), 128, "a half credit rounds up");
+    }
+
+    #[test]
+    fn a_job_s_threat_term_is_300_cr_a_weapon_at_every_advancement() {
+        let items = catalog();
+        let [.., neutralize] = kinds();
+        for advancement in [0.0, 0.5, 1.0] {
+            let threat =
+                |weapons| job_reward(&neutralize, 0, weapons, advancement, 50, &items).threat_cr;
+            assert_eq!(threat(0), 0, "an unarmed target pays no threat");
+            assert_eq!(threat(1), 300);
+            assert_eq!(threat(9), 2_700);
+        }
+    }
+
+    #[test]
+    fn a_reward_s_terms_and_its_total_saturate_at_a_credit_balance() {
+        // Eight at a thousand million each ask past a credit balance.
+        let costly = GameItems::new([item("Relic", ItemCategoryType::Parts, 1_000_000_000)]);
+        let procure = JobType::Procure {
+            item: "Relic".into(),
+            count: 8,
+        };
+        let reward = job_reward(&procure, u32::MAX, u32::MAX, 1.0, 250, &costly);
+        assert_eq!(
+            reward,
+            JobReward {
+                base_cr: 250,
+                goods_cr: u32::MAX,
+                // The longest leg a u32 holds, at 90 cr a km: under a
+                // credit balance.
+                range_cr: 386_547_057,
+                threat_cr: u32::MAX,
+            }
+        );
+        assert_eq!(reward.total_cr(), u32::MAX);
+        let reward = JobReward {
+            base_cr: 250,
+            goods_cr: 120,
+            range_cr: 300,
+            threat_cr: 600,
+        };
+        assert_eq!(reward.total_cr(), 1_270);
+        assert_eq!(
+            JobReward::flat(180),
+            JobReward {
+                base_cr: 180,
+                goods_cr: 0,
+                range_cr: 0,
+                threat_cr: 0,
+            },
+            "an authored reward is its base alone"
+        );
+    }
+
+    #[test]
+    fn a_slot_draws_a_leg_of_6_to_16_km_in_2_km_steps_after_every_earlier_draw() {
+        let mut legs = BTreeSet::new();
+        for seed in 0..200 {
+            let id = JobId::slot(station(1), seed % JOBS_PER_BOARD, seed / JOBS_PER_BOARD);
+            let draw = SlotDraw::of(seed, &id, JobMixType::Trade, 0.6);
+            legs.insert(draw.leg_m);
+            // The slot's own stream, read in the order the draws were added:
+            // the leg is the seventh, so the six before it are the numbers a
+            // board drew before a leg existed.
+            let (slot, posting) = id.slot_posting().unwrap();
+            let key = Fnv64::new()
+                .write(&seed.to_le_bytes())
+                .write(b"station_jobs")
+                .write(id.station.to_string().as_bytes())
+                .write(&slot.to_le_bytes())
+                .write(&posting.to_le_bytes())
+                .finish();
+            let mut rng = WyRand::from_seed(key.to_le_bytes());
+            assert_eq!(draw.kind, JobMixType::Trade.draw(&mut rng));
+            assert_eq!(draw.fee, rng.random_range(1..=FEE_STEPS) * FEE_STEP_CR);
+            assert_eq!(draw.pick, rng.random_range(0..u32::MAX));
+            assert_eq!(
+                draw.count,
+                rng.random_range(PROCURE_COUNT.0..=PROCURE_COUNT.1)
+            );
+            assert_eq!(
+                draw.cargo_cr,
+                rng.random_range(ESCORT_CARGO_CR.0..=ESCORT_CARGO_CR.1)
+            );
+            assert_eq!(draw.raiders, draw_escort_raiders(0.6, &mut rng));
+        }
+        assert_eq!(
+            legs,
+            BTreeSet::from([6_000, 8_000, 10_000, 12_000, 14_000, 16_000]),
+            "every step of the range is drawn and no other leg"
+        );
     }
 
     /// The base-like catalog: real masses, lots and prices.
@@ -3083,7 +3507,9 @@ mod tests {
                 count,
             },
             target: station(1),
-            reward_cr: 500,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(500),
         };
         for (item, count, title, task, verb) in [
             (
@@ -3190,29 +3616,10 @@ mod tests {
     }
 
     #[test]
-    fn a_supply_job_pays_its_base_the_goods_at_ask_plus_half_and_twice_the_fee() {
+    fn a_supply_posting_draws_a_framing_then_an_item_and_keeps_the_drawn_leg() {
         let items = base_items();
         let pool = supply_pool(&items);
         let id = JobId::slot(station(1), 0, 0);
-        for (pick, drawn, fee) in [(0, 3, 100), (2, 5, 50), (2 + 7, 8, 150)] {
-            let draw = SlotDraw {
-                kind: JobKindType::Supply,
-                fee,
-                pick,
-                count: drawn,
-                cargo_cr: 300,
-                raiders: 1,
-            };
-            let (kind, reward_cr) = supply_posting(&id, draw, &pool);
-            let JobType::Supply { item, count, .. } = &kind else {
-                panic!("a supply posting is a supply job: {kind:?}")
-            };
-            let goods = items.design(item).reference_price().buy_cr(*count) * 3 / 2;
-            assert_eq!(
-                u64::from(reward_cr),
-                u64::from(SUPPLY_BASE_CR) + goods + u64::from(fee * 2)
-            );
-        }
         let rescue = SlotDraw {
             kind: JobKindType::Supply,
             fee: 100,
@@ -3220,18 +3627,31 @@ mod tests {
             count: 3,
             cargo_cr: 300,
             raiders: 1,
+            leg_m: 12_000,
         };
+        let posting = supply_posting(&id, rescue, &pool);
         assert_eq!(
-            supply_posting(&id, rescue, &pool),
-            (
-                JobType::Supply {
+            posting,
+            Posting {
+                kind: JobType::Supply {
                     caller: id.spawned_body("caller", 0),
                     item: "Medkit".into(),
                     count: 3,
                 },
-                200 + 270 + 200
-            ),
-            "pick 0 draws the first framing, a rescue: three medkits at 60 cr"
+                leg_m: 12_000,
+                threat: 0,
+            },
+            "pick 0 draws the first framing, a rescue: three medkits"
+        );
+        assert_eq!(
+            posting.job(id, rescue.fee, 0.0, &items).reward,
+            JobReward {
+                base_cr: 200 + 100,
+                goods_cr: 270,
+                range_cr: 360,
+                threat_cr: 0,
+            },
+            "the base and the fee once, three medkits at 60 cr plus half, 12 km"
         );
     }
 
@@ -3294,11 +3714,35 @@ mod tests {
     }
 
     #[test]
-    fn an_escort_pays_150_cr_per_raider_over_half_its_cargo_and_the_fee() {
+    fn an_escort_s_threat_is_its_raiders_times_the_weapons_of_its_band() {
         let id = JobId::slot(station(1), 0, 0);
-        let pay = |raiders| escort_posting(&id, 1_000, raiders, 50).1;
-        assert_eq!(pay(1), 500 + 150 + 50);
-        assert_eq!(pay(3), 500 + 450 + 50);
+        let draw = |raiders| SlotDraw {
+            kind: JobKindType::Escort,
+            fee: 50,
+            pick: 0,
+            count: 2,
+            cargo_cr: 1_000,
+            raiders,
+            leg_m: 10_000,
+        };
+        // Each band's budget turrets, then the last band's scavenger slots.
+        for (advancement, weapons) in [(0.0, 1), (0.2, 1), (0.25, 2), (0.5, 3), (0.75, 3), (1.0, 4)]
+        {
+            assert_eq!(escort_raider_weapons(advancement), weapons);
+            for raiders in 1..=ESCORT_RAIDERS_MAX {
+                let posting = escort_posting(&id, draw(raiders), advancement);
+                assert_eq!(
+                    (posting.leg_m, posting.threat),
+                    (10_000, raiders * weapons),
+                    "{raiders} raider(s) at advancement {advancement}"
+                );
+            }
+        }
+        assert_eq!(
+            ShipSizeType::Advancement.weapon_slots(ShipRoleType::Scavenger, 1.0),
+            ShipRoleType::Scavenger.weapon_slots(1.0),
+            "the last band's raider is the civilization's own scavenger"
+        );
     }
 
     #[test]
@@ -3423,6 +3867,7 @@ mod tests {
         let JobType::Procure { item, count } = job.kind.clone() else {
             unreachable!()
         };
+        let reward_cr = job.reward.total_cr();
         let mut jobs = Jobs::default();
 
         assert_eq!(
@@ -3480,15 +3925,15 @@ mod tests {
                 &job,
                 Some(&JobHandInPartner {
                     id: poster.clone(),
-                    credits_cr: job.reward_cr - 1
+                    credits_cr: reward_cr - 1
                 }),
                 &hold,
                 100,
                 false
             ),
             Err(JobHandInRefusalType::StationCannotPay {
-                need: job.reward_cr,
-                have: job.reward_cr - 1
+                need: reward_cr,
+                have: reward_cr - 1
             })
         );
         assert_eq!(
@@ -3500,9 +3945,9 @@ mod tests {
             plan,
             JobHandInPlan {
                 goods: Some((item.clone(), count)),
-                reward_cr: job.reward_cr,
-                own_cr: 100 + job.reward_cr,
-                station_cr: 10_000 - job.reward_cr,
+                reward_cr,
+                own_cr: 100 + reward_cr,
+                station_cr: 10_000 - reward_cr,
             }
         );
         let done = jobs.complete(&job.id);
@@ -3669,7 +4114,7 @@ mod tests {
         let plan =
             plan_job_hand_in(&recover, Some(&here), &hold, 100, jobs.is_done(&recover.id)).unwrap();
         assert_eq!(plan.goods, None, "a recovery takes nothing at the hand-in");
-        assert_eq!(plan.own_cr, 100 + recover.reward_cr);
+        assert_eq!(plan.own_cr, 100 + recover.reward.total_cr());
         jobs.complete(&recover.id);
         assert!(
             !jobs.is_done(&recover.id),
@@ -3727,7 +4172,7 @@ mod tests {
         loose.done.push(job.id.clone());
         assert!(loose.validate().unwrap_err().contains("not held"));
         let mut zero = job.clone();
-        zero.reward_cr = 0;
+        zero.reward = JobReward::flat(0);
         assert!(zero.validate().unwrap_err().contains("pays nothing"));
         let mut elsewhere = job.clone();
         elsewhere.target = station(2);
@@ -3740,7 +4185,9 @@ mod tests {
                 raiders: 1,
             },
             target: poster,
-            reward_cr: 300,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(300),
         };
         assert!(foreign.validate().unwrap_err().contains("not its own"));
         foreign.kind = JobType::Escort {
@@ -3771,7 +4218,9 @@ mod tests {
             },
             id,
             target: poster,
-            reward_cr: 300,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(300),
         };
         escort.validate().unwrap();
         let mark = Meters3(Vec3::new(0.0, 0.0, -10_000.0));
@@ -3861,8 +4310,8 @@ mod tests {
         assert_eq!(drawn.len(), 1);
         assert_eq!(drawn[0].id, renewed);
         assert_ne!(
-            (drawn[0].kind.clone(), drawn[0].reward_cr),
-            (before[0].kind.clone(), before[0].reward_cr),
+            (drawn[0].kind.clone(), drawn[0].reward),
+            (before[0].kind.clone(), before[0].reward),
             "a renewed slot draws afresh"
         );
         drawn[0].validate().unwrap();
@@ -4082,6 +4531,8 @@ mod tests {
             field.hostiles.push(JobHull {
                 name: id.to_string(),
                 id,
+                leg_m: 7_500,
+                weapons: 1,
             });
         }
         let posted_a = board(4, &a, &[], &items, JobMixType::Salvage, &field);
@@ -4248,7 +4699,7 @@ mod tests {
             "an offer off its slot is refused"
         );
         let mut unpaid = postings.clone();
-        unpaid.boards.get_mut(&poster).unwrap()[0].offer.reward_cr = 0;
+        unpaid.boards.get_mut(&poster).unwrap()[0].offer.reward = JobReward::flat(0);
         assert!(
             unpaid.validate(10.0).unwrap_err().contains("pays nothing"),
             "an offer no board could post is refused"
@@ -4286,7 +4737,9 @@ mod tests {
             id: id(slot),
             kind,
             target: poster.clone(),
-            reward_cr: 100,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(100),
         };
         let procure = job(
             0,
@@ -4419,7 +4872,9 @@ mod tests {
                 count: 4,
             },
             target: poster.clone(),
-            reward_cr: 100,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(100),
         };
         let items = GameItems::new([ItemDesign {
             id: "IronOre".into(),
@@ -4450,7 +4905,9 @@ mod tests {
                 raiders: 1,
             },
             target: poster,
-            reward_cr: 100,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(100),
         };
         assert_eq!(escort.progress(Some(&hold), false), (0, 1));
         assert_eq!(escort.progress(Some(&hold), true), (1, 1));
@@ -4475,7 +4932,9 @@ mod tests {
                 count: 2,
             },
             target: station.clone(),
-            reward_cr: 40,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(40),
         }
     }
 
@@ -4567,7 +5026,9 @@ mod tests {
                 count: 2,
             },
             target: station.clone(),
-            reward_cr: 40,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(40),
         }
     }
 

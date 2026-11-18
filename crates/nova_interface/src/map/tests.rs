@@ -3318,7 +3318,9 @@ fn a_marked_job_body_lists_every_matching_job() {
         id: JobId::slot(poster.clone(), slot, 0),
         kind,
         target: poster.clone(),
-        reward_cr: 100,
+        leg_m: 0,
+        threat: 0,
+        reward: JobReward::flat(100),
     };
     let ore = |slot, count| {
         job(

@@ -17,7 +17,7 @@
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 1 | `outcome: a escort job is posted and accepted` | a living station's board posts the kind; after the Accept click the job is held and its bodies stand under the poster's cell root |
-//! | 2 | `outcome: the hand-in is refused until the escort job is done` | docked at the poster with the job held, Your jobs greys the Hand in button with the not-done reason in its tooltip |
+//! | 2 | `outcome: the hand-in is refused until the escort job is done` | docked at the poster with the job held, Your jobs greys the Hand in button |
 //! | 3 | `outcome: the escort's hauler waits for the rendezvous` | on the undock the leg is laid and not started, and the hauler wears no helm order and no cruise cap while the player stands farther than 1 km from it |
 //! | 4 | `outcome: the hauler leaves when the escort arrives` | the leg starts with the player inside the rendezvous, and the hauler wears a Move and a 100 m/s cruise cap |
 //! | 5 | `outcome: the raiders spring with the escort in formation` | the first raider engages with the hauler at or under its cruise and the player within 1.5 km of it |

@@ -284,7 +284,9 @@ mod walk {
                         hull_name: format!("Fixture target {index}"),
                     },
                     target: station,
-                    reward_cr: 400,
+                    leg_m: 0,
+                    threat: 0,
+                    reward: JobReward::flat(400),
                 }
             })
             .collect()

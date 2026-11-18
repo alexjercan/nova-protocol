@@ -232,7 +232,7 @@ pub(crate) fn track_role_goal(
 #[cfg(test)]
 mod tests {
     use nova_events::prelude::{GeneratedBodyId, SectorCoord};
-    use nova_gameplay::prelude::{ItemDesign, JobId};
+    use nova_gameplay::prelude::{ItemDesign, JobId, JobReward};
 
     use super::*;
 
@@ -244,7 +244,9 @@ mod tests {
             id: JobId::slot(station.clone(), slot, 0),
             kind,
             target: station,
-            reward_cr: 100,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(100),
         }
     }
 

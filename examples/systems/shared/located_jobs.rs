@@ -21,7 +21,7 @@
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 1 | `outcome: a <kind> job is posted and accepted` | a living station's board posts the kind; after the Accept click the job is held and its bodies, if the kind puts any in the world, stand under the poster's cell root |
-//! | 2 | `outcome: the hand-in is refused until the <kind> job is done` | docked at the poster with the job held, Your jobs greys the Hand in button with the not-done reason in its tooltip |
+//! | 2 | `outcome: the hand-in is refused until the <kind> job is done` | docked at the poster with the job held, Your jobs greys the Hand in button |
 //! | 3 | `outcome: the world marks the <kind> job done` | after the work the job is listed done while still held |
 //! | 4 | `outcome: the hand-in pays the <kind> job` | docked again, the Hand in click pays the reward from the station, the played scenario grants its [`HandInGrant`], nothing leaves the hold and the job is listed completed |
 //!
@@ -51,7 +51,7 @@ use nova_protocol::{
     nova_interface::pane::InterfacePaneType,
     prelude::*,
 };
-use nova_ui::widget::{TextFieldValue, Tooltip};
+use nova_ui::widget::TextFieldValue;
 use nova_world::prelude::{desired_sectors, SectorRoot, SectorShipConditionType, WorldConfig};
 
 /// The four `outcome:` markers a range emits, held as literals in the
@@ -1050,7 +1050,7 @@ fn choose_the_job(world: &mut World) {
         "{} job: '{id}' in cell {cell} posts row {index}: {} for {} cr",
         kind.label(),
         job.title(&items),
-        job.reward_cr
+        job.reward.total_cr()
     );
     let mut watch = world.resource_mut::<LocatedJobWatch>();
     watch.station = Some((id, cell, position));
@@ -1231,33 +1231,26 @@ fn assert_the_accept(world: &mut World) {
     info!("{tag} job: holds '{}' ({title}); bodies {bodies:?}", job.id);
 }
 
-/// Claim 2: Your jobs greys the Hand in button with the not-done reason in
-/// its tooltip.
+/// Claim 2: Your jobs greys the Hand in button while the job is not done.
 fn assert_the_refusal(world: &mut World) {
     let tag = tag(world);
     let (_, job) = the_job(world);
-    let refusal = "not done yet";
-    let (disabled, tooltip) = world
-        .query::<(&Name, Has<InteractionDisabled>, Option<&Tooltip>)>()
+    let disabled = world
+        .query::<(&Name, Has<InteractionDisabled>)>()
         .iter(world)
-        .find(|(name, ..)| name.as_str() == "JobHandIn-0")
-        .map(|(_, disabled, tooltip)| (disabled, tooltip.map(|tooltip| tooltip.0.clone())))
+        .find(|(name, _)| name.as_str() == "JobHandIn-0")
+        .map(|(_, disabled)| disabled)
         .unwrap_or_else(|| panic!("{tag} job: Your jobs shows a Hand in button for the held job"));
     assert!(
         disabled,
         "{tag} job: the Hand in button is greyed while the job is not done"
     );
-    assert_eq!(
-        tooltip.as_deref(),
-        Some(refusal),
-        "{tag} job: the greyed Hand in button says why"
-    );
     nova_probe::probe_marker(
         world,
         markers(world).refused,
-        serde_json::json!({ "job": job.id.to_string(), "refusal": refusal }),
+        serde_json::json!({ "job": job.id.to_string(), "greyed": disabled }),
     );
-    info!("{tag} job: the hand-in reads '{refusal}'");
+    info!("{tag} job: the Hand in button is greyed");
 }
 
 /// Spend every weapon, controller and thruster section mounted on `root`
@@ -2189,10 +2182,10 @@ fn note_the_balances(world: &mut World) {
     let own_cr = world.get::<ShipCredits>(player).expect("credits").0;
     let station_cr = world.get::<ShipCredits>(station).expect("credits").0;
     assert!(
-        station_cr >= job.reward_cr,
+        station_cr >= job.reward.total_cr(),
         "{} job: the station holds {station_cr} cr, the job pays {}",
         tag(world),
-        job.reward_cr
+        job.reward.total_cr()
     );
     world.resource_mut::<LocatedJobWatch>().before_cr = Some((own_cr, station_cr));
 }
@@ -2218,12 +2211,12 @@ fn assert_the_hand_in(world: &mut World) {
     let granted = world.resource::<HandInGrant>().0;
     assert_eq!(
         own_cr,
-        own_before + job.reward_cr + granted,
+        own_before + job.reward.total_cr() + granted,
         "{tag} job: the player was paid the reward and the scenario's {granted} cr"
     );
     assert_eq!(
         station_cr,
-        station_before - job.reward_cr,
+        station_before - job.reward.total_cr(),
         "{tag} job: the station paid"
     );
     let buttons: Vec<String> = world
@@ -2248,7 +2241,7 @@ fn assert_the_hand_in(world: &mut World) {
         markers(world).paid,
         serde_json::json!({
             "job": job.id.to_string(),
-            "reward_cr": job.reward_cr,
+            "reward_cr": job.reward.total_cr(),
             "scenario_grant_cr": granted,
             "player_cr": own_cr,
             "station_cr": station_cr,
@@ -2256,7 +2249,7 @@ fn assert_the_hand_in(world: &mut World) {
     );
     info!(
         "{tag} job: PASS the hand-in paid {} cr and the scenario granted {granted} cr",
-        job.reward_cr
+        job.reward.total_cr()
     );
 }
 

@@ -13,7 +13,7 @@
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 1 | `outcome: a neutralize job is posted and accepted` | a living station's board posts the kind; after the Accept click the job is held and its bodies stand under the poster's cell root |
-//! | 2 | `outcome: the hand-in is refused until the neutralize job is done` | docked at the poster with the job held, Your jobs greys the Hand in button with the not-done reason in its tooltip |
+//! | 2 | `outcome: the hand-in is refused until the neutralize job is done` | docked at the poster with the job held, Your jobs greys the Hand in button |
 //! | 3 | `outcome: the world marks the neutralize job done` | after the work the job is listed done while still held, and the kill list reads `Bounties handed in` 0 / 6 |
 //! | 4 | `outcome: the hand-in pays the neutralize job` | docked again, the Hand in click pays the reward from the station, lists the job completed, and the kill list reads `Bounties handed in` 1 / 6 |
 //!

@@ -50,6 +50,11 @@ An item the trader's target does not name is untouched - what you sold it
 stays sold. A reload alone restocks nothing: the clock stops while the game
 is paused, so no play time passes.
 
+A living generated station's credits follow the same clock, upward only: a
+balance under its [spawn credits](../stations/#generated-world-stations) gains
+`spawn credits * elapsed / recovery_seconds`, never past them. A station the
+player owns gains none.
+
 Neutralizing a civilization's generated hull or station is an offence
 against it, not a price rule: see
 [Civilization stances](../stations/#civilization-stances).

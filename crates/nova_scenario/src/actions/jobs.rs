@@ -161,7 +161,9 @@ fn post_job(world: &mut World, config: &PostJobActionConfig, bound: Option<Strin
             count: config.count,
         },
         target: station_id,
-        reward_cr: config.reward_cr,
+        leg_m: 0,
+        threat: 0,
+        reward: JobReward::flat(config.reward_cr),
     };
     let now = world.resource::<WorldClock>().play_seconds;
     info!(
@@ -284,7 +286,9 @@ mod tests {
                         count: 4,
                     },
                     target: station_id(),
-                    reward_cr: 90,
+                    leg_m: 0,
+                    threat: 0,
+                    reward: JobReward::flat(90),
                 },
             }]
         );

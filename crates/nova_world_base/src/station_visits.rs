@@ -61,12 +61,12 @@ use nova_events::prelude::{
 };
 use nova_gameplay::prelude::{
     apply_visit_trades, market_deals_in, station_offers, DerelictShipMarker, Fnv32, GameItems,
-    GamePriceTable, GameTradeProfiles, Job, JobId, JobPostings, JobSourceType, JobType, Jobs,
-    LawfulStationMarker, NeutralizedMarker, OwnedShipMarker, OwnedStationMarker, PlayerFleetMarker,
-    PlayerSpaceshipMarker, SeedStream, ShipCredits, ShipInventory, SpaceshipRootMarker,
-    StationMarker, StationServiceType, StationServices, StationVisit, StationVisitId,
-    StationVisitPhaseType, StationVisitReceipt, StationVisits, TraderMarket, VisitJobType,
-    WorldClock, VISIT_EXTRAS_MAX,
+    GamePriceTable, GameTradeProfiles, Job, JobId, JobPostings, JobReward, JobSourceType, JobType,
+    Jobs, LawfulStationMarker, NeutralizedMarker, OwnedShipMarker, OwnedStationMarker,
+    PlayerFleetMarker, PlayerSpaceshipMarker, SeedStream, ShipCredits, ShipInventory,
+    SpaceshipRootMarker, StationMarker, StationServiceType, StationServices, StationVisit,
+    StationVisitId, StationVisitPhaseType, StationVisitReceipt, StationVisits, TraderMarket,
+    VisitJobType, WorldClock, VISIT_EXTRAS_MAX,
 };
 use nova_ship::prelude::{
     cancel_ship_order, AISpaceshipMarker, DockAdmission, DockedShip, DockingConnection,
@@ -676,7 +676,9 @@ fn dock_visit(
                     count: *count,
                 },
                 target: visit.station.clone(),
-                reward_cr: *reward_cr,
+                leg_m: 0,
+                threat: 0,
+                reward: JobReward::flat(*reward_cr),
             };
             receipt.jobs.push(job.id.clone());
             postings.post_visit(job, now);

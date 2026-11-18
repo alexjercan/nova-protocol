@@ -478,7 +478,11 @@ those weapons reloads from it, and at least one unit of each other such
 item. It draws the parts its civilization knows at its advancement, by draw
 weight, those within 0.25 below its advancement first, and carries
 flight computers for its mass, as a generated ship does. A dead station keeps the same stock
-and credits as loot.
+and credits as loot. A living station whose balance stands under its spawn
+credits regains them on a thaw by the [restock rule](../prices/#how-a-trader-restocks): the spawn
+credits per `recovery_seconds` of the play time it stood frozen, never past
+them. A balance over them is left alone, and a station the player owns
+regains none.
 
 The open world refuses to arm when no loaded style authors an archetype's
 style, or when no station hull, flight computer, docking port or turret part
@@ -597,12 +601,28 @@ Each slot draws its kind by the start role's `jobs` mix (see
 
 | kind | title | what it asks | reward |
 |---|---|---|---|
-| `Procure` | `Bring 4 Iron ore` | bring that many units of the item to the poster | the goods at the ask plus half, plus a fee |
-| `Recover` | `Recover 2 Hull plate from <wreck>` | take that many off the named derelict in the cube and undock with them aboard, the wreck's stack gone | twice the ask, plus a fee |
-| `Escort` | `Escort a hauler carrying 1200 cr` | a working-hull hauler spawns 1 km off the poster on a 10 km leg and leaves at 100 m/s once you are undocked and within 1 km of it; see it reach its mark. Raiders lie in wait 2.5 km off the leg, 75 % along it, and engage within 3 km; they hunt the hauler and turn on a ship that shoots them for as long as it keeps shooting. The posting draws their count once from its civilization's advancement: 1 below 0.25, 1 or 2 below 0.5, 2 or 3 below 0.75, then 3. Each raider is a scavenger held to a size budget by the same bands: about 40 sections and one turret below 0.25, 68 and two turrets below 0.5, 108 and three below 0.75, with no torpedo bay or lance; then the full hull. The hauler mounts a mirrored pair of its bank's drive, firing aft, as near its primary flight computer as the hull allows, so a split keeps a drive on the piece that keeps the computer | half the cargo value, plus 150 cr per raider, plus a fee |
-| `Distress` | `Answer a distress call` | a neutral drifting caller spawns 10 km out: dock with the caller | 200 cr plus twice a fee |
-| `Neutralize` | `Neutralize <hull>` | neutralize the named Enemy hull standing in the cube | 400 cr plus twice a fee |
-| `Supply` | `Rescue a stranded crew with 3 Medkit` | a neutral drifting caller spawns 10 km out, with none of the asked item aboard: dock with the caller with the whole stack in the hold. The dock takes the stack. With the hold short the dock takes nothing, the job stays open and the HUD posts `JOB-1: SHORT 2 MEDKIT` | 200 cr, the goods at the ask plus half, plus twice a fee |
+| `Procure` | `Bring 4 Iron ore` | bring that many units of the item to the poster | goods: the stack at the ask plus half |
+| `Recover` | `Recover 2 Hull plate from <wreck>` | take that many off the named derelict in the cube and undock with them aboard, the wreck's stack gone | base 100; goods: half the stack at the ask, at most 2,000 cr; range: the metres from the poster to the wreck at the posting |
+| `Escort` | `Escort a hauler carrying 1200 cr` | a working-hull hauler spawns 1 km off the poster on the job's leg and leaves at 100 m/s once you are undocked and within 1 km of it; see it reach its mark. Raiders lie in wait 2.5 km off the leg, 75 % along it, and engage within 3 km; they hunt the hauler and turn on a ship that shoots them for as long as it keeps shooting. The posting draws their count once from its civilization's advancement: 1 below 0.25, 1 or 2 below 0.5, 2 or 3 below 0.75, then 3. Each raider is a scavenger held to a size budget by the same bands: about 40 sections and one turret below 0.25, 68 and two turrets below 0.5, 108 and three below 0.75, with no torpedo bay or lance; then the full hull. The hauler mounts a mirrored pair of its bank's drive, firing aft, as near its primary flight computer as the hull allows, so a split keeps a drive on the piece that keeps the computer | base 200; goods: a quarter of the cargo value; range: the leg; threat: the raiders times the weapons of one raider, which is its band's turret count, or a full scavenger hull's weapon slots in the top band (3 at 0.75, 4 at 1) |
+| `Distress` | `Answer a distress call` | a neutral drifting caller spawns at the end of the job's leg: dock with the caller | base 200; range: the leg |
+| `Neutralize` | `Neutralize <hull>` | neutralize the named Enemy hull standing in the cube | base 300; range: the metres from the poster to the hull at the posting; threat: the hull's live turrets, torpedo bays and railguns at the posting |
+| `Supply` | `Rescue a stranded crew with 3 Medkit` | a neutral drifting caller spawns at the end of the job's leg, with none of the asked item aboard: dock with the caller with the whole stack in the hold. The dock takes the stack. With the hold short the dock takes nothing, the job stays open and the HUD posts `JOB-1: SHORT 2 MEDKIT` | base 200; goods: the stack at the ask plus half; range: the leg |
+
+A reward is the sum of four terms, kept on the job as `base_cr`, `goods_cr`,
+`range_cr` and `threat_cr`. With `A = 1 + 2 x advancement` of the poster:
+
+| term | credits |
+|---|---|
+| base | the kind's base times `A`, rounded to the nearest credit, plus a drawn fee of 50 to 250 cr in steps of 50. The fee is not scaled |
+| goods | the kind's share of its goods at the item's ask, rounded down. Not scaled |
+| range | 30 cr times `A` per km of the job's `leg_m`, rounded to the nearest credit |
+| threat | 300 cr per weapon of the job's `threat`. Not scaled |
+
+An `Escort`, a `Distress` and a `Supply` draw their leg per posting: 6,000 to
+16,000 m in steps of 2,000 m. A `Recover` and a `Neutralize` read theirs off
+the world at the posting, to 100 m. A `Procure` has no leg. A job posted by a
+[trade profile](../trade-profiles/) or a scenario's `PostJob` pays its
+authored `reward_cr` as its base alone, with no leg and no threat.
 
 A `Supply` draws its item from its own pool: every `Food`, `Ammo` and
 `Repair` item, and a `Raw` or `Parts` item that asks at most 20 cr a unit,

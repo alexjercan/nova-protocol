@@ -610,12 +610,13 @@ mod chain {
         );
         let before = world.resource::<ChainWatch>().cr_before.expect("noted");
         let own_cr = credits(world, player(world));
-        let expected = before + job.reward_cr + FIRST_DELIVERY_BONUS_CR + HAND_IN_GRANT_CR;
+        let expected = before + job.reward.total_cr() + FIRST_DELIVERY_BONUS_CR + HAND_IN_GRANT_CR;
         assert_eq!(
-            own_cr, expected,
+            own_cr,
+            expected,
             "scenario jobs: the balance rose by the {} cr reward, the open world's \
              {FIRST_DELIVERY_BONUS_CR} cr and the fixture's {HAND_IN_GRANT_CR} cr",
-            job.reward_cr
+            job.reward.total_cr()
         );
         nova_probe::probe_marker(
             world,
@@ -623,7 +624,7 @@ mod chain {
             serde_json::json!({
                 "job": job.id.to_string(),
                 "order": 3,
-                "reward_cr": job.reward_cr,
+                "reward_cr": job.reward.total_cr(),
                 "player_cr_before": before,
                 "player_cr": own_cr,
             }),
@@ -631,7 +632,7 @@ mod chain {
         info!(
             "scenario jobs: PASS beat 1 order 3, balance {before} -> {own_cr} cr (reward {} + \
              {FIRST_DELIVERY_BONUS_CR} + {HAND_IN_GRANT_CR})",
-            job.reward_cr
+            job.reward.total_cr()
         );
     }
 
@@ -670,7 +671,11 @@ mod chain {
             },
             "scenario jobs: the posted job is the authored procurement"
         );
-        assert_eq!(job.reward_cr, POST_REWARD_CR, "scenario jobs: its reward");
+        assert_eq!(
+            job.reward.total_cr(),
+            POST_REWARD_CR,
+            "scenario jobs: its reward"
+        );
         assert_eq!(
             id.to_string(),
             format!("{}#{POST_KEY}", station_id(world)),
@@ -820,7 +825,11 @@ mod chain {
         let own_cr = credits(world, player(world));
         assert_eq!(
             own_cr,
-            before + job.reward_cr + FIRST_DELIVERY_BONUS_CR + HAND_IN_GRANT_CR + POST_REWARD_CR,
+            before
+                + job.reward.total_cr()
+                + FIRST_DELIVERY_BONUS_CR
+                + HAND_IN_GRANT_CR
+                + POST_REWARD_CR,
             "scenario jobs: the balance holds both rewards and each grant once"
         );
         assert_eq!(

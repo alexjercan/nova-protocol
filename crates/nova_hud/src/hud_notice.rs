@@ -810,7 +810,9 @@ mod tests {
                 raiders: 1,
             },
             target: station.clone(),
-            reward_cr: 100,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(100),
         };
         let mut jobs = Jobs::default();
         jobs.accept(job.clone());
@@ -870,7 +872,9 @@ mod tests {
                 count: 4,
             },
             target: station,
-            reward_cr: 700,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(700),
         });
         app.insert_resource(jobs);
         let short = || SupplyRefused {

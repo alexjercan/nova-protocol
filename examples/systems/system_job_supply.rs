@@ -13,7 +13,7 @@
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 1 | `outcome: a supply job is posted and accepted` | a living station's board posts a medkit rescue; after the Accept click the job is held and its caller stands under the poster's cell root with none of the asked item aboard |
-//! | 2 | `outcome: the hand-in is refused until the supply job is done` | docked at the poster with the job held, Your jobs greys the Hand in button with the not-done reason in its tooltip |
+//! | 2 | `outcome: the hand-in is refused until the supply job is done` | docked at the poster with the job held, Your jobs greys the Hand in button |
 //! | 3 | `outcome: a dock with the hold short leaves the supply job open` | docked with the caller with one medkit fewer than asked, the job is still held and not done, the hold is unchanged and the HUD notice reads `JOB-n: SHORT 1 MEDKIT` |
 //! | 4 | `outcome: the world marks the supply job done` | after a second dock with the whole stack aboard the job is listed done while still held, and every medkit is gone from the hold |
 //! | 5 | `outcome: the hand-in pays the supply job` | docked again, the Hand in click pays the reward from the station, the open world grants its first-delivery 50 cr and the job is listed completed |

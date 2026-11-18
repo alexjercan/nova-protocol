@@ -83,7 +83,7 @@ mod tests {
     use super::*;
     use crate::{
         inventory::prelude::{ItemCategoryType, ItemDesign},
-        jobs::prelude::{Job, JobType},
+        jobs::prelude::{Job, JobReward, JobType},
     };
 
     /// Each held job lists with its code, its `have / need` and its hand-in
@@ -98,7 +98,9 @@ mod tests {
             id: JobId::slot(station.clone(), slot, 0),
             kind,
             target: station.clone(),
-            reward_cr: 100,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(100),
         };
         let procure = job(
             0,

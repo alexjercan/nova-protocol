@@ -688,7 +688,7 @@ mod smoke {
             .get::<JobBoard>(station)
             .expect("scenario_vocabulary_sandbox: the starting station posts a board");
         let posted = board.0.iter().any(|job| {
-            job.reward_cr == POST_REWARD_CR
+            job.reward.total_cr() == POST_REWARD_CR
                 && matches!(
                     &job.kind,
                     JobType::Procure { item, count } if *item == goods && *count == GOODS_ASKED
@@ -743,7 +743,7 @@ mod smoke {
             .get::<JobBoard>(station)
             .and_then(|board| {
                 board.0.iter().find(|job| {
-                    job.reward_cr == POST_REWARD_CR
+                    job.reward.total_cr() == POST_REWARD_CR
                         && matches!(
                             &job.kind,
                             JobType::Procure { item, count }

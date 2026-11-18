@@ -317,6 +317,9 @@ impl Plugin for NovaWorldBasePlugin {
                     // it; a served window is forgotten and every body's side
                     // follows its civilization's stance before the save.
                     economy::restock_thawed_traders,
+                    // A thawed station's balance catches up before a hand-in
+                    // reads what it can pay.
+                    economy::refill_thawed_station_credits,
                     // A thawed station's PDC reserve catches up in the thaw's
                     // frame, before the next fixed tick reloads from it.
                     pdc_reserve::recharge_thawed_station_pdc_reserves,

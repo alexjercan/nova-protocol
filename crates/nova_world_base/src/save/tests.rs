@@ -2096,7 +2096,9 @@ fn a_pending_station_visit_resumes_and_a_bad_station_clock_or_layout_is_refused(
             count: 2,
         },
         target: station.clone(),
-        reward_cr: 40,
+        leg_m: 0,
+        threat: 0,
+        reward: nova_gameplay::prelude::JobReward::flat(40),
     };
     let mut postings = nova_gameplay::prelude::JobPostings::default();
     postings.post_visit(unposted.clone(), 150.0);
@@ -2385,7 +2387,9 @@ fn a_scenario_posting_is_saved_and_a_load_restores_it_and_a_save_without_one_rea
             count: 2,
         },
         target: poster.clone(),
-        reward_cr: 40,
+        leg_m: 0,
+        threat: 0,
+        reward: nova_gameplay::prelude::JobReward::flat(40),
     };
     let (open, held) = (job("open", "IronOre"), job("held", "IronOre"));
     world.insert_resource(WorldClock {

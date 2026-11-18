@@ -592,8 +592,15 @@ pub fn generated_station(
         advancement,
         storage_cap_g: lerp(STORAGE_CAP_G, advancement).round() as u32,
         stock,
-        credits: lerp(CREDITS, advancement).round() as u32,
+        credits: station_start_credits(advancement),
     })
+}
+
+/// The credits a generated station of `advancement` trades with at spawn,
+/// and the balance a living one regains up to while it stands frozen
+/// (`economy`).
+pub(crate) fn station_start_credits(advancement: f32) -> u32 {
+    lerp(CREDITS, advancement).round() as u32
 }
 
 /// What a frame cell is planned as.

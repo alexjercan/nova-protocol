@@ -35,7 +35,7 @@ fn job_event_info(job: &Job) -> JobEventInfo {
         id: job.id.to_string(),
         kind: job.kind.name().to_string(),
         station: job.id.station.to_string(),
-        reward_cr: job.reward_cr,
+        reward_cr: job.reward.total_cr(),
         post_key: job.id.post_key().unwrap_or_default().to_string(),
     }
 }
@@ -114,7 +114,9 @@ mod tests {
                 count: 4,
             },
             target: station,
-            reward_cr: 420,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(420),
         }
     }
 
@@ -164,7 +166,9 @@ mod tests {
                 count: 4,
             },
             target: station.clone(),
-            reward_cr: 90,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(90),
         };
         let station = station.to_string();
         let id = format!("{station}#walk");

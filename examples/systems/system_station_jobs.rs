@@ -12,9 +12,11 @@
 //! cell, jumps beside it, and is put on a berth at its collar
 //! each frame until the dock takes; the walk never flies the approach
 //! (`system_station_docking` does). On the Jobs tab it reads the board,
-//! accepts the lightest procurement, undocks, reads the held job in the
-//! Map's chart view, leaves to the main menu, reads the leave save off disk
-//! through [`open_world`], loads the world again through the Load screen,
+//! checks that every row is one line, reads the reward terms the inspector
+//! lists for the job that pays the most of them, accepts the lightest
+//! procurement, undocks, reads the held job in the Map's chart view, leaves
+//! to the main menu, reads the leave save off disk through [`open_world`],
+//! loads the world again through the Load screen,
 //! docks again, bumps the play-time clock past the offer window and reads
 //! the two unheld slots renew while the held slot and job stand pinned, then
 //! undocks, retires the station's cell, bumps the clock again and jumps back
@@ -48,6 +50,7 @@
 //! ```
 //! `NOVA_CAPTURE=1` also writes `station-jobs-board.png` of the Jobs tab,
 //! `station-jobs-refused.png` of the first greyed Accept with its tag,
+//! `station-jobs-terms.png` of the inspector listing a reward's terms,
 //! `station-jobs-map.png` of the chart view and `station-jobs-renewed.png`
 //! of the Jobs tab after the passed-window renewal.
 
@@ -115,11 +118,11 @@ mod walk {
     use bevy::ui::InteractionDisabled;
     use nova_protocol::{
         nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
-        nova_interface::pane::InterfacePaneType,
+        nova_interface::{jobs::prelude::JOBS_BOARD, pane::InterfacePaneType},
         prelude::*,
     };
     use nova_ui::{
-        prelude::{GateTagOf, VerbGate},
+        prelude::{EllipsisText, GateTagOf, VerbGate},
         widget::TextFieldValue,
     };
     use nova_world::prelude::{desired_sectors, SectorClusterTypes, SectorRoot, WorldConfig};
@@ -150,6 +153,10 @@ mod walk {
     /// The frames the capture path writes.
     const BOARD_SHOT: &str = "station-jobs-board.png";
     const REFUSED_SHOT: &str = "station-jobs-refused.png";
+    const TERMS_SHOT: &str = "station-jobs-terms.png";
+    /// The most a board row of one line stands high, in logical px: a list
+    /// row, its border and layout rounding. A row that wrapped is two.
+    const ROW_LINE_PX: f32 = 32.0;
     const MAP_SHOT: &str = "station-jobs-map.png";
     const RENEWED_SHOT: &str = "station-jobs-renewed.png";
 
@@ -352,12 +359,13 @@ mod walk {
         })
     }
 
-    /// Every UI text on screen.
+    /// Every UI text on screen. A label cut to its cell reads whole here:
+    /// a narrow window shortens a title and the claims are about the job.
     fn texts(world: &mut World) -> Vec<String> {
         world
-            .query::<&Text>()
+            .query::<(&Text, Option<&EllipsisText>)>()
             .iter(world)
-            .map(|text| text.0.clone())
+            .map(|(text, whole)| whole.map_or_else(|| text.0.clone(), |whole| whole.0.clone()))
             .collect()
     }
 
@@ -377,7 +385,9 @@ mod walk {
             let mut stack = vec![row];
             while let Some(entity) = stack.pop() {
                 let entity = world.entity(entity);
-                if let Some(text) = entity.get::<Text>() {
+                if let Some(whole) = entity.get::<EllipsisText>() {
+                    texts.push(whole.0.clone());
+                } else if let Some(text) = entity.get::<Text>() {
                     texts.push(text.0.clone());
                 }
                 if let Some(children) = entity.get::<Children>() {
@@ -764,7 +774,7 @@ mod walk {
                 "seed": seed,
                 "clusters": format!("{clusters:?}"),
                 "jobs": board.iter().map(|job| job.title(&items)).collect::<Vec<_>>(),
-                "rewards": board.iter().map(|job| job.reward_cr).collect::<Vec<_>>(),
+                "rewards": board.iter().map(|job| job.reward.total_cr()).collect::<Vec<_>>(),
                 "chosen": index,
                 "refused": refused,
             }),
@@ -774,14 +784,85 @@ mod walk {
              row {index}: {} for {} cr",
             board.len(),
             job.title(&items),
-            job.reward_cr
+            job.reward.total_cr()
         );
         let mut watch = world.resource_mut::<JobWatch>();
         watch.board = board;
         watch.job = Some((index, job));
     }
 
-    /// Whether the first greyed Accept's tag is laid out beside it.
+    /// What each reward term of `job` pays, beside the word its inspector
+    /// row starts with. `Range` and `Threat` carry their measure after the
+    /// word, which tells them from the board's column heads.
+    fn reward_terms(job: &Job) -> [(u32, &'static str); 4] {
+        let goods = if matches!(job.kind, JobType::Escort { .. }) {
+            "Cargo"
+        } else {
+            "Goods"
+        };
+        [
+            (job.reward.base_cr, "Base"),
+            (job.reward.goods_cr, goods),
+            (job.reward.range_cr, "Range "),
+            (job.reward.threat_cr, "Threat "),
+        ]
+    }
+
+    /// The board's job with the most terms that pay, the first of them.
+    fn most_terms_job(world: &World) -> Job {
+        let board = &world
+            .get::<JobBoard>(station(world))
+            .expect("station jobs: the station posts a board")
+            .0;
+        let paying = |job: &Job| reward_terms(job).iter().filter(|(cr, _)| *cr > 0).count();
+        let most = board.iter().map(paying).max().unwrap_or(0);
+        board
+            .iter()
+            .find(|job| paying(job) == most)
+            .cloned()
+            .expect("station jobs: the board posts a job")
+    }
+
+    /// The inspector lists a row for each term of [`most_terms_job`] that
+    /// pays and none for a term that pays nothing.
+    fn terms_shown(world: &World) -> bool {
+        let job = most_terms_job(world);
+        let Some(mut texts) = world.try_query::<&Text>() else {
+            return false;
+        };
+        let shown: Vec<&str> = texts.iter(world).map(|text| text.0.as_str()).collect();
+        let reads = |word: &str| {
+            shown.iter().any(|text| {
+                if word.ends_with(' ') {
+                    text.starts_with(word)
+                } else {
+                    *text == word
+                }
+            })
+        };
+        let terms = reward_terms(&job);
+        terms.iter().filter(|(cr, _)| *cr > 0).count() > 1
+            && terms.iter().all(|(cr, word)| reads(word) == (*cr > 0))
+    }
+
+    /// Every board row is one list row high, so no cell wrapped under its
+    /// title, and its Accept lies inside the board panel.
+    fn board_rows_fit(world: &World) -> bool {
+        let Some(board) = ui_node_rect(world, JOBS_BOARD) else {
+            return false;
+        };
+        (0..JOBS_PER_BOARD).all(|row| {
+            let line = ui_node_rect(world, &format!("JobRowPosted-{row}"));
+            let accept = ui_node_rect(world, &format!("JobAccept-{row}"));
+            line.is_some_and(|line| line.height() <= ROW_LINE_PX)
+                && accept.is_some_and(|accept| {
+                    accept.min.x >= board.min.x && accept.max.x <= board.max.x
+                })
+        })
+    }
+
+    /// Whether the first greyed Accept's tag is laid out beside it, whole
+    /// inside the row's verb cell.
     fn refused_tag_shown(world: &World) -> bool {
         let Some(button) = world
             .try_query_filtered::<(Entity, &Name), With<InteractionDisabled>>()
@@ -798,12 +879,25 @@ mod walk {
         let Some(row) = world.get::<ChildOf>(button).map(ChildOf::parent) else {
             return false;
         };
+        let Some(cell) = ui_node_left(world, row) else {
+            return false;
+        };
         world
-            .try_query_filtered::<(&ChildOf, &ComputedNode), With<GateTagOf>>()
+            .try_query_filtered::<(Entity, &ChildOf, &ComputedNode), With<GateTagOf>>()
             .is_some_and(|mut tags| {
-                tags.iter(world)
-                    .any(|(parent, computed)| parent.parent() == row && computed.size().x > 0.0)
+                tags.iter(world).any(|(tag, parent, computed)| {
+                    parent.parent() == row
+                        && computed.size().x > 0.0
+                        && ui_node_left(world, tag).is_some_and(|left| left >= cell - 0.5)
+                })
             })
+    }
+
+    /// The left edge of a laid-out UI node, in physical px.
+    fn ui_node_left(world: &World, node: Entity) -> Option<f32> {
+        let size = world.get::<ComputedNode>(node)?.size();
+        let centre = world.get::<UiGlobalTransform>(node)?.translation;
+        Some(centre.x - size.x / 2.0)
     }
 
     /// Claim 2: the accept holds the job, and the lists moved it.
@@ -858,7 +952,7 @@ mod walk {
             shown.contains(&"Reward".to_string()),
             "station jobs: the panel shows a Reward row: {shown:?}"
         );
-        let want = format!("{} cr", job.reward_cr);
+        let want = format!("{} cr", job.reward.total_cr());
         let reward = shown
             .iter()
             .find(|text| text.replace(',', "") == want)
@@ -1005,9 +1099,9 @@ mod walk {
         let own_cr = world.get::<ShipCredits>(player).expect("credits").0;
         let station_cr = world.get::<ShipCredits>(station).expect("credits").0;
         assert!(
-            station_cr >= job.reward_cr,
+            station_cr >= job.reward.total_cr(),
             "station jobs: the station holds {station_cr} cr, the job pays {}",
-            job.reward_cr
+            job.reward.total_cr()
         );
         world.resource_mut::<JobWatch>().before_cr = Some((own_cr, station_cr));
         info!(
@@ -1039,12 +1133,12 @@ mod walk {
         let station_cr = world.get::<ShipCredits>(station).expect("credits").0;
         assert_eq!(
             own_cr,
-            own_before + job.reward_cr + FIRST_DELIVERY_BONUS_CR,
+            own_before + job.reward.total_cr() + FIRST_DELIVERY_BONUS_CR,
             "station jobs: the player was paid the reward and the first-delivery bonus"
         );
         assert_eq!(
             station_cr,
-            station_before - job.reward_cr,
+            station_before - job.reward.total_cr(),
             "station jobs: the station paid"
         );
         let held = world
@@ -1066,7 +1160,7 @@ mod walk {
                 "job": job.id.to_string(),
                 "item": item.to_string(),
                 "count": count,
-                "reward_cr": job.reward_cr,
+                "reward_cr": job.reward.total_cr(),
                 "first_delivery_bonus_cr": FIRST_DELIVERY_BONUS_CR,
                 "player_cr": own_cr,
                 "station_cr": station_cr,
@@ -1074,7 +1168,7 @@ mod walk {
         );
         info!(
             "station jobs: PASS the hand-in paid {} cr for {count} {item}",
-            job.reward_cr
+            job.reward.total_cr()
         );
     }
 
@@ -1179,9 +1273,9 @@ mod walk {
             )
         });
         assert!(
-            reward_shown(&row, new.reward_cr),
+            reward_shown(&row, new.reward.total_cr()),
             "station jobs: the '{title}' row shows {} cr: {row:?}",
-            new.reward_cr
+            new.reward.total_cr()
         );
         nova_probe::probe_marker(
             world,
@@ -1288,9 +1382,9 @@ mod walk {
                 )
             });
             assert!(
-                reward_shown(&row, new.reward_cr),
+                reward_shown(&row, new.reward.total_cr()),
                 "station jobs: the '{title}' row shows {} cr: {row:?}",
-                new.reward_cr
+                new.reward.total_cr()
             );
             renewed_ids.push(new.id);
         }
@@ -1496,6 +1590,35 @@ mod walk {
             .step("station jobs: shoot the greyed Accept with its tag")
             .on_enter(|world: &mut World| shoot(world, REFUSED_SHOT))
             .until(shot_written(REFUSED_SHOT))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station jobs: every board row is one line with its Accept inside the board")
+            .until(and(Arc::new(board_rows_fit), frames(SETTLE_FRAMES)))
+            .diagnose(|world| {
+                format!(
+                    "board {:?}, rows {:?}",
+                    ui_node_rect(world, JOBS_BOARD),
+                    (0..JOBS_PER_BOARD)
+                        .map(|row| ui_node_rect(world, &format!("JobRowPosted-{row}")))
+                        .collect::<Vec<_>>()
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station jobs: the inspector lists the terms of the job that pays the most terms")
+            .on_enter(|world: &mut World| {
+                let title = most_terms_job(world).title(world.resource::<GameItems>());
+                let (row, _) = posted_row(world, &title)
+                    .unwrap_or_else(|| panic!("station jobs: the Jobs tab lists no row '{title}'"));
+                activate_named(world, &format!("JobRowPosted-{row}"));
+            })
+            .until(and(Arc::new(terms_shown), frames(SETTLE_FRAMES)))
+            .diagnose(|world| format!("{:?}", most_terms_job(world)))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station jobs: shoot the terms")
+            .on_enter(|world: &mut World| shoot(world, TERMS_SHOT))
+            .until(shot_written(TERMS_SHOT))
             .deadline(BEAT_SECS)
             .add()
             .step("station jobs: click Accept")

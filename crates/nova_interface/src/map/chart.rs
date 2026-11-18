@@ -1825,7 +1825,7 @@ pub(crate) fn chart_panel_field(
         ),
         (Some(MapChartMarkType::Job(id)), MapPanelField::Bearing) => (
             jobs.job(id)
-                .map_or_else(String::new, |job| cr_text(job.reward_cr)),
+                .map_or_else(String::new, |job| cr_text(job.reward.total_cr())),
             UiColorType::Text,
         ),
         (Some(MapChartMarkType::Job(id)), MapPanelField::Note) => (

@@ -1232,19 +1232,6 @@ fn mining_aim(_: &SectionKind, aims: Option<usize>) -> Option<u32> {
     }
 }
 
-/// How many weapon slots a role fills at `advancement`, each a centred
-/// weapon or a mirrored pair. The first is required; a later slot that finds
-/// no room is left out. An armored hull's slots grow with its length to full
-/// advancement.
-fn weapon_slots(role: ShipRoleType, advancement: f32) -> u32 {
-    let advancement = advancement.clamp(0.0, 1.0);
-    match role {
-        ShipRoleType::Civilian | ShipRoleType::Industrial => 0,
-        ShipRoleType::Scavenger => 1 + (advancement * 3.0).round() as u32,
-        ShipRoleType::Armored => 1 + (advancement * 8.0).round() as u32,
-    }
-}
-
 impl From<ShipMeasureShortfallType> for ShipLayoutConstraintType {
     fn from(shortfall: ShipMeasureShortfallType) -> Self {
         match shortfall {
@@ -1754,18 +1741,12 @@ impl<'a> Draw<'a> {
         let mut mounted: HashSet<&str> = HashSet::new();
         let coherent = request.role != ShipRoleType::Scavenger;
         // A budget mounts one turret alone on the centreline per slot, so
-        // its turret count is its slot count.
-        let (slots, weapon_mount, turrets_only) = match request.size {
-            ShipSizeType::Advancement => (
-                weapon_slots(request.role, request.advancement),
-                MountType::Mirrored,
-                false,
-            ),
-            ShipSizeType::Budget { turrets, .. } => (
-                weapon_slots(request.role, request.advancement).min(turrets),
-                MountType::Centred,
-                true,
-            ),
+        // its turret count is its slot count. The first slot is required; a
+        // later slot that finds no room is left out.
+        let slots = request.size.weapon_slots(request.role, request.advancement);
+        let (weapon_mount, turrets_only) = match request.size {
+            ShipSizeType::Advancement => (MountType::Mirrored, false),
+            ShipSizeType::Budget { .. } => (MountType::Centred, true),
         };
         for slot in 0..slots {
             let aspect = format!("weapon_{slot}");

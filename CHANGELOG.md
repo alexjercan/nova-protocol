@@ -26,6 +26,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Repair kit: Use in the Inventory pane heals 80 HP over 10 s, most damaged section first. A refused use keeps the item; a second kit while one runs is refused.
 - Generated stations sell repair kits. Start kits add 3 repair kits.
 - Refine is replaced by Craft: alloy plates, rail slugs and torpedoes are crafted at a Craft station for a fee a batch. Stations that offered Refine now offer Craft.
+- A job reward is now a sum of base, goods, range and threat: 30 cr a km, 300 cr per weapon against you. Base and range pay up to three times more at an advanced station.
+- Escorts, distress calls and supply runs draw a leg of 6 to 16 km, up from a fixed 10 km. An escort pays a quarter of its cargo, down from half; a recovery's goods pay at most 2,000 cr.
+- A living station that paid out regains credits while its sector is unloaded, up to its start balance in 30 minutes of play. Before, a drained station never paid again. Owned stations gain none.
 
 ### Combat & Weapons
 
@@ -60,6 +63,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Jobs, Map and Station panes share that layout: Station offers are cards in an even grid, GOTO and Cancel sit side by side, and the tooltips that explained a tag or button are gone.
 - The parts catalogue shares it too: category chips, one Available chip, key chips for the hints, no second Close, and the last tile row in full. A price you cannot pay is red and disables Place.
 - A ghost button such as Cancel, Max or Close has a brighter frame in both themes, so it no longer reads as a disabled one.
+- The Jobs board gains Range and Threat columns, and the job inspector lists each part of the reward that pays: Base, Goods or Cargo, Range with the km, Threat with the weapon count.
 - **(breaking)** UiTheme drops `metrics.border_width`, the slider `height` and the badge `bracketed`, `padding_x` and `border_width`. Lint refuses a disabled button state that looks live.
 
 ### Fixes

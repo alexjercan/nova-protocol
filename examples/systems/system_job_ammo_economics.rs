@@ -402,7 +402,7 @@ mod economics {
             "hauler": hauler,
             "cargo_cr": cargo_cr,
             "raiders": raiders,
-            "reward_cr": job.reward_cr,
+            "reward_cr": job.reward.total_cr(),
         })
     }
 
@@ -487,7 +487,7 @@ mod economics {
             let credited = i64::from(paid.player_cr) - i64::from(before.player_cr);
             let data = json!({
                 "job": job.id.to_string(),
-                "reward_cr": job.reward_cr,
+                "reward_cr": job.reward.total_cr(),
                 "player_cr_before": before.player_cr,
                 "player_cr_after": paid.player_cr,
                 "credited_cr": credited,
@@ -497,7 +497,7 @@ mod economics {
             });
             let mut ledger = world.resource_mut::<AmmoLedger>();
             ledger.armed = false;
-            ledger.reward_cr = Some(job.reward_cr);
+            ledger.reward_cr = Some(job.reward.total_cr());
             ledger.credited_cr = Some(credited);
             ledger.paid = Some(paid);
             record(world, "ammo economics: hand-in", data);

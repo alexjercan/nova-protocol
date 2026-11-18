@@ -10,10 +10,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::{
-    inventory::{BuildRecipe, GameItems, ItemDesignId, ShipInventory},
-    jobs::DISTRESS_BASE_CR,
-};
+use crate::inventory::{BuildRecipe, GameItems, ItemDesignId, ShipInventory};
 
 /// The rescue rules.
 pub mod prelude {
@@ -27,9 +24,9 @@ pub mod prelude {
 /// interface and the pause menu stop the game clock, so they hold the call.
 pub const RESCUE_SECS: f32 = 60.0;
 
-/// The fee every answered call takes before the sections it rebuilds: what
-/// answering a distress call pays.
-pub const RESCUE_FEE_CR: u32 = DISTRESS_BASE_CR;
+/// The fee every answered call takes before the sections it rebuilds. Its
+/// own figure: no job reward moves it.
+pub const RESCUE_FEE_CR: u32 = 200;
 
 /// What the stranded rule reads off a player ship. A ship that lost only
 /// its guns can still fly and dock, so it is not stranded.

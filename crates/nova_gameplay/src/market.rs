@@ -48,9 +48,10 @@ use crate::{
 pub mod prelude {
     pub use super::{
         delta_percent, market_summary, price, price_table_faults, refusal, restock_gap,
-        restocked_count, ClusterPriceRule, GamePriceTable, ItemPrice, JobOfferRule, MarketLead,
-        MarketSummary, PriceClamp, PriceFactor, PriceQuote, PriceTable, Refusal, RestockGap,
-        RestockRule, RolePriceRule, ScarcityRule, ShipRoleType, TraderMarket, MARKET_LEADS,
+        restocked_count, restocked_credits, ClusterPriceRule, GamePriceTable, ItemPrice,
+        JobOfferRule, MarketLead, MarketSummary, PriceClamp, PriceFactor, PriceQuote, PriceTable,
+        Refusal, RestockGap, RestockRule, RolePriceRule, ScarcityRule, ShipRoleType, TraderMarket,
+        MARKET_LEADS,
     };
 }
 
@@ -72,6 +73,20 @@ pub enum ShipRoleType {
 }
 
 impl ShipRoleType {
+    /// How many weapon slots a hull of this role fills at `advancement`,
+    /// each a centred weapon or a mirrored pair: none on an unarmed role,
+    /// one to four on a scavenger, one to nine on an armored hull, whose
+    /// slots grow with its length to full advancement. The hull generator
+    /// mounts by it and an escort's threat counts by it.
+    pub fn weapon_slots(self, advancement: f32) -> u32 {
+        let advancement = advancement.clamp(0.0, 1.0);
+        match self {
+            Self::Civilian | Self::Industrial => 0,
+            Self::Scavenger => 1 + (advancement * 3.0).round() as u32,
+            Self::Armored => 1 + (advancement * 8.0).round() as u32,
+        }
+    }
+
     /// Every role, in the order a role array holds them.
     pub const ALL: [Self; 4] = [
         Self::Civilian,
@@ -484,6 +499,20 @@ pub fn restocked_count(stock: u32, target: u32, elapsed_seconds: f64, rule: Rest
         stock.saturating_add(drift).min(target)
     } else {
         stock.saturating_sub(drift).max(target)
+    }
+}
+
+/// The balance of a station after it stood frozen `elapsed_seconds` of play
+/// with `balance` credits and a start balance of `start`: a balance under
+/// the start moves up to it by the stock rule ([`restocked_count`]), so a
+/// station paid down to nothing is whole again in one recovery. A balance
+/// at or over the start is unchanged: what the player paid a station stays
+/// there to be earned back.
+pub fn restocked_credits(balance: u32, start: u32, elapsed_seconds: f64, rule: RestockRule) -> u32 {
+    if balance < start {
+        restocked_count(balance, start, elapsed_seconds, rule)
+    } else {
+        balance
     }
 }
 
@@ -1140,6 +1169,38 @@ mod tests {
 
     /// A recovery or either offer window of zero, below zero or not a number
     /// is a fault the lint and the merge name.
+    #[test]
+    fn a_station_under_its_start_balance_regains_credits_up_to_it_and_one_over_it_keeps_them() {
+        let rule = RestockRule {
+            recovery_seconds: 100.0,
+        };
+        assert_eq!(
+            restocked_credits(0, 10_000, 50.0, rule),
+            5_000,
+            "half the recovery is half the start balance"
+        );
+        assert_eq!(
+            restocked_credits(4_000, 10_000, 25.0, rule),
+            6_500,
+            "the gain adds to what the station kept"
+        );
+        assert_eq!(
+            restocked_credits(4_000, 10_000, 1_000.0, rule),
+            10_000,
+            "never over the start balance"
+        );
+        assert_eq!(
+            restocked_credits(4_000, 10_000, 0.0, rule),
+            4_000,
+            "no play time, no credits"
+        );
+        assert_eq!(
+            restocked_credits(25_000, 10_000, 1_000.0, rule),
+            25_000,
+            "a balance over the start does not drain"
+        );
+    }
+
     #[test]
     fn the_restock_and_offer_clocks_must_be_positive_seconds() {
         let mut table = table();

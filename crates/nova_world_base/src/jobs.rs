@@ -96,11 +96,9 @@ use crate::{
     NovaLayeredWorld,
 };
 
-/// How far from the poster an escort's hauler starts and a distress caller
-/// waits, and how long the hauler's leg is: the mark lies this far out on the
-/// other side.
-const JOB_LEG: Meters = Meters(10_000.0);
-/// How far from the poster the hauler starts its leg.
+/// How far from the poster the hauler starts its leg. The mark, and the
+/// caller of a distress call or a supply job, stand the job's own leg out
+/// ([`Job::leg_m`]).
 const HAULER_STANDOFF: Meters = Meters(1_000.0);
 /// How close, undocked, the player must come to the waiting hauler before
 /// it leaves for its mark: GOTO parks 500 m off a hull, inside this.
@@ -112,10 +110,11 @@ const HAULER_CRUISE: MetersPerSecond = MetersPerSecond(100.0);
 const RAIDER_AMBUSH_SHARE: f32 = 0.75;
 /// How far apart the raiders stand along the leg.
 const RAIDER_SPACING: Meters = Meters(600.0);
-/// How far off the leg's line the raiders lie in wait: with the ambush
-/// share, the spacing and the engage range, the first raider springs when
-/// the hauler has flown about 2.2 km of its 7 km, and none reaches the
-/// hauler's wait point or the station.
+/// How far off the leg's line the raiders lie in wait. Under the engage
+/// range, so a raider springs as the hauler passes, about 1.7 km before it
+/// draws level. On the shortest leg with the most raiders the nearest one
+/// still waits 3.8 km from the hauler's start and 4.6 km from the station,
+/// outside the engage range of both.
 const RAIDER_LATERAL: Meters = Meters(2_500.0);
 /// How far a raider leaves its wait for a target.
 const RAIDER_ENGAGE_RANGE: Meters = Meters(3_000.0);
@@ -248,7 +247,7 @@ impl PlayerHull<'_, '_> {
 )]
 #[expect(
     clippy::type_complexity,
-    reason = "the station, the wreck and the hull queries each filter on three markers"
+    reason = "the station query reads seven facts off a station root"
 )]
 pub(crate) fn post_station_boards(
     mut commands: Commands,
@@ -281,23 +280,7 @@ pub(crate) fn post_station_boards(
             (With<SpaceshipRootMarker>, Without<ShipInventory>),
         )>,
     >,
-    wrecks: Query<
-        (&GeneratedBodyId, &Name, &ShipInventory, &ChildOf),
-        (
-            With<SpaceshipRootMarker>,
-            With<DerelictShipMarker>,
-            Without<StationMarker>,
-        ),
-    >,
-    hulls: Query<
-        (&GeneratedBodyId, &Name, &Allegiance, &ChildOf),
-        (
-            With<SpaceshipRootMarker>,
-            Without<DerelictShipMarker>,
-            Without<NeutralizedMarker>,
-            Without<StationMarker>,
-        ),
-    >,
+    field_bodies: FieldBodies,
     hull: PlayerHull,
 ) {
     if stations.is_empty() {
@@ -437,11 +420,11 @@ pub(crate) fn post_station_boards(
             let assured = starter.then(|| hull.fit()).filter(|fit| {
                 !standing
                     .iter()
-                    .any(|offer| offer_stands_open(offer, *fit, &items, &jobs, &wrecks, &hulls))
+                    .any(|offer| offer_stands_open(offer, *fit, &items, &jobs, &field_bodies))
             });
             let mut excluded = postings.named_bodies(rule, now, &jobs);
             excluded.extend(retired.iter().cloned());
-            let field = job_field(&around, &excluded, &wrecks, &hulls);
+            let field = field_bodies.field(entity, &around, &excluded);
             let advancement = poster_civilization(id, market, "post_station_boards").advancement;
             let offers = station_job_offers(
                 config.seed,
@@ -534,32 +517,12 @@ fn slot_renews(jobs: &Jobs, posting: &SlotPosting, rule: JobOfferRule, now: f64)
 /// Whether the player can take the standing `offer` with a hull of `fit`:
 /// not held, not dropped, the hull fits it, and a recovery's wreck still
 /// carries its stack or a neutralize's hull still stands.
-#[expect(
-    clippy::type_complexity,
-    reason = "the two queries are the poster's, passed through"
-)]
 fn offer_stands_open(
     offer: &Job,
     fit: JobHullFit,
     items: &GameItems,
     jobs: &Jobs,
-    wrecks: &Query<
-        (&GeneratedBodyId, &Name, &ShipInventory, &ChildOf),
-        (
-            With<SpaceshipRootMarker>,
-            With<DerelictShipMarker>,
-            Without<StationMarker>,
-        ),
-    >,
-    hulls: &Query<
-        (&GeneratedBodyId, &Name, &Allegiance, &ChildOf),
-        (
-            With<SpaceshipRootMarker>,
-            Without<DerelictShipMarker>,
-            Without<NeutralizedMarker>,
-            Without<StationMarker>,
-        ),
-    >,
+    bodies: &FieldBodies,
 ) -> bool {
     if jobs.holds(&offer.id)
         || jobs.is_dropped(&offer.id)
@@ -570,10 +533,11 @@ fn offer_stands_open(
     match &offer.kind {
         JobType::Recover {
             wreck, item, count, ..
-        } => wrecks
+        } => bodies
+            .wrecks
             .iter()
-            .any(|(id, _, hold, _)| id == wreck && hold.count(item) >= *count),
-        JobType::Neutralize { hull, .. } => hulls.iter().any(|(id, ..)| id == hull),
+            .any(|(_, id, _, hold, _)| id == wreck && hold.count(item) >= *count),
+        JobType::Neutralize { hull, .. } => bodies.hulls.iter().any(|(_, id, ..)| id == hull),
         JobType::Procure { .. }
         | JobType::Escort { .. }
         | JobType::Distress { .. }
@@ -594,29 +558,41 @@ fn cube_around(centre: SectorCoord) -> Vec<SectorCoord> {
     cube
 }
 
-/// The wrecks with something aboard and the hostile intact hulls under the
-/// roots `around`, each list in id order, less the bodies in `excluded`:
-/// what a renewal this frame is taking out of the world, and every body a
-/// held job or an unexpired offer names ([`JobPostings::named_bodies`]), so
-/// a board never offers an escort's raiders as Neutralize targets, a distress
-/// caller as a wreck to recover, or a body another offer pays for.
-#[expect(
-    clippy::type_complexity,
-    reason = "the two queries are the poster's, passed through"
-)]
-fn job_field(
-    around: &[Entity],
-    excluded: &BTreeSet<GeneratedBodyId>,
-    wrecks: &Query<
-        (&GeneratedBodyId, &Name, &ShipInventory, &ChildOf),
+/// The step a located job's leg is rounded to, in meters: a hull drifts,
+/// so a finer figure would promise more than the board knows.
+const FIELD_LEG_STEP: Meters = Meters(100.0);
+
+/// The bodies a board's located jobs may name, as the poster reads them:
+/// the derelicts, the intact hulls, their live weapon sections and where
+/// each stands.
+#[derive(SystemParam)]
+pub(crate) struct FieldBodies<'w, 's> {
+    wrecks: Query<
+        'w,
+        's,
+        (
+            Entity,
+            &'static GeneratedBodyId,
+            &'static Name,
+            &'static ShipInventory,
+            &'static ChildOf,
+        ),
         (
             With<SpaceshipRootMarker>,
             With<DerelictShipMarker>,
             Without<StationMarker>,
         ),
     >,
-    hulls: &Query<
-        (&GeneratedBodyId, &Name, &Allegiance, &ChildOf),
+    hulls: Query<
+        'w,
+        's,
+        (
+            Entity,
+            &'static GeneratedBodyId,
+            &'static Name,
+            &'static Allegiance,
+            &'static ChildOf,
+        ),
         (
             With<SpaceshipRootMarker>,
             Without<DerelictShipMarker>,
@@ -624,41 +600,105 @@ fn job_field(
             Without<StationMarker>,
         ),
     >,
-) -> JobField {
-    let mut field = JobField::default();
-    for (id, name, hold, parent) in wrecks {
-        if !around.contains(&parent.parent()) || hold.is_empty() || excluded.contains(id) {
-            continue;
+    weapons: Query<
+        'w,
+        's,
+        &'static ChildOf,
+        (
+            With<SectionMarker>,
+            Without<SectionInactiveMarker>,
+            Or<(
+                With<TurretSectionMarker>,
+                With<TorpedoSectionMarker>,
+                With<RailgunSectionMarker>,
+            )>,
+        ),
+    >,
+    // Computed from the hierarchy, not read off `GlobalTransform`: a body
+    // that settled this frame has not been through transform propagation
+    // yet and would read as standing at the world origin.
+    transforms: TransformHelper<'w, 's>,
+}
+
+impl FieldBodies<'_, '_> {
+    /// The wrecks with something aboard and the hostile intact hulls under
+    /// the roots `around` the station `poster`, each list in id order, less
+    /// the bodies in `excluded`: what a renewal this frame is taking out of
+    /// the world, and every body a held job or an unexpired offer names
+    /// ([`JobPostings::named_bodies`]), so a board never offers an escort's
+    /// raiders as Neutralize targets, a distress caller as a wreck to
+    /// recover, or a body another offer pays for. Each body carries its
+    /// distance from the poster in true world meters, whichever cell root it
+    /// stands under, rounded to [`FIELD_LEG_STEP`]; a hostile carries its
+    /// live weapon sections.
+    ///
+    /// # Panics
+    ///
+    /// When the poster or a listed body has no transform up to its root:
+    /// every generated body spawns with one, so that is an assembly fault.
+    fn field(
+        &self,
+        poster: Entity,
+        around: &[Entity],
+        excluded: &BTreeSet<GeneratedBodyId>,
+    ) -> JobField {
+        let stands = |body: Entity| {
+            self.transforms
+                .compute_global_transform(body)
+                .unwrap_or_else(|fault| {
+                    panic!("post_station_boards: no transform of {body:?}: {fault:?}")
+                })
+                .translation()
+        };
+        let from = stands(poster);
+        // Engine boundary: a transform counts engine units.
+        let leg_m = |body: Entity| {
+            let leg = Meters::from_engine(stands(body).distance(from));
+            ((leg.get() / FIELD_LEG_STEP.get()).round() * FIELD_LEG_STEP.get()) as u32
+        };
+        let mut field = JobField::default();
+        for (entity, id, name, hold, parent) in &self.wrecks {
+            if !around.contains(&parent.parent()) || hold.is_empty() || excluded.contains(id) {
+                continue;
+            }
+            field.wrecks.push(JobWreck {
+                id: id.clone(),
+                name: name.to_string(),
+                stacks: hold
+                    .stacks()
+                    .map(|(item, count)| (item.clone(), count))
+                    .collect(),
+                leg_m: leg_m(entity),
+            });
         }
-        field.wrecks.push(JobWreck {
-            id: id.clone(),
-            name: name.to_string(),
-            stacks: hold
-                .stacks()
-                .map(|(item, count)| (item.clone(), count))
-                .collect(),
-        });
-    }
-    for (id, name, allegiance, parent) in hulls {
-        if !around.contains(&parent.parent())
-            || *allegiance != Allegiance::Enemy
-            || excluded.contains(id)
-        {
-            continue;
+        for (entity, id, name, allegiance, parent) in &self.hulls {
+            if !around.contains(&parent.parent())
+                || *allegiance != Allegiance::Enemy
+                || excluded.contains(id)
+            {
+                continue;
+            }
+            let weapons = self
+                .weapons
+                .iter()
+                .filter(|section| section.parent() == entity)
+                .count();
+            field.hostiles.push(JobHull {
+                id: id.clone(),
+                name: name.to_string(),
+                leg_m: leg_m(entity),
+                weapons: u32::try_from(weapons).expect("a hull's sections fit a u32"),
+            });
         }
-        field.hostiles.push(JobHull {
-            id: id.clone(),
-            name: name.to_string(),
-        });
+        field.wrecks.sort_by(|a, b| a.id.cmp(&b.id));
+        field.hostiles.sort_by(|a, b| a.id.cmp(&b.id));
+        field
     }
-    field.wrecks.sort_by(|a, b| a.id.cmp(&b.id));
-    field.hostiles.sort_by(|a, b| a.id.cmp(&b.id));
-    field
 }
 
 /// Put an accepted job's bodies in the world, under the poster's cell root:
 /// an escort's hauler beside the poster with no helm order, its leg laid in
-/// the jobs to a mark a [`JOB_LEG`] out past it ([`Jobs::lay_leg`]), and its
+/// the jobs to a mark the job's leg out ([`Job::leg_m`], [`Jobs::lay_leg`]), and its
 /// raiders lying in wait off the leg ([`raider_wait_points`]), idle until a
 /// hostile comes inside their engage range; a distress call's or a supply
 /// job's caller at the mark, a neutral derelict civilian hull, lootable, its
@@ -826,8 +866,8 @@ pub(crate) fn spawn_job_bodies(
             ChildOf(root),
         )
     };
-    let along = |share: f32| Meters3(station_at.get() + direction * JOB_LEG.get() * share);
-    let mark = along(1.0);
+    let leg = job_leg(job);
+    let mark = Meters3(station_at.get() + direction * leg.get());
     match &job.kind {
         JobType::Escort {
             hauler, cargo_cr, ..
@@ -874,7 +914,7 @@ pub(crate) fn spawn_job_bodies(
                 .id();
             jobs.lay_leg(&job.id, mark);
             let raiders = job.raider_ids().len();
-            for (index, at) in raider_wait_points(station_at, direction, raiders)
+            for (index, at) in raider_wait_points(station_at, direction, leg, raiders)
                 .into_iter()
                 .enumerate()
             {
@@ -886,7 +926,7 @@ pub(crate) fn spawn_job_bodies(
                 "nova_world_base: '{}' puts the hauler '{hauler}' ({cargo_cr} cr) on a {} m leg \
                  with {raiders} raider(s) in wait",
                 job.id,
-                JOB_LEG.get()
+                leg.get()
             );
         }
         JobType::Distress { caller } | JobType::Supply { caller, .. } => {
@@ -923,7 +963,7 @@ pub(crate) fn spawn_job_bodies(
             info!(
                 "nova_world_base: '{}' puts the caller '{caller}' {} m out",
                 job.id,
-                JOB_LEG.get()
+                leg.get()
             );
         }
         JobType::Procure { .. } | JobType::Recover { .. } | JobType::Neutralize { .. } => {
@@ -951,6 +991,11 @@ fn caller_stock(kind: &JobType, stock: ShipInventoryStock) -> ShipInventoryStock
     }
 }
 
+/// The leg `job` was posted with, as a length.
+fn job_leg(job: &Job) -> Meters {
+    Meters(job.leg_m as f32)
+}
+
 /// The unit direction of `job`'s leg from `from`: the first of
 /// [`JOB_SPAWN_TRIES`] draws off `seed` whose every body stands
 /// [`JOB_SPAWN_CLEARANCE`] from each position in `standing` (excluding the
@@ -959,15 +1004,16 @@ fn caller_stock(kind: &JobType, stock: ShipInventoryStock) -> ShipInventoryStock
 /// must be in the poster's cell; otherwise take the clearest draw.
 fn leg_direction(seed: u32, from: Meters3, edge: Meters, job: &Job, standing: &[Meters3]) -> Vec3 {
     let cell = SectorCoord::containing(from, edge);
+    let leg = job_leg(job);
     let mut stream = SeedStream::new(seed);
     let mut best: Option<(f32, Vec3)> = None;
     for _ in 0..JOB_SPAWN_TRIES {
         let direction = unit_sphere_point(stream.next_u32());
-        let along = |share: f32| from.get() + direction * JOB_LEG.get() * share;
-        let mut points = vec![along(1.0)];
+        let mark = from.get() + direction * leg.get();
+        let mut points = vec![mark];
         if matches!(job.kind, JobType::Escort { .. }) {
             points.push(from.get() + direction * HAULER_STANDOFF.get());
-            let raiders = raider_wait_points(from, direction, job.raider_ids().len());
+            let raiders = raider_wait_points(from, direction, leg, job.raider_ids().len());
             points.extend(raiders.iter().map(|at| at.get()));
         }
         let nearest = points
@@ -982,7 +1028,7 @@ fn leg_direction(seed: u32, from: Meters3, edge: Meters, job: &Job, standing: &[
             };
             point.distance(from.get()) >= clearance.get()
         });
-        let in_cell = SectorCoord::containing(Meters3(along(1.0)), edge) == cell;
+        let in_cell = SectorCoord::containing(Meters3(mark), edge) == cell;
         if in_cell && clears_station && nearest >= JOB_SPAWN_CLEARANCE.get() {
             return direction;
         }
@@ -1000,15 +1046,16 @@ fn leg_direction(seed: u32, from: Meters3, edge: Meters, job: &Job, standing: &[
     direction
 }
 
-/// Where each of `raiders` raiders waits on the leg from `from` along
-/// `direction`: [`RAIDER_LATERAL`] off the leg's line, [`RAIDER_SPACING`]
-/// apart along it, centred at [`RAIDER_AMBUSH_SHARE`] of the leg.
-fn raider_wait_points(from: Meters3, direction: Vec3, raiders: usize) -> Vec<Meters3> {
+/// Where each of `raiders` raiders waits on the leg of length `leg` from
+/// `from` along `direction`: [`RAIDER_LATERAL`] off the leg's line,
+/// [`RAIDER_SPACING`] apart along it, centred at [`RAIDER_AMBUSH_SHARE`] of
+/// the leg.
+fn raider_wait_points(from: Meters3, direction: Vec3, leg: Meters, raiders: usize) -> Vec<Meters3> {
     let across = direction.any_orthonormal_vector();
     (0..raiders)
         .map(|index| {
             let offset = (index as f32 - (raiders as f32 - 1.0) / 2.0) * RAIDER_SPACING.get();
-            let along = JOB_LEG.get() * RAIDER_AMBUSH_SHARE + offset;
+            let along = leg.get() * RAIDER_AMBUSH_SHARE + offset;
             Meters3(from.get() + direction * along + across * RAIDER_LATERAL.get())
         })
         .collect()
@@ -1582,7 +1629,9 @@ mod tests {
         OnShipOrderCompleteEventInfo, OnShipOrderFailedEventInfo, ShipOrderKind,
     };
     use nova_gameplay::{
-        prelude::{ItemDesignId, ItemRoleType, SupplyRefusalType, ESCORT_RAIDERS_MAX},
+        prelude::{
+            ItemDesignId, ItemRoleType, JobReward, SupplyRefusalType, ESCORT_RAIDERS_MAX, JOB_LEG_M,
+        },
         test_support::test_items,
     };
     use nova_ship::prelude::DockedHelmType;
@@ -1632,11 +1681,18 @@ mod tests {
     }
 
     fn job(slot: u32, kind: JobType) -> Job {
+        // A kind that puts bodies in the world lays them on a leg.
+        let leg_m = match kind {
+            JobType::Escort { .. } | JobType::Distress { .. } | JobType::Supply { .. } => 10_000,
+            JobType::Procure { .. } | JobType::Recover { .. } | JobType::Neutralize { .. } => 0,
+        };
         let job = Job {
             id: job_id(slot),
             kind,
             target: poster(),
-            reward_cr: 100,
+            leg_m,
+            threat: 0,
+            reward: JobReward::flat(100),
         };
         job.validate().expect("the test names the job's own bodies");
         job
@@ -2234,7 +2290,7 @@ mod tests {
 
     #[test]
     fn every_raider_waits_beyond_its_engage_range_of_the_hauler_s_start_and_within_it_of_the_leg() {
-        // One metre of slack for f32 rounding at ten kilometres.
+        // One metre of slack for f32 rounding at sixteen kilometres.
         const SLACK: f32 = 1.0;
         let from = Meters3(Vec3::new(400.0, -250.0, 1_200.0));
         let direction = Vec3::new(1.0, 2.0, -0.5).normalize();
@@ -2248,32 +2304,38 @@ mod tests {
                 > MAX_STATION_CLEARANCE.get() + SECTOR_SHIP_CLEARANCE_MAX.get(),
             "station and generated hull maximum clearance radii do not overlap"
         );
-        let leg = JOB_LEG.get() - HAULER_STANDOFF.get();
-        for raiders in 1..=ESCORT_RAIDERS_MAX as usize {
-            let points = raider_wait_points(from, direction, raiders);
-            assert_eq!(points.len(), raiders);
-            for (index, at) in points.iter().enumerate() {
-                let at = at.get();
-                assert!(
-                    at.distance(from.get()) >= JOB_SPAWN_CLEARANCE.get(),
-                    "raider {index} of {raiders} clears the posting station"
-                );
-                assert!(
-                    at.distance(start) > RAIDER_ENGAGE_RANGE.get(),
-                    "raider {index} of {raiders} waits {} m from the waiting hauler",
-                    at.distance(start)
-                );
-                let along = (at - start).dot(direction).clamp(0.0, leg);
-                let off_leg = at.distance(start + direction * along);
-                assert!(
-                    off_leg >= RAIDER_LATERAL.get() - SLACK && off_leg < RAIDER_ENGAGE_RANGE.get(),
-                    "raider {index} of {raiders} waits {off_leg} m off the leg"
-                );
-                for other in &points[..index] {
+        // The shortest and the longest drawn leg, and the old fixed one.
+        for leg in [JOB_LEG_M.0, 10_000, JOB_LEG_M.1].map(|leg| Meters(leg as f32)) {
+            let flown = leg.get() - HAULER_STANDOFF.get();
+            for raiders in 1..=ESCORT_RAIDERS_MAX as usize {
+                let points = raider_wait_points(from, direction, leg, raiders);
+                assert_eq!(points.len(), raiders);
+                for (index, at) in points.iter().enumerate() {
+                    let at = at.get();
+                    let which = format!("raider {index} of {raiders} on a {} m leg", leg.get());
                     assert!(
-                        at.distance(other.get()) >= RAIDER_SPACING.get() - SLACK,
-                        "raider {index} of {raiders} stands apart from the others"
+                        at.distance(from.get()) > RAIDER_ENGAGE_RANGE.get(),
+                        "{which} waits {} m from the posting station",
+                        at.distance(from.get())
                     );
+                    assert!(
+                        at.distance(start) > RAIDER_ENGAGE_RANGE.get(),
+                        "{which} waits {} m from the waiting hauler",
+                        at.distance(start)
+                    );
+                    let along = (at - start).dot(direction).clamp(0.0, flown);
+                    let off_leg = at.distance(start + direction * along);
+                    assert!(
+                        off_leg >= RAIDER_LATERAL.get() - SLACK
+                            && off_leg < RAIDER_ENGAGE_RANGE.get(),
+                        "{which} waits {off_leg} m off the leg"
+                    );
+                    for other in &points[..index] {
+                        assert!(
+                            at.distance(other.get()) >= RAIDER_SPACING.get() - SLACK,
+                            "{which} stands apart from the others"
+                        );
+                    }
                 }
             }
         }
@@ -2530,12 +2592,17 @@ mod tests {
             unreachable!()
         };
         let mut app = App::new();
-        let root = app.world_mut().spawn_empty().id();
+        let root = app.world_mut().spawn(Transform::default()).id();
+        let station = app
+            .world_mut()
+            .spawn((poster(), Transform::default(), ChildOf(root)))
+            .id();
         let hostile = |app: &mut App, id: &GeneratedBodyId| {
             app.world_mut().spawn((
                 id.clone(),
                 Name::new(id.to_string()),
                 Allegiance::Enemy,
+                Transform::default(),
                 ChildOf(root),
                 SpaceshipRootMarker,
             ));
@@ -2545,6 +2612,7 @@ mod tests {
                 id.clone(),
                 Name::new(id.to_string()),
                 ShipInventory::new(&items, 1_000_000, [(item(), 1)]),
+                Transform::default(),
                 ChildOf(root),
                 SpaceshipRootMarker,
                 DerelictShipMarker,
@@ -2566,25 +2634,9 @@ mod tests {
                 &held,
             );
             app.world_mut()
-                .run_system_once(
-                    move |wrecks: Query<
-                        (&GeneratedBodyId, &Name, &ShipInventory, &ChildOf),
-                        (
-                            With<SpaceshipRootMarker>,
-                            With<DerelictShipMarker>,
-                            Without<StationMarker>,
-                        ),
-                    >,
-                          hulls: Query<
-                        (&GeneratedBodyId, &Name, &Allegiance, &ChildOf),
-                        (
-                            With<SpaceshipRootMarker>,
-                            Without<DerelictShipMarker>,
-                            Without<NeutralizedMarker>,
-                            Without<StationMarker>,
-                        ),
-                    >| { job_field(&[root], &excluded, &wrecks, &hulls) },
-                )
+                .run_system_once(move |bodies: FieldBodies| {
+                    bodies.field(station, &[root], &excluded)
+                })
                 .expect("the field reads the queries")
         };
         let ids = |hulls: &[JobHull]| hulls.iter().map(|hull| hull.id.clone()).collect::<Vec<_>>();
@@ -2605,6 +2657,81 @@ mod tests {
         let posted = field(&mut app, jobs);
         assert_eq!(ids(&posted.hostiles), vec![hull_id()]);
         assert_eq!(wreck_ids(&posted.wrecks), vec![wreck_id()]);
+    }
+
+    /// A hull that never went through transform propagation still reads at
+    /// its place: the field computes each position from the hierarchy.
+    #[test]
+    fn a_field_body_carries_its_world_distance_from_the_poster_and_its_live_weapon_sections() {
+        let items = test_items();
+        let mut app = App::new();
+        let home = app.world_mut().spawn(Transform::default()).id();
+        // The next cell's root, 10 km along x: 1,000 engine units.
+        let next = app
+            .world_mut()
+            .spawn(Transform::from_xyz(1_000.0, 0.0, 0.0))
+            .id();
+        let station = app
+            .world_mut()
+            .spawn((poster(), Transform::default(), ChildOf(home)))
+            .id();
+        // 2,520 m off the next root: 10,312.6 m from the poster.
+        let hull = app
+            .world_mut()
+            .spawn((
+                hull_id(),
+                Name::new("Kessel armored"),
+                Allegiance::Enemy,
+                Transform::from_xyz(0.0, 0.0, 252.0),
+                ChildOf(next),
+                SpaceshipRootMarker,
+            ))
+            .id();
+        let section = |app: &mut App, weapon: Option<u8>, live: bool| {
+            let mut section = app.world_mut().spawn((SectionMarker, ChildOf(hull)));
+            match weapon {
+                Some(0) => section.insert(TurretSectionMarker),
+                Some(1) => section.insert(TorpedoSectionMarker),
+                Some(_) => section.insert(RailgunSectionMarker),
+                None => &mut section,
+            };
+            if !live {
+                section.insert(SectionInactiveMarker);
+            }
+        };
+        section(&mut app, Some(0), true);
+        section(&mut app, Some(0), true);
+        section(&mut app, Some(1), true);
+        section(&mut app, Some(2), true);
+        section(&mut app, Some(0), false);
+        section(&mut app, None, true);
+        app.world_mut().spawn((
+            wreck_id(),
+            Name::new("Vell derelict"),
+            ShipInventory::new(&items, 1_000_000, [(item(), 1)]),
+            Transform::from_xyz(-43.0, 0.0, 0.0),
+            ChildOf(home),
+            SpaceshipRootMarker,
+            DerelictShipMarker,
+        ));
+        let field = app
+            .world_mut()
+            .run_system_once(move |bodies: FieldBodies| {
+                bodies.field(station, &[home, next], &BTreeSet::new())
+            })
+            .expect("the field reads the queries");
+        assert_eq!(
+            field.hostiles,
+            vec![JobHull {
+                id: hull_id(),
+                name: "Kessel armored".to_string(),
+                leg_m: 10_300,
+                weapons: 4,
+            }],
+            "two turrets, a torpedo bay and a railgun stand live; the leg rounds to 100 m"
+        );
+        assert_eq!(field.wrecks.len(), 1);
+        assert_eq!(field.wrecks[0].leg_m, 400, "430 m rounds to 400 m");
     }
 
     #[test]
@@ -2737,7 +2864,11 @@ mod tests {
         for coord in cube_around(SectorCoord::ORIGIN) {
             let root = app
                 .world_mut()
-                .spawn((SectorRoot(coord), SectorClusterTypes(Vec::new())))
+                .spawn((
+                    SectorRoot(coord),
+                    SectorClusterTypes(Vec::new()),
+                    Transform::default(),
+                ))
                 .id();
             if coord == SectorCoord::ORIGIN {
                 home = Some(root);
@@ -2746,6 +2877,7 @@ mod tests {
         app.world_mut().spawn((
             StationMarker,
             poster(),
+            Transform::default(),
             ChildOf(home.unwrap()),
             StationServices(vec![StationServiceType::Jobs]),
             TraderMarket {
@@ -2792,7 +2924,9 @@ mod tests {
                 count: 1,
             },
             target: poster(),
-            reward_cr: 10,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(10),
         };
         let (held, open) = (visit_job(0), visit_job(1));
         let standing = |app: &App, job: &Job| {
@@ -2877,7 +3011,9 @@ mod tests {
                 count: 1,
             },
             target: poster(),
-            reward_cr: 10,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(10),
         };
         let on_board = |app: &mut App| {
             let mut boards = app.world_mut().query::<&JobBoard>();
