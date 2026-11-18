@@ -662,8 +662,6 @@ struct BalanceCount {
     from_cr: u64,
     /// The true balance the count ends on.
     to_cr: u64,
-    /// The gain shown beside the balance.
-    gain_cr: u64,
     /// Real seconds since the count began, stepped by at most
     /// [`BALANCE_COUNT_STEP_MAX_SECS`] a frame.
     age_secs: f32,
@@ -680,6 +678,13 @@ impl BalanceCount {
         let span = (self.to_cr - self.from_cr) as f64;
         let risen = span * (1.0 - f64::from(left).powi(3));
         (self.from_cr + risen as u64).min(self.to_cr)
+    }
+
+    /// The gain shown beside the balance: all the head counts up by, so the
+    /// two figures agree whatever else paid the player in the frame the count
+    /// began.
+    fn gain_cr(&self) -> u64 {
+        self.to_cr - self.from_cr
     }
 
     /// Whether the count and the gain's dwell are both over.
@@ -703,18 +708,22 @@ struct BalanceFigures {
 ///
 /// A caller pays the player ship first and calls [`raise`](Self::raise) in
 /// the same frame; [`show_pane_balance`] does the rest. The count runs on
-/// real time: the interface holds virtual time. The head always ends on the
-/// true balance:
+/// real time: the interface holds virtual time. The gain is the true balance
+/// when the count starts less the figure the head showed, so it holds every
+/// credit that reached the player in that frame (a scenario grant beside a
+/// job reward) and always equals what the head counts up by. The head always
+/// ends on the true balance:
 ///
-/// - A balance change with no gain raised (a purchase, a fee) ends a running
+/// - A balance change with no count raised (a purchase, a fee) ends a running
 ///   count at once and shows the true balance.
-/// - A gain raised during a count starts a new count from the figure shown.
+/// - A count raised during a count starts a new one from the figure shown;
+///   its gain holds what the first count had left.
 /// - The count ends with the title row: a closed interface runs none, and a
-///   gain raised while it is closed shows nothing when it opens.
+///   count raised while it is closed shows nothing when it opens.
 #[derive(Resource, Default, Debug, PartialEq)]
 pub struct BalanceCountUp {
-    /// The gain raised since [`show_pane_balance`] last ran.
-    raised_cr: Option<u64>,
+    /// Whether a count was raised since [`show_pane_balance`] last ran.
+    raised: bool,
     /// The running count, kept through the gain's dwell.
     count: Option<BalanceCount>,
     /// The balance figure the title row shows, or `None` while it shows none.
@@ -723,16 +732,16 @@ pub struct BalanceCountUp {
 
 impl BalanceCountUp {
     /// Count the title row's balance up to the player's balance and show
-    /// `+gain_cr` beside it. Two gains raised in one frame show as their sum.
-    pub fn raise(&mut self, gain_cr: u32) {
-        let raised = self.raised_cr.unwrap_or(0);
-        self.raised_cr = Some(raised.saturating_add(gain_cr.into()));
+    /// the rise beside it. Only a job reward raises one: any other credit
+    /// change alone shows the true balance at once.
+    pub fn raise(&mut self) {
+        self.raised = true;
     }
 
     /// The gain the title row shows beside the balance, while a count or its
     /// dwell runs.
     pub fn gain_cr(&self) -> Option<u64> {
-        self.count.map(|count| count.gain_cr)
+        self.count.map(|count| count.gain_cr())
     }
 
     /// Whether the balance figure is still short of the true balance.
@@ -744,14 +753,13 @@ impl BalanceCountUp {
     /// Advance one frame of `delta_secs` real seconds against the true
     /// balance `true_cr`, and give what the title row shows.
     fn step(&mut self, true_cr: u64, delta_secs: f32) -> BalanceFigures {
-        if let Some(gain_cr) = self.raised_cr.take() {
+        if core::mem::take(&mut self.raised) {
             // A figure at or above the true balance has nothing to count
             // up to: the gain was spent in the frame that paid it.
             let from_cr = self.shown_cr.unwrap_or(true_cr);
             self.count = (from_cr < true_cr).then_some(BalanceCount {
                 from_cr,
                 to_cr: true_cr,
-                gain_cr,
                 age_secs: 0.0,
             });
         } else if let Some(count) = &mut self.count {

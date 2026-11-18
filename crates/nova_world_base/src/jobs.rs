@@ -112,9 +112,10 @@ const RAIDER_AMBUSH_SHARE: f32 = 0.75;
 const RAIDER_SPACING: Meters = Meters(600.0);
 /// How far off the leg's line the raiders lie in wait. Under the engage
 /// range, so a raider springs as the hauler passes, about 1.7 km before it
-/// draws level. On the shortest leg with the most raiders the nearest one
-/// still waits 3.8 km from the hauler's start and 4.6 km from the station,
-/// outside the engage range of both.
+/// draws level. On the shortest escort leg with the most raiders the nearest
+/// one still waits 6.4 km from the hauler's start and 7.3 km from the
+/// station, outside the engage range and the leash ([`RAIDER_LEASH`]) of
+/// both.
 const RAIDER_LATERAL: Meters = Meters(2_500.0);
 /// How far a raider leaves its wait for a target.
 const RAIDER_ENGAGE_RANGE: Meters = Meters(3_000.0);
@@ -129,6 +130,9 @@ const STATION_SPAWN_CLEARANCE: Meters = Meters(500.0);
 /// How many seeded directions a spawn tries before it takes the clearest.
 const JOB_SPAWN_TRIES: u32 = 8;
 /// The tether a raider chases its prey within, from where it lay in wait.
+/// Shorter than the way from every wait point to the poster and to the
+/// hauler's start on the shortest escort leg, so a chase ends short of the
+/// station and of a hauler that has not left.
 const RAIDER_LEASH: Meters = Meters(6_000.0);
 
 /// The civilization of the station `poster` that trades by `market`: the one
@@ -1630,7 +1634,8 @@ mod tests {
     };
     use nova_gameplay::{
         prelude::{
-            ItemDesignId, ItemRoleType, JobReward, SupplyRefusalType, ESCORT_RAIDERS_MAX, JOB_LEG_M,
+            ItemDesignId, ItemRoleType, JobReward, SupplyRefusalType, ESCORT_LEG_M,
+            ESCORT_RAIDERS_MAX,
         },
         test_support::test_items,
     };
@@ -2304,8 +2309,8 @@ mod tests {
                 > MAX_STATION_CLEARANCE.get() + SECTOR_SHIP_CLEARANCE_MAX.get(),
             "station and generated hull maximum clearance radii do not overlap"
         );
-        // The shortest and the longest drawn leg, and the old fixed one.
-        for leg in [JOB_LEG_M.0, 10_000, JOB_LEG_M.1].map(|leg| Meters(leg as f32)) {
+        // The shortest and the longest leg an escort draws.
+        for leg in [ESCORT_LEG_M.0, ESCORT_LEG_M.1].map(|leg| Meters(leg as f32)) {
             let flown = leg.get() - HAULER_STANDOFF.get();
             for raiders in 1..=ESCORT_RAIDERS_MAX as usize {
                 let points = raider_wait_points(from, direction, leg, raiders);
@@ -2337,6 +2342,37 @@ mod tests {
                         );
                     }
                 }
+            }
+        }
+    }
+
+    /// A raider chases within [`RAIDER_LEASH`] of its wait point, so a wait
+    /// point farther than that from the poster and from the hauler's start
+    /// keeps the chase out of the station. The shortest leg puts the wait
+    /// points nearest both.
+    #[test]
+    fn on_the_shortest_escort_leg_every_raider_waits_beyond_its_leash_of_the_poster_and_the_hauler_s_start(
+    ) {
+        let from = Meters3(Vec3::new(400.0, -250.0, 1_200.0));
+        let direction = Vec3::new(1.0, 2.0, -0.5).normalize();
+        let start = from.get() + direction * HAULER_STANDOFF.get();
+        let leg = Meters(ESCORT_LEG_M.0 as f32);
+        for raiders in 1..=ESCORT_RAIDERS_MAX as usize {
+            for (index, at) in raider_wait_points(from, direction, leg, raiders)
+                .iter()
+                .enumerate()
+            {
+                let which = format!("raider {index} of {raiders} on a {} m leg", leg.get());
+                let to_poster = at.get().distance(from.get());
+                assert!(
+                    to_poster > RAIDER_LEASH.get(),
+                    "{which} waits {to_poster} m from the posting station"
+                );
+                let to_hauler = at.get().distance(start);
+                assert!(
+                    to_hauler > RAIDER_LEASH.get(),
+                    "{which} waits {to_hauler} m from the waiting hauler"
+                );
             }
         }
     }

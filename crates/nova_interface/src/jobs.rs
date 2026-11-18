@@ -30,7 +30,7 @@
 //! world puts the job's bodies in place. The result plays one sound and the
 //! changed balance and lists show it; the buttons are silent on press. A
 //! paid hand-in plays the payout cue in place of the click, and the pane
-//! head counts the balance up to the reward ([`BalanceCountUp`]). A verb
+//! head counts the balance up with the gain beside it ([`BalanceCountUp`]). A verb
 //! that cannot work is hidden or disabled by its [`VerbGate`].
 //!
 //! A held row's `X` drops nothing: it asks. The row then reads `Drop?
@@ -1948,7 +1948,7 @@ fn apply_job_commands(
             plan.station_cr,
             CreditChangeCauseType::JobReward,
         );
-        count_up.raise(plan.reward_cr);
+        count_up.raise();
         let code = jobs
             .mark_code(&job.id)
             .expect("the hand-in was planned for a held job");

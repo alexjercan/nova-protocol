@@ -26,9 +26,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Repair kit: Use in the Inventory pane heals 80 HP over 10 s, most damaged section first. A refused use keeps the item; a second kit while one runs is refused.
 - Generated stations sell repair kits. Start kits add 3 repair kits.
 - Refine is replaced by Craft: alloy plates, rail slugs and torpedoes are crafted at a Craft station for a fee a batch. Stations that offered Refine now offer Craft.
-- A job reward is now a sum of base, goods, range and threat: 30 cr a km, 300 cr per weapon against you. Base and range pay up to three times more at an advanced station.
-- Escorts, distress calls and supply runs draw a leg of 6 to 16 km, up from a fixed 10 km. An escort pays a quarter of its cargo, down from half; a recovery's goods pay at most 2,000 cr.
-- A living station that paid out regains credits while its sector is unloaded, up to its start balance in 30 minutes of play. Before, a drained station never paid again. Owned stations gain none.
+- A job reward is now a sum of base, goods, range and threat: 30 cr a km, 300 cr per weapon against you. Base and range pay up to three times as much at an advanced station.
+- Escorts draw a leg of 10 to 16 km, distress calls and supply runs 6 to 16 km, up from a fixed 10 km. An escort pays a quarter of its cargo, down from half; a recovery's goods pay at most 2,000 cr.
+- A living generated station that paid out regains credits while its sector is unloaded, to its start balance in 30 minutes of play. Before, a drained one never paid again. Owned stations gain none.
 
 ### Combat & Weapons
 

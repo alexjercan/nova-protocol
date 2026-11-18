@@ -1219,7 +1219,7 @@ fn pay(world: &mut World, gain_cr: u32) {
         .single_mut(world)
         .expect("one player ship");
     credits.0 += gain_cr;
-    world.resource_mut::<BalanceCountUp>().raise(gain_cr);
+    world.resource_mut::<BalanceCountUp>().raise();
 }
 
 /// The title row's balance text.
@@ -1256,7 +1256,7 @@ fn a_count_up_ends_on_the_true_balance_and_never_passes_it() {
     };
     assert_eq!(count_up.step(2_000, COUNT_FRAME_SECS), quiet);
 
-    count_up.raise(1_460);
+    count_up.raise();
     let start = count_up.step(3_460, COUNT_FRAME_SECS);
     assert_eq!(
         start,
@@ -1315,7 +1315,7 @@ fn a_count_up_ends_on_the_true_balance_and_never_passes_it() {
 fn a_long_frame_does_not_skip_the_count() {
     let mut count_up = BalanceCountUp::default();
     count_up.step(2_000, COUNT_FRAME_SECS);
-    count_up.raise(1_460);
+    count_up.raise();
     count_up.step(3_460, 5.0);
     let figures = count_up.step(3_460, 5.0);
     assert!(
@@ -1332,7 +1332,7 @@ fn a_long_frame_does_not_skip_the_count() {
 fn a_credit_change_that_is_no_job_reward_ends_a_running_count() {
     let mut count_up = BalanceCountUp::default();
     count_up.step(2_000, COUNT_FRAME_SECS);
-    count_up.raise(1_460);
+    count_up.raise();
     count_up.step(3_460, COUNT_FRAME_SECS);
     let counting = count_up.step(3_460, COUNT_FRAME_SECS);
     assert!(counting.balance_cr < 3_460 && counting.gain_cr == Some(1_460));
@@ -1348,7 +1348,7 @@ fn a_credit_change_that_is_no_job_reward_ends_a_running_count() {
     assert!(!count_up.is_counting());
 
     // Through the gain's dwell too: the count has landed, the gain still shows.
-    count_up.raise(40);
+    count_up.raise();
     count_up.step(3_400, COUNT_FRAME_SECS);
     for _ in 0..60 {
         count_up.step(3_400, COUNT_FRAME_SECS);
@@ -1363,7 +1363,7 @@ fn a_credit_change_that_is_no_job_reward_ends_a_running_count() {
     );
 
     // A gain spent in the frame that paid it has nothing to count up to.
-    count_up.raise(50);
+    count_up.raise();
     assert_eq!(
         count_up.step(3_250, COUNT_FRAME_SECS),
         BalanceFigures {
@@ -1373,13 +1373,46 @@ fn a_credit_change_that_is_no_job_reward_ends_a_running_count() {
     );
 }
 
+/// A credit grant that lands in the frame of a job reward is part of the
+/// gain shown: the figure beside the balance is what the head counts up by.
+#[test]
+fn a_credit_grant_in_the_frame_of_a_job_reward_is_part_of_the_shown_gain() {
+    let mut count_up = BalanceCountUp::default();
+    count_up.step(2_000, COUNT_FRAME_SECS);
+
+    // A 1,460 cr reward and a 50 cr scenario bonus reach the player before
+    // the head next reads the balance.
+    count_up.raise();
+    assert_eq!(
+        count_up.step(3_510, COUNT_FRAME_SECS),
+        BalanceFigures {
+            balance_cr: 2_000,
+            gain_cr: Some(1_510),
+        }
+    );
+    let mut figures = count_up.step(3_510, COUNT_FRAME_SECS);
+    while count_up.is_counting() {
+        assert_eq!(figures.gain_cr, Some(1_510));
+        figures = count_up.step(3_510, COUNT_FRAME_SECS);
+    }
+    assert_eq!(
+        figures,
+        BalanceFigures {
+            balance_cr: 3_510,
+            gain_cr: Some(1_510),
+        },
+        "the head lands on the start figure plus the gain"
+    );
+}
+
 /// A second gain raised during a count starts a new count from the figure
-/// shown, to the new true balance, and shows the new gain.
+/// shown, to the new true balance; the gain shown is all the head still has
+/// to rise by.
 #[test]
 fn a_second_gain_during_a_count_restarts_from_the_figure_shown() {
     let mut count_up = BalanceCountUp::default();
     count_up.step(2_000, COUNT_FRAME_SECS);
-    count_up.raise(1_000);
+    count_up.raise();
     count_up.step(3_000, COUNT_FRAME_SECS);
     let mut shown = 2_000;
     for _ in 0..10 {
@@ -1387,12 +1420,12 @@ fn a_second_gain_during_a_count_restarts_from_the_figure_shown() {
     }
     assert!(shown > 2_000 && shown < 3_000);
 
-    count_up.raise(500);
+    count_up.raise();
     assert_eq!(
         count_up.step(3_500, COUNT_FRAME_SECS),
         BalanceFigures {
             balance_cr: shown,
-            gain_cr: Some(500),
+            gain_cr: Some(3_500 - shown),
         }
     );
     let mut last = shown;

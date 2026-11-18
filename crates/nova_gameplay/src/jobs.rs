@@ -88,8 +88,8 @@ pub mod prelude {
         JobHullRefusalType, JobId, JobMixType, JobOfferRefreshPlan, JobOfferRefreshRefusalType,
         JobPostings, JobReward, JobSourceType, JobType, JobWreck, Jobs, ScenarioPosting,
         ShipSizeType, SlotPosting, StarterBoardMarker, SupplyFramingType, SupplyRefusalType,
-        SupplyRefused, VisitPosting, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, JOB_LEG_M, JOB_LEG_STEP_M,
-        JOB_OFFER_REFRESH_FEE_CR, JOB_RANGE_CR_PER_KM, JOB_THREAT_CR_PER_WEAPON,
+        SupplyRefused, VisitPosting, ESCORT_LEG_M, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, JOB_LEG_M,
+        JOB_LEG_STEP_M, JOB_OFFER_REFRESH_FEE_CR, JOB_RANGE_CR_PER_KM, JOB_THREAT_CR_PER_WEAPON,
         RECOVER_GOODS_CAP_CR, SUPPLY_MASS_CAP_G, VISIT_EXTRAS_MAX, VISIT_EXTRA_OFFER_SECONDS,
     };
 }
@@ -141,11 +141,17 @@ pub const JOB_THREAT_CR_PER_WEAPON: u32 = 300;
 /// The most a recovery's goods term pays: the player keeps the stack, so
 /// the term is a finder's fee, not the stack's worth.
 pub const RECOVER_GOODS_CAP_CR: u32 = 2_000;
-/// The shortest and the longest leg an escort, a distress call and a supply
-/// job draw, in meters, both included, in steps of [`JOB_LEG_STEP_M`]. The
-/// open world looks for a mark inside the poster's cell, so the longest is
-/// half a 32 km cell: a longer leg leaves the cell from every station.
+/// The shortest and the longest leg a distress call and a supply job draw,
+/// in meters, both included, in steps of [`JOB_LEG_STEP_M`]. The open world
+/// looks for a mark inside the poster's cell, so the longest is half a 32 km
+/// cell: a longer leg leaves the cell from every station.
 pub const JOB_LEG_M: (u32, u32) = (6_000, 16_000);
+/// The shortest and the longest leg an escort draws, in meters, both
+/// included, in steps of [`JOB_LEG_STEP_M`]. The raiders wait three quarters
+/// along the leg and chase on a 6 km tether; on a shorter leg that tether
+/// reaches the poster and the waiting hauler, and a raider follows the
+/// hauler back into the station. The longest is [`JOB_LEG_M`]'s.
+pub const ESCORT_LEG_M: (u32, u32) = (10_000, JOB_LEG_M.1);
 /// The step between two drawn legs, in meters.
 pub const JOB_LEG_STEP_M: u32 = 2_000;
 /// The most a supply job's goods weigh, in grams: 200 kg, two hull
@@ -1205,9 +1211,9 @@ pub struct Job {
     /// The station the job hands in at: the poster.
     pub target: GeneratedBodyId,
     /// How far the work lies from the poster when the board posts, in
-    /// meters: the drawn leg of an escort, a distress call and a supply job
-    /// ([`JOB_LEG_M`]), the way to the wreck of a recovery or the hull of a
-    /// neutralize. Zero for a procurement.
+    /// meters: the drawn leg of an escort ([`ESCORT_LEG_M`]), a distress call
+    /// and a supply job ([`JOB_LEG_M`]), the way to the wreck of a recovery
+    /// or the hull of a neutralize. Zero for a procurement.
     pub leg_m: u32,
     /// The weapons the job puts against the player when the board posts: an
     /// escort's raiders times the weapons of each
@@ -2188,8 +2194,9 @@ fn wanted_categories(clusters: &[ClusterType]) -> Vec<ItemCategoryType> {
 /// raiders its poster's advancement draws; a neutralize names a hostile of
 /// the field. A supply job draws a framing, then an item of it from its own
 /// pool ([`supply_pool`]), [`supply_count`] units. An escort, a distress
-/// call and a supply job draw their leg ([`JOB_LEG_M`]); a recovery and a
-/// neutralize read theirs off the field body. Every offer is priced by
+/// call and a supply job draw their leg ([`ESCORT_LEG_M`] for an escort,
+/// [`JOB_LEG_M`] for the other two); a recovery and a neutralize read theirs
+/// off the field body. Every offer is priced by
 /// [`job_reward`] on a drawn fee of one to [`FEE_STEPS`] times
 /// [`FEE_STEP_CR`]. A kind drawn with no candidate left in the field, or a
 /// supply job with an empty pool, posts a procurement instead; a wreck or a
@@ -2404,8 +2411,9 @@ struct SlotDraw {
     count: u32,
     cargo_cr: u32,
     raiders: u32,
-    /// The leg of an escort, a distress call and a supply job, in meters.
-    leg_m: u32,
+    /// Picks the leg of an escort, a distress call and a supply job
+    /// ([`leg_m`](Self::leg_m)).
+    leg_pick: u32,
 }
 
 impl SlotDraw {
@@ -2429,10 +2437,16 @@ impl SlotDraw {
             count: rng.random_range(PROCURE_COUNT.0..=PROCURE_COUNT.1),
             cargo_cr: rng.random_range(ESCORT_CARGO_CR.0..=ESCORT_CARGO_CR.1),
             raiders: draw_escort_raiders(advancement, &mut rng),
-            leg_m: JOB_LEG_M.0
-                + rng.random_range(0..=(JOB_LEG_M.1 - JOB_LEG_M.0) / JOB_LEG_STEP_M)
-                    * JOB_LEG_STEP_M,
+            leg_pick: rng.random_range(0..u32::MAX),
         }
+    }
+
+    /// The leg the slot draws from `range`, in meters: one of its
+    /// [`JOB_LEG_STEP_M`] steps, both ends included. Each kind maps the one
+    /// pick onto its own range, so a kind's range costs no draw.
+    fn leg_m(self, range: (u32, u32)) -> u32 {
+        let (shortest, longest) = range;
+        shortest + self.leg_pick % ((longest - shortest) / JOB_LEG_STEP_M + 1) * JOB_LEG_STEP_M
     }
 }
 
@@ -2450,8 +2464,8 @@ fn procurement(item: &ItemDesignId, count: u32) -> Posting {
 
 /// The escort `id` posts on `draw` at a station whose civilization has
 /// `advancement`: the drawn cargo aboard its hauler, the drawn raiders lying
-/// in wait on the drawn leg, and the raiders' weapons as its threat
-/// ([`escort_raider_weapons`]).
+/// in wait on the drawn leg ([`ESCORT_LEG_M`]), and the raiders' weapons as
+/// its threat ([`escort_raider_weapons`]).
 fn escort_posting(id: &JobId, draw: SlotDraw, advancement: f32) -> Posting {
     Posting {
         kind: JobType::Escort {
@@ -2459,7 +2473,7 @@ fn escort_posting(id: &JobId, draw: SlotDraw, advancement: f32) -> Posting {
             cargo_cr: draw.cargo_cr,
             raiders: draw.raiders,
         },
-        leg_m: draw.leg_m,
+        leg_m: draw.leg_m(ESCORT_LEG_M),
         threat: draw.raiders * escort_raider_weapons(advancement),
     }
 }
@@ -2471,7 +2485,7 @@ fn distress_posting(id: &JobId, draw: SlotDraw) -> Posting {
         kind: JobType::Distress {
             caller: id.spawned_body("caller", 0),
         },
-        leg_m: draw.leg_m,
+        leg_m: draw.leg_m(JOB_LEG_M),
         threat: 0,
     }
 }
@@ -2536,7 +2550,7 @@ fn supply_posting(id: &JobId, draw: SlotDraw, pool: &[&ItemDesign]) -> Posting {
             item: design.id.clone(),
             count,
         },
-        leg_m: draw.leg_m,
+        leg_m: draw.leg_m(JOB_LEG_M),
         threat: 0,
     }
 }
@@ -3247,7 +3261,10 @@ mod tests {
                             )
                         );
                         assert_eq!(job.threat, 1, "one raider with one turret");
-                        assert!(drawn_leg(job.leg_m), "an escort draws its leg: {job:?}");
+                        assert!(
+                            drawn_leg(job.leg_m, ESCORT_LEG_M),
+                            "an escort draws its leg: {job:?}"
+                        );
                         assert_eq!(job.reward.goods_cr, cargo_cr / 4);
                     }
                     JobType::Distress { caller } => {
@@ -3255,7 +3272,10 @@ mod tests {
                         assert_eq!(job.title(&items), "Answer a distress call");
                         assert_eq!(job.task(&items), "Dock with the stranded caller.");
                         assert_eq!(job.item_ids().count(), 0);
-                        assert!(drawn_leg(job.leg_m), "a call draws its leg: {job:?}");
+                        assert!(
+                            drawn_leg(job.leg_m, JOB_LEG_M),
+                            "a call draws its leg: {job:?}"
+                        );
                         assert_eq!(job.threat, 0);
                     }
                     JobType::Supply {
@@ -3268,7 +3288,10 @@ mod tests {
                         assert_eq!(job.item_ids().collect::<Vec<_>>(), vec![item]);
                         let goods = items.design(item).reference_price().buy_cr(*count) * 3 / 2;
                         assert_eq!(u64::from(job.reward.goods_cr), goods);
-                        assert!(drawn_leg(job.leg_m), "a supply job draws its leg: {job:?}");
+                        assert!(
+                            drawn_leg(job.leg_m, JOB_LEG_M),
+                            "a supply job draws its leg: {job:?}"
+                        );
                     }
                     JobType::Procure { .. } => {}
                 }
@@ -3281,9 +3304,9 @@ mod tests {
         }
     }
 
-    /// Whether `leg_m` is one of the legs a slot draws.
-    fn drawn_leg(leg_m: u32) -> bool {
-        (JOB_LEG_M.0..=JOB_LEG_M.1).contains(&leg_m) && (leg_m - JOB_LEG_M.0) % JOB_LEG_STEP_M == 0
+    /// Whether `leg_m` is one of the legs a slot draws from `range`.
+    fn drawn_leg(leg_m: u32, range: (u32, u32)) -> bool {
+        (range.0..=range.1).contains(&leg_m) && (leg_m - range.0) % JOB_LEG_STEP_M == 0
     }
 
     /// One job of each kind over the test catalog, for the reward rule.
@@ -3442,15 +3465,17 @@ mod tests {
     }
 
     #[test]
-    fn a_slot_draws_a_leg_of_6_to_16_km_in_2_km_steps_after_every_earlier_draw() {
+    fn a_slot_draws_an_escort_leg_of_10_to_16_km_and_any_other_of_6_to_16_km_after_every_earlier_draw(
+    ) {
         let mut legs = BTreeSet::new();
+        let mut escort_legs = BTreeSet::new();
         for seed in 0..200 {
             let id = JobId::slot(station(1), seed % JOBS_PER_BOARD, seed / JOBS_PER_BOARD);
             let draw = SlotDraw::of(seed, &id, JobMixType::Trade, 0.6);
-            legs.insert(draw.leg_m);
-            // The slot's own stream, read in the order the draws were added:
-            // the leg is the seventh, so the six before it are the numbers a
-            // board drew before a leg existed.
+            legs.insert(draw.leg_m(JOB_LEG_M));
+            escort_legs.insert(draw.leg_m(ESCORT_LEG_M));
+            // The slot's own stream: the leg pick is the seventh and last
+            // draw, so a kind's leg range moves none of the six before it.
             let (slot, posting) = id.slot_posting().unwrap();
             let key = Fnv64::new()
                 .write(&seed.to_le_bytes())
@@ -3472,11 +3497,17 @@ mod tests {
                 rng.random_range(ESCORT_CARGO_CR.0..=ESCORT_CARGO_CR.1)
             );
             assert_eq!(draw.raiders, draw_escort_raiders(0.6, &mut rng));
+            assert_eq!(draw.leg_pick, rng.random_range(0..u32::MAX));
         }
         assert_eq!(
             legs,
             BTreeSet::from([6_000, 8_000, 10_000, 12_000, 14_000, 16_000]),
-            "every step of the range is drawn and no other leg"
+            "a call and a supply job draw every step of their range and no other leg"
+        );
+        assert_eq!(
+            escort_legs,
+            BTreeSet::from([10_000, 12_000, 14_000, 16_000]),
+            "an escort draws every step of its range and no shorter leg"
         );
     }
 
@@ -3630,7 +3661,8 @@ mod tests {
             count: 3,
             cargo_cr: 300,
             raiders: 1,
-            leg_m: 12_000,
+            // The fourth step of a supply job's range: 12 km.
+            leg_pick: 3,
         };
         let posting = supply_posting(&id, rescue, &pool);
         assert_eq!(
@@ -3726,7 +3758,8 @@ mod tests {
             count: 2,
             cargo_cr: 1_000,
             raiders,
-            leg_m: 10_000,
+            // The first step of an escort's range: 10 km.
+            leg_pick: 0,
         };
         // Each band's budget turrets, then the last band's scavenger slots.
         for (advancement, weapons) in [(0.0, 1), (0.2, 1), (0.25, 2), (0.5, 3), (0.75, 3), (1.0, 4)]

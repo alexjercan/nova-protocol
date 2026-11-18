@@ -11,14 +11,17 @@
 //! [`TraderMarket`] for the stance graph (`stance`) but trades no more, so
 //! what the player looted stays looted: the restock skips it.
 //!
-//! A station's credits catch up the same way: [`refill_thawed_station_credits`]
-//! moves a living station's balance up toward its start balance
-//! ([`station_start_credits`]), so a station the player's hand-ins paid down
-//! can pay again. A station the player owns is skipped: it trades with its
-//! owner at one price both ways, so credits it regained would be credits the
-//! player draws out for nothing.
+//! A generated station's credits catch up the same way:
+//! [`refill_thawed_station_credits`] moves a living one's balance up toward
+//! its start balance ([`station_start_credits`]), so a station the player's
+//! hand-ins paid down can pay again. A station the player owns is skipped: it
+//! trades with its owner at one price both ways, so credits it regained
+//! would be credits the player draws out for nothing. A station a scenario
+//! placed is skipped too: its design authors its own credits, and no
+//! component keeps that figure after the spawn.
 
 use bevy::prelude::*;
+use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::{
     restocked_count, restocked_credits, DerelictShipMarker, GameItems, GamePriceTable,
     NeutralizedMarker, OwnedStationMarker, ShipCredits, ShipInventory, StationAdvancement,
@@ -79,13 +82,19 @@ pub(crate) fn restock_thawed_traders(
     }
 }
 
-/// Move the balance of a living station that just thawed up toward its
-/// start balance by the play time it stood frozen, by the table's
+/// Move the balance of a living generated station that just thawed up
+/// toward its start balance by the play time it stood frozen, by the table's
 /// [`RestockRule`](nova_gameplay::prelude::RestockRule). The root's balance
 /// lands once, with the thaw, so the refill keys on it. A balance at or over
 /// the start is left alone. A neutralized or derelict station pays nobody,
 /// and a station the player owns hands its balance to its owner at no
 /// spread: neither regains a credit.
+///
+/// Only a station with a [`GeneratedBodyId`] refills. The generator gives
+/// every station [`station_start_credits`] of its advancement, so that
+/// figure is its true start balance. A station a scenario placed spawns with
+/// the credits its design authors, which its advancement does not give: it
+/// carries no [`GeneratedBodyId`] and keeps the balance it has.
 pub(crate) fn refill_thawed_station_credits(
     table: Res<GamePriceTable>,
     mut stations: Query<
@@ -99,6 +108,7 @@ pub(crate) fn refill_thawed_station_credits(
         (
             Added<ShipCredits>,
             With<StationMarker>,
+            With<GeneratedBodyId>,
             Without<NeutralizedMarker>,
             Without<DerelictShipMarker>,
             Without<OwnedStationMarker>,
@@ -124,6 +134,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use bevy::ecs::system::RunSystemOnce;
+    use nova_events::prelude::SectorCoord;
     use nova_gameplay::prelude::{
         CivilizationId, ClusterType, DerelictShipMarker, ItemDesignId, ItemRoleType, JobOfferRule,
         NeutralizedMarker, PriceClamp, PriceFactor, PriceTable, RestockRule, ScarcityRule,
@@ -213,11 +224,12 @@ mod tests {
         assert_eq!(count(&world, derelict), 0, "a derelict hull stays looted");
     }
 
-    /// A station at advancement 0 with `balance` credits, thawed after
-    /// `share` of a recovery.
+    /// A generated station at advancement 0 with `balance` credits, thawed
+    /// after `share` of a recovery.
     fn paid_down_station(world: &mut World, balance: u32, share: f64) -> Entity {
         world
             .spawn((
+                GeneratedBodyId::new(SectorCoord::new(1, 0, 0), "cluster_0_0_0_station", 0),
                 StationMarker,
                 StationAdvancement(0.0),
                 ShipCredits(balance),
@@ -229,7 +241,8 @@ mod tests {
     }
 
     #[test]
-    fn a_living_station_regains_credits_up_to_its_start_balance_across_a_thaw() {
+    fn a_living_generated_station_regains_credits_up_to_its_start_balance_across_a_thaw_and_an_authored_one_none(
+    ) {
         let start = station_start_credits(0.0);
         let mut world = world();
         let half = paid_down_station(&mut world, 0, 0.5);
@@ -241,6 +254,14 @@ mod tests {
         world.entity_mut(derelict).insert(DerelictShipMarker);
         let owned = paid_down_station(&mut world, 0, 3.0);
         world.entity_mut(owned).insert(OwnedStationMarker);
+        // A station a scenario placed: its design authored 5,000 cr, under
+        // what a generated station of its advancement starts with.
+        let authored = paid_down_station(&mut world, 5_000, 3.0);
+        world.entity_mut(authored).remove::<GeneratedBodyId>();
+        let authored_drained = paid_down_station(&mut world, 0, 3.0);
+        world
+            .entity_mut(authored_drained)
+            .remove::<GeneratedBodyId>();
 
         world
             .run_system_once(refill_thawed_station_credits)
@@ -253,5 +274,15 @@ mod tests {
         assert_eq!(balance(neutralized), 0, "a neutralized station pays nobody");
         assert_eq!(balance(derelict), 0, "a derelict station pays nobody");
         assert_eq!(balance(owned), 0, "an owned station mints nothing");
+        assert_eq!(
+            balance(authored),
+            5_000,
+            "an authored station is not raised to a generated station's start"
+        );
+        assert_eq!(
+            balance(authored_drained),
+            0,
+            "an authored station's start balance is not known: it regains none"
+        );
     }
 }

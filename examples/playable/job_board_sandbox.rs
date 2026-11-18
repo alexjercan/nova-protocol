@@ -41,9 +41,9 @@
 //! open it drops the second job by hand, where the world drops one whose
 //! body is lost: the chart returns to its overview, and so does the Jobs
 //! inspector. It docks again and hands the procurement in: the pane head
-//! shows the reward as `+<reward>` and counts the balance up to the true
-//! figure, then the gain goes; with the interface shut the HUD notice reads
-//! what the job paid. `NOVA_CAPTURE=1` shoots
+//! shows the reward and the open world's first-delivery bonus as one
+//! `+<gain>` and counts the balance up by it to the true figure, then the
+//! gain goes; with the interface shut the HUD notice reads what the job paid. `NOVA_CAPTURE=1` shoots
 //! `sandbox-jobs-starter.png`, `sandbox-jobs-board.png`,
 //! `sandbox-jobs-terms-<row>.png` for each row the board lists,
 //! `sandbox-jobs-held.png`, `sandbox-jobs-map.png`,
@@ -654,6 +654,10 @@ mod smoke {
     const COUNT_SHOT: &str = "sandbox-jobs-count.png";
     const DONE_SHOT: &str = "sandbox-jobs-done.png";
     const PAID_SHOT: &str = "sandbox-jobs-paid.png";
+    /// What the open world's once `OnJobHandedIn` handler grants the player
+    /// on a world's first hand-in, in the frame of the job's reward, in
+    /// credits.
+    const FIRST_DELIVERY_BONUS_CR: u64 = 50;
 
     /// Hold the virtual clock's clamp every frame: a scenario load hands
     /// `Time<Virtual>` back at its default.
@@ -997,21 +1001,23 @@ mod smoke {
         Some((balance.into(), job.reward.total_cr().into()))
     }
 
-    /// The pane head counts up to the hand-in: the gain reads `+<reward>`
-    /// and the balance figure stands at or above the balance before the
-    /// hand-in and short of the true one.
+    /// The pane head counts up to the hand-in: the gain reads the reward and
+    /// the first-delivery bonus as one figure, all the balance rose by, and
+    /// the balance figure stands at or above the balance before the hand-in
+    /// and short of the true one.
     fn the_head_counts_up() -> Arc<Predicate> {
         when(|world| {
             let Some((balance, reward)) = balance_and_reward(world) else {
                 return false;
             };
+            let gain = reward + FIRST_DELIVERY_BONUS_CR;
             let shown = text_named(world, INTERFACE_PANE_BALANCE)
                 .and_then(|text| text.replace(',', "").parse::<u64>().ok());
             world
                 .get_resource::<BalanceCountUp>()
-                .is_some_and(|count| count.is_counting() && count.gain_cr() == Some(reward))
-                && text_named(world, INTERFACE_PANE_GAIN) == Some(format!("+{}", cr_digits(reward)))
-                && shown.is_some_and(|shown| shown >= balance - reward && shown < balance)
+                .is_some_and(|count| count.is_counting() && count.gain_cr() == Some(gain))
+                && text_named(world, INTERFACE_PANE_GAIN) == Some(format!("+{}", cr_digits(gain)))
+                && shown.is_some_and(|shown| shown >= balance - gain && shown < balance)
         })
     }
 
@@ -1070,8 +1076,8 @@ mod smoke {
     /// The smoke walk: read the starter board, move to the chosen station,
     /// accept the first procurement and a second job, undock, read the
     /// second held row and Show on Map, drop it with the chart open, dock
-    /// again and hand the procurement in, watch the pane head count up to
-    /// the reward, shut the interface and read the paid notice, shooting
+    /// again and hand the procurement in, watch the pane head count up by
+    /// the reward and the bonus, shut the interface and read the paid notice, shooting
     /// each surface.
     pub(super) fn script() -> AutopilotPlugin<GameStates> {
         let script = AutopilotPlugin::<GameStates>::new()
@@ -1341,7 +1347,9 @@ mod smoke {
         .until(shot_written(HAND_IN_SHOT))
         .deadline(SHOT_SECS)
         .add()
-        .step("job sandbox: hand the job in and the pane head counts up to the reward")
+        .step(
+            "job sandbox: hand the job in and the pane head counts up by the reward and the bonus",
+        )
         .on_enter(|world: &mut World| activate_named(world, &format!("{JOB_HAND_IN_PREFIX}0")))
         .until(and(completed_count(1), the_head_counts_up()))
         .diagnose(|world| {

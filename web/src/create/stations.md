@@ -478,11 +478,12 @@ those weapons reloads from it, and at least one unit of each other such
 item. It draws the parts its civilization knows at its advancement, by draw
 weight, those within 0.25 below its advancement first, and carries
 flight computers for its mass, as a generated ship does. A dead station keeps the same stock
-and credits as loot. A living station whose balance stands under its spawn
+and credits as loot. A living generated station whose balance stands under its spawn
 credits regains them on a thaw by the [restock rule](../prices/#how-a-trader-restocks): the spawn
 credits per `recovery_seconds` of the play time it stood frozen, never past
 them. A balance over them is left alone, and a station the player owns
-regains none.
+regains none. A station a scenario places regains none either: only a
+generated station's spawn credits follow from its advancement.
 
 The open world refuses to arm when no loaded style authors an archetype's
 style, or when no station hull, flight computer, docking port or turret part
@@ -618,11 +619,14 @@ A reward is the sum of four terms, kept on the job as `base_cr`, `goods_cr`,
 | range | 30 cr times `A` per km of the job's `leg_m`, rounded to the nearest credit |
 | threat | 300 cr per weapon of the job's `threat`. Not scaled |
 
-An `Escort`, a `Distress` and a `Supply` draw their leg per posting: 6,000 to
-16,000 m in steps of 2,000 m. A `Recover` and a `Neutralize` read theirs off
-the world at the posting, to 100 m. A `Procure` has no leg. A job posted by a
-[trade profile](../trade-profiles/) or a scenario's `PostJob` pays its
-authored `reward_cr` as its base alone, with no leg and no threat.
+An `Escort`, a `Distress` and a `Supply` draw their leg per posting, in steps
+of 2,000 m: a `Distress` and a `Supply` 6,000 to 16,000 m, an `Escort` 10,000
+to 16,000 m. A raider chases within 6,000 m of where it lay in wait, and on a
+shorter escort leg that reaches the poster and the waiting hauler. A `Recover`
+and a `Neutralize` read theirs off the world at the posting, to 100 m. A
+`Procure` has no leg. A job posted by a [trade profile](../trade-profiles/) or
+a scenario's `PostJob` pays its authored `reward_cr` as its base alone, with
+no leg and no threat.
 
 A `Supply` draws its item from its own pool: every `Food`, `Ammo` and
 `Repair` item, and a `Raw` or `Parts` item that asks at most 20 cr a unit,

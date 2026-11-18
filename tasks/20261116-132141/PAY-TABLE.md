@@ -25,6 +25,24 @@ the run), the same shape as the measure in `MAP.md` section J:
   computed geometry in `MAP.md` section B. Measured: min 2,000, median 11,400
   (wrecks) and 11,500 (hostiles), max 55,000.
 
+The Escort rows under After come from a second run, made when an escort's
+leg became 10 to 16 km. It was measured, not corrected by arithmetic:
+
+- A throwaway unit test in `crates/nova_gameplay/src/jobs.rs` (deleted after
+  the run) over the real `station_job_offers`, with that file's test catalog
+  and test field. An escort's reward reads no item and no field body, so
+  these do not move it.
+- The same 3 mixes x 5 cluster sets x 400 seeds x 3 slots per advancement, on
+  the station `sector_1_0_0_cluster_0_0_0_station_0`: 2,930 escorts. The
+  first run's station id was not recorded and its run gave 2,905.
+- Check of the second run against the first: with each escort's leg drawn
+  by the first run's rule (6 to 16 km), the same test gives 807 / 1,319 /
+  1,799 at advancement 0.0, 921 / 1,480 / 2,003 at 0.15 and 2,687 / 3,828 /
+  4,879 at 0.5. The first run gave 813 / 1,314 / 1,781, 927 / 1,474 / 1,985
+  and 2,763 / 3,836 / 4,861.
+- The median takes the upper middle of an even count. p90 is the value at
+  index `9n / 10` of the sorted rewards.
+
 ## Before
 
 Copied from `MAP.md` section J.
@@ -46,7 +64,7 @@ Recover p90: 1,464 at 0.0; 4,742 at 0.15; 34,230 at 0.5.
 |---|---|---|---|
 | Procure | 62 / 294 / 5,050 | same | same |
 | Recover | 212 / 670 / 2,627 | 269 / 942 / 4,369 | 513 / 2,684 / 5,720 |
-| Escort | 813 / 1,314 / 1,781 | 927 / 1,474 / 1,985 | 2,763 / 3,836 / 4,861 |
+| Escort | 930 / 1,373 / 1,810 | 1,080 / 1,544 / 2,014 | 2,930 / 3,912 / 4,890 |
 | Distress | 430 / 690 / 930 | 544 / 850 / 1,134 | 810 / 1,220 / 1,610 |
 | Supply | 460 / 890 / 2,250 | 574 / 1,050 / 2,418 | 840 / 1,450 / 2,810 |
 | Neutralize | 413 / 1,073 / 2,788 | 522 / 1,409 / 3,895 | 776 / 2,868 / 7,082 |
@@ -57,7 +75,7 @@ p90:
 |---|---|---|---|
 | Procure | 1,450 | 1,450 | 1,450 |
 | Recover | 1,667 | 2,296 | 4,450 |
-| Escort | 1,612 | 1,789 | 4,542 |
+| Escort | 1,618 | 1,816 | 4,588 |
 | Distress | 870 | 1,056 | 1,510 |
 | Supply | 1,420 | 1,572 | 1,990 |
 | Neutralize | 2,030 | 2,653 | 4,790 |
@@ -74,7 +92,7 @@ Advancement 0.0:
 |---|---|---|---|---|---|---|---|
 | Procure | 2,970 | 150 | 96 | 0 | 0 | 0 | 0 |
 | Recover | 3,425 | 250 | 40 | 342 | 0 | 11,400 | 0 |
-| Escort | 2,905 | 350 | 347 | 300 | 300 | 10,000 | 1 |
+| Escort | 2,930 | 350 | 317 | 360 | 300 | 12,000 | 1 |
 | Distress | 2,860 | 350 | 0 | 360 | 0 | 12,000 | 0 |
 | Supply | 2,940 | 350 | 168 | 360 | 0 | 12,000 | 0 |
 | Neutralize | 2,900 | 450 | 0 | 345 | 300 | 11,500 | 1 |
@@ -85,7 +103,7 @@ Advancement 0.15:
 |---|---|---|---|---|---|---|---|
 | Procure | 2,970 | 150 | 96 | 0 | 0 | 0 | 0 |
 | Recover | 3,425 | 280 | 120 | 445 | 0 | 11,400 | 0 |
-| Escort | 2,905 | 410 | 347 | 390 | 300 | 10,000 | 1 |
+| Escort | 2,930 | 410 | 317 | 468 | 300 | 12,000 | 1 |
 | Distress | 2,860 | 410 | 0 | 468 | 0 | 12,000 | 0 |
 | Supply | 2,940 | 410 | 168 | 468 | 0 | 12,000 | 0 |
 | Neutralize | 2,900 | 540 | 0 | 449 | 300 | 11,500 | 1 |
@@ -96,7 +114,7 @@ Advancement 0.5:
 |---|---|---|---|---|---|---|---|
 | Procure | 2,970 | 150 | 96 | 0 | 0 | 0 | 0 |
 | Recover | 3,425 | 350 | 1,440 | 684 | 0 | 11,400 | 0 |
-| Escort | 2,905 | 550 | 347 | 600 | 2,700 | 10,000 | 9 |
+| Escort | 2,930 | 550 | 317 | 720 | 2,700 | 12,000 | 9 |
 | Distress | 2,860 | 550 | 0 | 720 | 0 | 12,000 | 0 |
 | Supply | 2,940 | 550 | 168 | 720 | 0 | 12,000 | 0 |
 | Neutralize | 2,900 | 750 | 0 | 690 | 1,200 | 11,500 | 4 |
@@ -104,10 +122,10 @@ Advancement 0.5:
 ### Detail
 
 - Escort by raiders. Advancement 0.0 and 0.15 post 1 raider with 1 weapon.
-  Advancement 0.5 posts 2 raiders (6 weapons): 2,763 / 3,350 / 3,914, or
-  3 raiders (9 weapons): 3,593 / 4,252 / 4,861.
-- Escort, Distress and Supply legs: min 6,000, max 16,000 m. The median leg is
-  10,000 m for Escort and 12,000 m for Distress and Supply: the six legs are
+  Advancement 0.5 posts 2 raiders (6 weapons): 2,930 / 3,438 / 3,937, or
+  3 raiders (9 weapons): 3,889 / 4,360 / 4,890.
+- Distress and Supply legs: min 6,000, max 16,000 m, median 12,000 m. Escort
+  legs: min 10,000, max 16,000 m, median 12,000 m. The legs of a range are
   drawn evenly, and the median of an even count takes the upper middle.
 - Neutralize weapons: 0 / 1 / 2 at 0.0, 0 / 1 / 4 at 0.15, 0 / 4 / 10 at 0.5.
   An unarmed hull pays base and range alone: the minimum of each column.
