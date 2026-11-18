@@ -131,23 +131,34 @@ pub const STEADY_SECS: f32 = 2.0;
 /// The set: a gravity planetoid at the origin, a rock ring outside the flight
 /// path, and the player's ship parked on the ring radius.
 pub fn the_ring(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
-    the_ring_with_hull(game_assets, ships, "mining_tug")
+    // The scenario lint refuses a player mining section with no key, so the
+    // tug's beam takes `V`, the key every player mining emitter uses.
+    let input_mapping = BTreeMap::from([(
+        nova_authoring::prelude::MINING_TUG_EMITTER_ID.to_string(),
+        vec![KeyCode::KeyV.into()],
+    )]);
+    the_ring_with_hull(
+        game_assets,
+        ships,
+        nova_authoring::prelude::MINING_TUG_SHIP_ID,
+        input_mapping,
+    )
 }
 
 /// The ring with a selected catalog hull for visual capture variants.
+/// `input_mapping` must key every mining section of `hull`.
 pub fn the_ring_with_hull(
     game_assets: &GameAssets,
     ships: &GameShipDesigns,
     hull: &str,
+    input_mapping: BTreeMap<String, Vec<nova_input::prelude::InputSource>>,
 ) -> ScenarioConfig {
     let player = ship(
         PLAYER_ID,
         "Player Ship",
         start_position(),
         start_rotation(),
-        SpaceshipController::Player(PlayerControllerConfig {
-            input_mapping: BTreeMap::new(),
-        }),
+        SpaceshipController::Player(PlayerControllerConfig { input_mapping }),
         None,
         kit::catalog_ship(ships, hull),
     );

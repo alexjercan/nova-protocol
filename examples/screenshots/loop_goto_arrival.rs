@@ -49,6 +49,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
         &game_assets,
         &ships,
         "interceptor",
+        default(),
     )));
 }
 

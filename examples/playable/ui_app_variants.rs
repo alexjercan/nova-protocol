@@ -119,7 +119,9 @@ use nova_ui::{
     prelude::*,
     screen::{clamp_stored_scroll, drive_wheel_scroll},
     theme::{ActiveUiTheme, UiColorType, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID},
-    widget::{ButtonSpec, ThemedBorder, ThemedFill, ThemedImageTint, ThemedText, UiText},
+    widget::{
+        ButtonCueType, ButtonSpec, ThemedBorder, ThemedFill, ThemedImageTint, ThemedText, UiText,
+    },
 };
 
 #[derive(Parser)]
@@ -567,8 +569,7 @@ fn sketch_plugin(app: &mut App) {
     // what registers the theme observer in the game.
     app.add_observer(button_on_setting::<SelectedUiTheme>)
         .add_observer(button_on_setting::<SketchView>)
-        .add_observer(button_on_setting::<SketchContext>)
-        .add_observer(click_cue);
+        .add_observer(button_on_setting::<SketchContext>);
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scenario);
     app.add_systems(OnEnter(GameStates::Playing), spawn_root);
     app.add_systems(Startup, (init_scene_materials, init_icons));
@@ -875,12 +876,8 @@ fn left_debug_rail(root: &mut ChildSpawnerCommands, context: SketchContext, them
             .entity()
             .with_children(|seg| {
                 for (value, label, name) in SketchContext::ALL {
-                    let mut option = seg.spawn((
-                        segmented_option(label),
-                        ButtonValue(value),
-                        Name::new(name),
-                        SketchClick,
-                    ));
+                    let mut option =
+                        seg.spawn((segmented_option(label), ButtonValue(value), Name::new(name)));
                     if value == context {
                         option.insert(Selected);
                     }
@@ -899,7 +896,6 @@ fn left_debug_rail(root: &mut ChildSpawnerCommands, context: SketchContext, them
                         segmented_option(label),
                         ButtonValue(SelectedUiTheme(id.to_string())),
                         Name::new(name),
-                        SketchClick,
                     ));
                     if id == theme {
                         option.insert(Selected);
@@ -940,12 +936,8 @@ fn top_bar(main: &mut ChildSpawnerCommands, view: SketchView) {
         text(bar, "NOVA", 18.0, UiColorType::Text);
         bar.spawn(segmented_container()).with_children(|seg| {
             for (value, label, name) in SketchView::ALL {
-                let mut option = seg.spawn((
-                    segmented_option(label),
-                    ButtonValue(value),
-                    Name::new(name),
-                    SketchClick,
-                ));
+                let mut option =
+                    seg.spawn((segmented_option(label), ButtonValue(value), Name::new(name)));
                 if value == view {
                     option.insert(Selected);
                 }
@@ -1205,9 +1197,7 @@ fn map_view(body: &mut ChildSpawnerCommands, icons: &SketchIcons, min_height: f3
             SketchView::Map,
             map_legend,
             |row| {
-                spawn_button(row, ButtonSpec::control("Reframe"), MAP_REFRAME)
-                    .insert(SketchClick)
-                    .observe(reframe_map);
+                spawn_button(row, ButtonSpec::control("Reframe"), MAP_REFRAME).observe(reframe_map);
             },
             MAP_READOUT,
         );
@@ -1354,12 +1344,8 @@ fn ship_view(body: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: bool,
 /// Fit and Reset, the camera controls in the footer's button row. Prev and
 /// Next step the selection from the ship panel.
 fn ship_controls(row: &mut ChildSpawnerCommands) {
-    spawn_button(row, ButtonSpec::control("Fit"), SHIP_FIT)
-        .insert(SketchClick)
-        .observe(fit_ship);
-    spawn_button(row, ButtonSpec::control("Reset"), SHIP_RESET)
-        .insert(SketchClick)
-        .observe(reset_ship);
+    spawn_button(row, ButtonSpec::control("Fit"), SHIP_FIT).observe(fit_ship);
+    spawn_button(row, ButtonSpec::control("Reset"), SHIP_RESET).observe(reset_ship);
 }
 
 /// Keep all section families visible in two rows, even in a narrow footer.
@@ -1535,7 +1521,6 @@ fn ship_panel(split: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: boo
                                     [("Prev", SHIP_PREV, -1), ("Next", SHIP_NEXT, 1)]
                                 {
                                     spawn_button(row, ButtonSpec::control(label), name)
-                                        .insert(SketchClick)
                                         .observe(step_section(step));
                                 }
                             });
@@ -2840,13 +2825,10 @@ fn project_map_blips(
             );
             commands
                 .entity(blip)
-                .insert((
-                    MapBlip {
-                        contact: contact.entity,
-                        mark,
-                    },
-                    SketchClick,
-                ))
+                .insert((MapBlip {
+                    contact: contact.entity,
+                    mark,
+                },))
                 .observe(select_map_contact);
             scene.blips.insert(contact.entity, blip);
             continue;
@@ -2960,12 +2942,9 @@ fn project_ship_blips(
             );
             commands
                 .entity(blip)
-                .insert((
-                    ShipBlip {
-                        section: view.entity,
-                    },
-                    SketchClick,
-                ))
+                .insert((ShipBlip {
+                    section: view.entity,
+                },))
                 .observe(select_ship_section);
             scene.blips.insert(view.entity, blip);
             continue;
@@ -4071,9 +4050,7 @@ fn fill_repair(
     let bay = if fixture.repair_bay { bay } else { bay.ghost() };
     slot.spawn(control_row(JustifyContent::FlexStart))
         .with_children(|row| {
-            spawn_button(row, bay, SHIP_BAY)
-                .insert(SketchClick)
-                .observe(toggle_repair_bay);
+            spawn_button(row, bay, SHIP_BAY).observe(toggle_repair_bay);
             text(row, "fixture", 11.0, UiColorType::TextMuted);
         });
     if !fixture.repair_bay {
@@ -4099,6 +4076,7 @@ fn fill_repair(
                     ButtonSpec::control(format!("Repair {code}  {price} cr")).primary(),
                     SHIP_REPAIR,
                 )
+                .insert(ButtonCueType::Owned)
                 .observe(repair_selected);
             }
         });
@@ -4192,7 +4170,6 @@ fn filter_chip(bar: &mut ChildSpawnerCommands, chip: Option<Category>, icons: &S
         Name::new(name),
         Button,
         FilterChip(chip),
-        SketchClick,
         Node {
             height: px(26),
             flex_direction: FlexDirection::Row,
@@ -4652,9 +4629,7 @@ fn deal_form(form: &mut ChildSpawnerCommands) {
             },
             TextLayout::new(Justify::Left, LineBreak::NoWrap),
         ));
-        spawn_button(row, ButtonSpec::control("All").ghost(), DEAL_ALL)
-            .insert(SketchClick)
-            .observe(fill_draft);
+        spawn_button(row, ButtonSpec::control("All").ghost(), DEAL_ALL).observe(fill_draft);
     });
     form.spawn((
         Name::new(DEAL_SLIDER),
@@ -4678,6 +4653,7 @@ fn deal_form(form: &mut ChildSpawnerCommands) {
     form.spawn(control_row(JustifyContent::FlexStart))
         .with_children(|row| {
             spawn_button(row, ButtonSpec::control("Confirm").primary(), DEAL_CONFIRM)
+                .insert(ButtonCueType::Owned)
                 .observe(confirm_draft);
         });
 }
@@ -4814,29 +4790,6 @@ fn show(node: &mut Mut<Node>, shown: bool) {
     let display = if shown { Display::Flex } else { Display::None };
     if node.display != display {
         node.display = display;
-    }
-}
-
-/// Marks a control whose every activation clicks. Controls with an outcome,
-/// the rows, Confirm and Repair, play their own cue instead, so a refusal
-/// sounds only its buzz.
-#[derive(Component)]
-struct SketchClick;
-
-/// Click once for each activation of a [`SketchClick`] control.
-fn click_cue(
-    activate: On<Activate>,
-    clicks: Query<(), With<SketchClick>>,
-    bank: Option<Res<SoundBank<UiSfx>>>,
-    mut commands: Commands,
-) {
-    if clicks.contains(activate.entity) {
-        play_cue(
-            &mut commands,
-            bank.as_deref(),
-            UiSfx::MenuSelect,
-            SoundCategoryType::UiClick,
-        );
     }
 }
 
@@ -6091,6 +6044,11 @@ fn type_qty(script: Script, what: &'static str, text: &'static str) -> Script {
         .step(format!("sketch: {what}: the field takes the keyboard"))
         .until(frames(2))
         .add()
+        // The field is a button, so the focus click may play the game's
+        // button voice. The typing beat's cues are the claim; drop the click.
+        .step(format!("sketch: {what}: forget the focus click"))
+        .on_enter(|world: &mut World| world.resource_mut::<HeardCues>().0.clear())
+        .add()
         .step(format!("sketch: {what}: type `{text}`"))
         .on_enter(move |world: &mut World| {
             press_edit_key(Key::End)(world);
@@ -6139,7 +6097,8 @@ fn hear_cue(play: On<PlaySound>, mut heard: ResMut<HeardCues>) {
 
 /// Drain the cues heard since the last drain: the interface cues among them
 /// must be exactly `cues`, in order. A sound outside the UI bank is not the
-/// screens' and is dropped. Each measured beat is followed by one of these,
+/// screens' and is dropped. The hover tick is dropped too: it answers the
+/// harness pointer arriving on a button before its press, not the press. Each measured beat is followed by one of these,
 /// so a drain holds that beat's cues alone; a walk clears what earlier views
 /// played before its first beat.
 #[cfg(feature = "debug")]
@@ -6159,6 +6118,7 @@ fn expect_cues(script: Script, what: &'static str, cues: &'static [UiSfx]) -> Sc
                         .map(|(key, _)| *key)
                         .find(|key| bank.try_get(*key).as_ref() == Some(handle))
                 })
+                .filter(|cue| *cue != UiSfx::MenuFocus)
                 .collect();
             assert_eq!(ui, cues, "{what} must sound exactly {cues:?}");
         })

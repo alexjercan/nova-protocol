@@ -1,24 +1,24 @@
 //! system_ship_craft: a Ship recipe crafts in flight, and a Station recipe
-//! refuses undocked.
+//! refuses undocked and holds there.
 //!
 //! The player's hull floats alone in a void: a controller over a hull block
 //! (the hold), a port on its nose and a drive on its tail. THE HOLD AND THE
 //! BALANCE ARE DISCLOSED FIXTURE STATE: two iron ore, one stone ore and
 //! 100 cr. The walk starts one batch of the base `base/pdc_round` recipe
 //! through the Craft view's command, lets the flight clock run it, then asks
-//! for the base `base/rail_slug` Station recipe and finally forces a Station
-//! job onto the undocked ship.
+//! for the base `base/rail_slug` Station recipe, forces a Station job onto the
+//! undocked ship and finally cancels it.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 0 | `outcome: a ship recipe crafts in flight` | the start inserted a one-batch job and took nothing; when the batch ended the hold had lost one iron ore and one stone ore and gained 100 PDC rounds, the balance did not move and the job ended `Crafted { batches: 1 }` |
-//! | 1 | `outcome: a station recipe refuses undocked` | the start was refused and inserted no job; a Station job put on the ship ended at once `Stopped { NotAtCraftStation }` with nothing taken |
+//! | 1 | `outcome: a station recipe refuses undocked` | the start was refused and inserted no job; a Station job put on the ship held over more than one batch of game time with no progress and nothing taken (a ship with no Craft dock holds, the Load gap), and a cancel ended it `Cancelled { batches: 0 }` |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example system_ship_craft --features debug
 //! # look for: `ship craft probe: PASS a ship recipe crafted in flight`,
-//! #           `ship craft probe: PASS a station recipe refused undocked`,
+//! #           `ship craft probe: PASS a station recipe refused and held undocked`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
@@ -51,6 +51,10 @@ const ROUNDS: &str = "PdcRound";
 const HOLD_IRON: u32 = 2;
 const HOLD_STONE: u32 = 1;
 const PLAYER_CREDITS: u32 = 100;
+
+/// Game seconds the forced Station job must hold: above the base rail slug's
+/// 10 s batch, so a batch would have ended had the job run.
+const HOLD_SECS: f32 = 12.0;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -162,6 +166,10 @@ mod walk {
     /// Every craft job end the run saw.
     #[derive(Resource, Default, Debug)]
     struct CraftWatch(Vec<CraftJobEnded>);
+
+    /// The game time the forced Station job went on.
+    #[derive(Resource)]
+    struct ForcedAt(f32);
 
     pub(super) struct CraftWatchPlugin;
 
@@ -300,27 +308,54 @@ mod walk {
         world
             .entity_mut(player)
             .insert(ShipCraftJob::new(STATION_RECIPE.into(), 1));
+        let now = world.resource::<Time>().elapsed_secs();
+        world.insert_resource(ForcedAt(now));
     }
 
-    /// Claim 1: a Station job on an undocked ship stops at once and takes
-    /// nothing.
-    fn assert_the_stop(world: &mut World) {
+    fn held_long_enough(world: &World) -> bool {
+        world
+            .get_resource::<ForcedAt>()
+            .is_some_and(|at| world.resource::<Time>().elapsed_secs() - at.0 >= HOLD_SECS)
+    }
+
+    /// A ship with no Craft dock holds a Station job: no progress, nothing
+    /// taken, no end. A Load spawns a docked ship before its dock, so the
+    /// tick cannot tell this ship from one mid Load.
+    fn assert_the_hold(world: &mut World) {
+        assert_eq!(
+            job(world),
+            Some(ShipCraftJob::new(STATION_RECIPE.into(), 1)),
+            "ship craft probe: the Station job holds undocked with no progress"
+        );
+        assert_eq!(ends(world), 1, "ship craft probe: the held job did not end");
+        assert_eq!(hold(world), (HOLD_IRON - 1, HOLD_STONE - 1, 100));
+        assert_eq!(credits(world), PLAYER_CREDITS);
+    }
+
+    fn cancel_the_job(world: &mut World) {
+        let entity = player(world);
+        world.trigger(CraftJobCancelRequest { entity });
+    }
+
+    /// Claim 1: the held Station job cancels with no batch and nothing
+    /// taken.
+    fn assert_the_cancel(world: &mut World) {
         assert!(
             job(world).is_none(),
             "ship craft probe: the Station job ended"
         );
         let end = world.resource::<CraftWatch>().0[1].clone();
         assert_eq!(
-            end.end,
-            CraftJobEndType::Stopped {
-                batches: 0,
-                reason: CraftRefusalType::NotAtCraftStation,
-            },
-            "ship craft probe: the Station job stops undocked"
+            (end.recipe, end.end),
+            (
+                RecipeDesignId::from(STATION_RECIPE),
+                CraftJobEndType::Cancelled { batches: 0 }
+            ),
+            "ship craft probe: the held Station job cancels with no batch"
         );
         assert_eq!(hold(world), (HOLD_IRON - 1, HOLD_STONE - 1, 100));
         assert_eq!(credits(world), PLAYER_CREDITS);
-        info!("ship craft probe: PASS a station recipe refused undocked");
+        info!("ship craft probe: PASS a station recipe refused and held undocked");
         let elapsed = world.resource::<Time>().elapsed_secs();
         nova_probe::probe_marker(
             world,
@@ -374,11 +409,20 @@ mod walk {
             .add()
             .step("ship craft: put a Station job on the undocked ship")
             .on_enter(force_station_job)
+            .until(when(held_long_enough))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("ship craft: check the hold")
+            .on_enter(assert_the_hold)
+            .until(frames(1))
+            .add()
+            .step("ship craft: cancel the held Station job")
+            .on_enter(cancel_the_job)
             .until(when(|world| ends(world) >= 2))
             .deadline(SESSION_SECS)
             .add()
-            .step("ship craft: check the stop")
-            .on_enter(assert_the_stop)
+            .step("ship craft: check the cancel")
+            .on_enter(assert_the_cancel)
             .add()
     }
 }
