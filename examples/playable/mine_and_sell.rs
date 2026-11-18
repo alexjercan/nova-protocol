@@ -680,35 +680,17 @@ mod walk {
         assert_eq!(partner_credits, TRADER_CREDITS - price);
     }
 
-    /// The note line the Sell shows.
-    fn sell_note(world: &World) -> Option<String> {
-        let collected = world.resource::<FlowProof>().collected?;
-        let items = world.resource::<GameItems>();
-        let design = items.design(&ORE.into());
-        Some(format!(
-            "Sold {collected} {} to {TRADER_NAME} for {} cr",
-            design.name,
-            design.reference_price().sell_cr(collected)
-        ))
-    }
-
-    /// Advance once exactly one laid-out, visible UI text reads the Sell's
-    /// note.
-    fn sell_note_shown() -> Arc<Predicate> {
+    /// Advance once the tug's hold is empty: the Sell moved the ore. The pane
+    /// shows no sale sentence, so the walk judges the ledger, and `check_sell`
+    /// then proves the counts and the credits.
+    fn the_sale_landed() -> Arc<Predicate> {
         when(|world| {
-            let Some(note) = sell_note(world) else {
-                return false;
-            };
             world
-                .try_query::<(&Text, &ComputedNode, &InheritedVisibility)>()
-                .is_some_and(|mut texts| {
-                    texts
+                .try_query_filtered::<(&EntityId, &ShipInventory), With<SpaceshipRootMarker>>()
+                .is_some_and(|mut ships| {
+                    ships
                         .iter(world)
-                        .filter(|(text, node, visible)| {
-                            text.0 == note && visible.get() && node.size().x > 0.0
-                        })
-                        .count()
-                        == 1
+                        .any(|(id, hold)| id.0 == PLAYER_ID && hold.is_empty())
                 })
         })
     }
@@ -1022,7 +1004,7 @@ mod walk {
             .click_named(
                 "sell: confirm",
                 "InventoryDraftConfirm",
-                sell_note_shown(),
+                the_sale_landed(),
                 STEP_DEADLINE,
             )
             .step("check the Sell")

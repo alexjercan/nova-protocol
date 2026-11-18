@@ -316,43 +316,6 @@ pub(crate) fn release_clocks_for_pause_menu(mut clocks: Clocks) {
     clocks.release(FreezeOwner::PauseMenu);
 }
 
-/// Freeze the simulation for the TAB interface or the command modal. Both
-/// states share [`FreezeOwner::Interface`], so a hop between them re-takes a
-/// hold that was never dropped.
-///
-/// GAMEPLAY only. `;` opens the command modal over the main menu as well, and
-/// what runs behind it there is the menu's own ambience backdrop - a cinematic
-/// the modal is drawn over, not a game the player is being kept out of.
-/// Stopping it would leave the front door on a still frame for as long as the
-/// modal is up. `Playing` is the whole of what the modal freezes, the editor's
-/// build mode included.
-pub(crate) fn hold_clocks_for_interface(game: Option<Res<State<GameStates>>>, mut clocks: Clocks) {
-    if game.is_some_and(|game| *game.get() != GameStates::Playing) {
-        return;
-    }
-    clocks.hold(FreezeOwner::Interface);
-}
-
-/// Drop the interface hold, unless the transition moves straight into the
-/// other interface state: `Interface -> Commands` and back keep the world
-/// frozen with no frame in between.
-pub(crate) fn release_clocks_for_interface(
-    mut transitions: MessageReader<StateTransitionEvent<PauseStates>>,
-    mut clocks: Clocks,
-) {
-    let entered = transitions
-        .read()
-        .last()
-        .and_then(|transition| transition.entered);
-    if matches!(
-        entered,
-        Some(PauseStates::Interface | PauseStates::Commands)
-    ) {
-        return;
-    }
-    clocks.release(FreezeOwner::Interface);
-}
-
 /// The scenario locks and hides the cursor (nova_editor's grab systems); the
 /// overlay needs it back to be clickable.
 pub(crate) fn release_cursor(mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>) {

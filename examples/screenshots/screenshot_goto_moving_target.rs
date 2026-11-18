@@ -108,12 +108,7 @@ const SNAPSHOTS_MIN: u32 = 3;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
-    // NovaMenuPlugin explicitly: the interface's clock hold lives in nova_menu,
-    // and `with_game_plugins` turns the menu plugin off. Without the hold the
-    // world keeps flying behind the Map with the flight computer gated off.
-    let mut app = AppBuilder::new()
-        .with_game_plugins((custom_plugin, NovaMenuPlugin))
-        .build();
+    let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
     #[cfg(feature = "debug")]
     {

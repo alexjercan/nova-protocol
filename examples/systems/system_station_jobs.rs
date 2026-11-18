@@ -853,16 +853,17 @@ mod walk {
             shown.contains(&title),
             "station jobs: the panel names the job: {shown:?}"
         );
+        // The Reward kv row: its label word and its value.
+        assert!(
+            shown.contains(&"Reward".to_string()),
+            "station jobs: the panel shows a Reward row: {shown:?}"
+        );
+        let want = format!("{} cr", job.reward_cr);
         let reward = shown
             .iter()
-            .find(|text| text.starts_with("Reward ") && text.ends_with(" cr"))
+            .find(|text| text.replace(',', "") == want)
             .cloned()
-            .unwrap_or_else(|| panic!("station jobs: the panel shows the reward: {shown:?}"));
-        assert!(
-            reward.contains(&(job.reward_cr % 1000).to_string()),
-            "station jobs: the reward line reads {} cr: {reward:?}",
-            job.reward_cr
-        );
+            .unwrap_or_else(|| panic!("station jobs: the Reward row reads {want}: {shown:?}"));
         nova_probe::probe_marker(
             world,
             "outcome: the chart view marks the held job",
@@ -1546,7 +1547,7 @@ mod walk {
         .add()
         .step("station jobs: select the job on the chart")
         .on_enter(|world: &mut World| activate_named(world, "MapChartMarkJOB-1"))
-        .until(a_text_reads(|text| text.starts_with("Reward ")))
+        .until(a_text_reads(|text| text == "Reward"))
         .deadline(BEAT_SECS)
         .add()
         .step("station jobs: settle the panel")

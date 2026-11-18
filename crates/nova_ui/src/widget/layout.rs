@@ -327,8 +327,35 @@ pub fn spawn_kv<'a>(
     label: &str,
     value: impl Bundle,
 ) -> EntityCommands<'a> {
+    let (_, value) = spawn_kv_parts(parent, (), text(label, TextRole::Label), value);
+    parent.commands_mut().entity(value)
+}
+
+/// A [`spawn_kv`] row whose label word and shown state follow what it reads,
+/// as a panel that names a contact's range and a chart cell's coordinates in
+/// one slot does. `row` marks the row, whose `Display` hides it whole;
+/// `label` marks the [`TextRole::Label`] span, which starts empty. Returns
+/// the row.
+pub fn spawn_kv_slot(
+    parent: &mut ChildSpawnerCommands,
+    row: impl Bundle,
+    label: impl Bundle,
+    value: impl Bundle,
+) -> Entity {
+    spawn_kv_parts(parent, row, (label, text("", TextRole::Label)), value).0
+}
+
+/// Spawn a kv row from its marked row, its label span and its value; returns
+/// the row and the value.
+fn spawn_kv_parts(
+    parent: &mut ChildSpawnerCommands,
+    row: impl Bundle,
+    label: impl Bundle,
+    value: impl Bundle,
+) -> (Entity, Entity) {
     let row = parent
         .spawn((
+            row,
             Node {
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
@@ -342,7 +369,7 @@ pub fn spawn_kv<'a>(
         .id();
     let commands = parent.commands_mut();
     commands.spawn((
-        text(label, TextRole::Label),
+        label,
         Node {
             width: px(LABEL_W),
             flex_shrink: 0.0,
@@ -361,11 +388,14 @@ pub fn spawn_kv<'a>(
             ChildOf(row),
         ))
         .id();
-    commands.spawn((
-        value,
-        TextLayout::new(Justify::Right, LineBreak::WordBoundary),
-        ChildOf(cell),
-    ))
+    let value = commands
+        .spawn((
+            value,
+            TextLayout::new(Justify::Right, LineBreak::WordBoundary),
+            ChildOf(cell),
+        ))
+        .id();
+    (row, value)
 }
 
 /// Marks a block's header row, whose right side holds tags or a header verb.

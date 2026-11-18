@@ -12,10 +12,12 @@
 //!   who hands in its jobs would, since the hire gate needs an Ally;
 //! - the player holds [`PLAYER_CREDITS`], enough for two hires;
 //! - two escorts are hired through [`EscortHireCommand`], the message the
-//!   Station tab's Hire button writes, one at a time;
-//! - the player undocks, and the player and both escorts jump
-//!   [`CLEAR_DISTANCE`] straight out from the station together, at rest, so
-//!   the formation starts in open space.
+//!   Station tab's Hire button writes, one at a time, each only once the
+//!   Station tab, opened for the hires, shows that Hire ready: a disabled or
+//!   tagged Hire stops the run with the gate;
+//! - the interface closes, the player undocks, and the player and both
+//!   escorts jump [`CLEAR_DISTANCE`] straight out from the station together,
+//!   at rest, so the formation starts in open space.
 //!
 //! From there it is yours. Nothing ends the run.
 //!
@@ -54,8 +56,11 @@ use bevy::prelude::*;
 use clap::Parser;
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
 use nova_protocol::{
-    nova_debug::diagnostics, nova_interface::station::EscortHireCommand, prelude::*,
+    nova_debug::diagnostics,
+    nova_interface::{pane::InterfacePaneType, station::EscortHireCommand},
+    prelude::*,
 };
+use nova_ui::prelude::VerbGate;
 use open_world_stage::{
     advance_station_dock, the_player, warm_to_ally, OpenWorldStartPlugin, StationCandidate,
     StationDock, StationDockPhaseType,
@@ -179,6 +184,22 @@ fn hire_offer(world: &World, station: Entity) -> Option<Entity> {
     })
 }
 
+/// Whether the interface is open on the Station tab.
+fn the_station_tab_shows(world: &World) -> bool {
+    *world.resource::<State<PauseStates>>().get() == PauseStates::Interface
+        && *world.resource::<InterfacePaneType>() == InterfacePaneType::Station
+}
+
+/// The gate of the Station tab's first Hire button, the one for
+/// [`hire_offer`]'s escort, while the list shows it.
+fn first_hire_gate(world: &mut World) -> Option<VerbGate> {
+    world
+        .query::<(&Name, &VerbGate)>()
+        .iter(world)
+        .find(|(name, _)| name.as_str() == "EscortHire-0")
+        .map(|(_, gate)| gate.clone())
+}
+
 /// Advance the setup one phase at a time.
 fn drive_the_sandbox(world: &mut World) {
     let phase = world.resource::<Sandbox>().phase;
@@ -227,6 +248,14 @@ fn drive_the_sandbox(world: &mut World) {
             };
             let hired = fleet(world).len();
             if hired >= ESCORTS {
+                // The Station tab was open for the hires; the undock is
+                // flight's.
+                if *world.resource::<State<PauseStates>>().get() != PauseStates::Unpaused {
+                    world
+                        .resource_mut::<NextState<PauseStates>>()
+                        .set(PauseStates::Unpaused);
+                    return;
+                }
                 world.trigger(DockingReleaseRequest { entity: player });
                 world.resource_mut::<Sandbox>().phase = SandboxPhaseType::Undocking;
                 info!("escort sandbox: {hired} escorts hired; undocking");
@@ -238,9 +267,28 @@ fn drive_the_sandbox(world: &mut World) {
             // One hire at a time, each once the last escort stands: a hire
             // before the last escort spawns plans the same fleet slot.
             if hired == world.resource::<Sandbox>().asked {
-                if let Some(hull) = hire_offer(world, station) {
-                    world.write_message(EscortHireCommand { hull });
-                    world.resource_mut::<Sandbox>().asked += 1;
+                let Some(hull) = hire_offer(world, station) else {
+                    return;
+                };
+                // Each hire answers the Station tab's own gate on it: the
+                // first Hire button is the first escort for hire.
+                if !the_station_tab_shows(world) {
+                    *world.resource_mut::<InterfacePaneType>() = InterfacePaneType::Station;
+                    world
+                        .resource_mut::<NextState<PauseStates>>()
+                        .set(PauseStates::Interface);
+                    return;
+                }
+                match first_hire_gate(world) {
+                    // The list has not drawn this escort yet.
+                    None => {}
+                    Some(VerbGate::Ready) => {
+                        world.write_message(EscortHireCommand { hull });
+                        world.resource_mut::<Sandbox>().asked += 1;
+                    }
+                    Some(gate) => {
+                        panic!("escort sandbox: the Station tab refuses hire {hired}: Hire is {gate:?}")
+                    }
                 }
             }
         }

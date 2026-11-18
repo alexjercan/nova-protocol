@@ -7,8 +7,8 @@ use bevy::{input::mouse::MouseWheel, picking::hover::Hovered, prelude::*};
 use nova_events::prelude::{GeneratedBodyId, SectorCoord};
 use nova_ui::{
     prelude::{
-        button, control_row, inspector, metrics, preview_frame, text, verb_row, ButtonSpec,
-        RowAlign, TextRole, VerbGate,
+        button, control_row, inspector, metrics, preview_frame, spawn_kv_slot, text, verb_row,
+        ButtonSpec, RowAlign, TextRole, VerbGate,
     },
     screen::drive_wheel_scroll,
 };
@@ -36,9 +36,11 @@ pub(crate) enum MapPanelField {
     Name,
     /// Its kind word, in its stance colour.
     Kind,
-    /// Its range from the player ship.
+    /// Its range from the player ship; a chart mark's cell. The value of a
+    /// [`MapPanelSlot`] row.
     Range,
-    /// Its bearing and mark from the player ship.
+    /// Its bearing and mark from the player ship; when a chart cell was
+    /// entered, or a held job's reward. The value of a [`MapPanelSlot`] row.
     Bearing,
     /// A marked contact's objective and the held jobs that send the player
     /// to it.
@@ -47,6 +49,17 @@ pub(crate) enum MapPanelField {
     /// from the selection.
     Destination,
 }
+
+/// A kv row of the contact panel, [`MapPanelField::Range`] or
+/// [`MapPanelField::Bearing`]: its label word follows what the row reads
+/// (`Range` on the local map, `Cell` on a chart mark), and the row hides
+/// whole while it reads nothing.
+#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) struct MapPanelSlot(pub(crate) MapPanelField);
+
+/// The label span of a [`MapPanelSlot`] row.
+#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) struct MapPanelLabel(pub(crate) MapPanelField);
 
 /// The selected contact's body icon in the panel head, hidden with nothing
 /// selected.
@@ -170,7 +183,12 @@ pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &Interfa
                             });
                         });
                     for field in [MapPanelField::Range, MapPanelField::Bearing] {
-                        header.spawn((field, text("", TextRole::Value)));
+                        spawn_kv_slot(
+                            header,
+                            MapPanelSlot(field),
+                            MapPanelLabel(field),
+                            (field, text("", TextRole::Value)),
+                        );
                     }
                     header.spawn((MapPanelField::Note, text("", TextRole::Label)));
                 });

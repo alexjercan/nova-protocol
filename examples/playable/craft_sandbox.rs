@@ -67,12 +67,7 @@ const INTRO: &str =
     "Docked with ore: Tab, Inventory, Craft, click a tile, set the batches, Craft, close Tab.";
 
 fn main() -> bevy::app::AppExit {
-    // NovaMenuPlugin explicitly: the interface's clock hold lives in
-    // nova_menu, and `with_game_plugins` turns the menu plugin off. The hold
-    // keeps a craft job still while Tab is open, as in the game.
-    let mut app = AppBuilder::new()
-        .with_game_plugins((craft_plugin, NovaMenuPlugin))
-        .build();
+    let mut app = AppBuilder::new().with_game_plugins(craft_plugin).build();
     app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(INTRO));
     app.add_systems(
         PostUpdate,

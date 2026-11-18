@@ -107,9 +107,8 @@ use outcome::{
     sync_start_failure_overlay,
 };
 use pause::{
-    apply_focus_pause_setting, force_unpause, hold_clocks_for_interface,
-    hold_clocks_for_pause_menu, keep_frozen_cursor_released, open_command_shell,
-    pause_on_focus_loss, reconcile_pause_overlay, release_clocks_for_interface,
+    apply_focus_pause_setting, force_unpause, hold_clocks_for_pause_menu,
+    keep_frozen_cursor_released, open_command_shell, pause_on_focus_loss, reconcile_pause_overlay,
     release_clocks_for_pause_menu, release_cursor, restore_cursor, toggle_pause, FocusPause,
 };
 use portal::{
@@ -498,15 +497,11 @@ impl Plugin for NovaMenuPlugin {
             OnExit(PauseStates::Paused),
             (release_clocks_for_pause_menu, restore_cursor),
         );
-        // The interface and the command modal freeze the same clocks, but
-        // WITHOUT `setup_pause_ui` - each draws its own surface. `;` opens the
-        // modal over the pause menu too, so `Paused <-> Commands` is a live
-        // transition: the `Paused` hooks run on the way in and again on the
-        // way back, rebuilding the overlay the CRT covered.
-        for surface in [PauseStates::Interface, PauseStates::Commands] {
-            app.add_systems(OnEnter(surface), hold_clocks_for_interface);
-            app.add_systems(OnExit(surface), release_clocks_for_interface);
-        }
+        // The interface and the command modal freeze the same clocks, through
+        // `InterfacePlugin`. `;` opens the modal over the pause menu too, so
+        // `Paused <-> Commands` is a live transition: the `Paused` hooks run
+        // on the way in and again on the way back, rebuilding the overlay the
+        // CRT covered.
         app.add_plugins(SurfaceCursorPlugin);
         // Leaving gameplay ENDS the scenario, whatever the exit path and
         // whichever screen comes next. The teardown used to ride the menu's own

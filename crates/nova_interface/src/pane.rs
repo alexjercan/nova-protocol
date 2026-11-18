@@ -21,11 +21,11 @@
 use bevy::{prelude::*, ui_widgets::Activate, window::PrimaryWindow};
 use nova_gameplay::{
     prelude::{
-        cr_digits, play_menu_select, play_time_text, Chart, DerelictShipMarker, GameItems,
-        ItemDesignId, PlayerSpaceshipMarker, ShipCredits, SpaceshipRootMarker, StationMarker,
-        StationServiceType, StationServices, WorldClock,
+        cr_digits, play_menu_select, play_time_text, Chart, Clocks, DerelictShipMarker,
+        FreezeOwner, GameItems, ItemDesignId, PlayerSpaceshipMarker, ShipCredits,
+        SpaceshipRootMarker, StationMarker, StationServiceType, StationServices, WorldClock,
     },
-    PauseStates,
+    GameStates, PauseStates,
 };
 use nova_input::prelude::{
     ActionContext, ActiveContexts, InputBindings, InputDeviceType, InputSources,
@@ -1609,4 +1609,55 @@ pub(crate) fn sync_nova_os_contexts(
             open && *pane == each,
         );
     }
+}
+
+/// Hold the clocks while the TAB interface or the command modal is open.
+/// `InterfacePlugin` adds it; a harness without that plugin adds it itself.
+///
+/// Here, not in the menu: an app without `NovaMenuPlugin` (every example
+/// built with game plugins) kept its world running under the interface, and a
+/// Map GOTO set on a frozen hull ended on the next fixed tick.
+pub fn add_interface_clock_hold(app: &mut App) {
+    for surface in [PauseStates::Interface, PauseStates::Commands] {
+        app.add_systems(OnEnter(surface), hold_clocks_for_interface);
+        app.add_systems(OnExit(surface), release_clocks_for_interface);
+    }
+}
+
+/// Freeze the simulation for the TAB interface or the command modal: virtual
+/// time, and the FixedUpdate flight and physics that follow it. Both states
+/// share [`FreezeOwner::Interface`], so a hop between them re-takes a hold
+/// that was never dropped.
+///
+/// GAMEPLAY only. `;` opens the command modal over the main menu as well, and
+/// what runs behind it there is the menu's own ambience backdrop - a cinematic
+/// the modal is drawn over, not a game the player is being kept out of.
+/// Stopping it would leave the front door on a still frame for as long as the
+/// modal is up. `Playing` is the whole of what the modal freezes, the editor's
+/// build mode included.
+fn hold_clocks_for_interface(game: Option<Res<State<GameStates>>>, mut clocks: Clocks) {
+    if game.is_some_and(|game| *game.get() != GameStates::Playing) {
+        return;
+    }
+    clocks.hold(FreezeOwner::Interface);
+}
+
+/// Drop the interface hold, unless the transition moves straight into the
+/// other interface state: `Interface -> Commands` and back keep the world
+/// frozen with no frame in between.
+fn release_clocks_for_interface(
+    mut transitions: MessageReader<StateTransitionEvent<PauseStates>>,
+    mut clocks: Clocks,
+) {
+    let entered = transitions
+        .read()
+        .last()
+        .and_then(|transition| transition.entered);
+    if matches!(
+        entered,
+        Some(PauseStates::Interface | PauseStates::Commands)
+    ) {
+        return;
+    }
+    clocks.release(FreezeOwner::Interface);
 }

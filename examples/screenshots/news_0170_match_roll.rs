@@ -76,11 +76,7 @@ const LOOP_NAME: &str = "news-0170-match-roll";
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
-    // NovaMenuPlugin explicitly: the interface's clock hold lives in
-    // nova_menu, and `with_game_plugins` turns the menu plugin off.
-    let mut app = AppBuilder::new()
-        .with_game_plugins((custom_plugin, NovaMenuPlugin))
-        .build();
+    let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
     app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::default());
     app.add_plugins(match_roll_script());
     app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));

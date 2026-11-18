@@ -410,6 +410,8 @@ plugin test pins the count at one.
   `release_clocks_for_interface` skips the release when the transition enters
   the other of the two, so opening the modal over a pane and closing it again
   never ticks the world between a release and the re-hold it would need.
+  `InterfacePlugin` registers the hold (`add_interface_clock_hold`), so an
+  app without the menu freezes under the interface too.
   The hold is SCOPED to `Playing` (`hold_clocks_for_interface`): what
   runs behind the main menu is the ambience backdrop, a cinematic the modal is
   drawn over rather than a game the player is being kept out of, and stopping

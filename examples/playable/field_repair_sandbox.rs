@@ -79,12 +79,8 @@ const INTRO: &str =
     "Hurt and portless: Tab, Ship, Repair a plate and Rebuild DOCK-1, then close Tab and fly.";
 
 fn main() -> bevy::app::AppExit {
-    // NovaMenuPlugin explicitly: the interface's clock hold lives in
-    // nova_menu, and `with_game_plugins` turns the menu plugin off. The hold
-    // is what keeps the repair jobs still while Tab is open, as in the game;
-    // the run still goes Loading -> Playing without the menu handoff.
     let mut app = AppBuilder::new()
-        .with_game_plugins((field_repair_plugin, NovaMenuPlugin))
+        .with_game_plugins(field_repair_plugin)
         .build();
     app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(INTRO));
     app.add_systems(

@@ -1147,8 +1147,13 @@ pub(crate) fn update_map_panel(
             Without<MapPanelIcon>,
             Without<MapPanelHeaderMarker>,
             Without<MapPanelField>,
+            Without<MapPanelSlot>,
         ),
     >,
+    (mut q_slot, mut q_label): (
+        Query<(&MapPanelSlot, &mut Node), (Without<MapPanelHeaderMarker>, Without<MapPanelField>)>,
+        Query<(&MapPanelLabel, &mut Text), Without<MapPanelField>>,
+    ),
     mut q_header: Query<&mut Node, With<MapPanelHeaderMarker>>,
     mut q_goto_button: Query<&mut VerbGate, (With<MapGotoButton>, Without<MapCancelButton>)>,
     mut q_cancel_button: Query<&mut VerbGate, (With<MapCancelButton>, Without<MapGotoButton>)>,
@@ -1223,6 +1228,7 @@ pub(crate) fn update_map_panel(
     let job_selected =
         runtime.chart && matches!(runtime.chart_selected, Some(MapChartMarkType::Job(_)));
 
+    let mut slots_read = Vec::with_capacity(2);
     for (field, mut text, mut themed, mut node) in &mut q_field {
         let display = if job_selected && matches!(field, MapPanelField::Kind | MapPanelField::Range)
         {
@@ -1251,10 +1257,11 @@ pub(crate) fn update_map_panel(
             (Some(contact), MapPanelField::Kind) => {
                 (contact.kind.label().to_string(), contact.kind.color())
             }
-            (Some(contact), MapPanelField::Range) => {
-                (format!("Range {}", contact.range_text()), UiColorType::Text)
-            }
-            (Some(contact), MapPanelField::Bearing) => (contact.bearing_text(), UiColorType::Text),
+            (Some(contact), MapPanelField::Range) => (contact.range_text(), UiColorType::Text),
+            (Some(contact), MapPanelField::Bearing) => (
+                contact.bearing_text().unwrap_or_default(),
+                UiColorType::Text,
+            ),
             (
                 None,
                 MapPanelField::Code
@@ -1264,11 +1271,40 @@ pub(crate) fn update_map_panel(
                 | MapPanelField::Bearing,
             ) => (String::new(), UiColorType::TextBody),
         };
+        if matches!(field, MapPanelField::Range | MapPanelField::Bearing) {
+            slots_read.push((*field, !value.is_empty()));
+        }
         if text.0 != value {
             text.0 = value;
         }
         if themed.color != color {
             themed.color = color;
+        }
+    }
+
+    // Range and Bearing are kv rows: the label names what the row reads in
+    // this view, and a row that reads nothing takes no room.
+    for (MapPanelLabel(field), mut text) in &mut q_label {
+        let label = if runtime.chart {
+            chart_slot_label(runtime.chart_selected.as_ref(), *field)
+        } else {
+            match field {
+                MapPanelField::Range => "Range",
+                MapPanelField::Bearing => "Bearing",
+                _ => "",
+            }
+        };
+        if text.0 != label {
+            text.0 = label.to_string();
+        }
+    }
+    for (MapPanelSlot(field), mut node) in &mut q_slot {
+        let reads = slots_read
+            .iter()
+            .any(|(read, shown)| read == field && *shown);
+        let display = if reads { Display::Flex } else { Display::None };
+        if node.display != display {
+            node.display = display;
         }
     }
 

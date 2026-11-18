@@ -16,7 +16,7 @@
 //! A repair cannot be one two-second action. Repair queues a plate job, and
 //! the job fits one plate every 4 s of game time, which the open interface
 //! stops (`PauseStates::Interface` holds `Time<Virtual>` and `Time<Physics>`
-//! through `NovaMenuPlugin`). So the walk queues the repair, proves the open
+//! through `InterfacePlugin`). So the walk queues the repair, proves the open
 //! pane holds the job, closes the pane, flies until the job has fitted every
 //! plate, and reopens the pane: the service sheet is the repaired panel, its
 //! meter full again. The alt text in
@@ -170,12 +170,7 @@ const STEPS_TO_THE_TURRET: usize = 2;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
-    // NovaMenuPlugin explicitly: the interface's clock hold lives in
-    // nova_menu, and `with_game_plugins` turns the menu plugin off. The service
-    // sheet stands on that hold: the open pane keeps the repair job still.
-    let mut app = AppBuilder::new()
-        .with_game_plugins((custom_plugin, NovaMenuPlugin))
-        .build();
+    let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
 
     #[cfg(feature = "debug")]
     {

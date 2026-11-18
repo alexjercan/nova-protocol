@@ -210,6 +210,9 @@ pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> Ap
     app.add_plugins(AssetPlugin::default());
     app.init_asset::<Image>();
     app.add_systems(Startup, nova_interface::prelude::init_interface_icons);
+    // The interface and the command modal hold the clocks; `InterfacePlugin`
+    // registers the hold in production.
+    nova_interface::prelude::add_interface_clock_hold(&mut app);
     app.add_plugins(NovaMenuPlugin);
     app
 }

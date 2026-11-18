@@ -72,7 +72,7 @@ pub mod prelude {
         inventory::prelude::*,
         jobs::prelude::*,
         map::prelude::*,
-        pane::{ActionOutcomeType, InterfacePaneType},
+        pane::{add_interface_clock_hold, ActionOutcomeType, InterfacePaneType},
         sector_notice::{post_sector_crossing_notice, sector_notice_line, SectorNoticePlugin},
         ship::prelude::*,
         station::prelude::*,
@@ -98,8 +98,8 @@ use crate::{
     jobs::JobsPaneSystems,
     map::MapPaneSystems,
     pane::{
-        fit_card_head, fit_pane_footer, leave_station_pane, next_interface_pane,
-        play_interface_toggle, rebuild_interface_body, refresh_card_head_keys,
+        add_interface_clock_hold, fit_card_head, fit_pane_footer, leave_station_pane,
+        next_interface_pane, play_interface_toggle, rebuild_interface_body, refresh_card_head_keys,
         refresh_pane_input_hints, show_pane_balance, show_pane_clock, show_pane_input_hints,
         show_pane_mode_tags, show_station_tab, spawn_interface_root, sync_nova_os_contexts,
         toggle_interface, InterfacePaneType,
@@ -124,6 +124,7 @@ impl Plugin for InterfacePlugin {
         app.register_input_actions(bindings::interface_bindings());
         app.add_observer(button_on_setting::<InterfacePaneType>);
         app.add_systems(PreUpdate, sync_nova_os_contexts);
+        add_interface_clock_hold(app);
 
         // The modal's Input/Simulate/Paint sit inside the HUD's slot so it keeps
         // its position relative to the rest of gameplay; its back-out stays

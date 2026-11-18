@@ -1807,12 +1807,12 @@ pub(crate) fn chart_panel_field(
             ("VISITED CELL".to_string(), UiColorType::Text)
         }
         (Some(MapChartMarkType::Cell(coord)), MapPanelField::Range) => {
-            (format!("Cell {coord}"), UiColorType::Text)
+            (coord.to_string(), UiColorType::Text)
         }
         (Some(MapChartMarkType::Cell(coord)), MapPanelField::Bearing) => (
-            chart.cell(*coord).map_or_else(String::new, |cell| {
-                format!("Entered {}", play_time_text(cell.entered_at))
-            }),
+            chart
+                .cell(*coord)
+                .map_or_else(String::new, |cell| play_time_text(cell.entered_at)),
             UiColorType::Text,
         ),
         (Some(MapChartMarkType::Cell(_)), MapPanelField::Note) => {
@@ -1824,9 +1824,8 @@ pub(crate) fn chart_panel_field(
             UiColorType::TextBody,
         ),
         (Some(MapChartMarkType::Job(id)), MapPanelField::Bearing) => (
-            jobs.job(id).map_or_else(String::new, |job| {
-                format!("Reward {}", cr_text(job.reward_cr))
-            }),
+            jobs.job(id)
+                .map_or_else(String::new, |job| cr_text(job.reward_cr)),
             UiColorType::Text,
         ),
         (Some(MapChartMarkType::Job(id)), MapPanelField::Note) => (
@@ -1868,7 +1867,7 @@ pub(crate) fn chart_panel_field(
         (
             Some(MapChartMarkType::Station(id) | MapChartMarkType::Wreck(id)),
             MapPanelField::Range,
-        ) => (format!("Cell {}", id.origin), UiColorType::Text),
+        ) => (id.origin.to_string(), UiColorType::Text),
         (Some(MapChartMarkType::Station(id)), MapPanelField::Note) => {
             let Some(station) = station(id) else {
                 return (String::new(), UiColorType::TextMuted);
@@ -1883,6 +1882,21 @@ pub(crate) fn chart_panel_field(
             UiColorType::TextMuted,
         ),
         (Some(_), _) => (String::new(), UiColorType::TextBody),
+    }
+}
+
+/// The label word of the contact panel's [`MapPanelSlot`] row `field` in
+/// the chart view: a mark's cell, when a cell was entered, a job's reward.
+/// Blank where [`chart_panel_field`] reads nothing, and the row hides.
+pub(crate) fn chart_slot_label(
+    selected: Option<&MapChartMarkType>,
+    field: MapPanelField,
+) -> &'static str {
+    match (selected, field) {
+        (Some(_), MapPanelField::Range) => "Cell",
+        (Some(MapChartMarkType::Cell(_)), MapPanelField::Bearing) => "Entered",
+        (Some(MapChartMarkType::Job(_)), MapPanelField::Bearing) => "Reward",
+        _ => "",
     }
 }
 

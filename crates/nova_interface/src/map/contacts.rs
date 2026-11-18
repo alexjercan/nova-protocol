@@ -169,15 +169,11 @@ impl MapContact {
         nova_ui::units::distance(Meters::from_engine(self.range))
     }
 
-    /// The bearing and mark from the player ship. The own ship has neither.
-    pub(crate) fn bearing_text(&self) -> String {
-        if self.kind == MapContactKind::OwnShip {
-            return "Bearing ---".to_string();
-        }
-        format!(
-            "Bearing {:03.0} mark {:+03.0}",
-            self.bearing_deg, self.mark_deg
-        )
+    /// The bearing and mark from the player ship, as the Bearing row reads
+    /// them. The own ship has neither.
+    pub(crate) fn bearing_text(&self) -> Option<String> {
+        (self.kind != MapContactKind::OwnShip)
+            .then(|| format!("{:03.0} mark {:+03.0}", self.bearing_deg, self.mark_deg))
     }
 }
 

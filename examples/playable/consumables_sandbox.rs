@@ -51,12 +51,8 @@ const HULL_DAMAGE: f32 = 60.0;
 const INTRO: &str = "Tab, Inventory, pick the repair kit, Use; close the interface to run it.";
 
 fn main() -> bevy::app::AppExit {
-    // NovaMenuPlugin explicitly: the interface's clock hold lives in
-    // nova_menu, and `with_game_plugins` turns the menu plugin off. The hold
-    // keeps a repair started from the Use button still while Tab is open, as
-    // in the game.
     let mut app = AppBuilder::new()
-        .with_game_plugins((consumables_plugin, NovaMenuPlugin))
+        .with_game_plugins(consumables_plugin)
         .build();
     app.add_plugins(diagnostics::DiagnosticsHintPlugin::new(INTRO));
     app.add_systems(

@@ -80,10 +80,10 @@ struct Cli;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
-    // NovaMenuPlugin explicitly: the interface's clock hold and the `;` gesture
-    // live in nova_menu, and `with_game_plugins` turns the menu plugin off. They
-    // are the subject here, so the plugin has to be present; it stands alone in
-    // a slim app, and the run goes Loading -> Playing without the menu handoff.
+    // NovaMenuPlugin explicitly: the `;` gesture lives in nova_menu, and
+    // `with_game_plugins` turns the menu plugin off. It is the subject here, so
+    // the plugin has to be present; it stands alone in a slim app, and the run
+    // goes Loading -> Playing without the menu handoff.
     let mut app = AppBuilder::new()
         .with_game_plugins((custom_plugin, NovaMenuPlugin))
         .build();

@@ -24,6 +24,14 @@ struct Cli;
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "landing-cockpit";
 
+/// The loop frames the open interface lands in, then holds the Map pane for.
+/// Frames, not `elapsed`: the open interface holds the app clock that
+/// `elapsed` reads, so a seconds wait under the pane never ends.
+#[cfg(feature = "debug")]
+const OPEN_PANE_FRAMES: u32 = nova_protocol::nova_debug::harness::LOOP_FPS * 4 / 5;
+#[cfg(feature = "debug")]
+const HOLD_MAP_FRAMES: u32 = nova_protocol::nova_debug::harness::LOOP_FPS * 3 / 2;
+
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();
@@ -136,10 +144,10 @@ fn cockpit_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .add()
         .step("open the interface")
         .on_enter(press_tab)
-        .until(elapsed(0.8))
+        .until(frames(OPEN_PANE_FRAMES))
         .add()
         .step("hold the map pane")
-        .until(elapsed(1.5))
+        .until(frames(HOLD_MAP_FRAMES))
         .add()
         .step("close the cockpit loop")
         .on_enter(|world| loop_end(world, LOOP_NAME))

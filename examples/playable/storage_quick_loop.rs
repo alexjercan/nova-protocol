@@ -632,6 +632,26 @@ mod smoke {
         find_ship(world, id).unwrap_or_else(|| panic!("storage_quick_loop: no ship {id}"))
     }
 
+    /// Real seconds since the pick, to let its double-click window close.
+    ///
+    /// The window counts `Time<Real>`, and the open pane holds the app clock
+    /// that `elapsed` reads, so an `elapsed` wait never ends under the pane.
+    #[derive(Resource)]
+    struct PickedAt(f32);
+
+    fn mark_the_pick(world: &mut World) {
+        let now = world.resource::<Time<Real>>().elapsed_secs();
+        world.insert_resource(PickedAt(now));
+    }
+
+    fn real_secs_since_the_pick(secs: f32) -> Arc<nova_protocol::nova_debug::harness::Predicate> {
+        Arc::new(move |world: &World| {
+            world.get_resource::<PickedAt>().is_some_and(|picked| {
+                world.resource::<Time<Real>>().elapsed_secs() - picked.0 >= secs
+            })
+        })
+    }
+
     /// Hull plates in a hold.
     fn plates(world: &mut World, id: &str) -> u32 {
         let root = ship(world, id);
@@ -764,7 +784,9 @@ mod smoke {
                 STEP_DEADLINE,
             )
             .step("let the pick's double-click window pass")
-            .until(elapsed(1.0))
+            .on_enter(mark_the_pick)
+            .until(real_secs_since_the_pick(1.0))
+            .deadline(STEP_DEADLINE)
             .add()
             .double_click_named(
                 "station: double-click your Hull plate",

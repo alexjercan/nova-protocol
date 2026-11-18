@@ -40,8 +40,9 @@ Press <kbd>;</kbd> anywhere - the main menu, the editor, mid-flight, on the paus
 <details class="explain">
 <summary>Show explanation</summary>
 
-<!-- Freeze: crates/nova_menu/src/lib.rs OnEnter/OnExit(Interface | Commands),
-     `hold_clocks_for_interface` (Playing only). -->
+<!-- Freeze: crates/nova_interface/src/pane.rs `add_interface_clock_hold`,
+     OnEnter/OnExit(Interface | Commands), `hold_clocks_for_interface`
+     (Playing only). -->
 
 Opened over the game, the monitor freezes it: the clocks stop, the cursor is freed, and <kbd>Esc</kbd> belongs to the monitor rather than the pause menu. Opened over the interface, it shares the interface's freeze - the world never runs a frame between the two, and closing the monitor puts you back on the same pane with its camera and selection intact. Opened on the main menu it stops nothing - the backdrop behind it keeps flying, because that is a view and not a game you are being kept out of - but the monitor is still the front-most thing on the screen, so the menu buttons under it wait until you close it.
 

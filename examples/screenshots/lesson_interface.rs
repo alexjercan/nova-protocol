@@ -34,21 +34,21 @@
 //! freezes the world anyway (`PauseStates::Interface`), so the pose only has
 //! to hold for the flight cells on either side of it.
 //!
-//! ## Why the map walk presses `viewer_next` twice
+//! ## Why the map walk taps `viewer_next` until a hostile
 //!
 //! The first press from no selection lands on the own ship, whose panel reads
-//! `OWN SHIP`; the second steps onto the next contact. The contact list has
-//! no sort (`MapContacts::collect` is query order), and the two hostiles have
-//! come up in either order between runs, so the sheet is about "a hostile", not
-//! about one named ship. The walk does not read the selection (`MapRuntime` is
+//! `OWN SHIP`; the walk then taps on until the panel reads `HOSTILE`. The
+//! contact list has no sort (`MapContacts::collect` is query order): the two
+//! hostiles have come up in either order between runs, and the friendly
+//! tender has come up next, so the sheet is about "a hostile", not about one
+//! named ship. The walk does not read the selection (`MapRuntime` is
 //! crate-private): it asserts on what the pane DRAWS, a `HOSTILE` panel with
 //! range and bearing and then the `GOTO <code>` destination line, so a walk
 //! that landed on the friendly tender stalls on a named beat instead of
-//! shipping the wrong footage. On the smoke run the range's hull handed the
-//! computer back within a frame of the order ("maneuver complete" in the
-//! `nova_ship` log), and the destination line follows the `Autopilot`, so the
-//! walk latches the line on every frame from the press ([`GotoShown`]) and
-//! ends on the latch.
+//! shipping the wrong footage. The interface holds the clocks, so the GOTO
+//! stays set while the pane is up: the walk holds the pane for
+//! [`GOTO_HOLD_SECS`] of real time from the press and fails loudly on any
+//! frame after the press without the destination line.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - drive the whole session, exit
@@ -229,11 +229,11 @@ fn is_the_hostile_kind(line: &str) -> bool {
     line == "HOSTILE"
 }
 
-/// The bearing line the contact panel draws for a picked contact that is not
-/// the own ship. The range line fills with it.
+/// The Bearing row's value the contact panel draws for a picked contact that
+/// is not the own ship: `045 mark +12`. The Range row fills with it.
 #[cfg(feature = "debug")]
 fn is_a_bearing(line: &str) -> bool {
-    line.starts_with("Bearing ") && line != "Bearing ---"
+    line.contains(" mark ")
 }
 
 /// The destination line the contact panel draws while a GOTO flies to a
@@ -243,23 +243,30 @@ fn is_the_goto_destination(line: &str) -> bool {
     line.starts_with("GOTO ") && line != "GOTO LOST"
 }
 
-/// Whether the contact panel has drawn the GOTO destination line since the
-/// press: the line lasts only as long as the autopilot does.
+/// Real seconds from the GOTO press that the walk holds the pane, every frame
+/// after the press with the GOTO destination line drawn. Real time, because
+/// the open interface holds the app clock.
 #[cfg(feature = "debug")]
-#[derive(Resource, Default)]
-struct GotoShown(bool);
+const GOTO_HOLD_SECS: f32 = 3.0;
 
-/// Latch [`GotoShown`] on a frame whose screen draws the destination line.
+/// The real time of the GOTO press.
 #[cfg(feature = "debug")]
-fn latch_goto_shown(world: &mut World, _: f32, _: u32) {
-    let shown = world.try_query::<&Text>().is_some_and(|mut texts| {
-        texts
-            .iter(world)
-            .any(|text| is_the_goto_destination(&text.0))
-    });
-    if shown {
-        world.insert_resource(GotoShown(true));
-    }
+#[derive(Resource)]
+struct GotoHeldFrom(f32);
+
+/// Fail the walk on a frame after the GOTO press whose panel has no
+/// destination line.
+#[cfg(feature = "debug")]
+fn assert_goto_shown(world: &mut World, _: f32, frame: u32) {
+    let Some(from) = world.get_resource::<GotoHeldFrom>().map(|from| from.0) else {
+        return;
+    };
+    let held = world.resource::<Time<Real>>().elapsed_secs() - from;
+    assert!(
+        the_screen_reads(is_the_goto_destination)(&*world),
+        "lesson_interface: the GOTO destination line is gone {held:.2} s \
+         (step frame {frame}) after the press"
+    );
 }
 
 /// Open the interface over the flight, hold the map, close it, then read the
@@ -355,9 +362,19 @@ fn interface_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
         .on_enter(release_action("viewer_next"))
         .until(frames(1))
         .add()
-        .step("step onto the next contact")
-        .on_enter(press_action("viewer_next"))
-        .until(frames(1))
+        // Tap on until the panel reads a hostile: the list has no sort, so
+        // the next contact can be the friendly tender.
+        .step("step onto a hostile")
+        .each(|world, _, frame| {
+            let hostile = the_screen_reads(is_the_hostile_kind);
+            if frame % 2 == 1 && !hostile(&*world) {
+                press_action("viewer_next")(world);
+            } else {
+                release_action("viewer_next")(world);
+            }
+        })
+        .until(the_screen_reads(is_the_hostile_kind))
+        .deadline(STEP_DEADLINE_SECS)
         .add()
         .step("let the select key up and hold the hostile's panel")
         .on_enter(release_action("viewer_next"))
@@ -372,26 +389,27 @@ fn interface_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
         .add()
         .step("press GOTO")
         .on_enter(|world: &mut World| {
-            world.insert_resource(GotoShown(false));
+            let now = world.resource::<Time<Real>>().elapsed_secs();
+            world.insert_resource(GotoHeldFrom(now));
             press_action("map_goto")(world);
         })
-        .each(latch_goto_shown)
         .until(frames(1))
         .add()
-        .step("let the key up and hold the GOTO destination")
+        .step("let the key up and wait for the sheet")
         .on_enter(release_action("map_goto"))
-        .each(latch_goto_shown)
+        .each(assert_goto_shown)
         .until(sheet_written(MAP_LESSON))
         .deadline(60.0)
         .add()
-        // A sheet that closed over a GOTO that never engaged would be twenty
-        // cells of a claim it does not make, so the run ends on the pane's own
-        // destination line.
-        .step("the pane reports GOTO set")
+        // A sheet that closed over a GOTO that never engaged, or one that
+        // cleared after the press, would be cells of a claim it does not
+        // make, so the run holds the pane on the destination line.
+        .step("hold the GOTO destination")
+        .each(assert_goto_shown)
         .until(std::sync::Arc::new(|world: &World| {
-            world
-                .get_resource::<GotoShown>()
-                .is_some_and(|shown| shown.0)
+            world.get_resource::<GotoHeldFrom>().is_some_and(|from| {
+                world.resource::<Time<Real>>().elapsed_secs() - from.0 >= GOTO_HOLD_SECS
+            })
         }))
         .deadline(STEP_DEADLINE_SECS)
         .add()

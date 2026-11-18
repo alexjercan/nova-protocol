@@ -1015,8 +1015,11 @@ mod smoke {
             the_interface_shows(Some(InterfacePaneType::Map)),
             and(
                 and(
-                    a_text_reads(|text| text == "JOB-2"),
-                    reads_the_second_reward_only("Reward ", " cr"),
+                    and(
+                        a_text_reads(|text| text == "JOB-2"),
+                        a_text_reads(|text| text == "Reward"),
+                    ),
+                    reads_the_second_reward_only("", " cr"),
                 ),
                 frames(SETTLE_FRAMES),
             ),
@@ -1049,7 +1052,7 @@ mod smoke {
         .until(and(
             and(
                 a_text_reads(|text| text == "OBJECTIVES"),
-                no_text_reads(|text| text.starts_with("Reward ")),
+                no_text_reads(|text| text == "Reward"),
             ),
             frames(SETTLE_FRAMES),
         ))

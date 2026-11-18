@@ -70,7 +70,8 @@ fn map_range_renders_in_meters_and_kilometers() {
         ..near
     };
     assert_eq!(own.range_text(), "0 m");
-    assert_eq!(own.bearing_text(), "Bearing ---");
+    assert_eq!(own.bearing_text(), None);
+    assert_eq!(far.bearing_text().as_deref(), Some("000 mark +00"));
 }
 
 /// Spawn a scripted local-space scene: own ship at origin (facing -Z), a
@@ -994,6 +995,121 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
     flying_to(&app, alt_target);
 }
 
+/// A GOTO set with the key stays set while the interface is open: the open
+/// interface holds the clocks, so no fixed tick reaches the flight computer,
+/// and the frames after the press still fly the autopilot to the target with
+/// the panel naming it. The stand-in fixed system ends every maneuver, as the
+/// flight computer does for a hull at rest.
+#[test]
+fn a_goto_set_on_the_map_stays_set_over_the_next_frames() {
+    use std::time::Duration;
+
+    use bevy::{
+        input::{
+            keyboard::{Key, KeyboardInput},
+            ButtonState,
+        },
+        time::TimeUpdateStrategy,
+    };
+    use nova_gameplay::{prelude::ClockFreeze, GameStates};
+
+    let mut rig = pane_pointer_rig();
+    let app = &mut rig.app;
+    app.add_plugins((StatesPlugin, nova_ui::NovaUiPlugin));
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+        100,
+    )));
+    app.init_resource::<ClockFreeze>();
+    app.insert_state(GameStates::Playing);
+    app.init_state::<PauseStates>();
+    crate::pane::add_interface_clock_hold(app);
+    app.add_systems(
+        FixedUpdate,
+        |mut commands: Commands, q_flying: Query<Entity, With<Autopilot>>| {
+            for ship in &q_flying {
+                commands.entity(ship).remove::<Autopilot>();
+            }
+        },
+    );
+    app.register_input_actions(crate::bindings::interface_bindings());
+    app.insert_resource(InterfaceIcons::blank());
+    app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
+    app.init_resource::<NovaOsCloseTransition>();
+    app.insert_resource(InterfacePaneType::Map);
+    app.add_systems(
+        Update,
+        (assign_map_contact_codes, map_input, update_map_panel).chain(),
+    );
+    let content = rig.content_root;
+    app.world_mut()
+        .commands()
+        .entity(content)
+        .with_children(|content| spawn_map_panel(content, &InterfaceIcons::blank()));
+    let player = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            GlobalTransform::default(),
+            Name::new("NOVA"),
+        ))
+        .id();
+    let raider = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            Allegiance::Enemy,
+            GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -50.0)),
+            Name::new("RAIDER"),
+        ))
+        .id();
+    {
+        let mut runtime = app.world_mut().resource_mut::<MapRuntime>();
+        runtime.active = true;
+        runtime.selected = Some(raider);
+    }
+    settle(app);
+    app.world_mut()
+        .resource_mut::<NextState<PauseStates>>()
+        .set(PauseStates::Interface);
+    settle(app);
+
+    let key = |app: &mut App, state: ButtonState| {
+        app.world_mut().write_message(KeyboardInput {
+            key_code: KeyCode::KeyG,
+            logical_key: Key::Character("g".into()),
+            state,
+            text: (state == ButtonState::Pressed).then(|| "g".into()),
+            repeat: false,
+            window: Entity::PLACEHOLDER,
+        });
+    };
+    let flying = |app: &mut App| {
+        (
+            app.world().get::<Autopilot>(player).map(|a| a.action),
+            panel_text(app.world_mut(), MapPanelField::Destination),
+        )
+    };
+    let set = (
+        Some(AutopilotAction::Goto { target: raider }),
+        "GOTO HOST-1  500 m".to_string(),
+    );
+
+    key(app, ButtonState::Pressed);
+    app.update();
+    app.update();
+    assert_eq!(flying(app), set, "the press sets the GOTO");
+    for frame in 0..8 {
+        if frame == 3 {
+            key(app, ButtonState::Released);
+        }
+        app.update();
+        assert_eq!(flying(app), set, "frame {frame} after the press");
+    }
+}
+
 /// A wheel notch over the contact panel scrolls the panel and leaves the
 /// view's zoom alone; a notch away from the panel zooms the view and leaves
 /// the panel where it is. A selected station's stock list pushes the STANCES
@@ -1180,6 +1296,8 @@ fn the_goto_button_sets_the_goto_the_key_sets() {
     rig.app.world_mut().resource_mut::<MapRuntime>().selected = Some(raider);
     settle(&mut rig.app);
     assert!(!disabled(&rig), "a contact can be a GOTO target");
+    // The contact's Bearing row moves the button down from the own ship's.
+    let at = rig_rect(&rig, button).center();
     click_at(&mut rig, at);
     assert_eq!(
         goto(&rig),
@@ -2870,6 +2988,24 @@ fn the_focus_hub_is_the_size_of_what_it_marks() {
     assert!(framed > empty);
 }
 
+/// The label a shown Range or Bearing kv row reads, or `None` while the row
+/// hides.
+fn slot_label(world: &mut World, field: MapPanelField) -> Option<String> {
+    let shown = world
+        .query::<(&MapPanelSlot, &Node)>()
+        .iter(world)
+        .find(|(slot, _)| slot.0 == field)
+        .map(|(_, node)| node.display != Display::None)
+        .unwrap_or_else(|| panic!("the panel has a {field:?} row"));
+    let label = world
+        .query::<(&MapPanelLabel, &Text)>()
+        .iter(world)
+        .find(|(label, _)| label.0 == field)
+        .map(|(_, text)| text.0.clone())
+        .unwrap_or_else(|| panic!("the {field:?} row has a label"));
+    shown.then_some(label)
+}
+
 /// The contact panel's text lines, by field.
 fn panel_text(world: &mut World, field: MapPanelField) -> String {
     world
@@ -2915,6 +3051,7 @@ fn a_selected_contact_fills_the_panel_in_place() {
     let world = app.world_mut();
     assert_eq!(panel_text(world, MapPanelField::Code), "");
     assert_eq!(panel_text(world, MapPanelField::Range), "");
+    assert_eq!(slot_label(world, MapPanelField::Range), None);
     take_churn(app);
 
     app.world_mut().resource_mut::<MapRuntime>().selected = Some(raider);
@@ -2926,11 +3063,22 @@ fn a_selected_contact_fills_the_panel_in_place() {
         (MapPanelField::Code, "HOST-1"),
         (MapPanelField::Name, "RAIDER"),
         (MapPanelField::Kind, "HOSTILE"),
-        (MapPanelField::Range, "Range 500 m"),
-        (MapPanelField::Bearing, "Bearing 000 mark +00"),
+        (MapPanelField::Range, "500 m"),
+        (MapPanelField::Bearing, "000 mark +00"),
         (MapPanelField::Note, ""),
     ] {
         assert_eq!(panel_text(world, field), want, "{field:?}");
+    }
+    // Range and Bearing are kv rows: the label is the row's, not the value's.
+    for (field, label) in [
+        (MapPanelField::Range, "Range"),
+        (MapPanelField::Bearing, "Bearing"),
+    ] {
+        assert_eq!(
+            slot_label(world, field).as_deref(),
+            Some(label),
+            "{field:?}"
+        );
     }
     let icon = world
         .query_filtered::<&Visibility, With<MapPanelIcon>>()
@@ -2987,8 +3135,15 @@ fn chart_selection_fills_code_and_range_in_place() {
     assert_eq!(panel_text(world, MapPanelField::Code), "STN-1");
     assert_eq!(
         panel_text(world, MapPanelField::Range),
-        format!("Cell {}", station_id.origin)
+        station_id.origin.to_string()
     );
+    // The local view's Range row names the chart mark's cell here, and a
+    // station mark has nothing for the Bearing row.
+    assert_eq!(
+        slot_label(world, MapPanelField::Range).as_deref(),
+        Some("Cell")
+    );
+    assert_eq!(slot_label(world, MapPanelField::Bearing), None);
 
     let mut q = world.query::<(&MapPanelField, &ThemedText, &ComputedNode)>();
     for (field, themed, computed) in q.iter(world) {
