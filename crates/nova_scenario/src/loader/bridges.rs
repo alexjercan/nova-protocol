@@ -9,8 +9,8 @@
 //! The job events: the Jobs pane and the open world raise [`JobAccepted`],
 //! [`JobDone`], [`JobHandedIn`] and [`JobDropped`], which fire
 //! `OnJobAccepted`, `OnJobDone`, `OnJobHandedIn` and `OnJobDropped` through
-//! one payload builder, so the four payloads cannot drift apart. A hail
-//! job fires no `OnJobDone` ([`fire_job_done`]).
+//! one payload builder, so the four payloads cannot drift apart. A job
+//! hailed in space fires none of them ([`job_event_info`]).
 //!
 //! The stance event: every site that steps a civilization's table stance
 //! raises [`StanceChanged`], which fires `OnStanceChanged`.
@@ -31,38 +31,46 @@ pub(super) fn register_bridged_events(app: &mut App) {
 /// The payload every job event carries for `job`. `post_key` is the key a
 /// scenario's `PostJob` posted the job under, and empty for a job a board
 /// slot or a visit posted.
-fn job_event_info(job: &Job) -> JobEventInfo {
-    JobEventInfo {
+///
+/// `None` for a job hailed in space, which fires no job event: a scenario's
+/// job handlers speak for station boards (a first-delivery bonus, a
+/// take-a-job objective, a line that sends the player back to the board),
+/// and a hail is taken, paid and lost with no station.
+fn job_event_info(job: &Job) -> Option<JobEventInfo> {
+    if job.id.is_hail() {
+        return None;
+    }
+    Some(JobEventInfo {
         id: job.id.to_string(),
         kind: job.kind.name().to_string(),
         station: job.id.poster.to_string(),
         reward_cr: job.reward.total_cr(),
         post_key: job.id.post_key().unwrap_or_default().to_string(),
-    }
+    })
 }
 
 fn fire_job_accepted(accepted: On<JobAccepted>, mut commands: Commands) {
-    commands.fire::<OnJobAcceptedEvent>(job_event_info(&accepted.job));
+    if let Some(info) = job_event_info(&accepted.job) {
+        commands.fire::<OnJobAcceptedEvent>(info);
+    }
 }
 
-/// `OnJobDone` says a job waits for its hand-in. A hail job has none: the
-/// dock that does it pays it, so it fires `OnJobHandedIn` alone.
 fn fire_job_done(done: On<JobDone>, mut commands: Commands) {
-    if done.job.id.is_hail() {
-        return;
+    if let Some(info) = job_event_info(&done.job) {
+        commands.fire::<OnJobDoneEvent>(info);
     }
-    commands.fire::<OnJobDoneEvent>(job_event_info(&done.job));
 }
 
 fn fire_job_handed_in(handed_in: On<JobHandedIn>, mut commands: Commands) {
-    commands.fire::<OnJobHandedInEvent>(job_event_info(&handed_in.job));
+    if let Some(info) = job_event_info(&handed_in.job) {
+        commands.fire::<OnJobHandedInEvent>(info);
+    }
 }
 
 fn fire_job_dropped(dropped: On<JobDropped>, mut commands: Commands) {
-    commands.fire::<OnJobDroppedEvent>(JobDroppedEventInfo::new(
-        job_event_info(&dropped.job),
-        dropped.cause,
-    ));
+    if let Some(info) = job_event_info(&dropped.job) {
+        commands.fire::<OnJobDroppedEvent>(JobDroppedEventInfo::new(info, dropped.cause));
+    }
 }
 
 fn fire_stance_changed(changed: On<StanceChanged>, mut commands: Commands) {
@@ -166,27 +174,18 @@ mod tests {
     }
 
     #[test]
-    fn a_hail_job_fires_no_done_event_and_names_its_caller_as_the_station() {
+    fn a_job_hailed_in_space_fires_no_job_event() {
         let caller = GeneratedBodyId::new(SectorCoord::ORIGIN, "encounter_0_caller", 0);
         let job = Job {
             id: JobId::hail(caller.clone(), 0),
             kind: JobType::Distress {
                 caller: caller.clone(),
             },
-            target: caller.clone(),
+            target: caller,
             leg_m: 6_000,
             threat: 0,
             reward: JobReward::flat(380),
         };
-        let caller = caller.to_string();
-        let id = format!("{caller}#hail.0");
-        let job_fields = [
-            (ENTITY_ID_COMPONENT_NAME, id.as_str()),
-            (JOB_KIND_FIELD_NAME, "Distress"),
-            (JOB_POST_KEY_FIELD_NAME, ""),
-            (JOB_REWARD_FIELD_NAME, "380"),
-            (JOB_STATION_FIELD_NAME, caller.as_str()),
-        ];
         let mut app = bridge_app();
 
         app.world_mut().trigger(JobAccepted { job: job.clone() });
@@ -195,15 +194,16 @@ mod tests {
             job: job.clone(),
             code: "JOB-1".to_string(),
         });
+        for cause in [JobDropCauseType::Lost, JobDropCauseType::Abandoned] {
+            app.world_mut().trigger(JobDropped {
+                job: job.clone(),
+                cause,
+            });
+        }
         app.world_mut().flush();
 
-        assert_eq!(
-            app.world().resource::<Fired>().0,
-            [
-                (OnJobAcceptedEvent::name(), fields(&job_fields)),
-                (OnJobHandedInEvent::name(), fields(&job_fields)),
-            ]
-        );
+        let fired = &app.world().resource::<Fired>().0;
+        assert!(fired.is_empty(), "a hail job fired {fired:?}");
     }
 
     #[test]

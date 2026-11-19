@@ -2327,6 +2327,165 @@ fn a_pending_hail_offer_and_its_live_encounter_resume_and_a_bad_record_is_refuse
     );
 }
 
+/// A fight in progress saves: with one raider of a live ambush destroyed
+/// and the other standing, the leave save writes, its record names the
+/// raider that stands and no other, and a Load restores that record.
+#[test]
+fn a_save_in_a_fight_keeps_the_raider_that_stands_and_not_the_one_destroyed() {
+    use nova_gameplay::prelude::{
+        EncounterDesign, EncounterLive, EncounterPlayerType, EncounterType,
+    };
+
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, _) = armed_session(root.path());
+    let designs_ = GameEncounters::new([EncounterDesign {
+        id: "fixture/ambush".into(),
+        weight: 1,
+        player: EncounterPlayerType::Armed,
+        kind: EncounterType::Ambush,
+    }]);
+    world.insert_resource(designs_.clone());
+    let cell = world.spawn(SectorRoot(SectorCoord::ORIGIN)).id();
+    let raiders =
+        [0, 1].map(|index| GeneratedBodyId::new(SectorCoord::ORIGIN, "encounter_0_raider", index));
+    let [destroyed, _standing] = [&raiders[0], &raiders[1]].map(|id| {
+        world
+            .spawn((
+                spaceship_scenario_object(SpaceshipConfig::default()),
+                ShipInventory::default(),
+                DamageMarks::default(),
+                RcsBudget::default(),
+                id.clone(),
+                EntityId(id.to_string()),
+                Rotation::default(),
+                Transform::from_xyz(400.0, 0.0, -120.0),
+                ChildOf(cell),
+            ))
+            .id()
+    });
+    let fight = Encounters {
+        fired: 1,
+        live: Some(EncounterLive {
+            design: "fixture/ambush".into(),
+            name: "Vell raider".to_string(),
+            bodies: raiders.to_vec(),
+            started_at: 0.0,
+        }),
+        ..Encounters::default()
+    };
+    *world.resource_mut::<Encounters>() = fight.clone();
+    // A destroyed hull leaves the world with its root.
+    world.despawn(destroyed);
+
+    let digest = leave_and_save(&mut world);
+    let left = Encounters {
+        live: Some(EncounterLive {
+            bodies: vec![raiders[1].clone()],
+            ..fight.live.clone().unwrap()
+        }),
+        ..fight
+    };
+    assert_eq!(
+        *world.resource::<Encounters>(),
+        left,
+        "the record names the raider that stands"
+    );
+    world.remove_resource::<WorldSaveSession>();
+    drop(world);
+
+    let (opened, lock, header_, state_) = open_world(
+        root.path(),
+        "session",
+        &catalog(digest),
+        &roles(),
+        &items(),
+        &scenarios(),
+        &designs(),
+        &profiles(),
+        &recipes(),
+        &GameConsumables::default(),
+        &designs_,
+    )
+    .unwrap();
+    assert_eq!(state_.encounters, left, "the save holds the record");
+    let mut app = App::new();
+    app.add_plugins(crate::test_support::WorldSaveTestPlugin);
+    let mut world = std::mem::take(app.world_mut());
+    crate::test_support::arm_save_fixture(&mut world);
+    let config = world
+        .remove_resource::<WorldConfig<NovaLayeredWorld>>()
+        .unwrap();
+    resume_world(&mut world, opened, lock, &header_, state_);
+    world.insert_resource(config);
+    restore_resumed_world(&mut world);
+    assert_eq!(
+        *world.resource::<Encounters>(),
+        left,
+        "the Load restored the fight with its one raider"
+    );
+}
+
+/// A held hail job needs its live encounter: with no record, or a record
+/// that does not name the job's caller, the save fails and writes nothing,
+/// and a world written that way is refused on open.
+#[test]
+fn a_held_hail_job_with_no_live_encounter_fails_the_save_and_is_refused_on_open() {
+    use nova_gameplay::prelude::{plan_hail_offer, HailJobType};
+
+    let caller = GeneratedBodyId::new(SectorCoord::new(3, 0, 0), "encounter_2_caller", 0);
+    let job = plan_hail_offer(42, HailJobType::Distress, &caller, 2, 6_000, 0.5, &items())
+        .expect("a distress hail needs no item");
+    let mut held = Jobs::default();
+    held.accept(job.clone());
+    let refusal = format!(
+        "the hail job '{}' is held but no live encounter names its caller '{caller}'",
+        job.id
+    );
+
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, _) = armed_session(root.path());
+    *world.resource_mut::<Jobs>() = held.clone();
+    world.resource_mut::<WorldSaveSession>().request_leave();
+    run_until_idle(&mut world);
+    assert_eq!(
+        world.resource::<WorldSaveSession>().status(),
+        &WorldSaveStatus::Failed(refusal.clone()),
+        "the save check refuses the job"
+    );
+    assert!(
+        !root.path().join("session/state.1.ron").exists(),
+        "a refused save writes no state"
+    );
+    drop(world);
+
+    let written = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(written.path(), "Session").unwrap();
+    drop(lock);
+    let saved = WorldSaveState {
+        jobs: held,
+        ..state(1, 750)
+    };
+    write_world(&folder, &header("Session", 1), &saved).unwrap();
+    assert_eq!(
+        open_world(
+            written.path(),
+            "session",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios(),
+            &designs(),
+            &profiles(),
+            &recipes(),
+            &GameConsumables::default(),
+            &GameEncounters::default(),
+        )
+        .map(drop),
+        Err(WorldRefusal::Unreadable(format!("state.1.ron: {refusal}"))),
+        "a Load refuses the job"
+    );
+}
+
 /// The role goal's record is written with a leave save and comes back on a
 /// Load; a stamp ahead of the saved clock is a save the Load refuses.
 #[test]

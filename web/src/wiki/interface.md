@@ -50,7 +50,7 @@ Every ship carries a second seat of control: the **interface**. Press <kbd>Tab</
 
 While the interface is open the game is frozen: the clocks stop, so combat, physics, AI and every projectile hold mid-frame, and a held trigger cannot fire into the frozen world. The mouse cursor is freed, so you can point, read and click at your own pace. It is a pause without a pause menu: <kbd>Esc</kbd> closes the interface instead of opening the menu.
 
-Opening the interface hides the flight instruments behind it and marks every posted objective chip as read, except the **Take a job** chip of a new world, which stays until your first accepted job. The standing list is the `objectives` command, and `log` prints the comms and objective history.
+Opening the interface hides the flight instruments behind it and marks every posted objective chip as read, except the **Take a job** chip of a new world, which stays until you accept your first job from a station board. The standing list is the `objectives` command, and `log` prints the comms and objective history.
 
 The interface and the command shell share one freeze. Opening `;` over a pane, and closing it again, never runs a frame of the world and never lets a key reach flight or the pane on the way.
 

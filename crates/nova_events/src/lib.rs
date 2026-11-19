@@ -907,8 +907,8 @@ pub const SECTION_FIELD_NAME: &str = "section";
 /// Field name for the kind of job a job event names: `Procure`, `Recover`,
 /// `Escort`, `Distress`, `Neutralize` or `Supply`.
 pub const JOB_KIND_FIELD_NAME: &str = "kind";
-/// Field name for the scenario id of the body that posted a job event's
-/// job: a station, or the hull that hailed with it.
+/// Field name for the scenario id of the station that posted a job event's
+/// job.
 pub const JOB_STATION_FIELD_NAME: &str = "station";
 /// Field name for the reward a job event's job pays at its hand-in.
 pub const JOB_REWARD_FIELD_NAME: &str = "reward_cr";
@@ -1483,17 +1483,17 @@ pub struct OnJobDroppedEvent;
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default, Reflect)]
 pub struct JobEventInfo {
     /// The job's id, `<station id>#<slot>.<posting>` for a slot job,
-    /// `<station id>#<visit id>.<index>` for a visit posting,
-    /// `<station id>#<key>` for a scenario posting or
-    /// `<hull id>#hail.<serial>` for a job a hull offered in space.
+    /// `<station id>#<visit id>.<index>` for a visit posting or
+    /// `<station id>#<key>` for a scenario posting. A job a hull offered in
+    /// space fires no job event.
     #[serde(rename = "id")]
     pub id: String,
     /// The kind of job: `Procure`, `Recover`, `Escort`, `Distress`,
     /// `Neutralize` or `Supply`.
     #[serde(rename = "kind")]
     pub kind: String,
-    /// Scenario id of the body that posted the job, a station or the hull
-    /// that hailed with it: the part of `id` before `#`.
+    /// Scenario id of the station that posted the job: the part of `id`
+    /// before `#`.
     #[serde(rename = "station")]
     pub station: String,
     /// The reward the hand-in pays, in credits.
@@ -1538,7 +1538,7 @@ pub struct JobDroppedEventInfo {
     /// The kind of job; see [`JobEventInfo::kind`].
     #[serde(rename = "kind")]
     pub kind: String,
-    /// Scenario id of the body that posted the job; see
+    /// Scenario id of the station that posted the job; see
     /// [`JobEventInfo::station`].
     #[serde(rename = "station")]
     pub station: String,

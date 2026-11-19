@@ -457,6 +457,13 @@ pub(crate) fn snapshot_world(world: &mut World) {
         return;
     };
     let player = *player;
+    // Before anything is copied: the encounter record must name only bodies
+    // the sectors below hold, and a hail job lost with its caller must be
+    // off the jobs. The director reads the ledger on a timer, so a hull
+    // destroyed since its last look is still on the record here.
+    world
+        .run_system_cached(crate::encounters::drop_lost_bodies)
+        .expect("the encounter record and the jobs are session resources");
     // The camera first: a camera that is not ready waits before the sectors
     // are copied.
     let snapshot = CameraView::capture(world)

@@ -93,6 +93,7 @@ fn world(on: ScenarioWorldType) -> World {
     world.insert_resource(loaded());
     world.insert_resource(styles());
     world.insert_resource(nova_gameplay::test_support::test_items());
+    world.init_resource::<nova_gameplay::prelude::GameConsumables>();
     world.init_resource::<GameTradeProfiles>();
     world
 }

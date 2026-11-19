@@ -790,12 +790,32 @@ fn check_saved_fleet(state: &WorldSaveState) -> Result<(), String> {
     Ok(())
 }
 
+/// The encounter record and the jobs agree with each other and with the
+/// ledger.
+///
+/// Every held hail job has its caller on the live encounter: the director
+/// ends the record only with the job, and the travel clock counts no
+/// second while a hail job is held, so a held hail job with no record
+/// would stop every later encounter.
+///
 /// Every body of the live encounter is a ship the save holds: the director
 /// puts each in a live cell, and a save records every cell the window held
 /// live and every frozen one, so a body the save lacks names nothing a Load
 /// could thaw. A ship held back by the observer counts, by its generated id.
+/// A destroyed body is off the record before the save reads it
+/// (`encounters::drop_lost_bodies`), so a fight in progress passes.
 pub(crate) fn check_saved_encounters(state: &WorldSaveState) -> Result<(), String> {
-    let Some(live) = &state.encounters.live else {
+    let live = state.encounters.live.as_ref();
+    let orphaned = state.jobs.held().iter().find(|job| {
+        job.id.is_hail() && live.is_none_or(|live| !live.bodies.contains(&job.id.poster))
+    });
+    if let Some(job) = orphaned {
+        return Err(format!(
+            "the hail job '{}' is held but no live encounter names its caller '{}'",
+            job.id, job.id.poster
+        ));
+    }
+    let Some(live) = live else {
         return Ok(());
     };
     let ships: BTreeSet<&str> = state

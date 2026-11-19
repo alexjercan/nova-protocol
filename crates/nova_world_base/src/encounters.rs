@@ -20,6 +20,13 @@
 //! one wreck there. [`end_encounters`] ends each by its own rule, and
 //! [`mark_encounter_bodies`] keeps the `HAIL` and `SIGNAL` chips on the
 //! bodies, after a thaw and a Load too.
+//!
+//! The live record names only bodies a cell holds, live or frozen: a body
+//! that is destroyed comes off it ([`lose_bodies`]) and the record ends
+//! with its last one. A world save runs [`drop_lost_bodies`] before it reads
+//! the record, so its check that every named body is a saved ship holds in
+//! the middle of a fight. For as long as the record names a body no board
+//! draws a job on it (`jobs::FieldBodies`).
 
 use std::collections::BTreeMap;
 
@@ -36,10 +43,11 @@ use nova_gameplay::prelude::{
     default_comms_accent, escort_raider_counts, escort_raider_size, plan_encounter_draw,
     plan_hail_accept, plan_hail_offer, plan_hail_pay, unit_sphere_point, EncounterDesign,
     EncounterFireCommand, EncounterLive, EncounterOffer, EncounterType, Encounters, Fnv32,
-    GameEncounters, GameItems, HailAnswerCommand, HailAnswered, HailRaised, Job, JobAccepted,
-    JobDone, JobDropped, JobHandedIn, JobType, Jobs, NeutralizedMarker, ObjectiveMarkerTarget,
-    PlayerSpaceshipMarker, SeedStream, ShipCredits, ShipInventory, ShipInventoryReports,
-    ShipRoleType, ShipSizeType, SpaceshipRootMarker, StationMarker, HAIL_OFFER_SECONDS,
+    GameEncounters, GameItems, HailAnswerCommand, HailAnswerType, HailAnswered, HailRaised, Job,
+    JobAccepted, JobDone, JobDropped, JobHandedIn, JobType, Jobs, NeutralizedMarker,
+    ObjectiveMarkerTarget, PlayerSpaceshipMarker, SeedStream, ShipCredits, ShipInventory,
+    ShipInventoryReports, ShipRoleType, ShipSizeType, SpaceshipRootMarker, StationMarker,
+    HAIL_OFFER_SECONDS,
 };
 use nova_scenario::prelude::{NarrativeCueActionConfig, NovaEventWorld};
 use nova_ship::prelude::{AIBehaviorState, DockedShip, ShipRescueCall, ThreatContacts, WeaponsHot};
@@ -319,7 +327,8 @@ impl EncounterField<'_, '_> {
 enum StageRefusalType {
     /// No place fits now: the draw stays due.
     NoPlace,
-    /// The place cannot stage the design: the draw is spent.
+    /// The place cannot stage the design: a due draw is spent, a command
+    /// is refused.
     Unstaffed,
 }
 
@@ -329,11 +338,13 @@ enum StageRefusalType {
 /// Travel counts by [`travel_counts`] on virtual time. A due design is
 /// placed ahead on the player's velocity; a command's design is placed
 /// ahead of the hull's nose when the hull stands still, and is refused
-/// while an encounter is live or a hail job is held. A place that cannot
-/// stage the design spends the draw: no civilization in reach builds the
-/// hull, the hull or its hold fails, the catalog has no item a supply hail
-/// may ask for, or the player's hull cannot take the hail's job
-/// ([`plan_hail_accept`]).
+/// while an encounter is live, a hail job is held or no player hull stands.
+/// A place that cannot stage the design spends a due draw: no civilization
+/// in reach builds the hull, the hull or its hold fails, the catalog has no
+/// item a supply hail may ask for, or the player's hull cannot take the
+/// hail's job ([`plan_hail_accept`]). A command such a place refuses, or
+/// one with no place, puts nothing in the world, spends no draw and leaves
+/// the travel count. Every refused command is logged with its design.
 #[expect(
     clippy::too_many_arguments,
     reason = "one director: the clock, the catalogs, the record, the player, the field and the comms"
@@ -356,6 +367,12 @@ pub(crate) fn drive_encounters(
 ) {
     let asked: Vec<EncounterFireCommand> = asked.read().cloned().collect();
     let Some(from) = player.position() else {
+        for command in &asked {
+            warn!(
+                "nova_world_base: the encounter '{}' is not fired: no player hull stands",
+                command.design
+            );
+        }
         return;
     };
     let (velocity, nose) = player.motion().expect("the player's hull stands");
@@ -419,8 +436,8 @@ pub(crate) fn drive_encounters(
                 })
         else {
             info!(
-                "nova_world_base: the encounter '{}' is spent: no civilization at its place \
-                 builds a {} hull",
+                "nova_world_base: the encounter '{}' cannot be staged: no civilization at its \
+                 place builds a {} hull",
                 design.id,
                 role.label()
             );
@@ -431,7 +448,7 @@ pub(crate) fn drive_encounters(
         };
         let unstaffed = |fault: String| {
             warn!(
-                "nova_world_base: the encounter '{}' is spent: {fault}",
+                "nova_world_base: the encounter '{}' cannot be staged: {fault}",
                 design.id
             );
             Err(StageRefusalType::Unstaffed)
@@ -456,8 +473,8 @@ pub(crate) fn drive_encounters(
                 };
                 if let Err(refusal) = plan_hail_accept(&offered, &jobs, false, &items, fit) {
                     info!(
-                        "nova_world_base: the encounter '{}' is spent: the hull cannot take its \
-                         job ({refusal:?})",
+                        "nova_world_base: the encounter '{}' cannot be staged: the hull cannot \
+                         take its job ({refusal:?})",
                         design.id
                     );
                     return Err(StageRefusalType::Unstaffed);
@@ -614,12 +631,17 @@ pub(crate) fn drive_encounters(
         };
         match stage(record.fired, design) {
             Ok((live, offer)) => record.fire(live, offer),
-            // A command is one try: it holds no draw to keep due.
+            // A command is one try. A try that puts nothing in the world
+            // spends no draw and leaves the travel count: the next natural
+            // encounter keeps its number and its gap.
             Err(StageRefusalType::NoPlace) => warn!(
                 "nova_world_base: the encounter '{}' is not fired: no place ahead is clear",
                 design.id
             ),
-            Err(StageRefusalType::Unstaffed) => record.consume_draw(),
+            Err(StageRefusalType::Unstaffed) => warn!(
+                "nova_world_base: the encounter '{}' is not fired: its place cannot stage it",
+                design.id
+            ),
         }
     }
 
@@ -679,6 +701,11 @@ pub(crate) fn drive_encounters(
                 }
                 Err(StageRefusalType::NoPlace) => *retry = ENCOUNTER_RETRY_SECONDS,
                 Err(StageRefusalType::Unstaffed) => {
+                    info!(
+                        "nova_world_base: encounter number {before} is spent: its place cannot \
+                         stage '{}'",
+                        design.id
+                    );
                     record.consume_draw();
                     *retry = 0.0;
                 }
@@ -757,10 +784,10 @@ pub(crate) fn answer_hails(
     clock: Res<WorldClock>,
     hull: PlayerHull,
 ) {
-    for answer in answers.read() {
+    for HailAnswerCommand { answer } in answers.read() {
         let taken = match (answer, record.offer.as_ref()) {
             (_, None) => false,
-            (HailAnswerCommand::Accept, Some(offer)) => {
+            (HailAnswerType::Accept, Some(offer)) => {
                 let expired = record.offer_expired(clock.play_seconds);
                 match plan_hail_accept(&offer.job, &jobs, expired, &items, hull.fit()) {
                     Ok(()) => {
@@ -776,7 +803,7 @@ pub(crate) fn answer_hails(
                     }
                 }
             }
-            (HailAnswerCommand::Decline, Some(offer)) => {
+            (HailAnswerType::Decline, Some(offer)) => {
                 info!(
                     "nova_world_base: the hail job '{}' is declined",
                     offer.job.id
@@ -942,8 +969,9 @@ enum BodyStateType {
         /// The cell is in the desired window: the body thaws shortly.
         thawing: bool,
     },
-    /// No live cell and no frozen cell holds it.
-    Gone,
+    /// No live cell and no frozen cell holds it: destroyed, or taken out of
+    /// the world. [`lose_bodies`] takes it off the record.
+    Lost,
 }
 
 /// The frozen ledger and the window, for a body that does not stand.
@@ -976,27 +1004,107 @@ impl EncounterLedger<'_> {
                     },
                 ),
             },
-            None => BodyStateType::Gone,
+            None => BodyStateType::Lost,
         }
+    }
+}
+
+/// Take the bodies `lost` off the live record: no cell holds them, live or
+/// frozen, so the record would name what no save holds. The record ends
+/// with its last body. A hail's one body is its caller: its standing offer
+/// ends with it, and its held job is dropped as lost, done or not, since a
+/// done job the dock could not pay has no caller left to pay it at.
+fn lose_bodies(
+    commands: &mut Commands,
+    record: &mut Encounters,
+    jobs: &mut Jobs,
+    lost: &[GeneratedBodyId],
+) {
+    let Some(live) = record.live.as_mut() else {
+        return;
+    };
+    live.bodies.retain(|body| !lost.contains(body));
+    let left = live.bodies.len();
+    let design = live.design.clone();
+    for body in lost {
+        info!(
+            "nova_world_base: the encounter '{design}' loses '{body}': no cell holds it; {left} \
+             body(ies) left"
+        );
+    }
+    let orphaned: Vec<Job> = jobs
+        .held()
+        .iter()
+        .filter(|job| job.id.is_hail() && lost.contains(&job.id.poster))
+        .cloned()
+        .collect();
+    for job in orphaned {
+        warn!(
+            "nova_world_base: '{}' is lost: no cell holds its caller '{}'",
+            job.id, job.id.poster
+        );
+        jobs.drop(&job.id);
+        commands.trigger(JobDropped {
+            job,
+            cause: JobDropCauseType::Lost,
+        });
+    }
+    if left == 0 {
+        info!("nova_world_base: the encounter '{design}' ends: its last body is lost");
+        record.end();
+    }
+}
+
+/// Take off the live record every body no cell holds, live or frozen
+/// ([`lose_bodies`]), reading the ledger now for each body that does not
+/// stand.
+///
+/// The world save runs it before it reads the record, so a save never names
+/// a body it does not hold: [`end_encounters`] reads the ledger only every
+/// [`LEDGER_LOOK_SECONDS`], and a hull destroyed since its last look is
+/// still on the record.
+pub(crate) fn drop_lost_bodies(
+    mut commands: Commands,
+    mut record: ResMut<Encounters>,
+    mut jobs: ResMut<Jobs>,
+    ledger: EncounterLedger,
+    standing: Query<&GeneratedBodyId>,
+) {
+    let Some(live) = record.live.as_ref() else {
+        return;
+    };
+    let lost: Vec<GeneratedBodyId> = live
+        .bodies
+        .iter()
+        .filter(|body| {
+            !standing.iter().any(|id| id == *body) && ledger.state(body) == BodyStateType::Lost
+        })
+        .cloned()
+        .collect();
+    if !lost.is_empty() {
+        lose_bodies(&mut commands, &mut record, &mut jobs, &lost);
     }
 }
 
 /// End the live encounter by its kind's rule.
 ///
+/// - A body no cell holds, live or frozen, comes off the record first
+///   ([`lose_bodies`]): the record ends with its last one, and a hail's
+///   offer or held job ends with its caller.
 /// - A hail whose offer stands ends when the offer's window passes
-///   ([`HAIL_OFFER_SECONDS`]) or its caller no longer stands: destroyed, or
-///   frozen with a cell that left the window. The hull stays as it is.
-/// - A hail whose job is held stands with the job; a caller that no cell
-///   holds, live or frozen, drops the job as lost. A held job that is done
+///   ([`HAIL_OFFER_SECONDS`]) or its caller is frozen with a cell that left
+///   the window. The hull stays as it is.
+/// - A hail whose job is held stands with the job. A held job that is done
 ///   and not paid is paid ([`pay_hail`]).
 /// - An ambush ends when no raider stands un-neutralized within
 ///   [`AMBUSH_BREAK_OFF`] of the player and none is about to thaw.
 /// - A derelict find ends when the player comes within [`DERELICT_FOUND`]
-///   of it, or it no longer stands.
+///   of it, or its cell left the window.
 ///
 /// A body whose frozen cell is in the desired window is about to thaw, as
 /// after a Load: the encounter waits for it. The ledger is read at most
-/// every [`LEDGER_LOOK_SECONDS`].
+/// every [`LEDGER_LOOK_SECONDS`]; [`drop_lost_bodies`] reads it at once for
+/// a save.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system reading the record, the jobs, the clock, the bodies, the ledger and the player's balance"
@@ -1035,6 +1143,30 @@ pub(crate) fn end_encounters(
         record.end();
         return;
     };
+    // A done hail job is paid before its caller is looked for: the pay
+    // reads no body.
+    if let EncounterType::Hail { .. } = &design.kind {
+        let done = jobs
+            .held()
+            .iter()
+            .find(|job| {
+                job.id.is_hail() && live.bodies.contains(&job.id.poster) && jobs.is_done(&job.id)
+            })
+            .cloned();
+        if let Some(job) = done {
+            pay_hail(
+                &mut commands,
+                &mut record,
+                &mut jobs,
+                &mut credits,
+                &mut reports,
+                &job,
+            );
+            if record.live.is_none() {
+                return;
+            }
+        }
+    }
     *look_in -= time.delta_secs();
     let look = *look_in <= 0.0;
     let mut looked = false;
@@ -1059,6 +1191,20 @@ pub(crate) fn end_encounters(
     if looked {
         *look_in = LEDGER_LOOK_SECONDS;
     }
+    let lost: Vec<GeneratedBodyId> = live
+        .bodies
+        .iter()
+        .zip(&states)
+        .filter(|(_, state)| **state == BodyStateType::Lost)
+        .map(|(body, _)| body.clone())
+        .collect();
+    if !lost.is_empty() {
+        lose_bodies(&mut commands, &mut record, &mut jobs, &lost);
+        if record.live.is_none() {
+            return;
+        }
+        states.retain(|state| *state != BodyStateType::Lost);
+    }
     let thawing = states
         .iter()
         .any(|state| *state == BodyStateType::Frozen { thawing: true });
@@ -1069,44 +1215,13 @@ pub(crate) fn end_encounters(
             let held = jobs
                 .held()
                 .iter()
-                .find(|job| job.id.is_hail() && job.id.poster == *caller)
-                .cloned();
+                .any(|job| job.id.is_hail() && job.id.poster == *caller);
             match (record.offer.is_some(), held) {
                 (true, _) if record.offer_expired(now) => Some("its offer stood unanswered"),
-                (true, _) => match states[0] {
-                    BodyStateType::Standing { .. } | BodyStateType::Frozen { thawing: true } => {
-                        None
-                    }
-                    BodyStateType::Frozen { thawing: false } => {
-                        Some("its caller left the live window")
-                    }
-                    BodyStateType::Gone => Some("its caller is lost"),
-                },
-                (false, Some(job)) => {
-                    if jobs.is_done(&job.id) {
-                        pay_hail(
-                            &mut commands,
-                            &mut record,
-                            &mut jobs,
-                            &mut credits,
-                            &mut reports,
-                            &job,
-                        );
-                    } else if states[0] == BodyStateType::Gone {
-                        warn!(
-                            "nova_world_base: '{}' is lost: no cell holds its caller '{caller}'",
-                            job.id
-                        );
-                        jobs.drop(&job.id);
-                        commands.trigger(JobDropped {
-                            job,
-                            cause: JobDropCauseType::Lost,
-                        });
-                        record.end();
-                    }
-                    None
-                }
-                (false, None) => Some("its job is no longer held"),
+                (true, _) => (states[0] == BodyStateType::Frozen { thawing: false })
+                    .then_some("its caller left the live window"),
+                (false, true) => None,
+                (false, false) => Some("its job is no longer held"),
             }
         }
         EncounterType::Ambush => {
@@ -1125,7 +1240,7 @@ pub(crate) fn end_encounters(
             }
             BodyStateType::Frozen { thawing: true } => None,
             BodyStateType::Frozen { thawing: false } => Some("it left the live window"),
-            BodyStateType::Gone => Some("it is lost"),
+            BodyStateType::Lost => unreachable!("a lost body is off the record above"),
         },
     };
     if let Some(why) = end {
@@ -1219,7 +1334,10 @@ mod tests {
         DockingEventInfo, EventKind, OnDestroyedEvent, OnDestroyedEventInfo, OnDockedEvent,
     };
     use nova_gameplay::{
-        prelude::{EncounterPlayerType, HailJobType, SectionMarker},
+        prelude::{
+            EncounterPlayerType, HailJobType, ItemDesignId, ItemRoleType, JobId, JobReward,
+            SectionMarker,
+        },
         test_support::test_items,
     };
     use nova_ship::prelude::DockingSectionMarker;
@@ -1245,6 +1363,14 @@ mod tests {
                 EncounterType::Hail {
                     job: HailJobType::Distress,
                     line: "Mayday.".to_string(),
+                },
+            ),
+            design(
+                "test/supply",
+                EncounterPlayerType::Any,
+                EncounterType::Hail {
+                    job: HailJobType::Supply,
+                    line: "We are out of stores.".to_string(),
                 },
             ),
             design(
@@ -1276,17 +1402,15 @@ mod tests {
     /// A record with the distress hail live and its offer standing until
     /// 300 s of play.
     fn hailed() -> (Encounters, Job) {
+        hailed_with("test/hail", HailJobType::Distress)
+    }
+
+    /// A record with the hail `design` live and its offer of a `kind` job
+    /// standing until 300 s of play.
+    fn hailed_with(design: &str, kind: HailJobType) -> (Encounters, Job) {
         let caller = body("caller", 0);
-        let job = plan_hail_offer(
-            SEED,
-            HailJobType::Distress,
-            &caller,
-            0,
-            6_000,
-            0.5,
-            &test_items(),
-        )
-        .expect("a distress hail needs no item");
+        let job = plan_hail_offer(SEED, kind, &caller, 0, 6_000, 0.5, &test_items())
+            .expect("the test items hold an item a supply job asks for");
         let record = Encounters {
             fired: 1,
             travel_seconds: 0.0,
@@ -1294,7 +1418,7 @@ mod tests {
                 job: job.clone(),
                 expires_at: HAIL_OFFER_SECONDS,
             }),
-            live: Some(live("test/hail", vec![caller])),
+            live: Some(live(design, vec![caller])),
         };
         (record, job)
     }
@@ -1492,6 +1616,59 @@ mod tests {
         assert!(record.live.is_none() && record.offer.is_none());
     }
 
+    /// The fixture's player hull has no docking section, so no hail job
+    /// fits it and the place cannot stage a hail. The find the same place
+    /// stages next shows that the refusal was not for want of a place.
+    #[test]
+    fn a_command_its_place_cannot_stage_spends_no_draw_and_keeps_the_travel_count() {
+        use bevy::ecs::system::RunSystemOnce;
+
+        let mut world = World::new();
+        crate::test_support::arm_save_fixture(&mut world);
+        world.insert_resource(catalog());
+        world.init_resource::<Messages<EncounterFireCommand>>();
+        for coord in desired_sectors(SectorCoord::ORIGIN, crate::OPEN_WORLD_ACTIVE_RADIUS) {
+            world.spawn(SectorRoot(coord));
+        }
+        let waiting = Encounters {
+            fired: 3,
+            travel_seconds: 123.0,
+            ..Encounters::default()
+        };
+        *world.resource_mut::<Encounters>() = waiting.clone();
+        let ask = |world: &mut World, design: &str| {
+            world
+                .resource_mut::<Messages<EncounterFireCommand>>()
+                .clear();
+            world.write_message(EncounterFireCommand {
+                design: design.into(),
+            });
+            world
+                .run_system_once(drive_encounters)
+                .expect("the fixture holds what the director reads");
+        };
+
+        ask(&mut world, "test/hail");
+        assert_eq!(*world.resource::<Encounters>(), waiting);
+        let staged = world
+            .query::<&GeneratedBodyId>()
+            .iter(&world)
+            .filter(|id| id.to_string().contains("encounter"))
+            .count();
+        assert_eq!(staged, 0, "a refused command puts nothing in the world");
+
+        ask(&mut world, "test/find");
+        let record = world.resource::<Encounters>();
+        assert_eq!(
+            record.fired, 4,
+            "the find takes the draw number the hail left"
+        );
+        assert_eq!(
+            record.live.as_ref().map(|live| live.design.as_str()),
+            Some("test/find")
+        );
+    }
+
     #[test]
     fn a_place_stands_ahead_and_aside_in_a_live_cell_clear_of_bodies_and_stations() {
         let cells = |cells: &[SectorCoord]| -> BTreeMap<SectorCoord, Entity> {
@@ -1575,7 +1752,9 @@ mod tests {
         let (record_, job) = hailed();
         let (mut app, _) = app(record_);
         let caller = stand(&mut app, &job.id.poster, Meters3::new(6_000.0, 0.0, 0.0));
-        app.world_mut().write_message(HailAnswerCommand::Decline);
+        app.world_mut().write_message(HailAnswerCommand {
+            answer: HailAnswerType::Decline,
+        });
         app.update();
         assert!(record(&app).offer.is_none() && record(&app).live.is_none());
         assert!(app.world().entities().contains(caller));
@@ -1588,7 +1767,9 @@ mod tests {
         let (record_, job) = hailed();
         let (mut app, player) = app(record_);
         stand(&mut app, &job.id.poster, Meters3::new(6_000.0, 0.0, 0.0));
-        app.world_mut().write_message(HailAnswerCommand::Accept);
+        app.world_mut().write_message(HailAnswerCommand {
+            answer: HailAnswerType::Accept,
+        });
         app.update();
         assert!(app.world().resource::<Jobs>().holds(&job.id));
         assert!(record(&app).offer.is_none(), "the offer is answered");
@@ -1633,6 +1814,80 @@ mod tests {
                 ..Encounters::default()
             }
         );
+    }
+
+    /// The board's dock observers stand beside the director's, as in the
+    /// game: one dock must take the goods once and mint the reward once.
+    #[test]
+    fn a_supply_hail_job_accepted_in_space_takes_the_goods_and_pays_once_on_the_dock() {
+        let (record_, job) = hailed_with("test/supply", HailJobType::Supply);
+        let JobType::Supply { item, count, .. } = job.kind.clone() else {
+            panic!("a supply hail offers a supply job, not {:?}", job.kind);
+        };
+        let items = test_items();
+        let (mut app, player) = app(record_);
+        app.add_observer(crate::jobs::supply_on_dock);
+        app.add_observer(crate::jobs::distress_on_answer);
+        stand(&mut app, &job.id.poster, Meters3::new(6_000.0, 0.0, 0.0));
+        let aboard = |app: &App| {
+            app.world()
+                .get::<ShipInventory>(player)
+                .unwrap()
+                .count(&item)
+        };
+        let credits = |app: &App| app.world().get::<ShipCredits>(player).unwrap().0;
+        let load = |app: &mut App, units: u32| {
+            app.world_mut()
+                .get_mut::<ShipInventory>(player)
+                .unwrap()
+                .add(&items, &item, units);
+        };
+
+        load(&mut app, count - 1);
+        app.world_mut().write_message(HailAnswerCommand {
+            answer: HailAnswerType::Accept,
+        });
+        app.update();
+        assert!(app.world().resource::<Jobs>().holds(&job.id));
+
+        dock_with(&mut app, &job.id.poster);
+        app.update();
+        let jobs = app.world().resource::<Jobs>();
+        assert!(
+            jobs.holds(&job.id) && !jobs.is_done(&job.id),
+            "a dock with the hold short leaves the job open"
+        );
+        assert_eq!((aboard(&app), credits(&app)), (count - 1, 100));
+        assert!(record(&app).live.is_some(), "the encounter stands");
+
+        // The whole stack and two units over.
+        load(&mut app, 3);
+        dock_with(&mut app, &job.id.poster);
+        let jobs = app.world().resource::<Jobs>();
+        assert!(jobs.held().is_empty() && jobs.is_completed(&job.id));
+        assert_eq!(
+            aboard(&app),
+            2,
+            "the dock takes the asked stack and no more"
+        );
+        assert_eq!(
+            credits(&app),
+            100 + job.reward.total_cr(),
+            "the dock pays the reward"
+        );
+        assert!(
+            record(&app).live.is_none(),
+            "the paid job ends the encounter"
+        );
+
+        // A later frame and a second dock pay nothing more.
+        app.update();
+        dock_with(&mut app, &job.id.poster);
+        app.update();
+        assert_eq!(aboard(&app), 2);
+        assert_eq!(credits(&app), 100 + job.reward.total_cr());
+        let raised = app.world().resource::<Raised>();
+        assert_eq!((raised.accepted, raised.handed_in), (1, 1));
     }
 
     #[test]
@@ -1702,6 +1957,138 @@ mod tests {
         app.world_mut().entity_mut(far).insert(NeutralizedMarker);
         app.update();
         assert!(record(&app).live.is_none(), "every raider is neutralized");
+    }
+
+    #[test]
+    fn a_destroyed_raider_comes_off_the_record_and_the_ambush_stands_with_the_rest() {
+        let raiders = vec![body("raider", 0), body("raider", 1), body("raider", 2)];
+        let ambush = Encounters {
+            fired: 1,
+            live: Some(live("test/ambush", raiders.clone())),
+            ..Encounters::default()
+        };
+        let (mut app, _) = app(ambush);
+        // Raider 2 was destroyed before this frame: no cell holds it.
+        let first = stand(&mut app, &raiders[0], Meters3::new(8_000.0, 0.0, 0.0));
+        stand(&mut app, &raiders[1], Meters3::new(0.0, 9_000.0, 0.0));
+        app.update();
+        assert_eq!(
+            record(&app).live.as_ref().unwrap().bodies,
+            raiders[..2],
+            "the director's look takes the destroyed raider off"
+        );
+
+        // Destroyed between two looks: the director waits for its next
+        // look, and the look a save takes does not.
+        app.world_mut().entity_mut(first).despawn();
+        app.update();
+        assert_eq!(
+            record(&app).live.as_ref().unwrap().bodies,
+            raiders[..2],
+            "the director's look is not due"
+        );
+        app.world_mut()
+            .run_system_cached(drop_lost_bodies)
+            .expect("the record and the jobs are resources");
+        assert_eq!(
+            record(&app).live.as_ref().unwrap().bodies,
+            raiders[1..2],
+            "the save's look takes it off at once"
+        );
+
+        app.world_mut()
+            .run_system_cached(drop_lost_bodies)
+            .expect("the record and the jobs are resources");
+        assert_eq!(
+            record(&app).live.as_ref().unwrap().bodies,
+            raiders[1..2],
+            "a standing raider stays on the record"
+        );
+    }
+
+    #[test]
+    fn the_save_s_look_ends_a_find_whose_wreck_is_destroyed_and_drops_a_lost_caller_s_job() {
+        let wreck = body("wreck", 0);
+        let find = Encounters {
+            fired: 1,
+            live: Some(live("test/find", vec![wreck])),
+            ..Encounters::default()
+        };
+        let (mut found, _) = app(find);
+        found
+            .world_mut()
+            .run_system_cached(drop_lost_bodies)
+            .expect("the record and the jobs are resources");
+        assert_eq!(
+            *record(&found),
+            Encounters {
+                fired: 1,
+                ..Encounters::default()
+            },
+            "the record ends with its last body"
+        );
+
+        let (mut record_, job) = hailed();
+        record_.offer = None;
+        let (mut called, _) = app(record_);
+        called
+            .world_mut()
+            .resource_mut::<Jobs>()
+            .accept(job.clone());
+        called
+            .world_mut()
+            .run_system_cached(drop_lost_bodies)
+            .expect("the record and the jobs are resources");
+        let jobs = called.world().resource::<Jobs>();
+        assert!(!jobs.holds(&job.id) && jobs.is_dropped(&job.id));
+        assert!(record(&called).live.is_none());
+    }
+
+    /// The tightest case for the one chip a body wears: the find ends and a
+    /// job that names its wreck is held on the same frame.
+    #[test]
+    fn a_job_on_the_hull_of_an_encounter_that_just_ended_takes_over_its_chip() {
+        let wreck = body("wreck", 0);
+        let find = Encounters {
+            fired: 1,
+            live: Some(live("test/find", vec![wreck.clone()])),
+            ..Encounters::default()
+        };
+        let (mut app, player) = app(find);
+        app.add_systems(
+            Update,
+            (mark_encounter_bodies, crate::jobs::mark_held_job_targets)
+                .chain()
+                .after(end_encounters),
+        );
+        let hull = stand(&mut app, &wreck, Meters3::new(6_000.0, 0.0, 0.0));
+        let chip = |app: &App| {
+            app.world()
+                .get::<ObjectiveMarkerTarget>(hull)
+                .map(|tag| tag.label.clone())
+        };
+        app.update();
+        assert_eq!(chip(&app).as_deref(), Some(SIGNAL_CHIP));
+
+        let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+        app.world_mut().resource_mut::<Jobs>().accept(Job {
+            id: JobId::slot(station.clone(), 0, 0),
+            kind: JobType::Recover {
+                wreck: wreck.clone(),
+                wreck_name: "Vell derelict".to_string(),
+                item: ItemDesignId::from(ItemRoleType::IronOre.id()),
+                count: 2,
+            },
+            target: station,
+            leg_m: 6_000,
+            threat: 0,
+            reward: JobReward::flat(420),
+        });
+        *app.world_mut().get_mut::<GlobalTransform>(player).unwrap() =
+            GlobalTransform::from_translation(Meters3::new(5_100.0, 0.0, 0.0).to_engine());
+        app.update();
+        assert!(record(&app).live.is_none(), "the player found the wreck");
+        assert_eq!(chip(&app).as_deref(), Some("JOB-1 Recover"));
     }
 
     #[test]

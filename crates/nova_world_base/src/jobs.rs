@@ -7,7 +7,8 @@
 //! types of its cell, the start role's job mix, the board's standing offers
 //! and the [`JobField`] of wrecks and hostile hulls standing in the station's
 //! cell and the 26 cells around it, less every body a held job or another
-//! unexpired offer names. The postings keep the offer as drawn, so a looted
+//! unexpired offer names and every body of the live encounter
+//! ([`FieldBodies::field`]). The postings keep the offer as drawn, so a looted
 //! wreck, a held job elsewhere, a thaw or a Load never changes a standing
 //! offer. The board is put on the station root on the first frame every one
 //! of those 27 cells is live and settled, and again whenever a slot renews:
@@ -68,13 +69,14 @@ use nova_events::prelude::{
 };
 use nova_gameplay::prelude::{
     escort_raider_size, plan_job_hull_fit, plan_job_supply, station_job_offers, station_offers,
-    unit_sphere_point, Allegiance, DerelictShipMarker, Fnv32, GameItems, GamePriceTable, Job,
-    JobAccepted, JobBoard, JobDone, JobDropped, JobField, JobHull, JobHullFit, JobId, JobMixType,
-    JobOfferRule, JobPostings, JobType, JobWreck, Jobs, NeutralizedMarker, ObjectiveMarkerTarget,
-    PlayerSpaceshipMarker, RailgunSectionMarker, SectionInactiveMarker, SectionMarker, SeedStream,
-    ShipInventory, ShipInventoryStock, ShipRoleType, ShipSizeType, SlotPosting,
-    SpaceshipRootMarker, StarterBoardMarker, StationMarker, StationServiceType, StationServices,
-    SupplyRefused, TorpedoSectionMarker, TraderMarket, TurretSectionMarker, JOBS_PER_BOARD,
+    unit_sphere_point, Allegiance, DerelictShipMarker, Encounters, Fnv32, GameItems,
+    GamePriceTable, Job, JobAccepted, JobBoard, JobDone, JobDropped, JobField, JobHull, JobHullFit,
+    JobId, JobMixType, JobOfferRule, JobPostings, JobType, JobWreck, Jobs, NeutralizedMarker,
+    ObjectiveMarkerTarget, PlayerSpaceshipMarker, RailgunSectionMarker, SectionInactiveMarker,
+    SectionMarker, SeedStream, ShipInventory, ShipInventoryStock, ShipRoleType, ShipSizeType,
+    SlotPosting, SpaceshipRootMarker, StarterBoardMarker, StationMarker, StationServiceType,
+    StationServices, SupplyRefused, TorpedoSectionMarker, TraderMarket, TurretSectionMarker,
+    JOBS_PER_BOARD,
 };
 use nova_scenario::prelude::{
     base_scenario_object, spaceship_scenario_object, AIControllerConfig, BaseScenarioObjectConfig,
@@ -624,6 +626,9 @@ pub(crate) struct FieldBodies<'w, 's> {
     // that settled this frame has not been through transform propagation
     // yet and would read as standing at the world origin.
     transforms: TransformHelper<'w, 's>,
+    // Read here, not handed in by the caller: no field pick can leave the
+    // live encounter's bodies in.
+    encounters: Res<'w, Encounters>,
 }
 
 impl FieldBodies<'_, '_> {
@@ -633,10 +638,14 @@ impl FieldBodies<'_, '_> {
     /// the world, and every body a held job or an unexpired offer names
     /// ([`JobPostings::named_bodies`]), so a board never offers an escort's
     /// raiders as Neutralize targets, a distress caller as a wreck to
-    /// recover, or a body another offer pays for. Each body carries its
-    /// distance from the poster in true world meters, whichever cell root it
-    /// stands under, rounded to [`FIELD_LEG_STEP`]; a hostile carries its
-    /// live weapon sections.
+    /// recover, or a body another offer pays for. Every body the live
+    /// encounter names is left out too, for as long as the record names it:
+    /// the director owns its chip and its end, so a job on a find's wreck, a
+    /// hailing hull or a raider in wait would give the body two owners. With
+    /// the record ended the hull is an ordinary derelict or hostile. Each
+    /// body carries its distance from the poster in true world meters,
+    /// whichever cell root it stands under, rounded to [`FIELD_LEG_STEP`]; a
+    /// hostile carries its live weapon sections.
     ///
     /// # Panics
     ///
@@ -662,9 +671,15 @@ impl FieldBodies<'_, '_> {
             let leg = Meters::from_engine(stands(body).distance(from));
             ((leg.get() / FIELD_LEG_STEP.get()).round() * FIELD_LEG_STEP.get()) as u32
         };
+        let encounter: &[GeneratedBodyId] = self
+            .encounters
+            .live
+            .as_ref()
+            .map_or(&[], |live| live.bodies.as_slice());
+        let excluded = |id: &GeneratedBodyId| excluded.contains(id) || encounter.contains(id);
         let mut field = JobField::default();
         for (entity, id, name, hold, parent) in &self.wrecks {
-            if !around.contains(&parent.parent()) || hold.is_empty() || excluded.contains(id) {
+            if !around.contains(&parent.parent()) || hold.is_empty() || excluded(id) {
                 continue;
             }
             field.wrecks.push(JobWreck {
@@ -680,7 +695,7 @@ impl FieldBodies<'_, '_> {
         for (entity, id, name, allegiance, parent) in &self.hulls {
             if !around.contains(&parent.parent())
                 || *allegiance != Allegiance::Enemy
-                || excluded.contains(id)
+                || excluded(id)
             {
                 continue;
             }
@@ -2746,6 +2761,7 @@ mod tests {
             unreachable!()
         };
         let mut app = App::new();
+        app.init_resource::<Encounters>();
         let root = app.world_mut().spawn(Transform::default()).id();
         let station = app
             .world_mut()
@@ -2813,12 +2829,148 @@ mod tests {
         assert_eq!(wreck_ids(&posted.wrecks), vec![wreck_id()]);
     }
 
+    /// A derelict hull `id` with four units aboard, under `root`.
+    fn stand_wreck(app: &mut App, root: Entity, id: &GeneratedBodyId) {
+        app.world_mut().spawn((
+            id.clone(),
+            Name::new(id.to_string()),
+            ShipInventory::new(&test_items(), 1_000_000, [(item(), 4)]),
+            Transform::from_xyz(300.0, 0.0, 0.0),
+            ChildOf(root),
+            SpaceshipRootMarker,
+            DerelictShipMarker,
+        ));
+    }
+
+    /// An intact enemy hull `id` under `root`, its hold settled.
+    fn stand_hostile(app: &mut App, root: Entity, id: &GeneratedBodyId) {
+        app.world_mut().spawn((
+            id.clone(),
+            Name::new(id.to_string()),
+            Allegiance::Enemy,
+            ShipInventory::new(&test_items(), 1_000_000, []),
+            Transform::from_xyz(0.0, 300.0, 0.0),
+            ChildOf(root),
+            SpaceshipRootMarker,
+        ));
+    }
+
+    /// A live record over the wreck of a find and a raider, both standing
+    /// under `root`: each a body a board would draw.
+    fn live_encounter(app: &mut App, root: Entity) -> (GeneratedBodyId, GeneratedBodyId) {
+        let found = GeneratedBodyId::new(SectorCoord::ORIGIN, "encounter_0_wreck", 0);
+        let raider = GeneratedBodyId::new(SectorCoord::ORIGIN, "encounter_0_raider", 0);
+        stand_wreck(app, root, &found);
+        stand_hostile(app, root, &raider);
+        app.insert_resource(Encounters {
+            fired: 1,
+            live: Some(nova_gameplay::prelude::EncounterLive {
+                design: "test/find".into(),
+                name: "Vell derelict".to_string(),
+                bodies: vec![found.clone(), raider.clone()],
+                started_at: 0.0,
+            }),
+            ..Encounters::default()
+        });
+        (found, raider)
+    }
+
+    #[test]
+    fn a_body_of_the_live_encounter_is_off_the_field_until_its_record_ends() {
+        let mut app = App::new();
+        let root = app.world_mut().spawn(Transform::default()).id();
+        let station = app
+            .world_mut()
+            .spawn((poster(), Transform::default(), ChildOf(root)))
+            .id();
+        let (found, raider) = live_encounter(&mut app, root);
+        stand_wreck(&mut app, root, &wreck_id());
+        stand_hostile(&mut app, root, &hull_id());
+        let field = |app: &mut App| {
+            app.world_mut()
+                .run_system_once(move |bodies: FieldBodies| {
+                    bodies.field(station, &[root], &BTreeSet::new())
+                })
+                .expect("the field reads the queries")
+        };
+        let named = |field: &JobField| -> (Vec<GeneratedBodyId>, Vec<GeneratedBodyId>) {
+            (
+                field.wrecks.iter().map(|wreck| wreck.id.clone()).collect(),
+                field.hostiles.iter().map(|hull| hull.id.clone()).collect(),
+            )
+        };
+
+        assert_eq!(
+            named(&field(&mut app)),
+            (vec![wreck_id()], vec![hull_id()]),
+            "the live record's wreck and raider are no job's to name"
+        );
+
+        app.world_mut().resource_mut::<Encounters>().end();
+        assert_eq!(
+            named(&field(&mut app)),
+            (vec![found, wreck_id()], vec![raider, hull_id()]),
+            "with the record ended they are an ordinary wreck and an ordinary hostile"
+        );
+    }
+
+    /// The board pass itself: with the find's wreck and the ambush's raider
+    /// the only bodies in reach, no slot of any posting names either while
+    /// the record is live.
+    #[test]
+    fn a_board_posts_no_job_on_a_body_of_the_live_encounter() {
+        let mut app = board_app();
+        let home = app
+            .world_mut()
+            .query::<(Entity, &nova_world::prelude::SectorRoot)>()
+            .iter(app.world())
+            .find(|(_, root)| root.0 == SectorCoord::ORIGIN)
+            .map(|(entity, _)| entity)
+            .unwrap();
+        // Only the encounter's two bodies stand in reach.
+        let (found, _) = live_encounter(&mut app, home);
+        let names = |app: &App| -> Vec<GeneratedBodyId> {
+            app.world()
+                .resource::<JobPostings>()
+                .board(&poster())
+                .expect("the board posted")
+                .iter()
+                .filter_map(|slot| match &slot.offer.kind {
+                    JobType::Recover { wreck, .. } => Some(wreck.clone()),
+                    JobType::Neutralize { hull, .. } => Some(hull.clone()),
+                    _ => None,
+                })
+                .collect()
+        };
+        // Every slot renews each 1001 s: 40 postings of each slot.
+        for pass in 0..40 {
+            set_clock(&mut app, f64::from(pass) * 1_001.0);
+            assert_eq!(
+                names(&app),
+                Vec::<GeneratedBodyId>::new(),
+                "pass {pass} names a body of the live encounter"
+            );
+        }
+
+        app.world_mut().resource_mut::<Encounters>().end();
+        let mut drawn = BTreeSet::new();
+        for pass in 40..80 {
+            set_clock(&mut app, f64::from(pass) * 1_001.0);
+            drawn.extend(names(&app));
+        }
+        assert!(
+            drawn.contains(&found),
+            "with the record ended a board draws the wreck: {drawn:?}"
+        );
+    }
+
     /// A hull that never went through transform propagation still reads at
     /// its place: the field computes each position from the hierarchy.
     #[test]
     fn a_field_body_carries_its_world_distance_from_the_poster_and_its_live_weapon_sections() {
         let items = test_items();
         let mut app = App::new();
+        app.init_resource::<Encounters>();
         let home = app.world_mut().spawn(Transform::default()).id();
         // The next cell's root, 10 km along x: 1,000 engine units.
         let next = app
@@ -3013,6 +3165,7 @@ mod tests {
         app.init_resource::<GameStartRoles>();
         app.init_resource::<Jobs>();
         app.init_resource::<JobPostings>();
+        app.init_resource::<Encounters>();
         app.add_systems(Update, post_station_boards);
         let mut home = None;
         for coord in cube_around(SectorCoord::ORIGIN) {

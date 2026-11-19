@@ -1,6 +1,6 @@
 # World encounters: seeded events and job offers in space
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 75
 - TAGS: v0.19.0, world, jobs
 
@@ -104,3 +104,49 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
 ## Done when
 - Travel between stations sometimes meets a seeded encounter, at least one
   encounter offers a job in space, and the rate keeps space mostly empty.
+
+## Delivery record (2026-11-19; task CLOSED)
+- Landed: `Encounter` content kind, lint, editor support and base set
+  (`assets/base/encounters/`); pure rules
+  (`crates/nova_gameplay/src/encounter.rs`); the director
+  (`crates/nova_world_base/src/encounters.rs`); saved encounter state;
+  undocked offer row on the Jobs pane, `HAIL` and `SIGNAL` chips, comms
+  line, `PAID` notice; debug command `encounter <id>`; `system_encounters`
+  (probe flow) and `encounter_sandbox`; wiki, creator pages, changelog.
+- Rules added in delivery (agent calls):
+  - In combat means weapons hot or any threat contact. A due draw with no
+    place tries again every 5 s. A draw the hull cannot take is spent.
+  - A hail job fires no scenario job events; they follow station board and
+    `PostJob` jobs only. The Take a job chip clears on a board job.
+  - A body of the live encounter is off the station job field until the
+    record ends.
+  - A destroyed body leaves the live record at once; the record ends with
+    its last body. A save with a held hail job and no live record is
+    refused.
+  - A held hail job whose caller is frozen outside the live window stays
+    held until the player drops it; no encounter fires meanwhile.
+  - A HUD chip whose target is on screen near an edge stays whole in view
+    (all chip families).
+- Review (independent, read-only): 2 high, 1 medium, 6 low. Fixed: a board
+  Recover job on an encounter hull panicked on accept; every save failed
+  while an ambush had one raider destroyed and one standing; a hail pay
+  spent the open-world first-delivery line and bonus; orphaned hail job on
+  Load; draw test pinned to literal values; a refused command spends no
+  draw; `HailAnswerType`. Not changed: the frozen-caller rule and the chip
+  clamp, above.
+- Verified: targeted unit, ECS and save tests (the two high defects have
+  tests that failed before the fix); workspace check; live under Xvfb and
+  lavapipe: `system_encounters` through the probe OK (seed fires
+  `base/distress_call`, accepted in space, pay 589 cr exact),
+  `encounter_sandbox` at 1280x720 and 1024x768, `system_station_jobs`,
+  `system_job_distress`; frames read (chips, comms line, offer row at both
+  widths, held job, `PAID` notice, ambush marker).
+- Not verified: hand play; a Supply hail live (ECS test only); the chip
+  clamp in a frame (unit test only); Load mid ambush live; player death,
+  SOS rescue or hull buy with a hail job held; audio; `npm run ci`,
+  `mdbook build`, workspace tests and clippy.
+- Open: the caller says its drive is dead but its plumes are lit; the
+  contact caret draws over a chip label above a small distant hull; a
+  single raider can neutralize an idle hull fast at 1.5 km.
+- Later: planet activity, a convoy under attack, stance merit for a hail
+  job, scenario events for hail jobs.

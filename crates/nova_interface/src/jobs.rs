@@ -1775,7 +1775,9 @@ fn on_job_button(
     };
     match button.list {
         JobListType::Hail => {
-            answers.write(HailAnswerCommand::Accept);
+            answers.write(HailAnswerCommand {
+                answer: HailAnswerType::Accept,
+            });
         }
         JobListType::Posted => {
             accepts.write(JobAcceptCommand {
@@ -1798,7 +1800,9 @@ fn on_hail_decline(
     mut answers: MessageWriter<HailAnswerCommand>,
 ) {
     if q_button.contains(activate.entity) {
-        answers.write(HailAnswerCommand::Decline);
+        answers.write(HailAnswerCommand {
+            answer: HailAnswerType::Decline,
+        });
     }
 }
 
@@ -3599,9 +3603,19 @@ mod tests {
         };
 
         click(&mut rig, "JobAccept-0");
-        assert_eq!(answers(&mut rig), [HailAnswerCommand::Accept]);
+        assert_eq!(
+            answers(&mut rig),
+            [HailAnswerCommand {
+                answer: HailAnswerType::Accept
+            }]
+        );
         click(&mut rig, JOB_HAIL_DECLINE);
-        assert_eq!(answers(&mut rig), [HailAnswerCommand::Decline]);
+        assert_eq!(
+            answers(&mut rig),
+            [HailAnswerCommand {
+                answer: HailAnswerType::Decline
+            }]
+        );
         assert!(
             rig.app
                 .world()
@@ -3619,13 +3633,13 @@ mod tests {
         app.add_message::<HailAnswered>();
         app.add_systems(Update, cue_hail_answers.before(play_jobs_cue));
         app.world_mut().write_message(HailAnswered {
-            answer: HailAnswerCommand::Decline,
+            answer: HailAnswerType::Decline,
             taken: true,
         });
         app.update();
         assert_eq!(take_cues(&mut app), [UiSfx::MenuSelect]);
         app.world_mut().write_message(HailAnswered {
-            answer: HailAnswerCommand::Accept,
+            answer: HailAnswerType::Accept,
             taken: false,
         });
         app.update();

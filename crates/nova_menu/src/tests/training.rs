@@ -291,17 +291,21 @@ fn the_row_states_read_apart() {
     let mut app = training_app();
     let texts = all_texts(&mut app);
     assert!(
-        texts.iter().any(|t| t == "[DONE]"),
+        texts.iter().any(|t| t == "DONE"),
         "the completed lesson has no badge: {texts:?}"
     );
     assert!(
-        texts.iter().any(|t| t == "[READ]"),
+        texts.iter().any(|t| t == "READ"),
         "the viewed lesson has no badge: {texts:?}"
     );
     // start_welcome is done, start_hud and flight_momentum are read; every
     // other prototype lesson is untouched, and an untouched list reads as a
     // list.
-    let badges = texts.iter().filter(|t| t.starts_with('[')).count();
+    let badges = app
+        .world_mut()
+        .query::<&LessonStatusBadge>()
+        .iter(app.world())
+        .count();
     let lessons = app.world().resource::<TrainingCatalog>().len();
     assert!(
         badges < lessons,
@@ -860,5 +864,5 @@ fn a_freshly_opened_lesson_grows_its_badge_without_a_rebuild() {
         Some(row),
         "the row was respawned rather than restated"
     );
-    assert_eq!(badge_texts(&mut app, row), vec!["[READ]".to_string()]);
+    assert_eq!(badge_texts(&mut app, row), vec!["READ".to_string()]);
 }

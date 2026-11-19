@@ -45,8 +45,8 @@ pub mod prelude {
     pub use super::{
         encounter_faults, plan_encounter_draw, plan_hail_offer, EncounterDesign, EncounterDesignId,
         EncounterDraw, EncounterFireCommand, EncounterLive, EncounterOffer, EncounterPlayerType,
-        EncounterType, Encounters, GameEncounters, HailAnswerCommand, HailAnswered, HailJobType,
-        HailRaised, ENCOUNTER_GAP_S, HAIL_LINE_MAX_CHARS, HAIL_OFFER_SECONDS,
+        EncounterType, Encounters, GameEncounters, HailAnswerCommand, HailAnswerType, HailAnswered,
+        HailJobType, HailRaised, ENCOUNTER_GAP_S, HAIL_LINE_MAX_CHARS, HAIL_OFFER_SECONDS,
     };
 }
 
@@ -503,22 +503,29 @@ impl Encounters {
     }
 }
 
-/// The player's answer to the standing hail offer. The open world's
-/// director reads it; with no offer standing it changes nothing.
-#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum HailAnswerCommand {
+/// What the player answers a standing hail offer with.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HailAnswerType {
     /// Take the offered job.
     Accept,
     /// Refuse it: the offer ends and the hull stays where it is.
     Decline,
 }
 
+/// The player's answer to the standing hail offer. The open world's
+/// director reads it; with no offer standing it changes nothing.
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HailAnswerCommand {
+    /// The answer.
+    pub answer: HailAnswerType,
+}
+
 /// What the director made of one [`HailAnswerCommand`], so the pane that
 /// raised it plays the result's one cue.
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HailAnswered {
-    /// The command.
-    pub answer: HailAnswerCommand,
+    /// The answer the command gave.
+    pub answer: HailAnswerType,
     /// Whether it was taken: the job is held, or the offer is declined. A
     /// refused accept and a command with no offer standing are not.
     pub taken: bool,
@@ -526,8 +533,10 @@ pub struct HailAnswered {
 
 /// Ask the open world's director for the encounter `design` at once,
 /// whatever the travel clock reads. A cheat: the director refuses it while
-/// an encounter is live or a hail job is held, and it spends a draw number
-/// like any encounter, so the bodies it names are never named twice.
+/// an encounter is live or a hail job is held. One that fires spends a draw
+/// number like any encounter, so the bodies it names are never named twice;
+/// one that puts nothing in the world spends none and leaves the travel
+/// count.
 #[derive(Message, Clone, Debug, PartialEq, Eq)]
 pub struct EncounterFireCommand {
     /// The encounter to fire.
@@ -614,6 +623,30 @@ mod tests {
             kind: EncounterType::Derelict,
         }
     }
+
+    /// What seed `0x5eed` draws over [`pinned_catalog`] for an armed hull,
+    /// for `fired` 0 to 7: the gap in seconds and the design.
+    const PINNED_ARMED: [(u32, &str); 8] = [
+        (889, "b/call"),
+        (334, "c/ambush"),
+        (570, "a/find"),
+        (389, "c/ambush"),
+        (827, "c/ambush"),
+        (412, "b/call"),
+        (559, "c/ambush"),
+        (416, "c/ambush"),
+    ];
+    /// The same draws for an unarmed hull.
+    const PINNED_UNARMED: [(u32, &str); 8] = [
+        (889, "b/call"),
+        (334, "b/call"),
+        (570, "a/find"),
+        (389, "b/call"),
+        (827, "a/find"),
+        (412, "b/call"),
+        (559, "b/call"),
+        (416, "b/call"),
+    ];
 
     fn hail(id: &str, job: HailJobType, line: &str) -> EncounterDesign {
         EncounterDesign {
@@ -722,8 +755,60 @@ mod tests {
         );
     }
 
+    /// The catalog the pinned draws read: two designs for every hull and
+    /// one, twice as heavy, for an armed hull.
+    fn pinned_catalog() -> GameEncounters {
+        GameEncounters::new([
+            design("a/find", 1, EncounterPlayerType::Any),
+            design("b/call", 1, EncounterPlayerType::Any),
+            design("c/ambush", 2, EncounterPlayerType::Armed),
+        ])
+    }
+
+    fn pinned_draws(armed: bool) -> Vec<(u32, &'static str)> {
+        let designs = pinned_catalog();
+        (0..8)
+            .map(|fired| {
+                let draw = plan_encounter_draw(0x5eed, fired, &designs, armed);
+                let id = match draw.design.expect("a design admits every hull").id.as_str() {
+                    "a/find" => "a/find",
+                    "b/call" => "b/call",
+                    "c/ambush" => "c/ambush",
+                    other => panic!("no design '{other}' in the catalog"),
+                };
+                (draw.gap_s, id)
+            })
+            .collect()
+    }
+
+    /// The draw is part of a save: a world must meet the same encounters
+    /// after the same gaps in every build. A change to the key, the stream
+    /// or the order of the draws moves these values.
     #[test]
-    fn the_same_seed_and_count_draw_the_same_gap_and_design() {
+    fn a_fixed_seed_draws_these_gaps_and_designs_for_an_armed_hull() {
+        assert_eq!(pinned_draws(true), PINNED_ARMED);
+    }
+
+    /// The filter narrows the pick and leaves the gap: an unarmed hull
+    /// draws the same gaps, never the armed design, and another design
+    /// wherever the armed hull drew it.
+    #[test]
+    fn the_armed_filter_changes_the_pick_for_an_unarmed_hull() {
+        let unarmed = pinned_draws(false);
+        assert_eq!(unarmed, PINNED_UNARMED);
+        let moved = PINNED_ARMED
+            .iter()
+            .zip(&unarmed)
+            .filter(|(armed, unarmed)| {
+                assert_eq!(armed.0, unarmed.0, "the gap does not read the hull");
+                armed.1 != unarmed.1
+            })
+            .count();
+        assert!(moved > 0, "the filter moved no pick");
+    }
+
+    #[test]
+    fn each_encounter_draws_its_own_gap_and_every_design_fires() {
         let designs = GameEncounters::new([
             design("a", 1, EncounterPlayerType::Any),
             design("b", 1, EncounterPlayerType::Any),
@@ -733,7 +818,6 @@ mod tests {
         let mut picks = std::collections::BTreeSet::new();
         for fired in 0..200 {
             let draw = plan_encounter_draw(0x5eed, fired, &designs, true);
-            assert_eq!(draw, plan_encounter_draw(0x5eed, fired, &designs, true));
             assert!(
                 (ENCOUNTER_GAP_S.0..=ENCOUNTER_GAP_S.1).contains(&draw.gap_s),
                 "{draw:?}"

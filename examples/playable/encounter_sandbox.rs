@@ -22,7 +22,7 @@
 //! Try: `1`, then TAB > Jobs: the offer is the one row of the board, with its
 //! range, threat, reward and time left; Accept takes it and `X` declines it.
 //! `5`, fly to the caller and dock (or dock without Accept: the dock takes
-//! the offer): the job pays at once and the notice reads
+//! the offer): the job pays its reward at once and the notice reads
 //! `JOB-1 PAID <reward> CR`. `4`, `5`, fly in: within 1 km the `SIGNAL` chip
 //! goes and the wreck stays to dock with. `3`, `5`: fight the raiders, or
 //! press `6` three times to leave them 30 km behind, which ends the ambush.
@@ -38,7 +38,8 @@
 //! presses `3`, reads the raiders standing and hostile from where they wait
 //! and leaves them past 30 km until the ambush ends; presses `1`, reads the hail on the HUD and
 //! the offer row on the Jobs pane with its Accept and `X` inside the pane,
-//! accepts it, docks with the caller and reads the pay; presses `2` and
+//! accepts it, docks with the caller and reads the pay (the reward and no
+//! more, with no Station Control line); presses `2` and
 //! declines the supply offer with `X`. `NOVA_CAPTURE=1` shoots
 //! `sandbox-encounter-signal.png`, `sandbox-encounter-ambush.png`,
 //! `sandbox-encounter-hail.png`, `sandbox-encounter-pane.png`,
@@ -360,6 +361,68 @@ mod smoke {
     const PANE_SHOT: &str = "sandbox-encounter-pane.png";
     const HELD_SHOT: &str = "sandbox-encounter-held.png";
     const PAID_SHOT: &str = "sandbox-encounter-paid.png";
+    /// Who speaks the open world scenario's job lines. A hail job fires no
+    /// job event, so the walk hears none.
+    const STATION_CONTROL: &str = "Station Control";
+
+    /// The player's balance when the hail job was accepted.
+    #[derive(Resource)]
+    struct BalanceAtAccept(u32);
+
+    fn credits(world: &World) -> u32 {
+        let player = the_player(world).expect("encounter sandbox: one player ship");
+        world
+            .get::<ShipCredits>(player)
+            .expect("encounter sandbox: the player has credits")
+            .0
+    }
+
+    /// The dock paid the hail job's reward and nothing over it, the HUD
+    /// notice reads that sum, and no job event reached the scenario.
+    fn assert_the_pay(world: &mut World) {
+        let before = world.resource::<BalanceAtAccept>().0;
+        let reward = world
+            .resource::<Jobs>()
+            .completed()
+            .iter()
+            .find(|job| job.id.is_hail())
+            .expect("encounter sandbox: the hail job is completed")
+            .reward
+            .total_cr();
+        assert!(reward > 0, "encounter sandbox: the hail job pays");
+        assert_eq!(
+            credits(world),
+            before + reward,
+            "encounter sandbox: the dock paid the reward and nothing over it"
+        );
+        let paid = notice(world);
+        let sum = paid
+            .split_once(" PAID ")
+            .and_then(|(_, sum)| sum.strip_suffix(" CR"))
+            .and_then(|sum| sum.replace(',', "").parse::<u32>().ok());
+        assert_eq!(
+            sum,
+            Some(reward),
+            "encounter sandbox: the notice '{paid}' reads the {reward} cr reward"
+        );
+        let spoken: Vec<String> = world
+            .resource::<NovaEventWorld>()
+            .story_messages()
+            .iter()
+            .filter(|cue| cue.speaker == STATION_CONTROL)
+            .map(|cue| cue.text.clone())
+            .collect();
+        assert!(
+            spoken.is_empty(),
+            "encounter sandbox: a hail job fires no job event, but Station Control said \
+             {spoken:?}"
+        );
+        info!(
+            "encounter sandbox: PASS the hail job paid its {reward} cr reward and no more \
+             ({before} -> {}), with no Station Control line: '{paid}'",
+            before + reward
+        );
+    }
 
     pub(super) fn hold_the_walk_clock(mut time: ResMut<Time<Virtual>>) {
         let clamp = std::time::Duration::from_secs_f32(WALK_CLOCK_SECS);
@@ -714,7 +777,13 @@ mod smoke {
             .diagnose(describe)
             .deadline(BEAT_SECS)
             .add();
-        let script = shot(script, HELD_SHOT);
+        let script = shot(script, HELD_SHOT)
+            .step("encounter sandbox: note the balance")
+            .on_enter(|world: &mut World| {
+                let balance = credits(world);
+                world.insert_resource(BalanceAtAccept(balance));
+            })
+            .add();
         let script = tap(script, unpaused());
         let script = key(script, "5, the jump", JUMP_KEY, frames(SETTLE_FRAMES))
             .step("encounter sandbox: berth and dock with the caller")
@@ -743,14 +812,14 @@ mod smoke {
             ))
             .diagnose(describe)
             .deadline(BEAT_SECS)
+            .add()
+            // Before the shot: the notice fades four seconds after it posts.
+            .step("encounter sandbox: assert the pay")
+            .on_enter(assert_the_pay)
             .add();
         let script = shot(script, PAID_SHOT)
-            .step("encounter sandbox: report the hail, and undock")
+            .step("encounter sandbox: undock")
             .on_enter(|world: &mut World| {
-                info!(
-                    "encounter sandbox: PASS the hail job paid: '{}'",
-                    notice(world)
-                );
                 let player = the_player(world).expect("encounter sandbox: one player ship");
                 world.trigger(DockingReleaseRequest { entity: player });
             })

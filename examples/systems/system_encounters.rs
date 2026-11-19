@@ -13,7 +13,7 @@
 //! | - | - | - |
 //! | 1 | `outcome: eligible travel fires the drawn encounter` | the travel clock counts while the hull cruises in open space; at the drawn gap the record holds the drawn design live with its caller standing under a cell root ahead of the player, a standing offer, the `HAIL` chip on the caller, the HUD notice and the comms line |
 //! | 2 | `outcome: the hail job is accepted in space` | undocked, the Jobs pane lists the offer; the Accept click holds the job, ends the offer and re-labels the caller's chip with the job's code |
-//! | 3 | `outcome: the dock with the caller pays the hail job` | the dock marks the job done and pays the reward to the player's credits at once, and the played scenario grants its first-delivery bonus on the hand-in event; the job is listed completed, the live record ends and the caller stays |
+//! | 3 | `outcome: the dock with the caller pays the hail job` | the dock marks the job done and pays the player's credits the reward and no more at once: a hail job fires no job event, so the played scenario grants no first-delivery bonus and Station Control says nothing; the job is listed completed, the live record ends and the caller stays |
 //! | 4 | `outcome: the encounter command fires a named encounter` | with cheats armed, `encounter base/distress_call` at the shell puts a second caller ahead with a standing offer |
 //! | 5 | `outcome: a standing offer and its caller come back on Load` | after Back to Main Menu and Load the record holds the same offer and live encounter, and the caller stands again wearing the `HAIL` chip |
 //!
@@ -141,9 +141,9 @@ mod walk {
     const CRUISE: MetersPerSecond = MetersPerSecond(100.0);
     /// How far off a caller the player parks before the berth.
     const PARK_DISTANCE: Meters = Meters(1_500.0);
-    /// What the open world's scenario grants on the first job handed in. A
-    /// paid hail job raises the same event, so the dock grants it too.
-    const FIRST_DELIVERY_BONUS_CR: u32 = 50;
+    /// Who speaks the open world scenario's job lines. A hail job fires no
+    /// job event, so this walk hears none.
+    const STATION_CONTROL: &str = "Station Control";
     /// How far short of the drawn gap the walk sets the travel seconds.
     const GAP_LEFT_SECS: f64 = 2.0;
     /// Real seconds a session-sized beat gets on a software GPU.
@@ -548,11 +548,22 @@ mod walk {
             jobs.is_completed(&job.id) && !jobs.holds(&job.id),
             "encounters: the job is completed and no longer held"
         );
-        let after = before + reward + FIRST_DELIVERY_BONUS_CR;
+        let after = before + reward;
         assert_eq!(
             credits(world),
             after,
-            "encounters: the dock paid the reward and the scenario its first-delivery bonus"
+            "encounters: the dock paid the reward and nothing over it"
+        );
+        let spoken: Vec<String> = world
+            .resource::<NovaEventWorld>()
+            .story_messages()
+            .iter()
+            .filter(|cue| cue.speaker == STATION_CONTROL)
+            .map(|cue| cue.text.clone())
+            .collect();
+        assert!(
+            spoken.is_empty(),
+            "encounters: a hail job fires no job event, but Station Control said {spoken:?}"
         );
         assert_eq!(
             *record(world),
@@ -572,8 +583,8 @@ mod walk {
             serde_json::json!({ "reward_cr": reward, "credits": after }),
         );
         info!(
-            "encounters: PASS the dock paid {reward} cr and the scenario \
-             {FIRST_DELIVERY_BONUS_CR} cr ({before} -> {after}); notice '{}'",
+            "encounters: PASS the dock paid the {reward} cr reward and no more ({before} -> \
+             {after}), with no Station Control line; notice '{}'",
             notice(world)
         );
     }

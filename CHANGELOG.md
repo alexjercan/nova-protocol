@@ -50,7 +50,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** Station designs need `advancement` in [0, 1]. A station runs a Station recipe only at or above its `advancement`; lint refuses ammo below the weapons that fire it.
 - **(breaking)** The station service `Refine` is now `Craft`, and the `OnCreditsChanged` cause `Refine` is now `Craft`: one per party for each Station recipe batch.
 - New content kind `Encounter`: `id`, `weight`, `player` (`Any` or `Armed`) and `kind` (`Hail` with `job` and `line`, `Ambush` or `Derelict`). A mod adds one or replaces a base one by id.
-- Job events also follow a hail job: `station` is the hailing hull and `id` is `<hull id>#hail.<serial>`. It fires no `OnJobDone`; the dock that pays it fires `OnJobHandedIn`.
+- A job hailed in space fires no job events: `OnJobAccepted`, `OnJobDone`, `OnJobHandedIn` and `OnJobDropped` follow station board and `PostJob` jobs only.
 
 ### Interface & HUD
 
