@@ -16,7 +16,8 @@
 //! A hail puts a stranded civilian hull there and offers its job
 //! ([`plan_hail_offer`]); the player answers with a [`HailAnswerCommand`]
 //! or by docking with the caller, and the job pays on the dock that does it
-//! ([`plan_hail_pay`]). An ambush puts raiders in wait; a derelict find puts
+//! ([`plan_hail_pay`]), or on a hand-in while that dock holds
+//! ([`plan_hail_hand_in`]). An ambush puts raiders in wait; a derelict find puts
 //! one wreck there. [`end_encounters`] ends each by its own rule, and
 //! [`mark_encounter_bodies`] keeps the `HAIL` and `SIGNAL` chips on the
 //! bodies, after a thaw and a Load too.
@@ -41,13 +42,13 @@ use nova_events::prelude::{
 };
 use nova_gameplay::prelude::{
     default_comms_accent, escort_raider_counts, escort_raider_size, plan_encounter_draw,
-    plan_hail_accept, plan_hail_offer, plan_hail_pay, unit_sphere_point, EncounterDesign,
-    EncounterFireCommand, EncounterLive, EncounterOffer, EncounterType, Encounters, Fnv32,
-    GameEncounters, GameItems, HailAnswerCommand, HailAnswerType, HailAnswered, HailRaised, Job,
-    JobAccepted, JobDone, JobDropped, JobHandedIn, JobType, Jobs, NeutralizedMarker,
-    ObjectiveMarkerTarget, PlayerSpaceshipMarker, SeedStream, ShipCredits, ShipInventory,
-    ShipInventoryReports, ShipRoleType, ShipSizeType, SpaceshipRootMarker, StationMarker,
-    HAIL_OFFER_SECONDS,
+    plan_hail_accept, plan_hail_hand_in, plan_hail_offer, plan_hail_pay, unit_sphere_point,
+    EncounterDesign, EncounterFireCommand, EncounterLive, EncounterOffer, EncounterType,
+    Encounters, Fnv32, GameEncounters, GameItems, HailAnswerCommand, HailAnswerType, HailAnswered,
+    HailRaised, Job, JobAccepted, JobDone, JobDropped, JobHandedIn, JobType, Jobs,
+    NeutralizedMarker, ObjectiveMarkerTarget, PlayerSpaceshipMarker, SeedStream, ShipCredits,
+    ShipInventory, ShipInventoryReports, ShipRoleType, ShipSizeType, SpaceshipRootMarker,
+    StationMarker, HAIL_OFFER_SECONDS,
 };
 use nova_scenario::prelude::{NarrativeCueActionConfig, NovaEventWorld};
 use nova_ship::prelude::{AIBehaviorState, DockedShip, ShipRescueCall, ThreatContacts, WeaponsHot};
@@ -765,11 +766,13 @@ fn accept_offer(commands: &mut Commands, record: &mut Encounters, jobs: &mut Job
     commands.trigger(JobAccepted { job: offer.job });
 }
 
-/// Answer the standing hail offer with each [`HailAnswerCommand`]: an accept
-/// [`plan_hail_accept`] passes holds the job; a refused one changes nothing;
-/// a decline ends the offer and the encounter, and the hull stays where it
-/// is. With no offer standing a command changes nothing. Each command is
-/// answered with one [`HailAnswered`].
+/// Answer each [`HailAnswerCommand`] with one [`HailAnswered`]. An accept
+/// [`plan_hail_accept`] passes holds the standing offer's job; a refused one
+/// changes nothing; a decline ends the offer and the encounter, and the hull
+/// stays where it is. With no offer standing neither changes anything. A
+/// hand-in does the held hail job [`plan_hail_hand_in`] passes, as the dock
+/// with its caller does ([`answer_caller`]); a refused one, and one with no
+/// hail job held, changes nothing.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system reading the commands, the record, the jobs, the catalog, the clock and the hull"
@@ -782,14 +785,45 @@ pub(crate) fn answer_hails(
     mut jobs: ResMut<Jobs>,
     items: Res<GameItems>,
     clock: Res<WorldClock>,
-    hull: PlayerHull,
+    mut player: ParamSet<(
+        PlayerHull,
+        Query<&mut ShipInventory, With<PlayerSpaceshipMarker>>,
+    )>,
 ) {
     for HailAnswerCommand { answer } in answers.read() {
         let taken = match (answer, record.offer.as_ref()) {
+            (HailAnswerType::HandIn, _) => {
+                let docked = player.p0().docked_with().cloned();
+                let due = jobs
+                    .held()
+                    .iter()
+                    .find(|job| job.id.is_hail() && !jobs.is_done(&job.id))
+                    .cloned();
+                let mut holds = player.p1();
+                match (due, holds.single_mut()) {
+                    (Some(job), Ok(mut hold)) => {
+                        match plan_hail_hand_in(&job, docked.as_ref(), &hold) {
+                            Ok(()) => {
+                                answer_caller(&mut commands, &mut jobs, &mut hold, job);
+                                true
+                            }
+                            Err(refusal) => {
+                                info!(
+                                    "nova_world_base: the hail job '{}' is not handed in \
+                                     ({refusal:?})",
+                                    job.id
+                                );
+                                false
+                            }
+                        }
+                    }
+                    _ => false,
+                }
+            }
             (_, None) => false,
             (HailAnswerType::Accept, Some(offer)) => {
                 let expired = record.offer_expired(clock.play_seconds);
-                match plan_hail_accept(&offer.job, &jobs, expired, &items, hull.fit()) {
+                match plan_hail_accept(&offer.job, &jobs, expired, &items, player.p0().fit()) {
                     Ok(()) => {
                         accept_offer(&mut commands, &mut record, &mut jobs);
                         true
@@ -819,11 +853,25 @@ pub(crate) fn answer_hails(
     }
 }
 
+/// Do the held hail job `job` docked with its caller, as a board job's dock
+/// answers it ([`answer_distress`], [`deliver_supply`]). A supply job with
+/// the hold short stays held and open.
+fn answer_caller(commands: &mut Commands, jobs: &mut Jobs, hold: &mut ShipInventory, job: Job) {
+    match &job.kind {
+        JobType::Distress { .. } => answer_distress(commands, jobs, job),
+        JobType::Supply { .. } => deliver_supply(commands, jobs, hold, job),
+        JobType::Procure { .. }
+        | JobType::Recover { .. }
+        | JobType::Escort { .. }
+        | JobType::Neutralize { .. } => {
+            unreachable!("a hail job is a distress call or a supply job")
+        }
+    }
+}
+
 /// On the player's dock with a hailing hull: hold its standing offer first
 /// when [`plan_hail_accept`] passes, then answer the held hail job the dock
-/// does, as a board job's dock answers it ([`answer_distress`],
-/// [`deliver_supply`]). A supply dock with the hold short leaves the job
-/// held and open.
+/// does ([`answer_caller`]). A refused accept leaves the offer standing.
 pub(crate) fn hail_on_dock(
     event: On<GameEvent>,
     mut commands: Commands,
@@ -868,16 +916,7 @@ pub(crate) fn hail_on_dock(
         .cloned()
         .collect();
     for job in due {
-        match &job.kind {
-            JobType::Distress { .. } => answer_distress(&mut commands, &mut jobs, job),
-            JobType::Supply { .. } => deliver_supply(&mut commands, &mut jobs, &mut hold, job),
-            JobType::Procure { .. }
-            | JobType::Recover { .. }
-            | JobType::Escort { .. }
-            | JobType::Neutralize { .. } => {
-                unreachable!("a hail job is a distress call or a supply job")
-            }
-        }
+        answer_caller(&mut commands, &mut jobs, &mut hold, job);
     }
 }
 
@@ -1340,7 +1379,7 @@ mod tests {
         },
         test_support::test_items,
     };
-    use nova_ship::prelude::DockingSectionMarker;
+    use nova_ship::prelude::{DockedHelmType, DockingConnection, DockingSectionMarker};
 
     use super::*;
 
@@ -1888,6 +1927,159 @@ mod tests {
         assert_eq!(credits(&app), 100 + job.reward.total_cr());
         let raised = app.world().resource::<Raised>();
         assert_eq!((raised.accepted, raised.handed_in), (1, 1));
+    }
+
+    /// Hold the player's clamp on `partner`.
+    fn clamp(app: &mut App, player: Entity, partner: Entity) {
+        let connection = app
+            .world_mut()
+            .spawn(DockingConnection {
+                first_ship: player,
+                first_section: player,
+                second_ship: partner,
+                second_section: partner,
+                helm: DockedHelmType::Neutral,
+                measurement_fault: false,
+            })
+            .id();
+        app.world_mut().entity_mut(player).insert(DockedShip {
+            connection,
+            helm: Quat::IDENTITY,
+            drives: false,
+        });
+    }
+
+    #[test]
+    fn a_dock_with_the_caller_accepts_a_standing_supply_offer_and_pays_it_with_the_goods_aboard() {
+        let (record_, job) = hailed_with("test/supply", HailJobType::Supply);
+        let JobType::Supply { item, count, .. } = job.kind.clone() else {
+            panic!("a supply hail offers a supply job, not {:?}", job.kind);
+        };
+        let (mut app, player) = app(record_);
+        app.add_observer(crate::jobs::supply_on_dock);
+        stand(&mut app, &job.id.poster, Meters3::new(6_000.0, 0.0, 0.0));
+        app.world_mut()
+            .get_mut::<ShipInventory>(player)
+            .unwrap()
+            .add(&test_items(), &item, count);
+
+        dock_with(&mut app, &job.id.poster);
+        let raised = app.world().resource::<Raised>();
+        assert_eq!((raised.accepted, raised.handed_in), (1, 1));
+        assert!(app.world().resource::<Jobs>().is_completed(&job.id));
+        assert_eq!(
+            app.world()
+                .get::<ShipInventory>(player)
+                .unwrap()
+                .count(&item),
+            0,
+            "the dock takes the stack once"
+        );
+        assert_eq!(
+            app.world().get::<ShipCredits>(player).unwrap().0,
+            100 + job.reward.total_cr()
+        );
+        assert!(record(&app).live.is_none());
+    }
+
+    #[test]
+    fn a_supply_job_a_short_dock_accepted_is_handed_in_while_that_dock_holds() {
+        let (record_, job) = hailed_with("test/supply", HailJobType::Supply);
+        let JobType::Supply { item, count, .. } = job.kind.clone() else {
+            panic!("a supply hail offers a supply job, not {:?}", job.kind);
+        };
+        let (mut app, player) = app(record_);
+        app.add_observer(crate::jobs::supply_on_dock);
+        let caller = stand(&mut app, &job.id.poster, Meters3::new(6_000.0, 0.0, 0.0));
+        let credits = |app: &App| app.world().get::<ShipCredits>(player).unwrap().0;
+        let hand_in = |app: &mut App| {
+            app.world_mut().write_message(HailAnswerCommand {
+                answer: HailAnswerType::HandIn,
+            });
+            app.update();
+            let answered: Vec<HailAnswered> = app
+                .world_mut()
+                .resource_mut::<Messages<HailAnswered>>()
+                .drain()
+                .collect();
+            assert_eq!(answered.len(), 1, "one answer for the one command");
+            assert_eq!(answered[0].answer, HailAnswerType::HandIn);
+            answered[0].taken
+        };
+
+        dock_with(&mut app, &job.id.poster);
+        clamp(&mut app, player, caller);
+        let jobs = app.world().resource::<Jobs>();
+        assert!(
+            jobs.holds(&job.id) && !jobs.is_done(&job.id),
+            "the dock accepts the offer and, the hold short, leaves the job open"
+        );
+        assert!(record(&app).offer.is_none() && record(&app).live.is_some());
+        assert_eq!(credits(&app), 100);
+
+        assert!(!hand_in(&mut app), "the hold is short");
+        assert!(app.world().resource::<Jobs>().holds(&job.id));
+        assert_eq!(credits(&app), 100);
+
+        app.world_mut()
+            .get_mut::<ShipInventory>(player)
+            .unwrap()
+            .add(&test_items(), &item, count);
+        assert!(hand_in(&mut app), "the goods came aboard while docked");
+        assert!(app.world().resource::<Jobs>().is_completed(&job.id));
+        assert_eq!(
+            app.world()
+                .get::<ShipInventory>(player)
+                .unwrap()
+                .count(&item),
+            0
+        );
+        assert_eq!(credits(&app), 100 + job.reward.total_cr());
+        assert!(record(&app).live.is_none());
+
+        assert!(!hand_in(&mut app), "no hail job is held");
+        assert_eq!(credits(&app), 100 + job.reward.total_cr());
+        let raised = app.world().resource::<Raised>();
+        assert_eq!((raised.accepted, raised.handed_in), (1, 1));
+    }
+
+    #[test]
+    fn a_held_hail_job_is_handed_in_only_while_docked_with_its_caller() {
+        let (record_, job) = hailed();
+        let (mut app, player) = app(record_);
+        let caller = stand(&mut app, &job.id.poster, Meters3::new(6_000.0, 0.0, 0.0));
+        let other = stand(&mut app, &body("wreck", 0), Meters3::new(0.0, 500.0, 0.0));
+        app.world_mut().write_message(HailAnswerCommand {
+            answer: HailAnswerType::Accept,
+        });
+        app.update();
+
+        app.world_mut().write_message(HailAnswerCommand {
+            answer: HailAnswerType::HandIn,
+        });
+        app.update();
+        assert!(app.world().resource::<Jobs>().holds(&job.id), "in space");
+
+        clamp(&mut app, player, other);
+        app.world_mut().write_message(HailAnswerCommand {
+            answer: HailAnswerType::HandIn,
+        });
+        app.update();
+        assert!(
+            app.world().resource::<Jobs>().holds(&job.id),
+            "docked with another hull"
+        );
+
+        clamp(&mut app, player, caller);
+        app.world_mut().write_message(HailAnswerCommand {
+            answer: HailAnswerType::HandIn,
+        });
+        app.update();
+        assert!(app.world().resource::<Jobs>().is_completed(&job.id));
+        assert_eq!(
+            app.world().get::<ShipCredits>(player).unwrap().0,
+            100 + job.reward.total_cr()
+        );
     }
 
     #[test]

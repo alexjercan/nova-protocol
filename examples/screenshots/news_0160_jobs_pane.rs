@@ -47,7 +47,7 @@ use clap::Parser;
 use nova_protocol::{
     nova_debug::harness::{AutopilotPlugin, Predicate},
     nova_interface::{
-        jobs::prelude::{JOBS_BOARD, JOBS_MILESTONE, JOB_ACCEPT_PREFIX, JOB_SHOW_ON_MAP},
+        jobs::prelude::{JOBS_AVAILABLE, JOBS_MILESTONE, JOB_ACCEPT_PREFIX, JOB_SHOW_ON_MAP},
         pane::InterfacePaneType,
     },
     prelude::*,
@@ -401,7 +401,7 @@ fn open_the_jobs_tab(script: AutopilotPlugin<GameStates>, at: &str) -> Autopilot
         "InterfaceTabJobs",
         and(
             the_interface_shows(InterfacePaneType::Jobs),
-            ui_node_present(JOBS_BOARD),
+            ui_node_present(JOBS_AVAILABLE),
         ),
         BEAT_SECS,
     )

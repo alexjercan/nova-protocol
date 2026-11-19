@@ -19,11 +19,12 @@
 //! | `5` | jump 1.5 km off the live encounter's first body |
 //! | `6` | jump 14 km on into open space |
 //!
-//! Try: `1`, then TAB > Jobs: the offer is the one row of the board, with its
-//! range, threat, reward and time left; Accept takes it and `X` declines it.
-//! `5`, fly to the caller and dock (or dock without Accept: the dock takes
-//! the offer): the job pays its reward at once and the notice reads
-//! `JOB-1 PAID <reward> CR`. `4`, `5`, fly in: within 1 km the `SIGNAL` chip
+//! Try: `1`, then TAB > Jobs: the offer is the one row under Available, with
+//! its range, threat, reward and time left; Accept moves it to Your jobs and
+//! `X` declines it. `5`, fly to the caller and dock (or dock without Accept:
+//! the dock takes the offer): the job pays its reward at once and the notice
+//! reads `JOB-1 PAID <reward> CR`. `2`, `5`, dock without the goods: the job
+//! is held, and its row under Your jobs shows Hand in while the dock holds. `4`, `5`, fly in: within 1 km the `SIGNAL` chip
 //! goes and the wreck stays to dock with. `3`, `5`: fight the raiders, or
 //! press `6` three times to leave them 30 km behind, which ends the ambush.
 //! The diagnostics panel (`F3`) reads the record: draws spent, travel
@@ -36,14 +37,19 @@
 //! With `NOVA_AUTOPILOT=1` a smoke walk presses `4` and reads the `SIGNAL`
 //! chip, jumps off the wreck and closes inside 1 km until the find ends;
 //! presses `3`, reads the raiders standing and hostile from where they wait
-//! and leaves them past 30 km until the ambush ends; presses `1`, reads the hail on the HUD and
-//! the offer row on the Jobs pane with its Accept and `X` inside the pane,
-//! accepts it, docks with the caller and reads the pay (the reward and no
-//! more, with no Station Control line); presses `2` and
-//! declines the supply offer with `X`. `NOVA_CAPTURE=1` shoots
+//! and leaves them past 30 km until the ambush ends. Before any hail it reads
+//! the Jobs pane with Available empty over Your jobs. It presses `1`, reads
+//! the hail on the HUD and the offer row under Available with its Accept and
+//! `X` inside the pane, accepts it, reads it under Your jobs, docks with the
+//! caller and reads the pay (the reward and no more, with no Station Control
+//! line); presses `1` again and docks with no Accept for the same pay;
+//! presses `2`, docks with the asked goods out of the hold, reads the held
+//! job's Hand in disabled, loads the goods and hands in for the pay; presses
+//! `2` again and declines the offer with `X`. `NOVA_CAPTURE=1` shoots
 //! `sandbox-encounter-signal.png`, `sandbox-encounter-ambush.png`,
-//! `sandbox-encounter-hail.png`, `sandbox-encounter-pane.png`,
-//! `sandbox-encounter-held.png` and `sandbox-encounter-paid.png`. Unset, no
+//! `sandbox-encounter-empty.png`, `sandbox-encounter-hail.png`,
+//! `sandbox-encounter-pane.png`, `sandbox-encounter-held.png`,
+//! `sandbox-encounter-paid.png` and `sandbox-encounter-short.png`. Unset, no
 //! walk and no deadline run.
 
 use avian3d::prelude::Position;
@@ -331,10 +337,14 @@ mod smoke {
     use nova_protocol::{
         nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
         nova_interface::{
-            jobs::prelude::{JOBS_PANE, JOB_ACCEPT_PREFIX, JOB_HAIL_DECLINE},
+            jobs::prelude::{
+                JOBS_AVAILABLE, JOBS_HELD, JOBS_PANE, JOB_ACCEPT_PREFIX, JOB_HAIL_DECLINE,
+                JOB_HAND_IN_PREFIX,
+            },
             pane::InterfacePaneType,
         },
     };
+    use nova_ui::prelude::VerbGate;
 
     use super::*;
 
@@ -348,7 +358,7 @@ mod smoke {
     const SETTLE_FRAMES: u32 = 10;
     /// The virtual clock's clamp on the software rasterizer.
     const WALK_CLOCK_SECS: f32 = 1.0;
-    /// The most a board row of one line stands high, in logical px: a list
+    /// The most a job row of one line stands high, in logical px: a list
     /// row, its border and layout rounding. A row that wrapped is two.
     const ROW_LINE_PX: f32 = 32.0;
     /// How far inside the derelict find's 1 km the walk closes.
@@ -361,6 +371,8 @@ mod smoke {
     const PANE_SHOT: &str = "sandbox-encounter-pane.png";
     const HELD_SHOT: &str = "sandbox-encounter-held.png";
     const PAID_SHOT: &str = "sandbox-encounter-paid.png";
+    const EMPTY_SHOT: &str = "sandbox-encounter-empty.png";
+    const SHORT_SHOT: &str = "sandbox-encounter-short.png";
     /// Who speaks the open world scenario's job lines. A hail job fires no
     /// job event, so the walk hears none.
     const STATION_CONTROL: &str = "Station Control";
@@ -368,6 +380,11 @@ mod smoke {
     /// The player's balance when the hail job was accepted.
     #[derive(Resource)]
     struct BalanceAtAccept(u32);
+
+    /// The goods the standing supply offer asks for, taken out of the hold
+    /// so the dock finds it short.
+    #[derive(Resource)]
+    struct AskedGoods(ItemDesignId, u32);
 
     fn credits(world: &World) -> u32 {
         let player = the_player(world).expect("encounter sandbox: one player ship");
@@ -385,7 +402,7 @@ mod smoke {
             .resource::<Jobs>()
             .completed()
             .iter()
-            .find(|job| job.id.is_hail())
+            .rfind(|job| job.id.is_hail())
             .expect("encounter sandbox: the hail job is completed")
             .reward
             .total_cr();
@@ -567,14 +584,53 @@ mod smoke {
             .add()
     }
 
+    fn open_the_jobs_pane(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+        tap(script, the_interface_shows(None)).click_named(
+            "encounter sandbox: open the Jobs tab",
+            "InterfaceTabJobs",
+            the_interface_shows(Some(InterfacePaneType::Jobs)),
+            BEAT_SECS,
+        )
+    }
+
+    /// How many job rows whose `Name` starts with `prefix` the pane draws.
+    fn rows(world: &World, prefix: &str) -> usize {
+        world.try_query::<&Name>().map_or(0, |mut names| {
+            names
+                .iter(world)
+                .filter(|name| name.starts_with(prefix))
+                .count()
+        })
+    }
+
+    /// The pane draws Available over Your jobs with `available` rows in the
+    /// first and `held` in the second.
+    fn the_split_lists(available: usize, held: usize) -> Arc<Predicate> {
+        when(move |world| {
+            let (Some(top), Some(under)) = (
+                ui_node_rect(world, JOBS_AVAILABLE),
+                ui_node_rect(world, JOBS_HELD),
+            ) else {
+                return false;
+            };
+            top.max.y <= under.min.y + 0.5
+                && rows(world, "JobRowPosted-") == available
+                && rows(world, "JobRowHeld-") == held
+        })
+    }
+
+    /// How the held row's Hand in answers a press, while the pane draws one.
+    fn hand_in_gate(world: &World) -> Option<VerbGate> {
+        let hand_in = format!("{JOB_HAND_IN_PREFIX}0");
+        world
+            .try_query::<(&Name, &VerbGate)>()?
+            .iter(world)
+            .find(|(name, _)| name.as_str() == hand_in)
+            .map(|(_, gate)| gate.clone())
+    }
+
     fn open_the_jobs_tab(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
-        tap(script, the_interface_shows(None))
-            .click_named(
-                "encounter sandbox: open the Jobs tab",
-                "InterfaceTabJobs",
-                the_interface_shows(Some(InterfacePaneType::Jobs)),
-                BEAT_SECS,
-            )
+        open_the_jobs_pane(script)
             .step("encounter sandbox: the pane lists the offer")
             .until(and(
                 ui_node_present(format!("{JOB_ACCEPT_PREFIX}0")),
@@ -601,11 +657,19 @@ mod smoke {
             .add()
     }
 
-    /// The offer row is one line and its two buttons stand inside the pane.
+    /// The offer is the one row of Available and no held row, it is one
+    /// line and its two buttons stand inside the pane.
     fn assert_the_offer_row(world: &mut World) {
         assert!(
             !docked(world),
             "encounter sandbox: the pane is read undocked"
+        );
+        assert!(
+            the_split_lists(1, 0)(world),
+            "encounter sandbox: the offer is under Available and not under Your jobs: {} \
+             available, {} held",
+            rows(world, "JobRowPosted-"),
+            rows(world, "JobRowHeld-")
         );
         let rect = |name: &str| {
             ui_node_rect(world, name)
@@ -634,6 +698,109 @@ mod smoke {
         );
     }
 
+    /// Jump off the caller and dock with it.
+    fn dock_with_the_caller(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+        key(script, "5, the jump", JUMP_KEY, frames(SETTLE_FRAMES))
+            .step("encounter sandbox: berth and dock with the caller")
+            .each(|world, _, _| {
+                // The dock pays the job and ends the record on the frame it
+                // takes, before this step reads the dock.
+                if let Some(caller) = bodies(world).first().copied() {
+                    berth_and_dock(world, caller);
+                }
+            })
+            .until(when(docked))
+            .diagnose(describe)
+            .deadline(SETUP_SECS)
+            .add()
+    }
+
+    /// Hail job `paid` is paid, counted from the first the walk was paid
+    /// for: read the pay.
+    fn be_paid(script: AutopilotPlugin<GameStates>, paid: usize) -> AutopilotPlugin<GameStates> {
+        script
+            .step("encounter sandbox: the job pays")
+            .until(and(
+                nothing_is_live(),
+                when(move |world| {
+                    world
+                        .resource::<Jobs>()
+                        .completed()
+                        .iter()
+                        .filter(|job| job.id.is_hail())
+                        .count()
+                        == paid
+                        && notice(world).contains("PAID")
+                }),
+            ))
+            .diagnose(describe)
+            .deadline(BEAT_SECS)
+            .add()
+            // Before any shot: the notice fades four seconds after it posts.
+            .step("encounter sandbox: assert the pay")
+            .on_enter(assert_the_pay)
+            .add()
+    }
+
+    /// Note the balance with the offer standing and no job held: what comes
+    /// next answers the hail by the dock alone.
+    fn note_the_standing_offer(world: &mut World) {
+        assert!(
+            record(world).offer.is_some() && world.resource::<Jobs>().held().is_empty(),
+            "encounter sandbox: the offer stands and no job is held"
+        );
+        let balance = credits(world);
+        world.insert_resource(BalanceAtAccept(balance));
+    }
+
+    /// Take every unit the standing supply offer asks for out of the hold.
+    fn unload_the_asked_goods(world: &mut World) {
+        let offer = record(world).offer.clone();
+        let Some(JobType::Supply { item, count, .. }) = offer.map(|offer| offer.job.kind) else {
+            panic!("encounter sandbox: the supply hail offers a supply job");
+        };
+        let player = the_player(world).expect("encounter sandbox: one player ship");
+        let mut hold = world
+            .get_mut::<ShipInventory>(player)
+            .expect("encounter sandbox: the player has a hold");
+        let aboard = hold.count(&item);
+        if aboard > 0 {
+            hold.remove(&item, aboard);
+        }
+        world.insert_resource(AskedGoods(item, count));
+    }
+
+    /// Put the asked goods in the hold, as a trade while docked would.
+    fn load_the_asked_goods(world: &mut World) {
+        let AskedGoods(item, count) = world
+            .remove_resource::<AskedGoods>()
+            .expect("encounter sandbox: the asked goods were noted");
+        let items = world.resource::<GameItems>().clone();
+        let player = the_player(world).expect("encounter sandbox: one player ship");
+        world
+            .get_mut::<ShipInventory>(player)
+            .expect("encounter sandbox: the player has a hold")
+            .add(&items, &item, count);
+    }
+
+    /// Let go of the caller and stand in open space again.
+    fn stand_off(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+        script
+            .step("encounter sandbox: undock")
+            .on_enter(|world: &mut World| {
+                let player = the_player(world).expect("encounter sandbox: one player ship");
+                world.trigger(DockingReleaseRequest { entity: player });
+            })
+            .until(when(|world| !docked(world)))
+            .deadline(SETUP_SECS)
+            .add()
+            .step("encounter sandbox: stand in open space again")
+            .on_enter(leave)
+            .until(when(window_streamed))
+            .deadline(SETUP_SECS)
+            .add()
+    }
+
     /// The walk. Unarmed (no `NOVA_AUTOPILOT`) it adds nothing.
     pub(super) fn script() -> AutopilotPlugin<GameStates> {
         let script = AutopilotPlugin::<GameStates>::new();
@@ -648,6 +815,23 @@ mod smoke {
             ))
             .deadline(SETUP_SECS)
             .add();
+
+        // No hail yet: the pane still splits, with nothing under Available.
+        let script = open_the_jobs_pane(script)
+            .step("encounter sandbox: Available is empty over Your jobs")
+            .until(and(the_split_lists(0, 0), frames(SETTLE_FRAMES)))
+            .diagnose(|world| {
+                format!(
+                    "Available {:?}, Your jobs {:?}, {} available, {} held",
+                    ui_node_rect(world, JOBS_AVAILABLE),
+                    ui_node_rect(world, JOBS_HELD),
+                    rows(world, "JobRowPosted-"),
+                    rows(world, "JobRowHeld-")
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add();
+        let script = tap(shot(script, EMPTY_SHOT), unpaused());
 
         // The derelict find.
         let script = key(
@@ -776,6 +960,15 @@ mod smoke {
             ))
             .diagnose(describe)
             .deadline(BEAT_SECS)
+            .add()
+            .step("encounter sandbox: the accepted job is under Your jobs")
+            .until(and(
+                the_split_lists(0, 1),
+                // In space the caller is not docked with: no Hand in.
+                when(|world| hand_in_gate(world) == Some(VerbGate::Hidden)),
+            ))
+            .diagnose(describe)
+            .deadline(BEAT_SECS)
             .add();
         let script = shot(script, HELD_SHOT)
             .step("encounter sandbox: note the balance")
@@ -785,52 +978,82 @@ mod smoke {
             })
             .add();
         let script = tap(script, unpaused());
-        let script = key(script, "5, the jump", JUMP_KEY, frames(SETTLE_FRAMES))
-            .step("encounter sandbox: berth and dock with the caller")
-            .each(|world, _, _| {
-                // The dock pays the job and ends the record on the frame it
-                // takes, before this step reads the dock.
-                if let Some(caller) = bodies(world).first().copied() {
-                    berth_and_dock(world, caller);
-                }
-            })
-            .until(when(docked))
-            .diagnose(describe)
-            .deadline(SETUP_SECS)
-            .add()
-            .step("encounter sandbox: the dock pays")
-            .until(and(
-                nothing_is_live(),
-                when(|world| {
-                    world
-                        .resource::<Jobs>()
-                        .completed()
+        let script = shot(be_paid(dock_with_the_caller(script), 1), PAID_SHOT);
+        let script = stand_off(script);
+
+        // The distress hail again, answered by the dock alone: no Accept.
+        let script = key(
+            script,
+            "1, the distress hail",
+            KeyCode::Digit1,
+            and(live_is("base/distress_call"), the_chip_shows(HAIL_CHIP)),
+        )
+        .step("encounter sandbox: note the balance with the offer standing")
+        .on_enter(note_the_standing_offer)
+        .add();
+        let script = stand_off(be_paid(dock_with_the_caller(script), 2));
+
+        // The supply hail, taken by a dock with the hold short and handed
+        // in from the pane once the goods are aboard, on that same dock.
+        let script = key(
+            script,
+            "2, the supply hail",
+            KeyCode::Digit2,
+            and(live_is("base/supply_call"), the_chip_shows(HAIL_CHIP)),
+        )
+        .step("encounter sandbox: take the asked goods out of the hold")
+        .on_enter(|world: &mut World| {
+            note_the_standing_offer(world);
+            unload_the_asked_goods(world);
+        })
+        .add();
+        let script = dock_with_the_caller(script)
+            .step("encounter sandbox: the short dock holds the job and pays nothing")
+            .until(when(|world| {
+                let jobs = world.resource::<Jobs>();
+                record(world).offer.is_none()
+                    && jobs
+                        .held()
                         .iter()
-                        .any(|job| job.id.is_hail())
-                        && notice(world).contains("PAID")
-                }),
+                        .any(|job| job.id.is_hail() && !jobs.is_done(&job.id))
+                    && notice(world).contains("SHORT")
+                    && credits(world) == world.resource::<BalanceAtAccept>().0
+            }))
+            .diagnose(describe)
+            .deadline(BEAT_SECS)
+            .add();
+        let script = open_the_jobs_pane(script)
+            .step("encounter sandbox: the held job's Hand in is disabled")
+            .until(and(
+                and(
+                    the_split_lists(0, 1),
+                    when(|world| hand_in_gate(world) == Some(VerbGate::Disabled)),
+                ),
+                frames(SETTLE_FRAMES),
+            ))
+            .diagnose(describe)
+            .deadline(BEAT_SECS)
+            .add();
+        let script = shot(script, SHORT_SHOT)
+            .step("encounter sandbox: load the asked goods")
+            .on_enter(load_the_asked_goods)
+            .until(and(
+                when(|world| hand_in_gate(world) == Some(VerbGate::Ready)),
+                frames(SETTLE_FRAMES),
             ))
             .diagnose(describe)
             .deadline(BEAT_SECS)
             .add()
-            // Before the shot: the notice fades four seconds after it posts.
-            .step("encounter sandbox: assert the pay")
-            .on_enter(assert_the_pay)
-            .add();
-        let script = shot(script, PAID_SHOT)
-            .step("encounter sandbox: undock")
+            .step("encounter sandbox: click Hand in")
             .on_enter(|world: &mut World| {
-                let player = the_player(world).expect("encounter sandbox: one player ship");
-                world.trigger(DockingReleaseRequest { entity: player });
+                assert!(docked(world), "encounter sandbox: the dock still holds");
+                activate_named(world, &format!("{JOB_HAND_IN_PREFIX}0"));
             })
-            .until(when(|world| !docked(world)))
-            .deadline(SETUP_SECS)
-            .add()
-            .step("encounter sandbox: stand in open space again")
-            .on_enter(leave)
-            .until(when(window_streamed))
-            .deadline(SETUP_SECS)
+            .until(the_split_lists(0, 0))
+            .diagnose(describe)
+            .deadline(BEAT_SECS)
             .add();
+        let script = stand_off(tap(be_paid(script, 3), unpaused()));
 
         // The supply hail, declined.
         let script = key(

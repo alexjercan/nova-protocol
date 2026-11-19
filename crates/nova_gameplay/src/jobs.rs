@@ -35,8 +35,9 @@
 //! Accept and Hand in. Both happen docked only ([`plan_job_accept`],
 //! [`plan_job_hand_in`]), but for a job a hull offers in space
 //! ([`JobSourceType::Hail`]): its poster is that hull, it is accepted where
-//! the hull hails ([`plan_hail_accept`]) and paid where it is done
-//! ([`plan_hail_pay`]). Every job asks something of the hull
+//! the hull hails ([`plan_hail_accept`]), done on the dock with that hull,
+//! or by a hand-in while that dock holds ([`plan_hail_hand_in`]), and paid
+//! where it is done ([`plan_hail_pay`]). Every job asks something of the hull
 //! ([`plan_job_hull_fit`]): the starting station's board
 //! ([`StarterBoardMarker`]) lists only the jobs the current hull can do, and a
 //! renewal there keeps one such offer open while a slot renews; every other
@@ -84,17 +85,18 @@ use crate::{
 pub mod prelude {
     pub use super::{
         escort_raider_counts, escort_raider_size, escort_raider_weapons, is_job_post_key,
-        job_reward, job_title, offer_deadline_text, plan_hail_accept, plan_hail_pay,
-        plan_job_accept, plan_job_hand_in, plan_job_hull_fit, plan_job_offer_refresh,
-        plan_job_supply, station_job_offers, EscortLeg, HailAcceptRefusalType, HailPayPlan, Job,
-        JobAcceptRefusalType, JobAccepted, JobBoard, JobDone, JobDropped, JobField,
-        JobHandInPartner, JobHandInPlan, JobHandInRefusalType, JobHandedIn, JobHull, JobHullFit,
-        JobHullRefusalType, JobId, JobMixType, JobOfferRefreshPlan, JobOfferRefreshRefusalType,
-        JobPostings, JobReward, JobSourceType, JobType, JobWreck, Jobs, ScenarioPosting,
-        ShipSizeType, SlotPosting, StarterBoardMarker, SupplyFramingType, SupplyRefusalType,
-        SupplyRefused, VisitPosting, ESCORT_LEG_M, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, JOB_LEG_M,
-        JOB_LEG_STEP_M, JOB_OFFER_REFRESH_FEE_CR, JOB_RANGE_CR_PER_KM, JOB_THREAT_CR_PER_WEAPON,
-        RECOVER_GOODS_CAP_CR, SUPPLY_MASS_CAP_G, VISIT_EXTRAS_MAX, VISIT_EXTRA_OFFER_SECONDS,
+        job_reward, job_title, offer_deadline_text, plan_hail_accept, plan_hail_hand_in,
+        plan_hail_pay, plan_job_accept, plan_job_hand_in, plan_job_hull_fit,
+        plan_job_offer_refresh, plan_job_supply, station_job_offers, EscortLeg,
+        HailAcceptRefusalType, HailPayPlan, Job, JobAcceptRefusalType, JobAccepted, JobBoard,
+        JobDone, JobDropped, JobField, JobHandInPartner, JobHandInPlan, JobHandInRefusalType,
+        JobHandedIn, JobHull, JobHullFit, JobHullRefusalType, JobId, JobMixType,
+        JobOfferRefreshPlan, JobOfferRefreshRefusalType, JobPostings, JobReward, JobSourceType,
+        JobType, JobWreck, Jobs, ScenarioPosting, ShipSizeType, SlotPosting, StarterBoardMarker,
+        SupplyFramingType, SupplyRefusalType, SupplyRefused, VisitPosting, ESCORT_LEG_M,
+        ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, JOB_LEG_M, JOB_LEG_STEP_M, JOB_OFFER_REFRESH_FEE_CR,
+        JOB_RANGE_CR_PER_KM, JOB_THREAT_CR_PER_WEAPON, RECOVER_GOODS_CAP_CR, SUPPLY_MASS_CAP_G,
+        VISIT_EXTRAS_MAX, VISIT_EXTRA_OFFER_SECONDS,
     };
 }
 
@@ -2934,6 +2936,54 @@ pub fn plan_hail_pay(
     Ok(HailPayPlan { reward_cr, own_cr })
 }
 
+/// Plan handing the held, undone hail job `job` in from `hold` while docked
+/// with the body `docked`, `None` while the ship is docked with nothing: the
+/// work the dock with the caller does, asked for again while that dock
+/// holds, so goods that came aboard after the clamp closed need no second
+/// dock. A distress call asks nothing more; a supply job asks its whole
+/// stack ([`plan_job_supply`]). A refusal changes nothing:
+/// [`JobHandInRefusalType::NotDocked`] for a job no hull hailed with and
+/// while docked with nothing, [`JobHandInRefusalType::WrongStation`] docked
+/// with any body but the caller and [`JobHandInRefusalType::ShortItems`]
+/// while the hold is short. Allowed, the open world does the job and pays
+/// it ([`plan_hail_pay`]).
+///
+/// # Panics
+///
+/// When a hail job is neither a distress call nor a supply job
+/// ([`Job::validate`] refuses one).
+pub fn plan_hail_hand_in(
+    job: &Job,
+    docked: Option<&GeneratedBodyId>,
+    hold: &ShipInventory,
+) -> Result<(), JobHandInRefusalType> {
+    if !job.id.is_hail() {
+        return Err(JobHandInRefusalType::NotDocked);
+    }
+    let docked = docked.ok_or(JobHandInRefusalType::NotDocked)?;
+    if *docked != job.id.poster {
+        return Err(JobHandInRefusalType::WrongStation {
+            needed: job.id.poster.clone(),
+        });
+    }
+    match &job.kind {
+        JobType::Distress { .. } => Ok(()),
+        JobType::Supply { item, count, .. } => {
+            plan_job_supply(hold, item, *count).map_err(|refusal| match refusal {
+                SupplyRefusalType::ShortItems { item, need, have } => {
+                    JobHandInRefusalType::ShortItems { item, need, have }
+                }
+            })
+        }
+        JobType::Procure { .. }
+        | JobType::Recover { .. }
+        | JobType::Escort { .. }
+        | JobType::Neutralize { .. } => {
+            unreachable!("a hail job is a distress call or a supply job")
+        }
+    }
+}
+
 /// The docked station a hand-in reads: its id and its balance.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JobHandInPartner {
@@ -5638,6 +5688,48 @@ mod tests {
                 needed: caller_hull(),
             }),
             "no station hands a hail job in"
+        );
+    }
+
+    #[test]
+    fn a_hail_job_is_handed_in_only_docked_with_its_caller_with_the_whole_stack_aboard() {
+        let items = catalog();
+        let rations = ItemDesignId::from("Rations");
+        let short = ShipInventory::new(&items, 1_000_000, [(rations.clone(), 3)]);
+        let full = ShipInventory::new(&items, 1_000_000, [(rations.clone(), 4)]);
+        let caller = caller_hull();
+        let supply = hail_supply(0);
+
+        assert_eq!(
+            plan_hail_hand_in(&supply, None, &full),
+            Err(JobHandInRefusalType::NotDocked)
+        );
+        assert_eq!(
+            plan_hail_hand_in(&supply, Some(&station(1)), &full),
+            Err(JobHandInRefusalType::WrongStation {
+                needed: caller.clone(),
+            }),
+            "a dock with another body hands nothing in"
+        );
+        assert_eq!(
+            plan_hail_hand_in(&supply, Some(&caller), &short),
+            Err(JobHandInRefusalType::ShortItems {
+                item: rations,
+                need: 4,
+                have: 3,
+            })
+        );
+        assert_eq!(plan_hail_hand_in(&supply, Some(&caller), &full), Ok(()));
+        assert_eq!(
+            plan_hail_hand_in(&hail_distress(1), Some(&caller), &short),
+            Ok(()),
+            "a distress call asks no goods"
+        );
+        let poster = station(1);
+        assert_eq!(
+            plan_hail_hand_in(&scenario_job(&poster, "walk"), Some(&poster), &full),
+            Err(JobHandInRefusalType::NotDocked),
+            "a station job hands in at its station"
         );
     }
 }

@@ -158,8 +158,8 @@ fn poster_civilization(
     CivilizationField::new(civilization.world_seed).civilization(civilization.node)
 }
 
-/// The player's hull as the jobs read it: its live sections, its hold and
-/// where it stands. The starter board's draw and the Jobs pane's gate share
+/// The player's hull as the jobs read it: its live sections, its hold,
+/// where it stands and what it is docked with. The starter board's draw and the Jobs pane's gate share
 /// this one read, so the offer a draw assures is the one the pane lists.
 #[derive(SystemParam)]
 pub struct PlayerHull<'w, 's> {
@@ -170,9 +170,12 @@ pub struct PlayerHull<'w, 's> {
             Entity,
             &'static GlobalTransform,
             Option<&'static ShipInventory>,
+            Option<&'static DockedShip>,
         ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
+    connections: Query<'w, 's, &'static DockingConnection>,
+    bodies: Query<'w, 's, &'static GeneratedBodyId>,
     sections: Query<
         'w,
         's,
@@ -190,14 +193,28 @@ pub struct PlayerHull<'w, 's> {
 impl PlayerHull<'_, '_> {
     /// The player ship's root, while one stands.
     pub fn entity(&self) -> Option<Entity> {
-        self.player.single().ok().map(|(player, _, _)| player)
+        self.player.single().ok().map(|(player, ..)| player)
+    }
+
+    /// The generated body the player ship is docked with: a station, or a
+    /// hull such as a job's caller. `None` while it is docked with nothing
+    /// or with a body no cell generated.
+    pub fn docked_with(&self) -> Option<&GeneratedBodyId> {
+        let (player, _, _, docked) = self.player.single().ok()?;
+        let connection = self.connections.get(docked?.connection).ok()?;
+        let partner = if connection.first_ship == player {
+            connection.second_ship
+        } else {
+            connection.first_ship
+        };
+        self.bodies.get(partner).ok()
     }
 
     /// What the hull can do: its hold's capacity and whether a live docking
     /// section and a live weapon section stand on it. A scene with no player
     /// ship fits nothing.
     pub fn fit(&self) -> JobHullFit {
-        let Ok((player, _, hold)) = self.player.single() else {
+        let Ok((player, _, hold, _)) = self.player.single() else {
             return JobHullFit::default();
         };
         let mut fit = JobHullFit {
@@ -218,7 +235,7 @@ impl PlayerHull<'_, '_> {
     /// The cell the player ship stands in, on a streamed world of cell
     /// `edge`.
     pub fn cell(&self, edge: Option<Meters>) -> Option<SectorCoord> {
-        let (_, transform, _) = self.player.single().ok()?;
+        let (_, transform, ..) = self.player.single().ok()?;
         Some(SectorCoord::containing(
             Meters3::from_engine(transform.translation()),
             edge?,

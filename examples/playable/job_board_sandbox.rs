@@ -12,10 +12,10 @@
 //! board.
 //!
 //! Try: click a row and read it in the inspector, Accept it, close the
-//! interface with TAB, undock, open TAB > Jobs: the board and Hand in are
-//! gone, and selecting the held row reads where it hands in; Show on Map opens
-//! the Map's chart view on the job's mark, `JOB-1` in the cell of the body
-//! it is about. A procurement hands in at once: dock again and Hand in, the
+//! interface with TAB, undock, open TAB > Jobs: Available lists no row and
+//! Hand in is gone, and selecting the held row reads where it hands in; Show
+//! on Map opens the Map's chart view on the job's mark, `JOB-1` in the cell
+//! of the body it is about. A procurement hands in at once: dock again and Hand in, the
 //! goods leave the hold, the payout sound plays, the balance in the pane head
 //! counts up to the reward with `+<reward>` beside it, and after TAB the HUD
 //! notice reads `JOB-1 PAID <reward> CR`. A located job
@@ -913,7 +913,7 @@ mod smoke {
     /// title, and its Accept lies inside the board panel.
     fn board_rows_fit() -> Arc<Predicate> {
         when(|world| {
-            let Some(board) = ui_node_rect(world, JOBS_BOARD) else {
+            let Some(board) = ui_node_rect(world, JOBS_AVAILABLE) else {
                 return false;
             };
             let rows = named_count(world, "JobRowPosted-");
@@ -1135,7 +1135,7 @@ mod smoke {
             .diagnose(|world| {
                 format!(
                     "board {:?}, row 0 {:?}, Accept 0 {:?}",
-                    ui_node_rect(world, JOBS_BOARD),
+                    ui_node_rect(world, JOBS_AVAILABLE),
                     ui_node_rect(world, "JobRowPosted-0"),
                     ui_node_rect(world, "JobAccept-0")
                 )
@@ -1214,7 +1214,10 @@ mod smoke {
             "InterfaceTabJobs",
             and(
                 and(
-                    ui_node_absent(JOBS_BOARD),
+                    and(
+                        ui_node_present(JOBS_AVAILABLE),
+                        ui_node_absent("JobRowPosted-0"),
+                    ),
                     and(
                         ui_node_present("JobRowHeld-0"),
                         // Hidden, not despawned: it holds no laid-out rect.
@@ -1334,7 +1337,10 @@ mod smoke {
             "job sandbox: open the Jobs tab",
             "InterfaceTabJobs",
             and(
-                and(ui_node_present(JOBS_BOARD), ui_node_present("JobHandIn-0")),
+                and(
+                    ui_node_present(JOBS_AVAILABLE),
+                    ui_node_present("JobHandIn-0"),
+                ),
                 and(
                     a_text_reads(|text| text.contains("HAND IN HERE")),
                     frames(SETTLE_FRAMES),

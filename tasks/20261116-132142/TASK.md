@@ -150,3 +150,24 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
   single raider can neutralize an idle hull fast at 1.5 km.
 - Later: planet activity, a convoy under attack, stance merit for a hail
   job, scenario events for hail jobs.
+
+## Owner revision after play (2026-11-19)
+- Owner: the Jobs pane always shows the split of two lists, docked or
+  not. "Board" is renamed "Available"; it holds what the player can take
+  now (the docked station's jobs, a standing hail offer). An offer is
+  never under "Your jobs" until taken; Accept and X work with no dock;
+  the dock with the caller takes it.
+- Landed: both panels always draw; a hail offer is the first Available
+  row, also while docked at a station; an empty Available keeps its
+  column heads. A held Supply hail gains Hand in while docked with its
+  caller (before, it needed an undock and a new dock).
+- Cause of the owner report: undocked with no offer the pane drew "Your
+  jobs" alone. The offer with Accept while docked with the caller was not
+  reproduced: the dock-alone walk step and its ECS tests pass on the
+  unchanged dock path. Likely the sandbox: a new hail fired while still
+  docked with an earlier, paid caller.
+- Verified: pane and hail tests; `encounter_sandbox` at 1280x720 and
+  1024x768 (three pays: Accept in space, dock alone, short Supply then
+  Hand in), `system_encounters` through the probe, `system_station_jobs`,
+  `job_board_sandbox`; frames read. Not verified: hand play; an offer
+  listed with station jobs in a live frame (ECS test only).

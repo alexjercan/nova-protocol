@@ -19,7 +19,8 @@
 //! director that advances it and puts the bodies in the world.
 //!
 //! [`plan_hail_offer`] draws the job a hailing hull offers. The player
-//! answers a standing offer with a [`HailAnswerCommand`]; the director
+//! answers a standing offer, and hands its held job in, with a
+//! [`HailAnswerCommand`]; the director
 //! raises [`HailRaised`] when a hull hails, and a [`EncounterFireCommand`]
 //! asks it for a named encounter at once.
 
@@ -503,17 +504,23 @@ impl Encounters {
     }
 }
 
-/// What the player answers a standing hail offer with.
+/// What the player answers a hail with: the standing offer, or the held job
+/// it became.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HailAnswerType {
     /// Take the offered job.
     Accept,
     /// Refuse it: the offer ends and the hull stays where it is.
     Decline,
+    /// Hand the held hail job in while docked with its caller
+    /// ([`plan_hail_hand_in`](crate::jobs::prelude::plan_hail_hand_in)): the
+    /// work that dock does, asked for again while it holds.
+    HandIn,
 }
 
-/// The player's answer to the standing hail offer. The open world's
-/// director reads it; with no offer standing it changes nothing.
+/// The player's answer to a hail. The open world's director reads it; an
+/// accept or a decline with no offer standing, and a hand-in with no held
+/// hail job, change nothing.
 #[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HailAnswerCommand {
     /// The answer.
@@ -526,8 +533,9 @@ pub struct HailAnswerCommand {
 pub struct HailAnswered {
     /// The answer the command gave.
     pub answer: HailAnswerType,
-    /// Whether it was taken: the job is held, or the offer is declined. A
-    /// refused accept and a command with no offer standing are not.
+    /// Whether it was taken: the job is held, the offer is declined, or the
+    /// held job is done. A refused accept or hand-in and a command with
+    /// nothing to answer are not.
     pub taken: bool,
 }
 

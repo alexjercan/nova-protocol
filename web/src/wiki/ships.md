@@ -121,7 +121,7 @@ An encounter stands on your line of flight, 30 seconds of flight ahead, not near
 | Ambush | raiders that wait for you, as many and as large as an escort job's raiders in that space. An unarmed ship meets none | every raider is neutralized or destroyed, or you are more than 30 km from all of them |
 | Derelict find | one civilian wreck with a gold `SIGNAL` chip and its distance | you come within 1 km of it |
 
-A hail reaches you three ways: the caller's line on [comms](../hud/#comms-and-objectives), a `HAIL <NAME>` [HUD notice](../hud/#flight-readouts), and a gold `HAIL` chip with the distance on the caller. The job is one row on the **Board** of the [Jobs pane](../interface/#jobs) while you are undocked, with **Accept** and an `X` that declines it. A dock with the caller while the offer stands accepts the job. The job is done and paid on the dock, in space: there is no station hand-in. An ambush sends no message: its raiders show as hostile contacts.
+A hail reaches you three ways: the caller's line on [comms](../hud/#comms-and-objectives), a `HAIL <NAME>` [HUD notice](../hud/#flight-readouts), and a gold `HAIL` chip with the distance on the caller. The job is one row under **Available** on the [Jobs pane](../interface/#jobs), with **Accept** and an `X` that declines it; both work with no dock. A dock with the caller while the offer stands accepts the job. The job is done and paid on the dock, in space: there is no station hand-in. An ambush sends no message: its raiders show as hostile contacts.
 
 When an encounter ends, its hulls stay in the world. The world seed fixes which encounter comes when, and a saved world keeps the count of encounters, the travel so far, a standing offer and a live encounter: a Load brings them back.
 

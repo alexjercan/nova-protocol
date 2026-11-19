@@ -1,27 +1,30 @@
-//! The TAB interface's Jobs pane: the jobs the player holds, always, and
-//! the docked station's board.
+//! The TAB interface's Jobs pane: the jobs the player can take now, and
+//! the jobs the player holds.
 //!
-//! The pane is one row: a column of panels and an inspector beside it.
-//! Docked at a living station that offers Jobs, the column starts with the
-//! station's Board: one row per offer the player neither holds nor completed
-//! and whose window has not passed, as kind icon | title | reward | time-left
-//! meter with its minutes | Accept `X`. Away from such a station the board is
-//! not drawn; the pane head's mode tags say where the player is. Every offer
-//! asks something of the hull ([`plan_job_hull_fit`]): the starting station's
+//! The pane is one row: a column of panels and an inspector beside it. The
+//! column is always two panels, docked or not. "Available" lists the jobs
+//! the player can take now, under its column heads: the standing hail offer
+//! ([`Encounters::offer`]), then, docked at a living station that offers
+//! Jobs, one row per offer of its board the player neither holds nor
+//! completed and whose window has not passed, as kind icon | title | reward
+//! | time-left meter with its minutes | Accept `X`. With nothing to take the
+//! panel keeps its title and column heads over no row. Every offer asks
+//! something of the hull ([`plan_job_hull_fit`]): the starting station's
 //! board ([`StarterBoardMarker`]) leaves out what the hull cannot do; every
 //! other board lists it with Accept disabled and one tag word for the part
-//! the hull lacks, as it tags an offer whose target is gone. Under it, docked
-//! or not, "Your jobs" lists every held job as kind icon | title | `have /
-//! need` meter | hand-in | Hand in `X`. The hand-in column reads HAND IN HERE
-//! docked at the job's target, else blank; Hand in is hidden elsewhere, and
-//! disabled with the short count painted Danger while the work or the hold
-//! is short. Under the held table head, one row reads the start role's goal:
-//! its title, its next unmet line ([`open_objectives`]) and a `have / need`
-//! meter, or the play time the goal was met; a role with no goal has no row.
-//! An empty list draws nothing. Clicking a job row selects it and the
-//! inspector reads its task, its target, its hand-in station, its reward, its
-//! time left or progress and a Show on Map button, which opens the Map's
-//! chart view on the job's mark ([`MapRuntime::chart_show`]).
+//! the hull lacks, as it tags an offer whose target is gone. Under it "Your
+//! jobs" lists every held job as kind icon | title | `have / need` meter |
+//! hand-in | Hand in `X`. The hand-in column reads HAND IN HERE docked at
+//! the job's target, else blank; Hand in is hidden elsewhere, and disabled
+//! with the short count painted Danger while the work or the hold is short.
+//! Under the held table head, one row reads the start role's goal: its
+//! title, its next unmet line ([`open_objectives`]) and a `have / need`
+//! meter, or the play time the goal was met; a role with no goal has no row,
+//! and with no goal and no held job the panel is its title alone. Clicking a
+//! job row selects it and the inspector reads its task, its target, its
+//! hand-in station, its reward, its time left or progress and a Show on Map
+//! button, which opens the Map's chart view on the job's mark
+//! ([`MapRuntime::chart_show`]).
 //!
 //! A click on Accept or Hand in raises a [`JobAcceptCommand`] or a
 //! [`JobHandInCommand`]; [`apply_job_commands`] plans it with
@@ -56,15 +59,20 @@
 //! an accept the same frame raises by holding the job first, changes
 //! nothing and plays the deny sound.
 //!
-//! In space, away from a station that posts jobs, a standing hail offer
-//! ([`Encounters::offer`]) is the Board's one row, with the same cells: its
-//! window counts down from [`HAIL_OFFER_SECONDS`], Accept is gated by
-//! [`plan_hail_accept`] with the board's tags, and its `X` declines at one
-//! click, with no fee and no confirm. Accept and `X` raise a
-//! [`HailAnswerCommand`], which the open world's encounter director
-//! answers; its [`HailAnswered`] plays the one cue. A hail job, offered or
-//! held, names its caller as target and hand-in: it is done and paid on the
-//! dock with that hull, so its held row never shows Hand in.
+//! A standing hail offer is the first row of Available, in space and
+//! docked, with a board row's cells: its window counts down from
+//! [`HAIL_OFFER_SECONDS`], Accept is gated by [`plan_hail_accept`] with the
+//! board's tags, and its `X` declines at one click, with no fee and no
+//! confirm. Accept and `X` raise a [`HailAnswerCommand`], which the open
+//! world's encounter director answers; its [`HailAnswered`] plays the one
+//! cue. The offer is never a held row: the accept, by the press or by the
+//! dock with the caller, moves it to "Your jobs". A hail job, offered or
+//! held, names its caller as target and hand-in: the dock with that hull
+//! does and pays it. While that dock holds, its held row reads HAND IN HERE
+//! and shows Hand in ([`plan_hail_hand_in`]), disabled with the count
+//! painted Danger while a supply job's goods are short: the press raises the
+//! hand-in answer, so goods that came aboard after the clamp closed need no
+//! second dock. The paid line on the HUD plays that payout's sound.
 //!
 //! Touch this module when changing what the lists show, what gates an
 //! offer, or what a hand-in moves.
@@ -99,16 +107,15 @@ use crate::{
 /// Glob-import surface: `use nova_interface::jobs::prelude::*`.
 pub mod prelude {
     pub use super::{
-        JobAcceptCommand, JobHandInCommand, JobsRuntime, JOBS_BOARD, JOBS_HELD, JOBS_MILESTONE,
+        JobAcceptCommand, JobHandInCommand, JobsRuntime, JOBS_AVAILABLE, JOBS_HELD, JOBS_MILESTONE,
         JOBS_PANE, JOB_ACCEPT_PREFIX, JOB_HAIL_DECLINE, JOB_HAND_IN_PREFIX, JOB_SHOW_ON_MAP,
     };
 }
 
 /// The `Name` of the pane's row of panels.
 pub const JOBS_PANE: &str = "JobsPane";
-/// The `Name` of the board panel, present only while docked at a station
-/// that posts jobs.
-pub const JOBS_BOARD: &str = "JobsBoard";
+/// The `Name` of the panel of the jobs the player can take now.
+pub const JOBS_AVAILABLE: &str = "JobsAvailable";
 /// The `Name` of the held jobs panel.
 pub const JOBS_HELD: &str = "JobsHeld";
 /// The `Name` of the held panel's milestone row, present while the start
@@ -209,8 +216,8 @@ pub(crate) struct JobsPaneMarker;
 /// carries each one's offset to its successor.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 enum JobsScrollType {
-    /// The board panel's rows.
-    Board,
+    /// The available panel's rows.
+    Available,
     /// The held panel's rows.
     Held,
     /// The inspector.
@@ -228,15 +235,17 @@ enum JobListType {
     Posted,
     /// The jobs the player holds: Hand in.
     Held,
-    /// The standing hail offer: Accept, in space.
+    /// The standing hail offer: Accept, docked or not.
     Hail,
+    /// The held hail job: Hand in, docked with its caller.
+    HailHeld,
 }
 
 /// A hail row's `X`: it declines the standing offer.
 #[derive(Component, Clone, Copy, Debug)]
 struct HailDeclineButton;
 
-/// A row's action button: Accept on the board, Hand in on a held job.
+/// A row's action button: Accept on an available job, Hand in on a held one.
 #[derive(Component, Clone, Debug)]
 struct JobActionButton {
     list: JobListType,
@@ -512,7 +521,8 @@ fn board_listing(
 /// window: a scenario's posting.
 const NO_WINDOW_TEXT: &str = "open";
 
-/// One board row as the pane shows it.
+/// One row of Available as the pane shows it: a board offer or the standing
+/// hail offer.
 #[derive(Clone, Debug, PartialEq)]
 struct PostedRow {
     id: JobId,
@@ -531,7 +541,7 @@ struct PostedRow {
     /// A slot posting: the row shows the `X` that asks a paid refresh. A
     /// visit posting has no slot to renew.
     refreshable: bool,
-    /// The standing hail offer: Accept answers it in space and the row
+    /// The standing hail offer: Accept answers it with no dock and the row
     /// shows the `X` that declines it.
     hail: bool,
     /// Its `X` was pressed: the row asks Refresh or Back.
@@ -548,18 +558,13 @@ struct HeldRow {
     title: String,
     have: u32,
     need: u32,
-    /// Docked at the station this job hands in at: the row shows HAND IN HERE.
+    /// Docked at the station this job hands in at, or with the caller of a
+    /// hail job: the row shows HAND IN HERE.
     hand_in_here: bool,
     /// How Hand in answers the row.
     gate: VerbGate,
     /// Its `X` was pressed: the row asks Drop or Back.
     confirming: bool,
-}
-
-/// The docked station's board as the pane shows it.
-#[derive(Clone, Debug, PartialEq)]
-struct BoardView {
-    rows: Vec<PostedRow>,
 }
 
 /// The selected job as the inspector reads it.
@@ -585,7 +590,9 @@ struct InspectorView {
 /// Everything the pane draws, so it is rebuilt only on a difference.
 #[derive(Clone, Debug, PartialEq, Default)]
 struct JobsView {
-    board: Option<BoardView>,
+    /// The jobs the player can take now: the standing hail offer, then the
+    /// docked station's board.
+    available: Vec<PostedRow>,
     held: Vec<HeldRow>,
     /// The role goal's heading.
     goal_title: String,
@@ -597,8 +604,9 @@ struct JobsView {
     inspector: Option<InspectorView>,
 }
 
-/// Rebuild the pane whenever what it shows changes: the board, the jobs,
-/// the hold, the hull, the dock, the clock, the role goal or the selection.
+/// Rebuild the pane whenever what it shows changes: the board, the hail
+/// offer, the jobs, the hold, the hull, the dock, the clock, the role goal
+/// or the selection.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system reading the catalog, the table, the chart, the jobs, the postings, the clock, the edge, the goal, the site, the hull, the boards, the targets, both balances and the pane"
@@ -693,7 +701,7 @@ fn update_jobs_pane(
         )
         .err()
     };
-    let hand_in_gate =
+    let station_hand_in_gate =
         |job: &Job| hand_in_check(job).map_or(VerbGate::Ready, |refusal| hand_in_gate(&refusal));
     if runtime
         .confirm_drop
@@ -734,7 +742,36 @@ fn update_jobs_pane(
         .map_or(VerbGate::Ready, |refusal| offer_refresh_gate(&refusal))
     };
 
-    let board = partner.as_ref().and_then(|(_, station, station_id)| {
+    // The share and the minutes left of a hail offer's window.
+    let hail_time_left = |offer: &EncounterOffer| {
+        let remaining = offer.expires_at - now;
+        (
+            (remaining / HAIL_OFFER_SECONDS) as f32,
+            format!("{} min", (remaining.max(0.0) / 60.0).ceil()),
+        )
+    };
+    // First: its window is the shortest of the list.
+    let hail = encounters.offer.as_ref();
+    let hail_row = hail.map(|offer| {
+        let job = &offer.job;
+        let gate = plan_hail_accept(job, &jobs, encounters.offer_expired(now), &items, fit)
+            .map_or_else(|refusal| hail_gate(&refusal), |()| VerbGate::Ready);
+        PostedRow {
+            id: job.id.clone(),
+            icon: JobIconType::of(&job.kind),
+            title: job.title(&items),
+            range: range_text(job.leg_m),
+            threat: threat_text(job.threat),
+            reward_cr: job.reward.total_cr().into(),
+            time_left: hail_time_left(offer),
+            gate,
+            refreshable: false,
+            hail: true,
+            confirming: false,
+            refresh_gate: VerbGate::Ready,
+        }
+    });
+    let posted = partner.as_ref().and_then(|(_, station, station_id)| {
         let (board, starter) = q_boards.get(*station).ok()?;
         let rows: Vec<PostedRow> = board
             .0
@@ -786,48 +823,37 @@ fn update_jobs_pane(
                 })
             })
             .collect();
-        Some(BoardView { rows })
+        Some(rows)
     });
+    let available: Vec<PostedRow> = hail_row
+        .into_iter()
+        .chain(posted.into_iter().flatten())
+        .collect();
 
-    // The share and the minutes left of a hail offer's window.
-    let hail_time_left = |offer: &EncounterOffer| {
-        let remaining = offer.expires_at - now;
-        (
-            (remaining / HAIL_OFFER_SECONDS) as f32,
-            format!("{} min", (remaining.max(0.0) / 60.0).ceil()),
-        )
-    };
-    // Away from a station that posts jobs, the standing hail is the board.
-    let hail = encounters.offer.as_ref().filter(|_| partner.is_none());
-    let board = board.or_else(|| {
-        let offer = hail?;
-        let job = &offer.job;
-        let gate = plan_hail_accept(job, &jobs, encounters.offer_expired(now), &items, fit)
-            .map_or_else(|refusal| hail_gate(&refusal), |()| VerbGate::Ready);
-        Some(BoardView {
-            rows: vec![PostedRow {
-                id: job.id.clone(),
-                icon: JobIconType::of(&job.kind),
-                title: job.title(&items),
-                range: range_text(job.leg_m),
-                threat: threat_text(job.threat),
-                reward_cr: job.reward.total_cr().into(),
-                time_left: hail_time_left(offer),
-                gate,
-                refreshable: false,
-                hail: true,
-                confirming: false,
-                refresh_gate: VerbGate::Ready,
-            }],
-        })
-    });
-
+    // The body the hull is docked with, a caller's hull too: a hail job is
+    // handed in there.
+    let docked_body = hull.docked_with();
+    let hail_hand_in_gate =
+        |job: &Job| match hold.map(|hold| plan_hail_hand_in(job, docked_body, hold)) {
+            None => VerbGate::Hidden,
+            Some(Err(refusal)) => hand_in_gate(&refusal),
+            // A done hail job is held only while its reward would overflow the
+            // balance.
+            Some(Ok(())) if jobs.is_done(&job.id) => VerbGate::Disabled,
+            Some(Ok(())) => VerbGate::Ready,
+        };
     let held: Vec<HeldRow> = jobs
         .held()
         .iter()
         .map(|job| {
-            let hand_in_here =
-                matches!(&partner, Some((_, _, station_id)) if *station_id == job.target);
+            let (hand_in_here, gate) = if job.id.is_hail() {
+                (docked_body == Some(&job.id.poster), hail_hand_in_gate(job))
+            } else {
+                (
+                    matches!(&partner, Some((_, _, station_id)) if *station_id == job.target),
+                    station_hand_in_gate(job),
+                )
+            };
             let (have, need) = job.progress(hold, jobs.is_done(&job.id));
             let confirming = runtime.confirm_drop.as_ref() == Some(&job.id);
             HeldRow {
@@ -837,7 +863,7 @@ fn update_jobs_pane(
                 have,
                 need,
                 hand_in_here,
-                gate: hand_in_gate(job),
+                gate,
                 confirming,
             }
         })
@@ -882,7 +908,7 @@ fn update_jobs_pane(
                 target_name(job, &chart, encounters.caller_name(&job.id)),
                 place(job_cell(job))
             ),
-            // A hail job is paid on the dock with its caller.
+            // A hail job is paid docked with its caller.
             hand_in: encounters
                 .caller_name(&job.id)
                 .map_or_else(|| station_name(&chart, &job.target), str::to_string),
@@ -909,7 +935,7 @@ fn update_jobs_pane(
         });
 
     let view = JobsView {
-        board,
+        available,
         held,
         goal_title: progress.title.clone(),
         milestone,
@@ -921,8 +947,8 @@ fn update_jobs_pane(
         return;
     }
     debug!(
-        "nova_interface: the Jobs pane rebuilds: {} posted, {} held, docked {}",
-        view.board.as_ref().map_or(0, |board| board.rows.len()),
+        "nova_interface: the Jobs pane rebuilds: {} available, {} held, docked {}",
+        view.available.len(),
         view.held.len(),
         view.docked
     );
@@ -932,19 +958,21 @@ fn update_jobs_pane(
             .find_map(|(each, position)| (*each == kind).then(|| position.clone()))
             .unwrap_or_default()
     };
-    let (board_offset, held_offset, inspector_offset) = (
-        offset(JobsScrollType::Board),
+    let (available_offset, held_offset, inspector_offset) = (
+        offset(JobsScrollType::Available),
         offset(JobsScrollType::Held),
         offset(JobsScrollType::Inspector),
     );
     commands.entity(pane).despawn_children();
     commands.entity(pane).with_children(|split| {
         split.spawn(column()).with_children(|col| {
-            // Away from a station that posts jobs the board is hidden: the
-            // pane head's mode tags say where the player is.
-            if let Some(board) = &view.board {
-                board_panel(col, &icons, board, runtime.selected.as_ref(), board_offset);
-            }
+            available_panel(
+                col,
+                &icons,
+                &view.available,
+                runtime.selected.as_ref(),
+                available_offset,
+            );
             held_panel(col, &icons, &view, runtime.selected.as_ref(), held_offset);
         });
         split
@@ -1353,20 +1381,18 @@ fn panel_title(panel: &mut ChildSpawnerCommands, title: &str) {
         });
 }
 
-/// The docked station's board. The pane head's mode tag names the station.
-fn board_panel(
+/// The jobs the player can take now: the title and the column heads, over
+/// `rows` or over nothing. The pane head's mode tag names a docked station.
+fn available_panel(
     col: &mut ChildSpawnerCommands,
     icons: &InterfaceIcons,
-    board: &BoardView,
+    rows: &[PostedRow],
     selected: Option<&JobId>,
     offset: ScrollPosition,
 ) {
-    col.spawn((Name::new(JOBS_BOARD), column_panel()))
+    col.spawn((Name::new(JOBS_AVAILABLE), column_panel()))
         .with_children(|panel| {
-            panel_title(panel, "Board");
-            if board.rows.is_empty() {
-                return;
-            }
+            panel_title(panel, "Available");
             table_head(
                 panel,
                 &[
@@ -1379,8 +1405,11 @@ fn board_panel(
                     (VERBS_PX, ""),
                 ],
             );
-            scroll_rows(panel, JobsScrollType::Board, offset, |panel| {
-                for (index, row) in board.rows.iter().enumerate() {
+            if rows.is_empty() {
+                return;
+            }
+            scroll_rows(panel, JobsScrollType::Available, offset, |panel| {
+                for (index, row) in rows.iter().enumerate() {
                     spawn_row(
                         panel,
                         &row.id,
@@ -1393,7 +1422,7 @@ fn board_panel(
         });
 }
 
-/// One board row's cells: icon | title | range | threat | reward | time left
+/// One available row's cells: icon | title | range | threat | reward | time left
 /// | Accept `X`, or, asking, icon | `Delete?` title | blank | fee | blank |
 /// Back Delete.
 fn posted_row(r: &mut ChildSpawnerCommands, icons: &InterfaceIcons, index: usize, row: &PostedRow) {
@@ -1670,7 +1699,11 @@ fn held_row(r: &mut ChildSpawnerCommands, icons: &InterfaceIcons, index: usize, 
             format!("{JOB_HAND_IN_PREFIX}{index}"),
             "Hand in",
             JobActionButton {
-                list: JobListType::Held,
+                list: if row.id.is_hail() {
+                    JobListType::HailHeld
+                } else {
+                    JobListType::Held
+                },
                 id: row.id.clone(),
             },
             row.gate.clone(),
@@ -1789,6 +1822,11 @@ fn on_job_button(
                 id: button.id.clone(),
             });
         }
+        JobListType::HailHeld => {
+            answers.write(HailAnswerCommand {
+                answer: HailAnswerType::HandIn,
+            });
+        }
     }
 }
 
@@ -1807,14 +1845,22 @@ fn on_hail_decline(
 }
 
 /// Raise the cue of each hail answer the encounter director gave: the click
-/// for a taken accept or decline, the deny sound for one it refused.
-fn cue_hail_answers(mut answered: MessageReader<HailAnswered>, mut runtime: ResMut<JobsRuntime>) {
+/// for a taken accept or decline, the deny sound for a refused answer. A
+/// taken hand-in raises none, as the paid line on the HUD plays the payout
+/// sound, and starts the pane head's count-up ([`BalanceCountUp`]).
+fn cue_hail_answers(
+    mut answered: MessageReader<HailAnswered>,
+    mut runtime: ResMut<JobsRuntime>,
+    mut count_up: ResMut<BalanceCountUp>,
+) {
     for answer in answered.read() {
-        runtime.cue.raise(if answer.taken {
-            ActionOutcomeType::Done
-        } else {
-            ActionOutcomeType::Refused
-        });
+        match (answer.answer, answer.taken) {
+            (HailAnswerType::HandIn, true) => count_up.raise(),
+            (HailAnswerType::Accept | HailAnswerType::Decline, true) => {
+                runtime.cue.raise(ActionOutcomeType::Done);
+            }
+            (_, false) => runtime.cue.raise(ActionOutcomeType::Refused),
+        }
     }
 }
 
@@ -3420,32 +3466,30 @@ mod tests {
         assert_eq!(reward_term_rows(&flat), [], "the total already says it");
     }
 
-    /// At 1024 logical px a board row with a long title, a leg, a threat and
-    /// a gate tag keeps every cell on one line: its verbs stay whole inside
-    /// the panel and the title is the cell that gives way.
+    /// At 1024 logical px an available row with a long title, a leg, a
+    /// threat and a gate tag keeps every cell on one line: its verbs stay
+    /// whole inside the panel and the title is the cell that gives way.
     #[test]
-    fn a_board_row_stays_on_one_line_with_its_verbs_whole_at_1024_px() {
+    fn an_available_row_stays_on_one_line_with_its_verbs_whole_at_1024_px() {
         use crate::pointer_rig::{pane_pointer_rig, settle};
 
         let mut rig = pane_pointer_rig();
         rig.app.add_plugins(nova_ui::NovaUiPlugin);
         let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
-        let board = BoardView {
-            rows: vec![PostedRow {
-                id: JobId::slot(station, 0, 0),
-                icon: JobIconType::Neutralize,
-                title: "Neutralize the raider flagship Marianne Lament beyond the belt".to_string(),
-                range: "9.9 km".to_string(),
-                threat: "12".to_string(),
-                reward_cr: 12_345,
-                time_left: (0.5, "60 min".to_string()),
-                gate: VerbGate::Tagged("NO WEAPON"),
-                refreshable: true,
-                hail: false,
-                confirming: false,
-                refresh_gate: VerbGate::Ready,
-            }],
-        };
+        let rows = [PostedRow {
+            id: JobId::slot(station, 0, 0),
+            icon: JobIconType::Neutralize,
+            title: "Neutralize the raider flagship Marianne Lament beyond the belt".to_string(),
+            range: "9.9 km".to_string(),
+            threat: "12".to_string(),
+            reward_cr: 12_345,
+            time_left: (0.5, "60 min".to_string()),
+            gate: VerbGate::Tagged("NO WEAPON"),
+            refreshable: true,
+            hail: false,
+            confirming: false,
+            refresh_gate: VerbGate::Ready,
+        }];
         let icons = InterfaceIcons::blank();
         // The pane's inner width at 1024: the window less, on each side, the
         // root padding (16), the card border (1) and the body padding (12).
@@ -3464,7 +3508,7 @@ mod tests {
                     })
                     .with_children(|split| {
                         split.spawn(column()).with_children(|col| {
-                            board_panel(col, &icons, &board, None, ScrollPosition::default());
+                            available_panel(col, &icons, &rows, None, ScrollPosition::default());
                         });
                         split.spawn(inspector(Overflow::scroll_y()));
                     });
@@ -3489,7 +3533,7 @@ mod tests {
                 .map(|(entity, _)| entity)
                 .unwrap_or_else(|| panic!("a node named {name}"))
         };
-        let panel = by_name(world, JOBS_BOARD);
+        let panel = by_name(world, JOBS_AVAILABLE);
         let panel = rect(world, panel);
         let row = by_name(world, "JobRowPosted-0");
         let row_rect = rect(world, row);
@@ -3552,22 +3596,20 @@ mod tests {
         rig.app.add_message::<HailAnswerCommand>();
         rig.app.init_resource::<JobsRuntime>();
         let caller = GeneratedBodyId::new(SectorCoord::ORIGIN, "encounter_0_caller", 0);
-        let board = BoardView {
-            rows: vec![PostedRow {
-                id: JobId::hail(caller, 0),
-                icon: JobIconType::Answer,
-                title: "Answer a distress call".to_string(),
-                range: "6 km".to_string(),
-                threat: String::new(),
-                reward_cr: 320,
-                time_left: (0.8, "4 min".to_string()),
-                gate: VerbGate::Ready,
-                refreshable: false,
-                hail: true,
-                confirming: false,
-                refresh_gate: VerbGate::Ready,
-            }],
-        };
+        let rows = [PostedRow {
+            id: JobId::hail(caller, 0),
+            icon: JobIconType::Answer,
+            title: "Answer a distress call".to_string(),
+            range: "6 km".to_string(),
+            threat: String::new(),
+            reward_cr: 320,
+            time_left: (0.8, "4 min".to_string()),
+            gate: VerbGate::Ready,
+            refreshable: false,
+            hail: true,
+            confirming: false,
+            refresh_gate: VerbGate::Ready,
+        }];
         let icons = InterfaceIcons::blank();
         let content = rig.content_root;
         rig.app
@@ -3576,7 +3618,7 @@ mod tests {
             .entity(content)
             .with_children(|content| {
                 content.spawn(column()).with_children(|col| {
-                    board_panel(col, &icons, &board, None, ScrollPosition::default());
+                    available_panel(col, &icons, &rows, None, ScrollPosition::default());
                 });
             });
         settle(&mut rig.app);
@@ -3625,10 +3667,11 @@ mod tests {
         );
     }
 
-    /// A hail answer the director took clicks once; one it refused buzzes
-    /// once.
+    /// A hail accept or decline the director took clicks once; an answer it
+    /// refused buzzes once; a hand-in it took plays no pane cue and starts
+    /// the balance count-up.
     #[test]
-    fn a_taken_hail_answer_clicks_and_a_refused_one_buzzes() {
+    fn a_taken_hail_answer_clicks_a_refused_one_buzzes_and_a_hand_in_counts_up() {
         let mut app = jobs_app();
         app.add_message::<HailAnswered>();
         app.add_systems(Update, cue_hail_answers.before(play_jobs_cue));
@@ -3646,6 +3689,325 @@ mod tests {
         assert_eq!(take_cues(&mut app), [UiSfx::EditorDeny]);
         app.update();
         assert!(take_cues(&mut app).is_empty(), "each cue plays once");
+
+        app.world_mut().write_message(HailAnswered {
+            answer: HailAnswerType::HandIn,
+            taken: false,
+        });
+        app.update();
+        assert_eq!(take_cues(&mut app), [UiSfx::EditorDeny]);
+        assert_eq!(
+            *app.world().resource::<BalanceCountUp>(),
+            BalanceCountUp::default()
+        );
+        app.world_mut().write_message(HailAnswered {
+            answer: HailAnswerType::HandIn,
+            taken: true,
+        });
+        app.update();
+        assert!(
+            take_cues(&mut app).is_empty(),
+            "the paid line on the HUD plays the payout sound"
+        );
+        assert_ne!(
+            *app.world().resource::<BalanceCountUp>(),
+            BalanceCountUp::default(),
+            "the pane head counts the reward up"
+        );
+    }
+
+    /// The pane over a live world: [`update_jobs_pane`] fills a bare pane
+    /// node each frame, with no layout.
+    fn pane_app() -> App {
+        let mut app = jobs_app();
+        app.insert_resource(InterfaceIcons::blank());
+        app.init_resource::<GoalProgress>();
+        app.init_resource::<GoalRecord>();
+        app.init_resource::<Encounters>();
+        app.add_message::<HailAnswerCommand>();
+        app.add_systems(Update, update_jobs_pane.after(apply_job_commands));
+        app.world_mut().spawn((JobsPaneMarker, Node::default()));
+        app
+    }
+
+    /// A player hull with a docking section, a hold and 2,000 cr, free in
+    /// space.
+    fn pane_player(app: &mut App) -> Entity {
+        let player = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                ShipDesignSections::default(),
+                ShipCredits(2_000),
+                ShipInventoryReports::default(),
+                ShipInventory::new(&test_items(), 100_000, []),
+                GlobalTransform::default(),
+            ))
+            .id();
+        app.world_mut()
+            .spawn((SectionMarker, DockingSectionMarker, ChildOf(player)));
+        player
+    }
+
+    /// A living station that posts one procurement, current in its slot 0.
+    fn pane_station(app: &mut App) -> Entity {
+        let station_id = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+        let job = Job {
+            id: JobId::slot(station_id.clone(), 0, 0),
+            kind: JobType::Procure {
+                item: ItemDesignId::from(ItemRoleType::IronOre.id()),
+                count: 4,
+            },
+            target: station_id.clone(),
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(146),
+        };
+        post_current(app, &job);
+        app.world_mut()
+            .spawn((
+                StationMarker,
+                station_id,
+                StationServices(vec![StationServiceType::Jobs]),
+                StationBuilds(Vec::new()),
+                JobBoard(vec![job]),
+                ShipCredits(10_000),
+                ShipInventoryReports::default(),
+            ))
+            .id()
+    }
+
+    /// Hold the player's clamp on `partner`, in place of any earlier one.
+    fn pane_dock(app: &mut App, player: Entity, partner: Entity) {
+        let connection = app
+            .world_mut()
+            .spawn(DockingConnection {
+                first_ship: player,
+                first_section: Entity::PLACEHOLDER,
+                second_ship: partner,
+                second_section: Entity::PLACEHOLDER,
+                helm: DockedHelmType::Neutral,
+                measurement_fault: false,
+            })
+            .id();
+        app.world_mut().entity_mut(player).insert(DockedShip {
+            connection,
+            helm: Quat::IDENTITY,
+            drives: false,
+        });
+    }
+
+    /// A record with a hail of `kind` live and its offer standing, and the
+    /// offered job.
+    fn pane_hail(kind: HailJobType) -> (Encounters, Job) {
+        let caller = GeneratedBodyId::new(SectorCoord::ORIGIN, "encounter_0_caller", 0);
+        let job = plan_hail_offer(42, kind, &caller, 0, 6_000, 0.5, &test_items())
+            .expect("the test items hold an item a supply job asks for");
+        let record = Encounters {
+            fired: 1,
+            travel_seconds: 0.0,
+            offer: Some(EncounterOffer {
+                job: job.clone(),
+                expires_at: HAIL_OFFER_SECONDS,
+            }),
+            live: Some(EncounterLive {
+                design: "test/hail".into(),
+                name: "Vel civilian".to_string(),
+                bodies: vec![caller],
+                started_at: 0.0,
+            }),
+        };
+        (record, job)
+    }
+
+    /// The `Name`s of the job rows under the panel named `panel`, in order.
+    fn pane_rows(app: &mut App, panel: &str) -> Vec<String> {
+        let world = app.world_mut();
+        let root = world
+            .query::<(Entity, &Name)>()
+            .iter(world)
+            .find(|(_, name)| name.as_str() == panel)
+            .map(|(entity, _)| entity)
+            .unwrap_or_else(|| panic!("the pane draws {panel}"));
+        let mut rows = Vec::new();
+        let mut open = vec![root];
+        while let Some(node) = open.pop() {
+            if world.get::<JobRow>(node).is_some() {
+                rows.push(world.get::<Name>(node).expect("a row is named").to_string());
+            }
+            if let Some(children) = world.get::<Children>(node) {
+                open.extend(children.iter().rev());
+            }
+        }
+        rows
+    }
+
+    /// The pane's two panels by `Name`, top first, and each one's title.
+    fn pane_split(app: &mut App) -> Vec<(String, String)> {
+        let world = app.world_mut();
+        let pane = world
+            .query_filtered::<Entity, With<JobsPaneMarker>>()
+            .single(world)
+            .expect("one pane");
+        let column = world.get::<Children>(pane).expect("the pane is filled")[0];
+        let panels: Vec<Entity> = world
+            .get::<Children>(column)
+            .expect("the column holds panels")
+            .iter()
+            .collect();
+        panels
+            .into_iter()
+            .map(|panel| {
+                let name = world.get::<Name>(panel).expect("a named panel").to_string();
+                let head = world
+                    .get::<Children>(panel)
+                    .expect("a panel has a title row")[0];
+                let title = world
+                    .get::<Children>(head)
+                    .expect("the title row holds text")[0];
+                let title = world
+                    .get::<Text>(title)
+                    .expect("the title is text")
+                    .0
+                    .clone();
+                (name, title)
+            })
+            .collect()
+    }
+
+    /// The gate on the verb named `name`.
+    fn pane_gate(app: &mut App, name: &str) -> VerbGate {
+        let world = app.world_mut();
+        world
+            .query::<(&Name, &VerbGate)>()
+            .iter(world)
+            .find(|(each, _)| each.as_str() == name)
+            .map(|(_, gate)| gate.clone())
+            .unwrap_or_else(|| panic!("the pane draws the verb {name}"))
+    }
+
+    #[test]
+    fn the_pane_splits_available_over_your_jobs_docked_or_not_with_or_without_an_offer() {
+        let split = [
+            (JOBS_AVAILABLE.to_string(), "Available".to_string()),
+            (JOBS_HELD.to_string(), "Your jobs".to_string()),
+        ];
+        for (docked, offered) in [(false, false), (false, true), (true, false), (true, true)] {
+            let mut app = pane_app();
+            let player = pane_player(&mut app);
+            let station = pane_station(&mut app);
+            if docked {
+                pane_dock(&mut app, player, station);
+            }
+            if offered {
+                app.insert_resource(pane_hail(HailJobType::Distress).0);
+            }
+            app.update();
+            let state = format!("docked {docked}, offered {offered}");
+            assert_eq!(pane_split(&mut app), split, "{state}");
+            // The offer is the first row; the station's board follows it.
+            let rows = usize::from(offered) + usize::from(docked);
+            assert_eq!(
+                pane_rows(&mut app, JOBS_AVAILABLE),
+                (0..rows)
+                    .map(|row| format!("JobRowPosted-{row}"))
+                    .collect::<Vec<_>>(),
+                "{state}"
+            );
+            assert!(pane_rows(&mut app, JOBS_HELD).is_empty(), "{state}");
+        }
+    }
+
+    #[test]
+    fn a_standing_offer_is_an_available_row_and_a_held_row_only_once_accepted() {
+        let mut app = pane_app();
+        pane_player(&mut app);
+        let (record, job) = pane_hail(HailJobType::Distress);
+        app.insert_resource(record);
+        app.update();
+        assert_eq!(pane_rows(&mut app, JOBS_AVAILABLE), ["JobRowPosted-0"]);
+        assert!(pane_rows(&mut app, JOBS_HELD).is_empty());
+        assert_eq!(
+            pane_gate(&mut app, &format!("{JOB_ACCEPT_PREFIX}0")),
+            VerbGate::Ready,
+            "Accept works with no dock"
+        );
+
+        // What the director does with the accept, by the press or the dock.
+        app.world_mut().resource_mut::<Encounters>().offer = None;
+        app.world_mut().resource_mut::<Jobs>().accept(job);
+        app.update();
+        assert!(pane_rows(&mut app, JOBS_AVAILABLE).is_empty());
+        assert_eq!(pane_rows(&mut app, JOBS_HELD), ["JobRowHeld-0"]);
+    }
+
+    #[test]
+    fn a_held_hail_job_shows_hand_in_only_while_docked_with_its_caller() {
+        let mut app = pane_app();
+        let player = pane_player(&mut app);
+        let station = pane_station(&mut app);
+        let (mut record, job) = pane_hail(HailJobType::Supply);
+        let JobType::Supply { item, count, .. } = job.kind.clone() else {
+            panic!("a supply hail offers a supply job, not {:?}", job.kind);
+        };
+        record.offer = None;
+        app.insert_resource(record);
+        app.world_mut().resource_mut::<Jobs>().accept(job.clone());
+        let caller = app
+            .world_mut()
+            .spawn((job.id.poster.clone(), GlobalTransform::default()))
+            .id();
+        let hand_in = format!("{JOB_HAND_IN_PREFIX}0");
+        app.update();
+        assert_eq!(pane_gate(&mut app, &hand_in), VerbGate::Hidden, "in space");
+
+        pane_dock(&mut app, player, station);
+        app.update();
+        assert_eq!(
+            pane_gate(&mut app, &hand_in),
+            VerbGate::Hidden,
+            "no station hands a hail job in"
+        );
+
+        pane_dock(&mut app, player, caller);
+        app.update();
+        assert_eq!(
+            pane_gate(&mut app, &hand_in),
+            VerbGate::Disabled,
+            "the hold is short"
+        );
+
+        app.world_mut()
+            .get_mut::<ShipInventory>(player)
+            .unwrap()
+            .add(&test_items(), &item, count);
+        app.update();
+        assert_eq!(pane_gate(&mut app, &hand_in), VerbGate::Ready);
+
+        let world = app.world_mut();
+        let button = world
+            .query::<(Entity, &Name)>()
+            .iter(world)
+            .find(|(_, name)| name.as_str() == hand_in)
+            .map(|(entity, _)| entity)
+            .expect("the held row shows Hand in");
+        world.trigger(Activate { entity: button });
+        world.flush();
+        let answers: Vec<HailAnswerCommand> = world
+            .resource_mut::<Messages<HailAnswerCommand>>()
+            .drain()
+            .collect();
+        assert_eq!(
+            answers,
+            [HailAnswerCommand {
+                answer: HailAnswerType::HandIn
+            }]
+        );
+        assert!(
+            world.resource::<Messages<JobHandInCommand>>().is_empty(),
+            "a hail job is not handed in at a station"
+        );
     }
 
     #[test]

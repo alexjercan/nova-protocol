@@ -118,7 +118,7 @@ mod walk {
     use bevy::ui::InteractionDisabled;
     use nova_protocol::{
         nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
-        nova_interface::{jobs::prelude::JOBS_BOARD, pane::InterfacePaneType},
+        nova_interface::{jobs::prelude::JOBS_AVAILABLE, pane::InterfacePaneType},
         prelude::*,
     };
     use nova_ui::{
@@ -848,7 +848,7 @@ mod walk {
     /// Every board row is one list row high, so no cell wrapped under its
     /// title, and its Accept lies inside the board panel.
     fn board_rows_fit(world: &World) -> bool {
-        let Some(board) = ui_node_rect(world, JOBS_BOARD) else {
+        let Some(board) = ui_node_rect(world, JOBS_AVAILABLE) else {
             return false;
         };
         (0..JOBS_PER_BOARD).all(|row| {
@@ -921,10 +921,12 @@ mod walk {
             1,
             "station jobs: the title is listed once, under Your jobs: {shown:?}"
         );
-        assert!(
-            shown.contains(&"Your jobs".to_string()),
-            "station jobs: the Your jobs header shows: {shown:?}"
-        );
+        for head in ["Available", "Your jobs"] {
+            assert!(
+                shown.contains(&head.to_string()),
+                "station jobs: the {head} header shows: {shown:?}"
+            );
+        }
         nova_probe::probe_marker(
             world,
             "outcome: an accept holds the job",
@@ -1598,7 +1600,7 @@ mod walk {
             .diagnose(|world| {
                 format!(
                     "board {:?}, rows {:?}",
-                    ui_node_rect(world, JOBS_BOARD),
+                    ui_node_rect(world, JOBS_AVAILABLE),
                     (0..JOBS_PER_BOARD)
                         .map(|row| ui_node_rect(world, &format!("JobRowPosted-{row}")))
                         .collect::<Vec<_>>()

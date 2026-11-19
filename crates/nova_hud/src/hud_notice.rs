@@ -11,9 +11,10 @@
 //! `JOB-n PAID 1,460 CR` without the cue ([`HudNotice::silent`]): the Jobs
 //! pane plays the payout sound, and the pane hides the HUD and holds its
 //! clock, so the line shows for its whole dwell once the pane shuts. A hail
-//! job has no hand-in: its done posts nothing, and the dock that pays it
+//! job has no station hand-in: its done posts nothing, and the dock with
+//! its caller that pays it, or the pane's hand-in while that dock holds,
 //! posts the same `PAID` line with the payout sound
-//! ([`HudNotice::payout`]), since no pane is open. A hull that hails the
+//! ([`HudNotice::payout`]): the pane plays none for it. A hull that hails the
 //! player ([`HailRaised`]) posts `HAIL <CALLER>`. A dock
 //! with a held supply job's
 //! caller that delivers nothing ([`SupplyRefused`]) posts what the hold
@@ -592,7 +593,8 @@ fn post_job_done_notice(
 
 /// Post `JOB-n PAID <reward> CR` when a held job is paid. A station hand-in
 /// posts without a cue: the Jobs pane plays the payout sound. A hail job is
-/// paid in space with no pane open, so its line plays the payout sound.
+/// paid by its caller's dock, mostly with no pane open, so its line plays
+/// the payout sound and the pane plays none.
 fn post_job_paid_notice(handed_in: On<JobHandedIn>, mut notices: MessageWriter<HudNotice>) {
     let line = job_paid_line(&handed_in.code, handed_in.job.reward.total_cr());
     debug!("hud_notice: {line} ('{}')", handed_in.job.id);

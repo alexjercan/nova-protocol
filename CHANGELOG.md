@@ -29,7 +29,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A job reward is now a sum of base, goods, range and threat: 30 cr a km, 300 cr per weapon against you. Base and range pay up to three times as much at an advanced station.
 - Escorts draw a leg of 10 to 16 km, distress calls and supply runs 6 to 16 km, up from a fixed 10 km. An escort pays a quarter of its cargo, down from half; a recovery's goods pay at most 2,000 cr.
 - Open World encounters: after 5 to 15 minutes of travel away from stations, a distress or supply hail, an ambush or a derelict find stands ahead. The seed fixes their order; a save keeps them.
-- A hailing hull offers a job in space: accept or decline it on the Jobs pane undocked, or dock with the caller to take it. The dock that does the job pays it at once, with no station hand-in.
+- A hailing hull offers a job in space: accept or decline it under Available on the Jobs pane with no dock, or dock with the caller to take it. That dock pays at once; Hand in works while it holds.
 - A living generated station that paid out regains credits while its sector is unloaded, to its start balance in 30 minutes of play. Before, a drained one never paid again. Owned stations gain none.
 
 ### Combat & Weapons
@@ -70,6 +70,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The parts catalogue shares it too: category chips, one Available chip, key chips for the hints, no second Close, and the last tile row in full. A price you cannot pay is red and disables Place.
 - A ghost button such as Cancel, Max or Close has a brighter frame in both themes, so it no longer reads as a disabled one.
 - The Jobs board gains Range and Threat columns, and the job inspector lists each part of the reward that pays: Base, Goods or Cargo, Range with the km, Threat with the weapon count.
+- The Jobs pane always shows two lists, Available over Your jobs. Available holds the docked station's jobs and a standing hail offer; empty, it keeps its column heads.
 - A job hand-in plays its own payout sound, counts the pane head balance up with `+1,460` beside it, and posts a silent `JOB-1 PAID 1,460 CR` HUD notice.
 - **(breaking)** UiTheme drops `metrics.border_width`, the slider `height` and the badge `bracketed`, `padding_x` and `border_width`. Lint refuses a disabled button state that looks live.
 
