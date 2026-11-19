@@ -49,6 +49,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - Undocked, a lost section rebuilds in the field from its recipe parts in the hold, with no credits, 5 s a part (20 s at least). A lost docking port no longer ends docking for good.
 - The Interceptor flies five drives, up from three: the fastest armed start. The Patrol Picket gains a third drive and six hull cells in two aft strakes, and stays the lightest armed start.
+- New look for three start hulls: the mining tug is a pusher with a bow boom, the salvage hauler has a forked bow and a tall aft block, the light freighter a neck, a box hold and two drive pods.
 
 ### Modding & Mod Portal
 

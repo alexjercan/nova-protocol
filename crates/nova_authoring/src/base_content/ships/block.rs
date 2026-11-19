@@ -41,11 +41,17 @@ use crate::base_content::sections::{
 };
 
 /// The drive section ids the block fleet repeats: a pair on the beam, one on
-/// the centreline, one vectoring drive on a transom, or the centre bell of a
-/// cross of five. Content that patches a drive names these.
+/// the centreline, one above it, a pair on each quarter of a transom, one
+/// vectoring drive on a transom, or the centre bell of a group of five.
+/// Content that patches a drive names these.
 const DRIVE_PORT_SECTION_ID: &str = "drive_port";
 const DRIVE_STARBOARD_SECTION_ID: &str = "drive_starboard";
 const DRIVE_CENTRE_SECTION_ID: &str = "drive_centre";
+const DRIVE_DORSAL_SECTION_ID: &str = "drive_dorsal";
+const DRIVE_PORT_DORSAL_SECTION_ID: &str = "drive_port_dorsal";
+const DRIVE_STARBOARD_DORSAL_SECTION_ID: &str = "drive_starboard_dorsal";
+const DRIVE_PORT_VENTRAL_SECTION_ID: &str = "drive_port_ventral";
+const DRIVE_STARBOARD_VENTRAL_SECTION_ID: &str = "drive_starboard_ventral";
 pub(crate) const MAIN_DRIVE_SECTION_ID: &str = "main_drive";
 
 /// The second flight computer a hull heavier than one computer turns carries.
@@ -127,45 +133,48 @@ pub(super) struct BlockShip {
     pub(super) style: &'static str,
 }
 
-/// The industrial start: a low work hull of light plate with a two-cell boom
-/// off the bow and a mining emitter at its tip, a cargo intake on the aft
-/// deck, a cab forward, and three bell drives.
+/// The industrial start, a pusher: a four-cell boom off the bow with the
+/// mining emitter at its tip, a three-wide body of light plate with the cargo
+/// intake on its fore deck and the cab on its aft deck, and three bell drives
+/// in a triangle: one on each quarter at keel level and one behind the cab.
 ///
-/// The boom puts the emitter a hull length ahead of the cab, so the beam lane
-/// and the rock it cuts sit clear of the plating.
+/// The boom puts the emitter a hull length ahead of the body, so the beam
+/// lane and the rock it cuts sit clear of the plating. The dorsal bell lifts
+/// the thrust line to the height the intake and the cab lift the centre of
+/// mass to.
 pub(super) fn mining_tug() -> BlockShip {
     BlockShip {
         cells: union(vec![
-            block(IVec3::new(-1, 0, -3), IVec3::new(3, 1, 7)),
-            vec![IVec3::new(0, 1, -2), IVec3::new(0, 1, -1)],
-            vec![IVec3::new(0, 0, -4), IVec3::new(0, 0, -5)],
+            block(IVec3::new(0, 0, -5), IVec3::new(1, 1, 4)),
+            block(IVec3::new(-1, 0, -1), IVec3::new(3, 1, 4)),
+            block(IVec3::new(-1, 1, 1), IVec3::new(3, 1, 2)),
         ]),
         specials: vec![
             cell_part(
                 BLOCK_BRIDGE_SECTION_ID,
                 BASIC_CONTROLLER_SECTION_ID,
-                IVec3::new(0, 1, -2),
+                IVec3::new(0, 1, 1),
             ),
             cell_part(
                 MINING_TUG_EMITTER_ID,
                 MINING_BEAM_SECTION_ID,
                 IVec3::new(0, 0, -6),
             ),
-            door_up_intake("cargo_intake", Vec3::new(0.0, 1.0, 1.5)),
+            door_up_intake("cargo_intake", Vec3::new(0.0, 1.0, -0.5)),
             cell_part(
                 DRIVE_PORT_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
                 IVec3::new(-1, 0, 3),
             ),
             cell_part(
-                DRIVE_CENTRE_SECTION_ID,
-                BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(0, 0, 3),
-            ),
-            cell_part(
                 DRIVE_STARBOARD_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
                 IVec3::new(1, 0, 3),
+            ),
+            cell_part(
+                DRIVE_DORSAL_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(0, 1, 3),
             ),
             flank_collar(
                 BLOCK_PORT_COLLAR_SECTION_ID,
@@ -179,63 +188,76 @@ pub(super) fn mining_tug() -> BlockShip {
     }
 }
 
-/// The scavenger start: a deep three-by-three hold of light plate, a cab on
-/// the nose with a mining emitter ahead of it, a cargo intake on the dorsal
-/// deck, one point-defense mount, and five bell drives in a cross on the
-/// stern, the stern's corners cut back so the cross reads as one engine
-/// block. The second computer sits inboard of the centre bell.
+/// The scavenger start: a forked bow of two three-cell prongs on a crossbar,
+/// a flat work deck with the cargo intake on it, and a tall block aft that
+/// holds the bridge, one point-defense mount on its roof and five bell drives
+/// on its transom: one at each corner and one in the centre. The mining
+/// emitter stands in the crossbar and fires down the gap between the prongs.
+/// The second computer sits inboard of the centre bell.
+///
+/// The gap is three cells wide: a hull cell beside the emitter's lane would
+/// put a plate across it.
 ///
 /// The biggest hold of the start hulls: salvage is bulky and the hauler has
 /// to bring it home.
 pub(super) fn salvage_hauler() -> BlockShip {
     BlockShip {
         cells: union(vec![
-            block(IVec3::new(-1, -1, -3), IVec3::new(3, 3, 6)),
-            block(IVec3::new(0, 0, -4), IVec3::new(1, 2, 1)),
+            // The prongs, then the crossbar they stand on.
+            block(IVec3::new(-2, 0, -6), IVec3::new(1, 1, 3)),
+            block(IVec3::new(2, 0, -6), IVec3::new(1, 1, 3)),
+            block(IVec3::new(-2, 0, -3), IVec3::new(5, 1, 1)),
+            // The work deck and the keel under its aft half.
+            block(IVec3::new(-1, 0, -2), IVec3::new(3, 1, 6)),
+            block(IVec3::new(-1, -1, 0), IVec3::new(3, 1, 4)),
+            vec![IVec3::new(0, -1, -1)],
+            // The bridge block, its front stepped back a cell per deck.
+            block(IVec3::new(-1, 1, 1), IVec3::new(3, 1, 3)),
+            block(IVec3::new(-1, 2, 2), IVec3::new(3, 1, 2)),
         ]),
         specials: vec![
             cell_part(
                 BLOCK_BRIDGE_SECTION_ID,
                 BASIC_CONTROLLER_SECTION_ID,
-                IVec3::new(0, 1, -4),
+                IVec3::new(0, 2, 2),
             ),
             cell_part(
                 CONTROL_AFT_SECTION_ID,
                 BASIC_CONTROLLER_SECTION_ID,
                 IVec3::new(0, 0, 2),
             ),
-            cell_part("mining_beam", MINING_BEAM_SECTION_ID, IVec3::new(0, 0, -5)),
-            door_up_intake("cargo_intake", Vec3::new(0.0, 2.0, 0.5)),
-            turret("pdc_dorsal", IVec3::new(0, 2, -2)),
+            cell_part("mining_beam", MINING_BEAM_SECTION_ID, IVec3::new(0, 0, -3)),
+            door_up_intake("cargo_intake", Vec3::new(0.0, 1.0, -0.5)),
+            turret("pdc_dorsal", IVec3::new(0, 3, 3)),
             cell_part(
                 DRIVE_CENTRE_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(0, 0, 3),
+                IVec3::new(0, 0, 4),
             ),
             cell_part(
-                DRIVE_PORT_SECTION_ID,
+                DRIVE_PORT_DORSAL_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(-1, 0, 3),
+                IVec3::new(-1, 1, 4),
             ),
             cell_part(
-                DRIVE_STARBOARD_SECTION_ID,
+                DRIVE_STARBOARD_DORSAL_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(1, 0, 3),
+                IVec3::new(1, 1, 4),
             ),
             cell_part(
-                "drive_dorsal",
+                DRIVE_PORT_VENTRAL_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(0, 1, 3),
+                IVec3::new(-1, -1, 4),
             ),
             cell_part(
-                "drive_ventral",
+                DRIVE_STARBOARD_VENTRAL_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(0, -1, 3),
+                IVec3::new(1, -1, 4),
             ),
             flank_collar(
                 BLOCK_PORT_COLLAR_SECTION_ID,
                 FlankType::Port,
-                IVec3::new(-2, 0, -2),
+                IVec3::new(-3, 0, -3),
             ),
         ],
         plate: LIGHT_HULL_SECTION_ID,
@@ -244,10 +266,78 @@ pub(super) fn salvage_hauler() -> BlockShip {
     }
 }
 
-/// The cells forward of the light freighter's stern: a flat spine, a stack
-/// amidships, a cab, and a pod on the starboard flank. Shared with the
-/// derelict, so its collar stands where the freighter's does.
-fn freighter_bow() -> Vec<IVec3> {
+/// The transport start: a one-cell neck four cells long with a one-cell cab
+/// on it, a three-wide, two-deck box hold five cells long with the cargo
+/// intake on its roof, and a two-deck drive pod on each quarter. Five bell
+/// drives: two on each pod and `main_drive` high on the hold's transom
+/// between them. Unarmed.
+///
+/// The port collar stands at the hold's fore corner, on the cell the
+/// [`freighter_derelict`]'s stands on: the rescue docks on the wreck with the
+/// berth it would fly for the whole ship.
+pub(super) fn light_freighter() -> BlockShip {
+    BlockShip {
+        cells: union(vec![
+            // The neck. The cab is the bridge, a cell back from the nose.
+            block(IVec3::new(0, 0, -6), IVec3::new(1, 1, 4)),
+            vec![IVec3::new(0, 1, -5)],
+            // The hold, then the pods.
+            block(IVec3::new(-1, 0, -2), IVec3::new(3, 2, 5)),
+            block(IVec3::new(-2, 0, 2), IVec3::new(1, 2, 1)),
+            block(IVec3::new(2, 0, 2), IVec3::new(1, 2, 1)),
+        ]),
+        specials: vec![
+            cell_part(
+                BLOCK_BRIDGE_SECTION_ID,
+                BASIC_CONTROLLER_SECTION_ID,
+                IVec3::new(0, 1, -5),
+            ),
+            cell_part(
+                CONTROL_AFT_SECTION_ID,
+                BASIC_CONTROLLER_SECTION_ID,
+                IVec3::new(0, 0, 1),
+            ),
+            flank_collar(
+                BLOCK_PORT_COLLAR_SECTION_ID,
+                FlankType::Port,
+                IVec3::new(-2, 0, -2),
+            ),
+            door_up_intake("cargo_intake", Vec3::new(0.0, 2.0, 0.5)),
+            cell_part(
+                MAIN_DRIVE_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(0, 1, 3),
+            ),
+            cell_part(
+                DRIVE_PORT_DORSAL_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(-2, 1, 3),
+            ),
+            cell_part(
+                DRIVE_STARBOARD_DORSAL_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(2, 1, 3),
+            ),
+            cell_part(
+                DRIVE_PORT_VENTRAL_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(-2, 0, 3),
+            ),
+            cell_part(
+                DRIVE_STARBOARD_VENTRAL_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(2, 0, 3),
+            ),
+        ],
+        plate: LIGHT_HULL_SECTION_ID,
+        zones: vec![],
+        style: CIVILIAN_STYLE_ID,
+    }
+}
+
+/// The cells forward of the derelict's tear: a flat spine, a stack amidships,
+/// a cab, and a pod on the starboard flank.
+fn derelict_bow() -> Vec<IVec3> {
     union(vec![
         block(IVec3::new(-1, 0, -3), IVec3::new(3, 1, 6)),
         block(IVec3::new(-1, 1, -2), IVec3::new(3, 1, 4)),
@@ -272,9 +362,8 @@ fn derelict_zones() -> Vec<(&'static str, Vec<IVec3>)> {
     ]
 }
 
-/// The light freighter's forward specials: the cab, the second computer and
-/// the collar.
-fn freighter_fittings() -> Vec<Special> {
+/// The derelict's specials: the cab, the second computer and the collar.
+fn derelict_fittings() -> Vec<Special> {
     vec![
         cell_part(
             BLOCK_BRIDGE_SECTION_ID,
@@ -294,74 +383,13 @@ fn freighter_fittings() -> Vec<Special> {
     ]
 }
 
-/// The light freighter's drives: five bells in a cross, one on each cell of
-/// the transom's aft face. The centre bell is `main_drive`, the one the
-/// derelict's mayday says the raid took.
-fn freighter_drives() -> Vec<Special> {
-    vec![
-        cell_part(
-            MAIN_DRIVE_SECTION_ID,
-            BASIC_THRUSTER_SECTION_ID,
-            IVec3::new(0, 0, 4),
-        ),
-        cell_part(
-            DRIVE_PORT_SECTION_ID,
-            BASIC_THRUSTER_SECTION_ID,
-            IVec3::new(-1, 0, 4),
-        ),
-        cell_part(
-            DRIVE_STARBOARD_SECTION_ID,
-            BASIC_THRUSTER_SECTION_ID,
-            IVec3::new(1, 0, 4),
-        ),
-        cell_part(
-            "drive_dorsal",
-            BASIC_THRUSTER_SECTION_ID,
-            IVec3::new(0, 1, 4),
-        ),
-        cell_part(
-            "drive_ventral",
-            BASIC_THRUSTER_SECTION_ID,
-            IVec3::new(0, -1, 4),
-        ),
-    ]
-}
-
-/// The transport start: a stack of light plate on a flat spine, a cargo
-/// intake on top of the stack, a pod on the starboard flank, and five bell
-/// drives on a cross-shaped transom. Unarmed.
-pub(super) fn light_freighter() -> BlockShip {
-    let mut specials = freighter_fittings();
-    specials.push(door_up_intake("cargo_intake", Vec3::new(0.0, 2.0, 0.5)));
-    specials.extend(freighter_drives());
-    BlockShip {
-        cells: union(vec![
-            freighter_bow(),
-            vec![IVec3::new(2, 0, 2)],
-            // The transom: the cross the drives mate, its corners cut back.
-            vec![
-                IVec3::new(0, 0, 3),
-                IVec3::new(-1, 0, 3),
-                IVec3::new(1, 0, 3),
-                IVec3::new(0, 1, 3),
-                IVec3::new(0, -1, 3),
-            ],
-        ]),
-        specials,
-        plate: LIGHT_HULL_SECTION_ID,
-        zones: vec![],
-        style: CIVILIAN_STYLE_ID,
-    }
-}
-
 /// A yard-fitted freighter after a raid took its stern: reinforced plate,
 /// freight cubes, a tank pod and a solar wing either side of the stack, with
 /// no drive, no transom, the aft tank cube and the starboard wing's outer
-/// panel gone. Everything forward of the tear matches [`light_freighter`]
-/// cell for cell, so the cab and the collar stand where a docking approach
-/// expects them.
+/// panel gone. An older pattern than [`light_freighter`]: a flat spine with
+/// the stack on it and the pod on the starboard flank.
 pub(super) fn freighter_derelict() -> BlockShip {
-    let mut specials = freighter_fittings();
+    let mut specials = derelict_fittings();
     specials.extend([
         solar("solar_port_inner", IVec3::new(-2, 1, -1)),
         solar("solar_port_outer", IVec3::new(-3, 1, -1)),
@@ -370,7 +398,7 @@ pub(super) fn freighter_derelict() -> BlockShip {
     BlockShip {
         cells: carve(
             union(vec![
-                freighter_bow(),
+                derelict_bow(),
                 // A ragged tear, a column at a time: the derived skin needs an
                 // uneven edge to clad a break.
                 vec![IVec3::new(-1, 0, 3), IVec3::new(-1, -1, 3)],

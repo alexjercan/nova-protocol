@@ -1194,7 +1194,7 @@
                         message: "Cut ore from the rock ahead. [V] fires the beam.",
                     )),
                     // The shipped mining tug: a mining emitter on a bow boom,
-                    // a cargo intake on the aft deck and a port collar. Two
+                    // a cargo intake ahead of the cab and a port collar. Two
                     // hull plates to repair with, and credits to buy with.
                     SpawnScenarioObject((
                         base: (
