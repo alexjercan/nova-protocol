@@ -2,6 +2,8 @@
 //! ([`AIThreat`]) and where the evade cycle is ([`AIEvade`]). The behavior
 //! state machine reads both to decide when to jink.
 
+use core::time::Duration;
+
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
@@ -273,24 +275,47 @@ pub struct ShipProvoked {
     pub shooter: Entity,
 }
 
-/// The ship root whose fire or ram last damaged this ship root, for the
-/// rules that ask who beat a hull: the open world records the civilization
-/// of a hull the player neutralized off it. Stamped by
+/// How long after its last attributed hit a ship root still counts as the
+/// one that beat a hull ([`LastAttacker::recent`]). Long enough for a hull
+/// to drift dead after the hit that killed its last drive or weapon, short
+/// enough that a hull hit once and left is not credited to its first
+/// shooter when something else takes it out later.
+pub const LAST_ATTACKER_WINDOW: Duration = Duration::from_secs(30);
+
+/// The ship root whose fire or ram last damaged this ship root, and when,
+/// for the rules that ask who beat a hull: the open world records an
+/// offence and a hull taken off it. Stamped by
 /// [`on_damage_stamp_attacker`] on every attributed hit, so it names the
 /// last hitter and not the one that did the most. Not frozen: a hull that
 /// thaws starts with none.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
-pub struct LastAttacker(pub Entity);
+pub struct LastAttacker {
+    /// The ship root behind the last attributed hit.
+    pub attacker: Entity,
+    /// `Time<Virtual>::elapsed` when that hit landed.
+    pub at: Duration,
+}
 
-/// Stamp the damaged ship root with the ship root that hit it
-/// ([`LastAttacker`]), resolved as [`on_damage_track_threat`] resolves a
-/// shooter. A hit with no source, a self-hit (the ship's own blast) and a
-/// source with no ship root behind it (a rock) stamp nothing.
+impl LastAttacker {
+    /// The attacker, while its last hit landed at most
+    /// [`LAST_ATTACKER_WINDOW`] before `now` on the virtual clock: the ship
+    /// root a defeat at `now` is credited to. `None` once the window has
+    /// passed.
+    pub fn recent(&self, now: Duration) -> Option<Entity> {
+        (now.saturating_sub(self.at) <= LAST_ATTACKER_WINDOW).then_some(self.attacker)
+    }
+}
+
+/// Stamp the damaged ship root with the ship root that hit it and the
+/// virtual clock ([`LastAttacker`]), resolved as [`on_damage_track_threat`]
+/// resolves a shooter. A hit with no source, a self-hit (the ship's own
+/// blast) and a source with no ship root behind it (a rock) stamp nothing.
 pub(super) fn on_damage_stamp_attacker(
     damage: On<HealthApplyDamage>,
     mut commands: Commands,
-    q_root: Query<Option<&LastAttacker>, With<SpaceshipRootMarker>>,
+    time: Res<Time<Virtual>>,
+    mut q_root: Query<Option<&mut LastAttacker>, With<SpaceshipRootMarker>>,
     q_owner: Query<&ProjectileOwner>,
     q_allegiance: Query<&Allegiance>,
     q_parent: Query<&ChildOf>,
@@ -300,7 +325,7 @@ pub(super) fn on_damage_stamp_attacker(
         return;
     }
     let ship = damage.entity;
-    let Ok(stamped) = q_root.get(ship) else {
+    let Ok(stamped) = q_root.get_mut(ship) else {
         return;
     };
     let Some(source) = damage.source else {
@@ -311,8 +336,19 @@ pub(super) fn on_damage_stamp_attacker(
     let Some(attacker) = attacker.filter(|attacker| *attacker != ship) else {
         return;
     };
-    if stamped.is_none_or(|stamped| stamped.0 != attacker) {
-        commands.entity(ship).insert(LastAttacker(attacker));
+    let stamp = LastAttacker {
+        attacker,
+        at: time.elapsed(),
+    };
+    match stamped {
+        // In place: a stream of rounds would otherwise queue an insert per
+        // hit.
+        Some(mut stamped) => {
+            stamped.set_if_neq(stamp);
+        }
+        None => {
+            commands.entity(ship).insert(stamp);
+        }
     }
 }
 
@@ -524,6 +560,54 @@ mod threat_tests {
             .get::<AIThreat>()
             .unwrap()
             .recent_attacker()
+    }
+
+    /// Every attributed hit restamps the hull with its attacker and the
+    /// virtual clock, and the stamp names the attacker for the window only.
+    #[test]
+    fn an_attributed_hit_stamps_the_last_attacker_for_the_window() {
+        let mut world = World::new();
+        world.init_resource::<Time<Virtual>>();
+        world.add_observer(on_damage_stamp_attacker);
+        let hull = world.spawn(SpaceshipRootMarker).id();
+        let first = world.spawn(SpaceshipRootMarker).id();
+        let second = world.spawn(SpaceshipRootMarker).id();
+        let now = |world: &World| world.resource::<Time<Virtual>>().elapsed();
+        let stamp = |world: &World| *world.get::<LastAttacker>(hull).expect("the hull was hit");
+
+        let round = world.spawn(ProjectileOwner(first)).id();
+        hit(&mut world, hull, round);
+        world.flush();
+        assert_eq!(stamp(&world).recent(now(&world)), Some(first));
+
+        world
+            .resource_mut::<Time<Virtual>>()
+            .advance_by(LAST_ATTACKER_WINDOW);
+        assert_eq!(
+            stamp(&world).recent(now(&world)),
+            Some(first),
+            "the window's last moment still names the attacker"
+        );
+        world
+            .resource_mut::<Time<Virtual>>()
+            .advance_by(Duration::from_millis(1));
+        assert_eq!(stamp(&world).recent(now(&world)), None, "the window passed");
+
+        let round = world.spawn(ProjectileOwner(second)).id();
+        hit(&mut world, hull, round);
+        world.flush();
+        assert_eq!(
+            stamp(&world).recent(now(&world)),
+            Some(second),
+            "a later hit restamps the hull"
+        );
+        hit(&mut world, hull, hull);
+        world.flush();
+        assert_eq!(
+            stamp(&world).attacker,
+            second,
+            "the hull's own blast stamps nothing"
+        );
     }
 
     #[test]

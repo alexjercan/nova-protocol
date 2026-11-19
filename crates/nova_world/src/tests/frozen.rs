@@ -672,6 +672,82 @@ fn a_thawed_body_carries_the_play_time_it_stood_frozen() {
     );
 }
 
+/// A body its owner retires while its cell is frozen leaves the cell's
+/// record and does not come back with the cell. The record keeps its other
+/// bodies, and a cell whose job read the record before the body was retired
+/// spawns only what the record names when it materializes.
+#[test]
+fn a_body_retired_from_a_frozen_cell_does_not_thaw_with_it() {
+    use std::collections::BTreeSet;
+
+    use crate::streaming::materialize_ready_sector;
+
+    let mut app = App::new();
+    app.add_plugins(AsteroidPlugin { render: false });
+    let world = app.world_mut();
+    let home = SectorCoord::ORIGIN;
+    arm(world, rocks(), home);
+    materialize::<Rocks>(world, home, far());
+    app.update();
+
+    let world = app.world_mut();
+    walk_to::<Rocks>(world, home.offset(5, 0, 0));
+    assert_eq!(frozen_ids(world, home).len(), 4, "home froze its rocks");
+    // The cell's job reads the record as it stands now.
+    let config = world.resource::<WorldConfig<Rocks>>().clone();
+    let record = world.resource::<FrozenSectors>().shared(home);
+    let prepared = prepare_cell(config, home, record).expect("the cell prepares");
+
+    let retired = sector_id(home, "body", 0).to_string();
+    let named = BTreeSet::from([retired.clone(), "no_such_body".to_string()]);
+    assert_eq!(
+        world.resource_mut::<FrozenSectors>().retire_bodies(&named),
+        vec![retired.clone()],
+        "the one frozen body the ids name is taken out"
+    );
+    let left = frozen_ids(world, home);
+    assert_eq!(left.len(), 3, "the record keeps its other bodies");
+    assert!(!left.contains(&retired));
+    assert!(
+        world
+            .resource_mut::<FrozenSectors>()
+            .retire_bodies(&named)
+            .is_empty(),
+        "a retired body is retired once"
+    );
+
+    world.insert_resource(CurrentSector(home));
+    world.init_resource::<GameSections>();
+    world.spawn((WorldObserver, GlobalTransform::from_xyz(0.0, 1.0e5, 0.0)));
+    world
+        .resource_mut::<ReadySectors>()
+        .0
+        .insert(home, prepared);
+    world
+        .run_system_once(materialize_ready_sector::<Rocks>)
+        .expect("the ready cell materializes");
+    app.update();
+    let world = app.world_mut();
+    let thawed: Vec<String> = world
+        .query_filtered::<&EntityId, With<AsteroidMarker>>()
+        .iter(world)
+        .map(|id| id.0.clone())
+        .collect();
+    assert_eq!(
+        thawed.len(),
+        3,
+        "the cell comes back with the bodies its record named: {thawed:?}"
+    );
+    assert!(
+        !thawed.contains(&retired),
+        "the job read the retired body, and the cell does not spawn it"
+    );
+    assert!(
+        world.resource::<FrozenSectors>().get(home).is_none(),
+        "the record is spent"
+    );
+}
+
 /// The turret prototype the fought ship's aft section is built from.
 const TEST_TURRET_SECTION_ID: &str = "test_turret";
 

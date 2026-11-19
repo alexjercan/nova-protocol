@@ -3,7 +3,8 @@
 The first six sections are written by hand for this run. The section `Full report` is the tool's output, unchanged but for one heading level.
 
 - Tool: `crates/nova_authoring/tests/start_role_census.rs`.
-- Code and content: `master` at `54e9fe1f2` plus the uncommitted changes of this work.
+- Code and content: `master` at `ddf5877a3` plus the fixes of the review, not committed.
+- Against the run this file held before, made at `54e9fe1f2` plus uncommitted changes: no number moved. Every table is the same and the row dump is the same byte for byte. One line of text moved, in `What is real and what is modelled`: the greedy run now calls the shipped accept gate, `plan_board_accept`, and tells it whether a field target still stands.
 - Seeds 1 to 240, all measured.
 
 ## Result
@@ -115,6 +116,7 @@ env NOVA_CENSUS_OUT=$PWD/target/start-role-census.md NOVA_CENSUS_ROWS=$PWD/targe
 - Two runs of the final code: test time 133.0 s and 132.4 s, wall time 2 min 14 s and 2 min 20 s with the build done. Both gave the same report and the same row dump, byte for byte. The dump has 21,600 rows.
 - The 120 s run: the constant changed by hand, one run, wall time 2 min 20 s, then changed back. Its report is not kept in the repository.
 - Split run and hunt runs are part of the report: see the pirate section.
+- The run on `ddf5877a3` plus the fixes of the review: one run, test time 131.5 s. The fixes that touch what the census calls: a recovery needs hold room for its stack at the hull gate, the board pass retires every renewed slot's bodies before any board draws, and the greedy run calls `plan_board_accept` with the real state of a field target.
 
 ## Full report
 
@@ -129,7 +131,7 @@ Real, called and not copied:
 - Base content from the Rust builders: items, sections, ship designs, start roles, the price table, trade profiles, and the base ship part packs.
 - The world generator (`NovaLayeredWorld`) and the start pick (`starting_station`).
 - The board pass `post_station_boards`, run as a system: station order, the 27-cell cube gate, the field rule (`FieldBodies`), the bodies other boards name, the draw (`station_job_offers`, `SlotDraw`), the target a Recover or a Neutralize names for itself with none left in the field (its leg, its threat and the hold of its wreck, `job_wreck`), the starter board's redraw for the hull, rewards and renewals.
-- The hull gate (`PlayerHull::fit`, `plan_job_hull_fit`), the accept rule (`plan_job_accept`), the hand-in (`plan_job_hand_in`), trades (`plan_item_trade`, `price`), and the goal count (`goal_progress`).
+- The hull read (`PlayerHull::fit`), the accept gate the Jobs pane and the accept command share (`plan_board_accept`: the hull gate, then the accept rules), the hand-in (`plan_job_hand_in`), trades (`plan_item_trade`, `price`), and the goal count (`goal_progress`). The gate is told whether a field target still stands from the mirror, by the pane's rule: the wreck carries the whole stack, the hull is not neutralized. A job's own target is not mirrored; the gate does not read it.
 - Hull numbers: `resolve_ship_design`, `ShipMeasure`, `hull_price_cr`, `cargo_capacity_g`, item reference prices.
 
 Modelled:

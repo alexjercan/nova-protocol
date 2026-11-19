@@ -3,7 +3,8 @@
 //!
 //! An offence is an intact generated hull the player's ship or a fleet
 //! escort neutralized ([`record_offence`], on the hull's
-//! [`NeutralizedMarker`] with the player as its [`LastAttacker`]); a merit
+//! [`NeutralizedMarker`] with the player as its recent [`LastAttacker`],
+//! [`PlayerTakedown`]); a merit
 //! is a job handed in at a civilization's station ([`record_merit`], called
 //! by the station pane at the hand-in); a provocation is the player's fire
 //! on a Neutral or Ally body crossing the AI's retaliation threshold
@@ -37,7 +38,7 @@
 
 use std::collections::BTreeMap;
 
-use bevy::prelude::*;
+use bevy::{ecs::system::SystemParam, prelude::*};
 use nova_gameplay::prelude::{
     Allegiance, CivilizationId, CivilizationStances, DerelictShipMarker, LawfulStationMarker,
     NeutralizedMarker, OwnedStationMarker, PlayerFleetMarker, PlayerSpaceshipMarker,
@@ -196,27 +197,50 @@ pub fn enemy_neighbours(
         .collect()
 }
 
+/// Who took a hull out, for every rule that credits the player with one:
+/// the offence ([`record_offence`]) and the hull taken
+/// (`goal::count_hull_taken`) both ask here, so they never disagree.
+#[derive(SystemParam)]
+pub(crate) struct PlayerTakedown<'w, 's> {
+    time: Res<'w, Time<Virtual>>,
+    attackers: Query<'w, 's, &'static LastAttacker>,
+    player: Query<'w, 's, (), Or<(With<PlayerSpaceshipMarker>, With<PlayerFleetMarker>)>>,
+}
+
+impl PlayerTakedown<'_, '_> {
+    /// Whether the player's ship or a fleet escort took `hull` out now: the
+    /// hull's last attributed hit was theirs and landed inside
+    /// [`LAST_ATTACKER_WINDOW`](nova_ship::prelude::LAST_ATTACKER_WINDOW)
+    /// ([`LastAttacker::recent`]). A hull the player hit once and left, taken
+    /// out later by a rock or by fire nobody owns, is not the player's. A
+    /// hull thawed already neutralized carries no attacker.
+    pub(crate) fn took_out(&self, hull: Entity) -> bool {
+        self.attackers
+            .get(hull)
+            .ok()
+            .and_then(|last| last.recent(self.time.elapsed()))
+            .is_some_and(|attacker| self.player.contains(attacker))
+    }
+}
+
 /// Record an offence for a generated hull the player just neutralized: the
 /// hull carries a [`TraderMarket`] (every intact generated ship and living
-/// station does) and its [`LastAttacker`] is the player's ship or a fleet
-/// escort. A hull thawed already neutralized carries no attacker and
-/// records nothing. Every step the offence made raises one
-/// [`StanceChanged`], the civilization's own first.
+/// station does) and the player's ship or a fleet escort took it out
+/// ([`PlayerTakedown::took_out`]). A hull thawed already neutralized
+/// carries no attacker and records nothing. Every step the offence made
+/// raises one [`StanceChanged`], the civilization's own first.
 pub(crate) fn record_offence(
     add: On<Add<NeutralizedMarker>>,
-    hulls: Query<(Option<&Name>, &TraderMarket, Option<&LastAttacker>)>,
-    player: Query<(), Or<(With<PlayerSpaceshipMarker>, With<PlayerFleetMarker>)>>,
+    hulls: Query<(Option<&Name>, &TraderMarket)>,
+    takedown: PlayerTakedown,
     clock: Res<WorldClock>,
     mut stances: ResMut<CivilizationStances>,
     mut commands: Commands,
 ) {
-    let Ok((name, market, attacker)) = hulls.get(add.entity) else {
+    let Ok((name, market)) = hulls.get(add.entity) else {
         return;
     };
-    let Some(LastAttacker(attacker)) = attacker else {
-        return;
-    };
-    if !player.contains(*attacker) {
+    if !takedown.took_out(add.entity) {
         return;
     }
     let label = name.map_or_else(|| format!("{:?}", add.entity), |name| name.to_string());
@@ -585,6 +609,7 @@ mod tests {
     fn stance_app() -> App {
         let mut app = App::new();
         app.init_resource::<WorldClock>();
+        app.init_resource::<Time<Virtual>>();
         app.init_resource::<CivilizationStances>();
         app.init_resource::<Raised>();
         app.add_observer(record_offence);
@@ -616,9 +641,14 @@ mod tests {
     /// The player neutralizes one intact hull of `civilization`.
     fn neutralize_a_hull(app: &mut App, player: Entity, civilization: CivilizationId) {
         let hull = station_of(app, civilization);
-        app.world_mut()
-            .entity_mut(hull)
-            .insert((LastAttacker(player), NeutralizedMarker));
+        let at = app.world().resource::<Time<Virtual>>().elapsed();
+        app.world_mut().entity_mut(hull).insert((
+            LastAttacker {
+                attacker: player,
+                at,
+            },
+            NeutralizedMarker,
+        ));
         app.world_mut().flush();
     }
 

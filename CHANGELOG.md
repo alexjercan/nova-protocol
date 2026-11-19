@@ -35,6 +35,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A recovery or a neutralize with no wreck or hostile near the station now names its own: a derelict or one raider up to 16 km out, put there on Accept. Before, it posted as a Bring job.
 - Your starting station's board now posts three jobs your start hull can do and lists every one. Before, it hid a job the hull could not do and could list fewer than three.
 - A role goal now reads its own line first, three of the role's work, then one owned station. The transport counts cargo runs; the pirate counts trading hulls it neutralizes.
+- A recovery now asks for hold room for its whole stack as well as a docking section: Accept is disabled behind `HOLD` on a hull too small. Before, it asked for the docking section alone.
+- A kill is an offence only when your ship or a fleet escort landed the last hit no more than 30 s before the hull went dead. Before, one old hit made a later kill by anything yours.
 - Start credits are 2,200 cr for the industrial and the transport, 1,800 cr for the bounty hunter, the military and the pirate, and 1,500 cr for the scavenger. Before, 1,000 to 2,200 cr.
 - A station board asks for raw material by the lot of four: 8 to 32 units of an ore, up from 2 to 8, so an ore run pays about what another job pays for its time.
 
@@ -87,6 +89,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - A neutralized player ship that is repaired is back in the fight: enemies target it again. Before, it stayed neutralized and was never targeted again. AI ships stay neutralized.
 - A section destroyed in the same frame its ship's section graph was built no longer stops the game with an "Entity despawned" command error.
+- A job you drop, and a job whose board slot renews, now takes its hauler, raiders, caller or wreck out of a sector you have left too. Before, they came back with no job when you returned.
 
 ## [0.18.0] - 2026-11-15
 

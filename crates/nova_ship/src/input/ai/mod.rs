@@ -66,7 +66,8 @@ pub use self::{
     passive::AIWaypointSlack,
     railgun::AIRailgun,
     threat::{
-        AIEvade, AIProvocation, AIThreat, LastAttacker, ShipProvoked, NEUTRAL_RETALIATION_THRESHOLD,
+        AIEvade, AIProvocation, AIThreat, LastAttacker, ShipProvoked, LAST_ATTACKER_WINDOW,
+        NEUTRAL_RETALIATION_THRESHOLD,
     },
     torpedo::AI_TORPEDO_MAX_RANGE,
 };
@@ -119,7 +120,7 @@ pub mod prelude {
         AISpaceshipMarker, AIStandoffClearance, AITarget, AIThreat, AIWaypointSlack, FrozenAI,
         LastAttacker, ShipProvoked, SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR,
         AI_FOLLOW_CLOSING_SPEED, AI_FOLLOW_GAP, AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE,
-        NEUTRAL_RETALIATION_THRESHOLD,
+        LAST_ATTACKER_WINDOW, NEUTRAL_RETALIATION_THRESHOLD,
     };
 }
 

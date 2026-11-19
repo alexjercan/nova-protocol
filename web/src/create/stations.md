@@ -511,7 +511,7 @@ read the side alone.
 | rule | what happens |
 |---|---|
 | the seed | each civilization's stance to the player is an even draw of `Enemy`, `Ally` or `Neutral`, the same for every start role. Two living civilizations whose centroids lie under 340 km apart are neighbours; their edge is drawn `Ally` / `Neutral` / `Enemy` at 25 / 50 / 25, and a civilization with no `Enemy` edge designates one neighbour its rival, so every neighbourhood holds a rival |
-| an offence | neutralizing an intact generated hull or station of a civilization, your ship or a fleet escort dealing the last hit. Three offences inside 3600 s of play step the civilization one down; the first two are a grace count, and an offence older than the window is forgotten |
+| an offence | neutralizing an intact generated hull or station of a civilization, your ship or a fleet escort dealing the last hit no more than 30 s before it goes dead. A hull you hit and left, taken out later by something else, is no offence. Three offences inside 3600 s of play step the civilization one down; the first two are a grace count, and an offence older than the window is forgotten |
 | a merit | handing in a job one of its stations posted. Three merits step it one up |
 | propagation | a step DOWN an offence makes reaches the civilization's living neighbours once, by their edge: an `Ally` edge follows one step down, an `Enemy` edge warms one step up, a `Neutral` edge moves nothing. Nothing reaches a neighbour's neighbour, and a merit, a settlement or the decay moves the one civilization alone |
 | a provocation | your fire or ram on a `Neutral` or `Ally` hull past its patience (30 hit points in quick succession, the same tally that makes a Neutral ship answer) makes its whole civilization read `Enemy` for 900 s of play; a later provocation restarts the window |
@@ -520,7 +520,7 @@ read the side alone.
 | decay | a civilization your deeds made `Enemy` returns to `Neutral` after 7200 s of play with no new offence; a seeded `Enemy` never decays |
 | merchandise | a station you own, an escort in your fleet and a neutralized hull keep their side: a bought station flies yours, a dead hull is loot |
 | arrival | a generated crew holds fire for 8 s after its cell streams in, whatever its side, so a civilization you turned `Enemy` arrives with the grace a seeded `Enemy` gets; a `Neutral` or `Ally` crew provoked inside that window answers once it passes |
-| the charter | the base `pirate` role's goal counts every trading hull you neutralize, the same kills an offence is recorded for, at any stance, see [Start roles](../start-roles/#the-goal) |
+| the charter | the base `pirate` role's goal counts every trading ship you neutralize, the ship kills an offence is recorded for, at any stance; a station is an offence and no hull taken, see [Start roles](../start-roles/#the-goal) |
 | sectors and saves | the stances live on your save, not the station: an offence counts across a retire, a thaw and a Load, and a Load restores the table on its arming frame. A table stamped ahead of the saved play clock refuses the Load |
 | events | a settlement fires one `OnCreditsChanged` per party with `cause: Settle`, see [Hold events](../events/#hold-events) |
 

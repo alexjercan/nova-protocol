@@ -1956,10 +1956,10 @@ fn play_jobs_cue(
 /// nothing. An accept of a job the docked
 /// station's board no longer posts is refused as expired: the slot renewed
 /// between the click and this frame. A [`JobDropCommand`] drops the held job
-/// ([`Jobs::drop`]) with no payout, raises [`JobDropped`] with the cause
-/// `Abandoned` and takes out the bodies its accept put in the world
-/// ([`Job::spawned_bodies`]), as `drop_on_loss` does in the open world
-/// crate, whatever station it is docked at; a drop of a job no
+/// ([`Jobs::drop`]) with no payout and raises [`JobDropped`] with the cause
+/// `Abandoned`, whatever station it is docked at; the open world crate
+/// answers every drop by taking the bodies the accept put in the world out
+/// of it, live or frozen. A drop of a job no
 /// longer held, lost or handed in since the confirm, is refused. A
 /// [`JobOfferRefreshCommand`] instead pays to delete a current, unheld
 /// board offer ahead of its window, for a fresh one in its place: planned
@@ -1978,7 +1978,7 @@ fn play_jobs_cue(
 /// station carries no `ShipCredits`: a station the board lists always does.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading the four commands, the board, the jobs, the postings, the clock, the table, the site, the bodies, the targets, the hold, both balances, the count-up and the stances"
+    reason = "one system reading the four commands, the board, the jobs, the postings, the clock, the table, the site, the ids, the targets, the hold, both balances, the count-up and the stances"
 )]
 #[expect(
     clippy::type_complexity,
@@ -2000,7 +2000,7 @@ fn apply_job_commands(
     mut postings: ResMut<JobPostings>,
     clock: Res<WorldClock>,
     site: StationSite,
-    (q_ids, q_bodies): (Query<&GeneratedBodyId>, Query<(Entity, &GeneratedBodyId)>),
+    q_ids: Query<&GeneratedBodyId>,
     q_boards: Query<&JobBoard>,
     // The hull an accept is planned for reads the hold a hand-in writes.
     mut q_holds: ParamSet<(JobTargets, Query<&mut ShipInventory>, PlayerHull)>,
@@ -2158,12 +2158,6 @@ fn apply_job_commands(
             job: job.clone(),
             cause: JobDropCauseType::Abandoned,
         });
-        let gone = job.spawned_bodies();
-        for (entity, id) in &q_bodies {
-            if gone.contains(id) {
-                commands.entity(entity).try_despawn();
-            }
-        }
         let title = job.title(&items);
         info!("nova_interface: dropped the job '{}' ({title})", job.id);
         runtime.cue.raise(ActionOutcomeType::Done);
@@ -2515,6 +2509,9 @@ mod tests {
         app.add_message::<JobDropCommand>();
         app.add_message::<JobOfferRefreshCommand>();
         app.add_systems(Update, apply_job_commands);
+        // The open world's answer to a drop: it owns the bodies.
+        app.init_resource::<nova_world::prelude::FrozenSectors>();
+        app.add_observer(nova_world_base::prelude::retire_dropped_job_bodies);
         let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
         let caller = GeneratedBodyId::new(SectorCoord::ORIGIN, "job_caller", 0);
         let job = Job {

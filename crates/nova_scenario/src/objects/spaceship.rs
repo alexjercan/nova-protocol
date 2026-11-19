@@ -2869,6 +2869,60 @@ mod tests {
         assert_eq!(call.station, station);
     }
 
+    /// A leashed AI ship keeps its leash centre through a freeze, a save and
+    /// a thaw: the thaw's own wiring seeds a leash on the pose the ship
+    /// thaws at, and the frozen one replaces it.
+    #[test]
+    fn a_leashed_ai_ship_keeps_its_leash_centre_through_a_save_and_a_thaw() {
+        let mut app = App::new();
+        app.add_plugins((SpaceshipAIInputPlugin, NovaFlightPlugin));
+        let world = app.world_mut();
+        world.init_resource::<GameSections>();
+        world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
+        world.add_observer(insert_spaceship_sections);
+
+        let ship = world
+            .spawn((
+                Transform::from_xyz(500.0, 0.0, 0.0),
+                spaceship_scenario_object(SpaceshipConfig {
+                    controller: SpaceshipController::AI(AIControllerConfig {
+                        leash: Some(Meters(8_000.0)),
+                        ..default()
+                    }),
+                    ..default()
+                }),
+            ))
+            .id();
+        world.flush();
+        let spawned = world
+            .get::<AILeash>(ship)
+            .cloned()
+            .expect("a leashed controller tethers the ship");
+        assert_eq!(spawned.center, Vec3::new(500.0, 0.0, 0.0));
+
+        let frozen = freeze_ship(world, ship).expect("a settled ship freezes");
+        let frozen: FrozenShip =
+            ron::from_str(&ron::to_string(&frozen).expect("a frozen ship writes"))
+                .expect("a frozen ship reads back");
+        world.entity_mut(ship).despawn();
+        let mut commands = world.commands();
+        // The hull drifted before its cell froze it.
+        let mut thawed = commands.spawn(Transform::from_xyz(2_000.0, 0.0, 0.0));
+        thaw_ship(&mut thawed, frozen);
+        let thawed = thawed.id();
+        world.flush();
+
+        let leash = world
+            .get::<AILeash>(thawed)
+            .expect("the thawed ship is tethered");
+        assert_eq!(
+            (leash.center, leash.radius),
+            (spawned.center, spawned.radius),
+            "the tether stays on the territory the ship was spawned to hold"
+        );
+    }
+
     /// A frozen ship keeps its RCS magazine's spent and idle readings, and
     /// the terminal state its own neutralized brake reached, through freeze
     /// and thaw: the thaw inserts the brake before `NeutralizedMarker` in

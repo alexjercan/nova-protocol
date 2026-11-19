@@ -24,11 +24,12 @@ use std::collections::BTreeSet;
 use bevy::prelude::*;
 use nova_gameplay::prelude::{
     GameItems, GoalLine, GoalProgress, GoalRecord, ItemCategoryType, Job, JobType, Jobs,
-    NeutralizedMarker, OwnedStationMarker, PlayerFleetMarker, PlayerSpaceshipMarker, TraderMarket,
+    NeutralizedMarker, OwnedStationMarker, StationMarker, TraderMarket,
 };
 use nova_scenario::prelude::{GameStartRoles, OpenWorldSession, RoleGoal, RoleGoalType};
-use nova_ship::prelude::LastAttacker;
 use nova_world::prelude::{FrozenBodyType, FrozenSectors, WorldClock};
+
+use crate::stance::PlayerTakedown;
 
 /// The label of the shared last line every role's goal closes with.
 pub(crate) const STATIONS_OWNED_LABEL: &str = "Stations owned";
@@ -148,23 +149,21 @@ pub fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgress {
     }
 }
 
-/// Count a trading hull the player just neutralized: the hull carries a
-/// [`TraderMarket`] (every intact generated ship and living station does)
-/// and its [`LastAttacker`] is the player's ship or a fleet escort, the
-/// hulls an offence is recorded for (`stance::record_offence`), whatever
-/// the civilization's stance. A hull thawed already neutralized carries no
-/// attacker and counts nothing; a hull a job put in the world carries no
-/// market.
+/// Count a trading hull the player just neutralized: a ship hull, never a
+/// station, that carries a [`TraderMarket`] (every intact generated ship
+/// does) and that the player's ship or a fleet escort took out
+/// ([`PlayerTakedown::took_out`], the rule an offence is recorded by,
+/// `stance::record_offence`), whatever the civilization's stance: a hostile
+/// patrol with a market is a hull taken too. A hull the player hit once and
+/// left, a hull thawed already neutralized and a hull a job put in the
+/// world, which carries no market, count nothing.
 pub(crate) fn count_hull_taken(
     add: On<Add<NeutralizedMarker>>,
-    hulls: Query<&LastAttacker, With<TraderMarket>>,
-    player: Query<(), Or<(With<PlayerSpaceshipMarker>, With<PlayerFleetMarker>)>>,
+    hulls: Query<(), (With<TraderMarket>, Without<StationMarker>)>,
+    takedown: PlayerTakedown,
     mut record: ResMut<GoalRecord>,
 ) {
-    let Ok(LastAttacker(attacker)) = hulls.get(add.entity) else {
-        return;
-    };
-    if player.contains(*attacker) {
+    if hulls.contains(add.entity) && takedown.took_out(add.entity) {
         record.hulls_taken = record.hulls_taken.saturating_add(1);
     }
 }
@@ -230,7 +229,8 @@ mod tests {
 
     use nova_events::prelude::{GeneratedBodyId, SectorCoord};
     use nova_gameplay::prelude::{
-        CivilizationId, ClusterType, ItemDesign, JobId, JobReward, StationMarker,
+        CivilizationId, ClusterType, ItemDesign, JobId, JobReward, PlayerFleetMarker,
+        PlayerSpaceshipMarker,
     };
 
     use super::*;
@@ -506,13 +506,19 @@ mod tests {
     }
 
     /// A trading hull the player's ship or a fleet escort neutralizes counts
-    /// one hull taken with no stance asked of its civilization; a hull
-    /// another ship took out, a hull with no market and a hull thawed
-    /// already neutralized count none.
+    /// one hull taken with no stance asked of its civilization. A station,
+    /// a hull another ship took out, a hull with no market, a hull thawed
+    /// already neutralized and a hull the player hit and left, neutralized
+    /// after the attribution window, count none.
     #[test]
     fn a_trading_hull_the_player_neutralizes_counts_one_hull_taken() {
+        use std::time::Duration;
+
+        use nova_ship::prelude::{LastAttacker, LAST_ATTACKER_WINDOW};
+
         let mut app = App::new();
         app.init_resource::<GoalRecord>();
+        app.init_resource::<Time<Virtual>>();
         app.add_observer(count_hull_taken);
         let market = || TraderMarket {
             cluster: ClusterType::RockOnly,
@@ -529,23 +535,48 @@ mod tests {
         let escort = world.spawn(PlayerFleetMarker).id();
         let stranger = world.spawn_empty().id();
         let taken = |world: &World| world.resource::<GoalRecord>().hulls_taken;
+        let hit_by = |world: &World, attacker: Entity| LastAttacker {
+            attacker,
+            at: world.resource::<Time<Virtual>>().elapsed(),
+        };
 
-        world.spawn((market(), LastAttacker(player), NeutralizedMarker));
+        world.spawn((market(), hit_by(world, player), NeutralizedMarker));
         assert_eq!(taken(world), 1, "the player's own kill");
-        world.spawn((market(), LastAttacker(escort), NeutralizedMarker));
+        world.spawn((market(), hit_by(world, escort), NeutralizedMarker));
         assert_eq!(taken(world), 2, "a fleet escort's kill");
         world.spawn((
             StationMarker,
             market(),
-            LastAttacker(stranger),
+            hit_by(world, player),
             NeutralizedMarker,
         ));
-        world.spawn((LastAttacker(player), NeutralizedMarker));
+        assert_eq!(taken(world), 2, "a station is no hull taken");
+        world.spawn((market(), hit_by(world, stranger), NeutralizedMarker));
+        world.spawn((hit_by(world, player), NeutralizedMarker));
         world.spawn((market(), NeutralizedMarker));
         assert_eq!(
             taken(world),
             2,
             "another ship's kill, a hull with no market and a thawed wreck count none"
         );
+
+        // The player hits a trader once and leaves; something nobody owns
+        // takes it out after the window.
+        let left = world.spawn((market(), hit_by(world, player))).id();
+        world
+            .resource_mut::<Time<Virtual>>()
+            .advance_by(LAST_ATTACKER_WINDOW + Duration::from_secs(1));
+        world.entity_mut(left).insert(NeutralizedMarker);
+        assert_eq!(
+            taken(world),
+            2,
+            "a hull neutralized after the window is not the player's"
+        );
+        let fresh = world.spawn((market(), hit_by(world, player))).id();
+        world
+            .resource_mut::<Time<Virtual>>()
+            .advance_by(LAST_ATTACKER_WINDOW);
+        world.entity_mut(fresh).insert(NeutralizedMarker);
+        assert_eq!(taken(world), 3, "a hull neutralized inside the window is");
     }
 }

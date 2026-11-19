@@ -15,7 +15,8 @@
 //! an offer the player does not hold that was handed in, or that stood
 //! longer than the price table's `jobs.offer_seconds` of play, or
 //! `jobs.escort_offer_seconds` for an Escort, moves to its next posting, the
-//! bodies its old posting could have put in the world are taken out, and the
+//! bodies its old posting could have put in the world are taken out, live or
+//! frozen, and the
 //! slot posts a new offer under a new id ([`post_station_boards`]). A held
 //! job pins its slot. A dropped job's posting is retired and never accepted
 //! again, but its slot waits out the same window before it reposts, same as
@@ -47,12 +48,15 @@
 //! its caller ([`distress_on_answer`]), a supply job on the same dock with
 //! the whole stack aboard, which the dock takes ([`supply_on_dock`]), a
 //! neutralize on `onneutralized` or `ondestroyed`
-//! ([`neutralize_on_kill`]). A held job is dropped, and its spawned bodies
-//! taken out, on the `onneutralized` or `ondestroyed` of what retires it
+//! ([`neutralize_on_kill`]). A held job is dropped on the `onneutralized` or
+//! `ondestroyed` of what retires it
 //! ([`drop_on_loss`]): its poster, done or not, or its hauler, its wreck or
 //! its caller before the job is done, and an escort whose hauler's
 //! leg order fails (`onshiporderfailed`): a hauler that cannot fly its leg
-//! would hold the job for good. A done job keeps its hand-in.
+//! would hold the job for good. A done job keeps its hand-in. Every drop,
+//! a loss or the player's own, takes the job's spawned bodies out of the
+//! world, the live ones and the ones a frozen cell holds
+//! ([`retire_dropped_job_bodies`]).
 //! Every standing body a held job sends the player to wears the HUD's
 //! objective chip as `JOB-n` ([`mark_held_job_targets`]).
 
@@ -87,8 +91,8 @@ use nova_ship::prelude::{
     ShipCapabilities, ShipHelmOrder, ShipOrderDirective, ShipOrderHelmAuthority, ShipOrderReports,
 };
 use nova_world::prelude::{
-    PendingSectorShip, SectorClusterTypes, SectorRoot, SectorShipConditionType, WorldClock,
-    WorldConfig,
+    FrozenSectors, PendingSectorShip, SectorClusterTypes, SectorRoot, SectorShipConditionType,
+    WorldClock, WorldConfig,
 };
 
 use crate::{
@@ -252,10 +256,13 @@ impl PlayerHull<'_, '_> {
 /// and posts them, stamped now. On every such frame each slot the player
 /// does not hold whose job was handed in, or whose offer stood past the
 /// table's `jobs.offer_seconds` of play, or `jobs.escort_offer_seconds` for
-/// an Escort, renews: every live body its old posting could have named is
-/// taken out of the world and the slot draws its next posting's offer
+/// an Escort, renews: every body its old posting could have named is
+/// taken out of the world, live or frozen ([`retire_job_bodies`]), and the
+/// slot draws its next posting's offer
 /// beside the standing ones, over the field less every
-/// body [`JobPostings::named_bodies`] gives. Stations draw in id order, so a
+/// body [`JobPostings::named_bodies`] gives. Every station's renewals retire
+/// their bodies before any station draws, so no board names a body another
+/// board takes out on the same frame. Stations draw in id order, so a
 /// board posted earlier on the frame counts for the next. A station with a
 /// renewed slot, or with no board on its root yet, after a thaw or a Load,
 /// carries its saved offers as its [`JobBoard`]. A dead
@@ -270,11 +277,12 @@ impl PlayerHull<'_, '_> {
 /// session; no other station does. Its draw alone reads the player's hull:
 /// every slot that renews there posts a job that hull can do
 /// ([`station_job_offers`]), so the board waits for the player's ship to
-/// stand before it draws. A slot that does not renew stays as it is, so a
+/// stand before it draws, and renews or retires nothing while it waits. A
+/// slot that does not renew stays as it is, so a
 /// board of held jobs posts nothing until one renews.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading the config, the table, the clock, the session, the jobs, the postings, the stations, the roots and the field"
+    reason = "one system reading the config, the table, the clock, the session, the jobs, the postings, the stations, the roots, the field and the ledger"
 )]
 #[expect(
     clippy::type_complexity,
@@ -313,6 +321,7 @@ pub fn post_station_boards(
     >,
     field_bodies: FieldBodies,
     hull: PlayerHull,
+    mut frozen: ResMut<FrozenSectors>,
 ) {
     if stations.is_empty() {
         return;
@@ -370,9 +379,12 @@ pub fn post_station_boards(
     // the next station draws, the same in every process.
     let mut ordered: Vec<_> = stations.iter().collect();
     ordered.sort_by(|a, b| a.1.cmp(b.1));
-    // Every body a renewal takes out this frame: the despawn is deferred, so
-    // a later station's queries still see it.
+    // Every body a renewal takes out this frame, live or frozen. The despawn
+    // is deferred, so a station's queries still see the live ones: every
+    // renewal retires first, then every board draws, so no board names a
+    // body a board later in id order takes out on the same frame.
     let mut retired: BTreeSet<GeneratedBodyId> = BTreeSet::new();
+    let mut passes = Vec::new();
     for (entity, id, parent, services, derelict, posted, market) in ordered {
         if !station_offers(services, derelict, StationServiceType::Jobs) {
             continue;
@@ -391,10 +403,26 @@ pub fn post_station_boards(
         if around.iter().any(|root| unsettled.contains(root)) {
             continue;
         }
+        let starter = session
+            .as_deref()
+            .is_some_and(|session| session.is_starting_station(id));
+        let board = postings.board(id);
+        // The starter board draws for the player's hull; a draw before the
+        // ship stands would fit nothing and post what it cannot do. Nothing
+        // renews or retires while it waits: a slot taken out now would have
+        // no offer to put in its place.
+        let draws = board.is_none_or(|slots| {
+            slots
+                .iter()
+                .any(|posting| slot_renews(&jobs, posting, rule, now))
+        });
+        if starter && draws && hull.entity().is_none() {
+            continue;
+        }
         let mut renewing: Vec<JobId> = Vec::new();
         let mut standing: Vec<Job> = Vec::new();
         let mut window_renewed = false;
-        match postings.board(id) {
+        match board {
             None => {
                 renewing.extend((0..JOBS_PER_BOARD).map(|slot| JobId::slot(id.clone(), slot, 0)))
             }
@@ -418,14 +446,9 @@ pub fn post_station_boards(
                     // visit posting the player does not hold off the board;
                     // a hand-in, a drop or a paid refresh leaves them.
                     window_renewed |= expired;
-                    let mut taken_out = 0;
-                    for body_id in job_id.possible_bodies() {
-                        if let Some(body) = worn.get(&body_id) {
-                            commands.entity(*body).try_despawn();
-                            retired.insert(body_id);
-                            taken_out += 1;
-                        }
-                    }
+                    let gone = job_id.possible_bodies();
+                    let taken_out = retire_job_bodies(&mut commands, &worn, &mut frozen, &gone);
+                    retired.extend(gone);
                     let next = job_id.next_posting();
                     info!(
                         "nova_world_base: the station '{id}' renews slot {slot} at {now:.1} s of \
@@ -444,15 +467,31 @@ pub fn post_station_boards(
                 );
             }
         }
-        let starter = session
-            .as_deref()
-            .is_some_and(|session| session.is_starting_station(id));
+        passes.push(BoardPass {
+            entity,
+            id,
+            around,
+            clusters,
+            posted,
+            market,
+            starter,
+            renewing,
+            standing,
+        });
+    }
+    for pass in passes {
+        let BoardPass {
+            entity,
+            id,
+            around,
+            clusters,
+            posted,
+            market,
+            starter,
+            renewing,
+            standing,
+        } = pass;
         if !renewing.is_empty() {
-            // The starter board draws for the player's hull; a draw before
-            // the ship stands would fit nothing and post what it cannot do.
-            if starter && hull.entity().is_none() {
-                continue;
-            }
             let fitted = starter.then(|| hull.fit());
             let mut excluded = postings.named_bodies(rule, now, &jobs);
             excluded.extend(retired.iter().cloned());
@@ -536,6 +575,85 @@ pub fn post_station_boards(
             station.remove::<StarterBoardMarker>();
         }
     }
+}
+
+/// One station's part of a board pass, between the renewals and the draws:
+/// the slots that renew, the offers that stand and what the draw reads off
+/// the station.
+struct BoardPass<'a> {
+    entity: Entity,
+    id: &'a GeneratedBodyId,
+    around: Vec<Entity>,
+    clusters: &'a SectorClusterTypes,
+    posted: Option<&'a JobBoard>,
+    market: Option<&'a TraderMarket>,
+    starter: bool,
+    renewing: Vec<JobId>,
+    standing: Vec<Job>,
+}
+
+/// Take the bodies `gone` out of the world, wherever they are: a live one
+/// (`worn`, every live generated body by id) is despawned, and a frozen one
+/// leaves its cell's record, so its cell does not thaw it later with no job
+/// to own it. Returns how many were taken out.
+fn retire_job_bodies(
+    commands: &mut Commands,
+    worn: &BTreeMap<&GeneratedBodyId, Entity>,
+    frozen: &mut ResMut<FrozenSectors>,
+    gone: &[GeneratedBodyId],
+) -> usize {
+    let mut taken_out = 0;
+    for body_id in gone {
+        if let Some(body) = worn.get(body_id) {
+            commands.entity(*body).try_despawn();
+            taken_out += 1;
+        }
+    }
+    let ids: BTreeSet<String> = gone.iter().map(ToString::to_string).collect();
+    // Read first: a write marks the ledger changed.
+    let held = frozen
+        .iter()
+        .flat_map(|(_, sector)| sector.bodies())
+        .any(|body| body.id().is_some_and(|id| ids.contains(id)));
+    if held {
+        for id in frozen.retire_bodies(&ids) {
+            info!("nova_world_base: the frozen job body '{id}' leaves its cell's record");
+            taken_out += 1;
+        }
+    }
+    taken_out
+}
+
+/// Take a dropped job's bodies out of the world, live or frozen
+/// ([`retire_job_bodies`]), so the board offers the slot again and no cell
+/// thaws a hauler, a raider, a caller or a wreck that no job owns. Every
+/// drop raises [`JobDropped`]: the Jobs pane's, a loss ([`drop_on_loss`])
+/// and a hail whose caller no cell holds. A hail job and a job on a body of
+/// the field put nothing in the world ([`Job::spawned_bodies`]), so their
+/// drop takes nothing out.
+///
+/// Public so the Jobs pane's tests run the drop to its end in the world.
+pub fn retire_dropped_job_bodies(
+    dropped: On<JobDropped>,
+    mut commands: Commands,
+    bodies: Query<(Entity, &GeneratedBodyId)>,
+    mut frozen: ResMut<FrozenSectors>,
+) {
+    let gone = dropped.job.spawned_bodies();
+    if gone.is_empty() {
+        return;
+    }
+    let worn: BTreeMap<&GeneratedBodyId, Entity> = bodies
+        .iter()
+        .filter(|(_, id)| gone.contains(id))
+        .map(|(body, id)| (id, body))
+        .collect();
+    let taken_out = retire_job_bodies(&mut commands, &worn, &mut frozen, &gone);
+    info!(
+        "nova_world_base: the dropped job '{}' takes {taken_out} of its {} body(ies) out",
+        dropped.job.id,
+        gone.len()
+    );
 }
 
 /// Whether the slot on `posting` renews at `now` of play under `rule`: its
@@ -1414,8 +1532,8 @@ fn is_taken_out(event: &GameEvent, body: &GeneratedBodyId) -> bool {
 }
 
 /// Drop every held job the `onneutralized` or `ondestroyed` of one body
-/// retires, and take the job's spawned bodies out of the world so the board
-/// offers it again and a second accept can put them back: every job of the
+/// retires; the drop takes the job's spawned bodies out of the world
+/// ([`retire_dropped_job_bodies`]): every job of the
 /// poster, done or not, since no hand-in is left; an escort whose hauler, a
 /// recovery whose wreck or a distress call whose caller is taken out before
 /// the job is done. An undone escort is also dropped on the
@@ -1424,12 +1542,7 @@ fn is_taken_out(event: &GameEvent, body: &GeneratedBodyId) -> bool {
 /// mark. A done job keeps its hand-in: a hauler killed at
 /// its mark or a wreck shot after the lift still pays. A neutralize's hull
 /// taken out is [`neutralize_on_kill`]'s done.
-pub(crate) fn drop_on_loss(
-    event: On<GameEvent>,
-    mut commands: Commands,
-    mut jobs: ResMut<Jobs>,
-    bodies: Query<(Entity, &GeneratedBodyId)>,
-) {
+pub(crate) fn drop_on_loss(event: On<GameEvent>, mut commands: Commands, mut jobs: ResMut<Jobs>) {
     let failed = event.name() == OnShipOrderFailedEvent::name();
     if !failed
         && event.name() != OnNeutralizedEvent::name()
@@ -1487,12 +1600,6 @@ pub(crate) fn drop_on_loss(
             job: job.clone(),
             cause: JobDropCauseType::Lost,
         });
-        let gone = job.spawned_bodies();
-        for (entity, id) in &bodies {
-            if gone.contains(id) {
-                commands.entity(entity).try_despawn();
-            }
-        }
         warn!(
             "nova_world_base: '{}' is lost: its {what} '{subject}' was {}",
             job.id,
@@ -2098,12 +2205,14 @@ mod tests {
         }
         app.insert_resource(jobs);
         app.insert_resource(test_items());
+        app.init_resource::<FrozenSectors>();
         app.add_observer(recover_on_undock);
         app.add_observer(escort_on_arrival);
         app.add_observer(distress_on_answer);
         app.add_observer(supply_on_dock);
         app.add_observer(neutralize_on_kill);
         app.add_observer(drop_on_loss);
+        app.add_observer(retire_dropped_job_bodies);
         app
     }
 
@@ -3411,8 +3520,7 @@ mod tests {
     /// cells.
     fn board_app() -> App {
         use nova_gameplay::prelude::{
-            CivilizationId, ClusterType, GameTradeProfiles, PriceClamp, PriceFactor, PriceTable,
-            RestockRule, ScarcityRule,
+            GameTradeProfiles, PriceClamp, PriceFactor, PriceTable, RestockRule, ScarcityRule,
         };
         use nova_world::prelude::{SectorClusterTypes, SectorRoot};
 
@@ -3461,6 +3569,7 @@ mod tests {
         app.init_resource::<Jobs>();
         app.init_resource::<JobPostings>();
         app.init_resource::<Encounters>();
+        app.init_resource::<FrozenSectors>();
         app.add_systems(Update, post_station_boards);
         let mut home = None;
         for coord in cube_around(SectorCoord::ORIGIN) {
@@ -3476,11 +3585,20 @@ mod tests {
                 home = Some(root);
             }
         }
-        app.world_mut().spawn((
+        app.world_mut()
+            .spawn((jobs_station(poster()), ChildOf(home.unwrap())));
+        app
+    }
+
+    /// A living station `id` that offers jobs, of the civilization at the
+    /// origin node of seed 42.
+    fn jobs_station(id: GeneratedBodyId) -> impl Bundle {
+        use nova_gameplay::prelude::{CivilizationId, ClusterType};
+
+        (
             StationMarker,
-            poster(),
+            id,
             Transform::default(),
-            ChildOf(home.unwrap()),
             StationServices(vec![StationServiceType::Jobs]),
             TraderMarket {
                 cluster: ClusterType::RockOnly,
@@ -3492,8 +3610,276 @@ mod tests {
                 target: BTreeMap::new(),
                 profile: None,
             },
-        ));
-        app
+        )
+    }
+
+    /// Open a session of the fixture role with the job mix `mix`, started
+    /// at the station `start`.
+    fn open_session(app: &mut App, mix: JobMixType, start: GeneratedBodyId) {
+        use nova_scenario::prelude::StartingStation;
+
+        let mut roles = crate::test_support::fixture_roles();
+        roles.0[0].jobs = mix;
+        let role = roles.0[0].id.clone();
+        app.insert_resource(roles);
+        app.insert_resource(OpenWorldSession {
+            seed: 42,
+            role,
+            start: StartingStation {
+                id: start,
+                position: Meters3::ZERO,
+                spawn: Meters3::ZERO,
+            },
+        });
+    }
+
+    /// A player ship with a hold, a docking section and a turret: a hull
+    /// every job kind fits.
+    fn stand_player(app: &mut App) -> Entity {
+        let player = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::default(),
+                ShipInventory::new(&test_items(), 1_000_000, []),
+            ))
+            .id();
+        app.world_mut()
+            .spawn((SectionMarker, DockingSectionMarker, ChildOf(player)));
+        app.world_mut()
+            .spawn((SectionMarker, TurretSectionMarker, ChildOf(player)));
+        player
+    }
+
+    /// The offers on the slots of the board of `station`.
+    fn slot_offers(app: &App, station: &GeneratedBodyId) -> Vec<Job> {
+        app.world()
+            .resource::<JobPostings>()
+            .board(station)
+            .unwrap_or_else(|| panic!("'{station}' posted its board"))
+            .iter()
+            .map(|slot| slot.offer.clone())
+            .collect()
+    }
+
+    /// Every id a body on the ledger carries.
+    fn frozen_ids(app: &App) -> BTreeSet<String> {
+        app.world()
+            .resource::<FrozenSectors>()
+            .iter()
+            .flat_map(|(_, sector)| sector.bodies())
+            .filter_map(|body| body.id().map(str::to_string))
+            .collect()
+    }
+
+    /// Freeze each ship of `ships` as its retiring cell would, take it out
+    /// of the world and put the records on the ledger under the home cell.
+    fn freeze_into_ledger(app: &mut App, ships: &[Entity]) {
+        use avian3d::prelude::Rotation;
+        use nova_gameplay::prelude::DamageMarks;
+        use nova_ship::prelude::RcsBudget;
+        use nova_world::prelude::{freeze_body, DockPolicy};
+
+        let mut records = Vec::new();
+        for ship in ships {
+            // What the ship spawner settles on a root before its cell can
+            // freeze it.
+            app.world_mut().entity_mut(*ship).insert((
+                ShipInventory::default(),
+                DamageMarks::default(),
+                RcsBudget::default(),
+                Rotation::default(),
+            ));
+            let world = app.world();
+            let record = freeze_body(
+                world,
+                *ship,
+                DockPolicy::Refuse,
+                world.resource::<WorldClock>(),
+            )
+            .expect("the ship is settled");
+            records.push(ron::to_string(&record).unwrap());
+            app.world_mut().despawn(*ship);
+        }
+        let ledger: FrozenSectors = ron::from_str(&format!(
+            "{{{}: Visited([{}])}}",
+            ron::to_string(&SectorCoord::ORIGIN).unwrap(),
+            records.join(", ")
+        ))
+        .unwrap();
+        app.insert_resource(ledger);
+    }
+
+    /// The bodies an accept put in the world leave it with their job even
+    /// from a frozen cell: a dropped job's raider leaves its cell's record
+    /// with the drop, and a handed-in job's wreck with its slot's renewal,
+    /// so no cell thaws a hull that no job owns.
+    #[test]
+    fn a_job_s_frozen_bodies_leave_their_cell_s_record_with_the_drop_and_with_the_renewal() {
+        let mut app = board_app();
+        app.add_observer(spawn_job_bodies);
+        app.add_observer(retire_dropped_job_bodies);
+        let recover = own_recover(0);
+        let neutralize = own_neutralize(1);
+        let procure = job(
+            2,
+            JobType::Procure {
+                item: item(),
+                count: 1,
+            },
+        );
+        app.world_mut()
+            .resource_mut::<JobPostings>()
+            .post(vec![recover.clone(), neutralize.clone(), procure], 0.0);
+        let mut ships = Vec::new();
+        for job in [&recover, &neutralize] {
+            app.world_mut().resource_mut::<Jobs>().accept(job.clone());
+            app.world_mut().trigger(JobAccepted { job: job.clone() });
+            app.world_mut().flush();
+            let target = job.spawned_bodies()[0].clone();
+            ships.push(
+                app.world_mut()
+                    .query::<(Entity, &GeneratedBodyId)>()
+                    .iter(app.world())
+                    .find(|(_, id)| **id == target)
+                    .map(|(entity, _)| entity)
+                    .unwrap_or_else(|| panic!("'{target}' stands after the accept")),
+            );
+        }
+        let wreck = recover.spawned_bodies()[0].to_string();
+        let raider = neutralize.spawned_bodies()[0].to_string();
+        freeze_into_ledger(&mut app, &ships);
+        assert_eq!(
+            frozen_ids(&app),
+            BTreeSet::from([wreck.clone(), raider.clone()]),
+            "the cell froze the wreck and the raider under the ids their jobs name"
+        );
+
+        let dropped = app.world_mut().resource_mut::<Jobs>().drop(&neutralize.id);
+        app.world_mut().trigger(JobDropped {
+            job: dropped,
+            cause: JobDropCauseType::Abandoned,
+        });
+        app.world_mut().flush();
+        assert_eq!(
+            frozen_ids(&app),
+            BTreeSet::from([wreck]),
+            "the drop takes the job's raider off the ledger and leaves the held job's wreck"
+        );
+
+        app.world_mut().resource_mut::<Jobs>().complete(&recover.id);
+        set_clock(&mut app, 1.0);
+        assert_eq!(
+            slot_offers(&app, &poster())[0].id,
+            recover.id.next_posting(),
+            "the hand-in renewed the slot"
+        );
+        assert_eq!(
+            frozen_ids(&app),
+            BTreeSet::new(),
+            "the renewal takes the handed-in job's wreck off the ledger"
+        );
+    }
+
+    /// Every renewal of a pass retires its bodies before any board draws: no
+    /// station earlier in id order than the poster names the wreck the
+    /// poster's renewal takes out on the same pass.
+    #[test]
+    fn a_board_names_no_body_another_board_s_renewal_takes_out_on_the_same_pass() {
+        let mut app = board_app();
+        open_session(
+            &mut app,
+            JobMixType::Salvage,
+            GeneratedBodyId::new(SectorCoord::new(9, 9, 9), "cluster_0_0_0_station", 0),
+        );
+        set_clock(&mut app, 0.0);
+        let home = home_root(&mut app);
+        // A handed-in job left its own wreck standing with a stack aboard:
+        // a wreck of the field to every board that draws.
+        let held = slot_offers(&app, &poster())[0].clone();
+        let wreck = spawned(&held.id, "wreck", 0);
+        stand_wreck(&mut app, home, &wreck);
+        let mut jobs = app.world_mut().resource_mut::<Jobs>();
+        jobs.accept(held.clone());
+        jobs.complete(&held.id);
+        // Stations that open their boards on the same pass, each before the
+        // poster in id order.
+        let earlier: Vec<GeneratedBodyId> = (0..8)
+            .map(|index| {
+                GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_a_station", index)
+            })
+            .collect();
+        for station in &earlier {
+            assert!(*station < poster(), "'{station}' draws before the poster");
+            app.world_mut()
+                .spawn((jobs_station(station.clone()), ChildOf(home)));
+        }
+
+        set_clock(&mut app, 1.0);
+        let offers: Vec<Job> = earlier
+            .iter()
+            .flat_map(|station| slot_offers(&app, station))
+            .collect();
+        assert!(
+            offers
+                .iter()
+                .any(|job| matches!(job.kind, JobType::Recover { .. })),
+            "an earlier board drew a recovery"
+        );
+        for offer in &offers {
+            assert_ne!(
+                offer.located_body(),
+                Some(&wreck),
+                "'{}' names the wreck the poster's renewal takes out",
+                offer.id
+            );
+        }
+        let left = app
+            .world_mut()
+            .query::<&GeneratedBodyId>()
+            .iter(app.world())
+            .filter(|id| **id == wreck)
+            .count();
+        assert_eq!(left, 0, "the poster's renewal took the wreck out");
+    }
+
+    /// The starter board waits for the player's ship before it draws, and
+    /// nothing of it renews or leaves the world while it waits: a handed-in
+    /// job's slot and bodies stand until the ship does.
+    #[test]
+    fn the_starter_board_renews_and_retires_nothing_while_it_waits_for_the_player_s_ship() {
+        let mut app = board_app();
+        open_session(&mut app, JobMixType::Trade, poster());
+        let player = stand_player(&mut app);
+        set_clock(&mut app, 0.0);
+        let held = slot_offers(&app, &poster())[0].clone();
+        let left = stand(&mut app, &[spawned(&held.id, "wreck", 0)]);
+        let mut jobs = app.world_mut().resource_mut::<Jobs>();
+        jobs.accept(held.clone());
+        jobs.complete(&held.id);
+
+        app.world_mut().despawn(player);
+        set_clock(&mut app, 1.0);
+        assert_eq!(
+            slot_offers(&app, &poster())[0].id,
+            held.id,
+            "the slot does not renew with no ship to draw for"
+        );
+        assert_eq!(
+            standing(&app, &left),
+            1,
+            "and its job's bodies stand while it waits"
+        );
+
+        stand_player(&mut app);
+        set_clock(&mut app, 2.0);
+        assert_eq!(
+            slot_offers(&app, &poster())[0].id,
+            held.id.next_posting(),
+            "the slot renews once the ship stands"
+        );
+        assert_eq!(standing(&app, &left), 0);
     }
 
     /// Set the play clock to `now` and run one board pass.

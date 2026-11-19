@@ -46,10 +46,10 @@ use nova_authoring::{
 };
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{
-    market_deals_in, plan_item_trade, plan_job_accept, plan_job_hand_in, plan_job_hull_fit, price,
-    station_offers, ClusterType, DerelictShipMarker, Encounters, GameConsumables, GameItems,
-    GamePriceTable, GameTradeProfiles, ItemDesignId, ItemTradeType, Job, JobField,
-    JobHandInPartner, JobHullFit, JobId, JobKindType, JobPostings, JobType, Jobs,
+    market_deals_in, plan_board_accept, plan_item_trade, plan_job_hand_in, plan_job_hull_fit,
+    price, station_offers, BoardAcceptRefusalType, ClusterType, DerelictShipMarker, Encounters,
+    GameConsumables, GameItems, GamePriceTable, GameTradeProfiles, ItemDesignId, ItemTradeType,
+    Job, JobField, JobHandInPartner, JobHullFit, JobId, JobKindType, JobPostings, JobType, Jobs,
     NeutralizedMarker, PlayerSpaceshipMarker, PriceTable, RailgunSectionMarker, SectionMarker,
     ShipInventory, SlotDraw, SpaceshipRootMarker, StanceType, StationMarker, StationServiceType,
     StationServices, TorpedoSectionMarker, TradePriceType, TraderMarket, TurretSectionMarker,
@@ -64,9 +64,9 @@ use nova_ship::prelude::{
     ShipMeasure, TurretJoint, TurretSectionConfig,
 };
 use nova_world::prelude::{
-    desired_sectors, GeneratedBodyId, SectorClusterTypes, SectorCoord, SectorGenerationInput,
-    SectorGenerator, SectorManifest, SectorRoot, SectorShipConditionType, WorldConfig,
-    WorldGeometry,
+    desired_sectors, FrozenSectors, GeneratedBodyId, SectorClusterTypes, SectorCoord,
+    SectorGenerationInput, SectorGenerator, SectorManifest, SectorRoot, SectorShipConditionType,
+    WorldConfig, WorldGeometry,
 };
 use nova_world_base::prelude::{
     goal_progress, post_station_boards, seeded_stance, starting_station, CivilizationField,
@@ -885,6 +885,7 @@ fn mirror(catalog: &Catalog, world: &SeedWorld, role: usize) -> Mirror {
     app.init_resource::<Jobs>();
     app.init_resource::<JobPostings>();
     app.init_resource::<Encounters>();
+    app.init_resource::<FrozenSectors>();
     app.add_systems(Update, post_station_boards);
     // One system: a worker thread per core would only cost start-up time.
     app.edit_schedule(Update, |schedule| {
@@ -1464,6 +1465,29 @@ fn board_census(
     (cells_live, first, rows, titles)
 }
 
+/// Whether the body of the field a recovery or a neutralize names still
+/// qualifies in the mirror, by the Jobs pane's rule: the wreck carries the
+/// whole stack, or the hull stands un-neutralized. A job's own target is not
+/// mirrored, and the accept rule does not read this for it.
+fn target_standing(mirror: &Mirror, job: &Job) -> bool {
+    let world = mirror.app.world();
+    let standing = |body: &GeneratedBodyId| mirror.bodies.get(body).copied();
+    match &job.kind {
+        JobType::Recover {
+            wreck, item, count, ..
+        } => standing(wreck)
+            .and_then(|wreck| world.get::<ShipInventory>(wreck))
+            .is_some_and(|hold| hold.count(item) >= *count),
+        JobType::Neutralize { hull, .. } => {
+            standing(hull).is_some_and(|hull| world.get::<NeutralizedMarker>(hull).is_none())
+        }
+        JobType::Procure { .. }
+        | JobType::Escort { .. }
+        | JobType::Distress { .. }
+        | JobType::Supply { .. } => true,
+    }
+}
+
 /// The greedy model of one role on one seed.
 fn greedy(
     catalog: &Catalog,
@@ -1498,12 +1522,22 @@ fn greedy(
         let mut reached = StopType::NothingFits;
         let mut best: Option<Row> = None;
         for job in board(&mirror.app, &world.start.id) {
-            if plan_job_accept(&job, Some(&counter.id), jobs, false, true).is_err() {
+            // The gate the Jobs pane and the accept command share.
+            let accept = plan_board_accept(
+                &job,
+                Some(&counter.id),
+                jobs,
+                false,
+                target_standing(&mirror, &job),
+                items,
+                fit,
+            );
+            if matches!(accept, Err(BoardAcceptRefusalType::Accept(_))) {
                 continue;
             }
             let drawn = SlotDraw::of(world.seed, &job.id, mix, advancement).kind;
             let row = judge(catalog, world, role, fit, &job, drawn, &purse, &counter);
-            let stage = if !row.fits {
+            let stage = if accept.is_err() {
                 StopType::NothingFits
             } else if row.paper_s.is_none() {
                 StopType::NotDoable
@@ -1936,9 +1970,12 @@ fn report_header(out: &mut String, catalog: &Catalog, measured: usize, refused: 
          (`station_job_offers`, `SlotDraw`), the target a Recover or a Neutralize names for \
          itself with none left in the field (its leg, its threat and the hold of its wreck, \
          `job_wreck`), the starter board's redraw for the hull, rewards and renewals.\n\
-         - The hull gate (`PlayerHull::fit`, `plan_job_hull_fit`), the accept rule \
-         (`plan_job_accept`), the hand-in (`plan_job_hand_in`), trades (`plan_item_trade`, \
-         `price`), and the goal count (`goal_progress`).\n\
+         - The hull read (`PlayerHull::fit`), the accept gate the Jobs pane and the accept \
+         command share (`plan_board_accept`: the hull gate, then the accept rules), the hand-in \
+         (`plan_job_hand_in`), trades (`plan_item_trade`, `price`), and the goal count \
+         (`goal_progress`). The gate is told whether a field target still stands from the \
+         mirror, by the pane's rule: the wreck carries the whole stack, the hull is not \
+         neutralized. A job's own target is not mirrored; the gate does not read it.\n\
          - Hull numbers: `resolve_ship_design`, `ShipMeasure`, `hull_price_cr`, \
          `cargo_capacity_g`, item reference prices.\n\n\
          Modelled:\n\n\

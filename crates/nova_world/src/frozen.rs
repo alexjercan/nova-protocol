@@ -171,6 +171,40 @@ impl FrozenSectors {
         require_unique_ids(coord, bodies);
     }
 
+    /// Take every body whose id is in `ids` out of its cell's record: its
+    /// owner retired it while its cell was off the window, so the cell's
+    /// next thaw must not spawn it and no save may hold it. Returns the ids
+    /// taken out, in cell order. A record a body leaves stays, empty or
+    /// not: a visited cell with no body left is still a visited cell.
+    ///
+    /// Only a body with a record of its own is taken out. A ship frozen
+    /// docked at a station is part of the station's record
+    /// ([`FrozenDockedShip`]) and stays.
+    ///
+    /// A cell whose job already read its record ([`Self::shared`]) still
+    /// holds the record until it materializes, and spawns only the bodies
+    /// the record then names (`materialize_ready_sector`).
+    pub fn retire_bodies(&mut self, ids: &BTreeSet<String>) -> Vec<String> {
+        let named = |body: &FrozenBody| body.id().is_some_and(|id| ids.contains(id));
+        let mut retired = Vec::new();
+        for record in self.0.values_mut() {
+            // Read first: changing a shared record copies it.
+            if !record.bodies().iter().any(named) {
+                continue;
+            }
+            let (FrozenSector::Visited(bodies) | FrozenSector::Arrivals(bodies)) =
+                Arc::make_mut(record);
+            bodies.retain(|body| {
+                let gone = named(body);
+                if gone {
+                    retired.extend(body.id().map(str::to_string));
+                }
+                !gone
+            });
+        }
+        retired
+    }
+
     /// Drop every record. Returns how many cells held one.
     pub(crate) fn clear(&mut self) -> usize {
         let cells = self.0.len();
@@ -330,6 +364,15 @@ pub enum PreparedFrozenBody {
 }
 
 impl PreparedFrozenBody {
+    /// The id the body's record carries, if it carries one.
+    pub(crate) fn id(&self) -> Option<String> {
+        match self {
+            Self::Body(prepared) => prepared.0.id().map(str::to_string),
+            Self::HeldShip(ship) => Some(ship.id.to_string()),
+            Self::HeldStation(station) => Some(station.id.to_string()),
+        }
+    }
+
     /// Prepare `body` of `coord` for its thaw, `ships` and `stations` being
     /// the cell's regenerated ships and stations. PURE, for the cell's
     /// worker.

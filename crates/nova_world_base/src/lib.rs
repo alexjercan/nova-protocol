@@ -111,7 +111,9 @@ pub use crate::{
     encounters::{EncounterPlugin, EncounterSystems, HAIL_CHIP, SIGNAL_CHIP},
     environment::{Environment, EnvironmentFieldType, EnvironmentFields},
     goal::{goal_progress, GoalFacts},
-    jobs::{post_station_boards, FieldBodies, PlayerHull, HAULER_CRUISE},
+    jobs::{
+        post_station_boards, retire_dropped_job_bodies, FieldBodies, PlayerHull, HAULER_CRUISE,
+    },
     layered::{NovaLayeredWorld, CLEARANCE_MARGIN},
     rescue::{find_rescue_station, RescueStation},
     sector_ships::{plan_ship, ship_stock, HullLineageType, HullSlot, PlannedShip},
@@ -144,12 +146,12 @@ pub mod prelude {
     pub use super::{
         apply_offence, enemy_neighbours, find_rescue_station, fine_cr, generate_ship,
         generate_station, generate_wreck, generated_station, goal_progress, plan_ship,
-        post_station_boards, record_merit, role_style_id, sector_clusters, seeded_lawful,
-        seeded_stance, settle, ship_stock, standing, start_preview, start_session,
-        starting_station, station_archetype, station_ceiling, Civilization, CivilizationField,
-        CivilizationReach, CivilizationStatusType, ClusterSummary, EncounterPlugin,
-        EncounterSystems, Environment, EnvironmentFieldType, EnvironmentFields, FieldBodies,
-        GoalFacts, HullLineageType, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin,
+        post_station_boards, record_merit, retire_dropped_job_bodies, role_style_id,
+        sector_clusters, seeded_lawful, seeded_stance, settle, ship_stock, standing, start_preview,
+        start_session, starting_station, station_archetype, station_ceiling, Civilization,
+        CivilizationField, CivilizationReach, CivilizationStatusType, ClusterSummary,
+        EncounterPlugin, EncounterSystems, Environment, EnvironmentFieldType, EnvironmentFields,
+        FieldBodies, GoalFacts, HullLineageType, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin,
         NovaWorldBaseSystems, PlannedShip, PlayerHull, RescueStation, SectorClusters,
         ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType, ShipLayoutFailure,
         ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault,
@@ -277,6 +279,7 @@ impl Plugin for NovaWorldBasePlugin {
         app.add_observer(jobs::supply_on_dock);
         app.add_observer(jobs::neutralize_on_kill);
         app.add_observer(jobs::drop_on_loss);
+        app.add_observer(jobs::retire_dropped_job_bodies);
         app.add_observer(station_visits::end_visits_on_loss);
         // In `Update`, not `PreUpdate`: a menu entry swaps the scenario in
         // `StateTransition`, and a ship destroyed in `FixedUpdate` leaves the

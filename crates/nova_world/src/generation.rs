@@ -511,6 +511,18 @@ impl PreparedSector {
     pub fn coord(&self) -> SectorCoord {
         self.coord
     }
+
+    /// Keep, of the frozen bodies prepared for the thaw, each one with no
+    /// id and each one whose id `on_record` accepts: the cell's job read the
+    /// record when it started, and a body retired from the record since
+    /// ([`crate::FrozenSectors::retire_bodies`]) must not thaw.
+    pub(crate) fn retain_frozen(&mut self, on_record: impl Fn(&str) -> bool) {
+        let (PreparedBodies::Fresh {
+            arrivals: frozen, ..
+        }
+        | PreparedBodies::Thawed(frozen)) = &mut self.bodies;
+        frozen.retain(|body| body.id().is_none_or(|id| on_record(&id)));
+    }
 }
 
 /// What a cell spawns beside its planetoids, decided once, on the worker,

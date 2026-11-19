@@ -83,7 +83,7 @@ fields, both required:
 | `CargoRuns` | `jobs` | the player handed in `jobs` Procure, Supply or Escort jobs |
 | `KillList` | `hulls` | the player handed in Neutralize jobs naming `hulls` distinct hulls |
 | `Patrols` | `jobs` | the player handed in `jobs` Distress, Supply or Escort jobs |
-| `Outlaw` | `hulls` | the player or a fleet escort neutralized `hulls` trading hulls, the hulls a kill is an [offence](../stations/#civilization-stances) on, of any civilization at any stance. A raider or a caller a job put in the world does not count |
+| `Outlaw` | `hulls` | the player or a fleet escort neutralized `hulls` trading hulls: generated ships, of any civilization at any stance, each kill an [offence](../stations/#civilization-stances) by the same rule, the last hit theirs and no more than 30 s old. A station does not count, and neither does a raider or a caller a job put in the world |
 
 Every count is a whole number above zero. Each base role asks for three:
 `industrial` three ore deliveries, `scavenger` three recoveries, `transport`

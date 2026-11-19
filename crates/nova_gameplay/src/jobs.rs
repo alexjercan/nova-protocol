@@ -2002,9 +2002,9 @@ pub struct Jobs {
 }
 
 impl Jobs {
-    /// Whether the player holds no job and completed none.
+    /// Whether the player holds no job, completed none and dropped none.
     pub fn is_empty(&self) -> bool {
-        self.held.is_empty() && self.completed.is_empty()
+        self.held.is_empty() && self.completed.is_empty() && self.dropped.is_empty()
     }
 
     /// Forget everything.
@@ -3117,7 +3117,8 @@ pub struct JobHullFit {
 /// Why the current hull cannot do a job.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JobHullRefusalType {
-    /// A procurement's or a supply job's whole stack outweighs the hold.
+    /// A procurement's, a recovery's or a supply job's whole stack outweighs
+    /// the hold.
     HoldTooSmall {
         /// The stack's mass.
         need_g: u64,
@@ -3132,9 +3133,10 @@ pub enum JobHullRefusalType {
 }
 
 /// Plan whether a hull of `fit` can do `job`: a procurement needs hold
-/// capacity for its whole stack, a recovery and a distress call need a
-/// docking section, a supply job needs both, checked in that order, and an
-/// escort and a neutralize need a weapon section. A board lists a refused
+/// capacity for its whole stack, a distress call needs a docking section, a
+/// recovery and a supply job need both, checked in that order, since the
+/// recovery is done only with its whole stack aboard, and an escort and a
+/// neutralize need a weapon section. A board lists a refused
 /// job and greys its Accept with the refusal; the starter board posts none
 /// for the hull it draws for.
 ///
@@ -3143,9 +3145,9 @@ pub enum JobHullRefusalType {
 ///
 /// # Panics
 ///
-/// When a procurement or a supply job names an item the catalog lacks: the
-/// board drew it from the catalog, and the save check refuses one before a
-/// Load.
+/// When a procurement, a recovery or a supply job names an item the catalog
+/// lacks: the board drew it from the catalog, and the save check refuses
+/// one before a Load.
 pub fn plan_job_hull_fit(
     job: &Job,
     items: &GameItems,
@@ -3169,13 +3171,13 @@ fn hull_fit(kind: &JobType, items: &GameItems, fit: JobHullFit) -> Result<(), Jo
     };
     match kind {
         JobType::Procure { item, count } => holds(item, *count)?,
-        JobType::Supply { item, count, .. } => {
+        JobType::Recover { item, count, .. } | JobType::Supply { item, count, .. } => {
             holds(item, *count)?;
             if !fit.has_clamp {
                 return Err(JobHullRefusalType::NoClamp);
             }
         }
-        JobType::Recover { .. } | JobType::Distress { .. } => {
+        JobType::Distress { .. } => {
             if !fit.has_clamp {
                 return Err(JobHullRefusalType::NoClamp);
             }
@@ -5827,6 +5829,21 @@ mod tests {
             plan_job_hull_fit(&recover, &items, armed_only),
             Err(JobHullRefusalType::NoClamp),
             "a weapon does not stand in for a clamp"
+        );
+        assert_eq!(
+            plan_job_hull_fit(
+                &recover,
+                &items,
+                JobHullFit {
+                    hold_capacity_g: 1_999,
+                    ..fit
+                }
+            ),
+            Err(JobHullRefusalType::HoldTooSmall {
+                need_g: 2_000,
+                have_g: 1_999
+            }),
+            "a recovery is done with its whole stack aboard, so a clamp alone does not fit it"
         );
     }
 

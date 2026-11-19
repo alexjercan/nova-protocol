@@ -62,7 +62,9 @@ pub(crate) fn clear_chart(
     if !stances.is_empty() {
         stances.clear();
     }
-    if goal.is_met() {
+    // The whole record, not the stamp alone: an unmet goal still carries
+    // its count of hulls taken.
+    if *goal != GoalRecord::default() {
         goal.clear();
     }
     if !progress.is_empty() {
@@ -240,4 +242,62 @@ pub(crate) fn chart_docked_station(
         summary,
         clock.play_seconds,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use nova_events::prelude::SectorCoord;
+    use nova_gameplay::prelude::{Job, JobId, JobReward, JobType};
+
+    use super::*;
+
+    /// The frame `Cleanup` drops a world, as a New Game or a Retry does,
+    /// the next one opens with an empty goal record and no dropped job:
+    /// an unmet goal's count of hulls taken goes with the world that
+    /// counted it, and so does the id of a job the player dropped while
+    /// holding and completing no other.
+    #[test]
+    fn a_new_world_opens_with_no_hull_taken_and_no_dropped_job() {
+        let mut app = App::new();
+        app.init_resource::<Chart>();
+        app.init_resource::<Jobs>();
+        app.init_resource::<JobPostings>();
+        app.init_resource::<StationVisits>();
+        app.init_resource::<CivilizationStances>();
+        app.init_resource::<GoalRecord>();
+        app.init_resource::<GoalProgress>();
+        app.init_resource::<Encounters>();
+        app.add_systems(Update, clear_chart);
+
+        let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+        let dropped = Job {
+            id: JobId::slot(station.clone(), 0, 0),
+            kind: JobType::Procure {
+                item: "ore".into(),
+                count: 4,
+            },
+            target: station,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(100),
+        };
+        let world = app.world_mut();
+        world.resource_mut::<GoalRecord>().hulls_taken = 2;
+        let mut jobs = world.resource_mut::<Jobs>();
+        jobs.accept(dropped.clone());
+        jobs.drop(&dropped.id);
+        assert!(!world.resource::<GoalRecord>().is_met());
+
+        app.update();
+
+        assert_eq!(
+            *app.world().resource::<GoalRecord>(),
+            GoalRecord::default(),
+            "the unmet record's count of hulls taken is gone"
+        );
+        assert!(
+            !app.world().resource::<Jobs>().is_dropped(&dropped.id),
+            "the dropped job's id is gone"
+        );
+    }
 }

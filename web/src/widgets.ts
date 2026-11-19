@@ -6324,16 +6324,19 @@ function initThrusterMass(host: HTMLElement): void {
 
         const stock = DRIVE_RIGS.map((r) => accel(r, 0));
         if (extra === 0) {
+            const [picket, tug, interceptor] = DRIVE_RIGS;
             readout.textContent =
-                "Stock, the tug and the interceptor fly on the same three " +
-                `basic drives, pushing 1.0 each. The tug's structure weighs ` +
-                `${bomMass(DRIVE_RIGS[1].bom).toFixed(2)}, good for at most ` +
-                `${metersPerSec2(stock[1], 0)}; the interceptor's weighs ` +
-                `${bomMass(DRIVE_RIGS[2].bom).toFixed(2)}, good for at most ` +
-                `${metersPerSec2(stock[2], 0)}. Nothing authored that gap - it is ` +
-                "the volume of the boxes each hull is built from. The picket " +
-                `has one drive fewer on a ${bomMass(DRIVE_RIGS[0].bom).toFixed(2)} ` +
-                `frame: ${metersPerSec2(stock[0], 0)}. The skin plates on top ` +
+                "Stock, every basic drive pushes 1.0 and the hulls differ in " +
+                `how many they carry. The tug flies ${tug.drives} on a ` +
+                `structure that weighs ${bomMass(tug.bom).toFixed(2)}, good ` +
+                `for at most ${metersPerSec2(stock[1], 0)}; the interceptor ` +
+                `flies ${interceptor.drives} on ` +
+                `${bomMass(interceptor.bom).toFixed(2)}, good for at most ` +
+                `${metersPerSec2(stock[2], 0)}. Nothing authored the mass ` +
+                "under those drives - it is the volume of the boxes each " +
+                `hull is built from. The picket has ${picket.drives} on a ` +
+                `${bomMass(picket.bom).toFixed(2)} frame: ` +
+                `${metersPerSec2(stock[0], 0)}. The skin plates on top ` +
                 "make the real figures lower.";
         } else {
             const gain = ((a / accel(rig, 0) - 1) * 100).toFixed(0);

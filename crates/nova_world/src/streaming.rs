@@ -984,7 +984,7 @@ pub fn materialize_ready_sector<G: SectorGenerator>(
         .copied()
         .filter(|coord| desired.contains(coord) && !live.contains_key(coord))
         .min_by_key(|coord| nearest_first(centre, *coord));
-    let Some(prepared) = next.and_then(|coord| ready.0.remove(&coord)) else {
+    let Some(mut prepared) = next.and_then(|coord| ready.0.remove(&coord)) else {
         return;
     };
 
@@ -993,6 +993,12 @@ pub fn materialize_ready_sector<G: SectorGenerator>(
         panic!("nova_world: {}", SectorFault::AbsentObserver);
     };
     let observer = ObserverBody::read(transform, envelope);
+    // The job read the record when it started. A body its owner retired
+    // since is off the record and does not thaw.
+    if let Some(record) = frozen.get(coord) {
+        let on_record: BTreeSet<&str> = record.each_body().filter_map(FrozenBody::id).collect();
+        prepared.retain_frozen(|id| on_record.contains(id));
+    }
     // The job carried the record's bodies; the ledger's copy is spent.
     frozen.consume(coord);
     materialize_sector(&mut commands, prepared, &sections, observer, &clock);
