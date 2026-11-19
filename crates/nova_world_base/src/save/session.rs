@@ -21,9 +21,9 @@ use bevy::{
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::{
     open_objectives, CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, CivilizationStances,
-    GameTradeProfiles, GoalProgress, GoalRecord, JobPostings, Jobs, OpenObjectiveType,
-    OwnedShipMarker, PlayerFleetMarker, PlayerSpaceshipMarker, ShipCredits, StationVisits,
-    UnsettledBody,
+    Encounters, GameEncounters, GameTradeProfiles, GoalProgress, GoalRecord, JobPostings, Jobs,
+    OpenObjectiveType, OwnedShipMarker, PlayerFleetMarker, PlayerSpaceshipMarker, ShipCredits,
+    StationVisits, UnsettledBody,
 };
 use nova_scenario::prelude::{
     freeze_fleet, freeze_ship, CurrentScenario, GameShipDesigns, GeneratedMarks, NovaEventWorld,
@@ -37,8 +37,8 @@ use nova_world::prelude::{
 };
 
 use super::{
-    check_saved_controls, check_saved_fleet, check_saved_ids, check_saved_items,
-    check_saved_markets, check_saved_rcs, check_saved_stock, check_saved_visits,
+    check_saved_controls, check_saved_encounters, check_saved_fleet, check_saved_ids,
+    check_saved_items, check_saved_markets, check_saved_rcs, check_saved_stock, check_saved_visits,
     controls::freeze_controls,
     transients::{freeze_transients, hold_resumed_transients},
     write_world, SavedChart, SavedFleet, SavedIdFault, SavedObjective, SavedObjectiveLine,
@@ -262,6 +262,8 @@ pub struct ResumedWorld {
     pub stances: CivilizationStances,
     /// The start role's goal record the save holds.
     pub goal: GoalRecord,
+    /// The encounter record the save holds.
+    pub encounters: Encounters,
 }
 
 /// Seed `world` with everything a Load resumes: the session, the saved
@@ -294,6 +296,7 @@ pub fn resume_world(
         stances,
         goal,
         start,
+        encounters,
         ..
     } = state;
     world.insert_resource(WorldSaveSession::opened(folder, lock, header));
@@ -306,6 +309,7 @@ pub fn resume_world(
         clock,
         stances,
         goal,
+        encounters,
     });
     world.insert_resource(ResumedScenario(scenario));
     world.insert_resource(ResumedCameraView {
@@ -340,8 +344,8 @@ pub(crate) fn save_systems() -> ScheduleConfigs<ScheduleSystem> {
 }
 
 /// Seed the ledger, the chart, the jobs, the postings, the station visits,
-/// the clock, the civilization stances and the goal record `Cleanup` just
-/// cleared with the save's, on the frame the world arms.
+/// the clock, the civilization stances, the goal record and the encounters
+/// `Cleanup` just cleared with the save's, on the frame the world arms.
 ///
 /// # Panics
 ///
@@ -365,6 +369,7 @@ pub(crate) fn restore_resumed_world(world: &mut World) {
         clock,
         stances,
         goal,
+        encounters,
     } = world
         .remove_resource::<ResumedWorld>()
         .expect("run only with a ResumedWorld");
@@ -376,6 +381,7 @@ pub(crate) fn restore_resumed_world(world: &mut World) {
     *world.resource_mut::<WorldClock>() = clock;
     *world.resource_mut::<CivilizationStances>() = stances;
     *world.resource_mut::<GoalRecord>() = goal;
+    *world.resource_mut::<Encounters>() = encounters;
 }
 
 /// Want a save when the world first arms and when the player crosses into
@@ -570,6 +576,8 @@ pub(crate) fn snapshot_world(world: &mut World) {
     let stances = world.resource::<CivilizationStances>().clone();
     let goal = *world.resource::<GoalRecord>();
     let start = world.resource::<OpenWorldSession>().start.clone();
+    let encounters = world.resource::<Encounters>().clone();
+    let encounter_designs = world.resource::<GameEncounters>().clone();
     let saved_at_unix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |since| since.as_secs());
@@ -662,6 +670,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
         stances,
         goal,
         start,
+        encounters,
     };
     let checked = check_saved_ids(&state)
         .map_err(|fault| match fault {
@@ -680,6 +689,12 @@ pub(crate) fn snapshot_world(world: &mut World) {
                 .and_then(|()| check_saved_visits(&state))
                 .and_then(|()| state.stances.validate(state.clock.play_seconds))
                 .and_then(|()| state.goal.validate(state.clock.play_seconds))
+                .and_then(|()| {
+                    state
+                        .encounters
+                        .validate(&encounter_designs, state.clock.play_seconds)
+                })
+                .and_then(|()| check_saved_encounters(&state))
                 .and_then(|()| check_saved_fleet(&state))
                 .and_then(|()| check_saved_controls(&state))
                 .and_then(|()| check_saved_items(&state, &items))

@@ -1158,6 +1158,13 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_ship_consumables",
+        &[
+            "a repair kit heals over time",
+            "a kit with nothing to repair is refused",
+        ],
+    ),
+    (
         "system_ship_craft",
         &[
             "a ship recipe crafts in flight",
@@ -1272,6 +1279,16 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_encounters",
+        &[
+            "eligible travel fires the drawn encounter",
+            "the hail job is accepted in space",
+            "the dock with the caller pays the hail job",
+            "the encounter command fires a named encounter",
+            "a standing offer and its caller come back on Load",
+        ],
+    ),
+    (
         "system_job_supply",
         &[
             "a supply job is posted and accepted",
@@ -1302,7 +1319,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 649;
+const SYSTEMS_INVARIANTS: usize = 656;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

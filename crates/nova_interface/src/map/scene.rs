@@ -1123,7 +1123,7 @@ pub(crate) fn update_map_panel(
     icons: Res<InterfaceIcons>,
     contacts: MapContacts,
     chart: Res<Chart>,
-    jobs: Res<Jobs>,
+    (jobs, encounters): (Res<Jobs>, Res<Encounters>),
     items: Option<Res<GameItems>>,
     q_autopilot: Query<&Autopilot>,
     q_docked: Query<&DockedShip>,
@@ -1247,6 +1247,7 @@ pub(crate) fn update_map_panel(
             _ if runtime.chart => chart_panel_field(
                 &chart,
                 &jobs,
+                &encounters,
                 items.as_deref(),
                 runtime.chart_selected.as_ref(),
                 *field,

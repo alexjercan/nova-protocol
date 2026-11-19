@@ -799,8 +799,13 @@ fn update_screen_indicators(
         // beacon chip read `VEY 7.87 km` in any frame whose beacon was off past
         // a corner). A `Content` node's size is last frame's measurement, so a
         // chip that changes width is off by that change for exactly one frame.
-        let center = match (arrow, *offscreen) {
-            (Some(_), ScreenIndicatorOffscreen::ClampToEdge { margin_px }) => {
+        // A `Content` chip is held whole in view on screen too: its anchor can
+        // stand nearer the edge than half the chip's width. A sized box is
+        // not, since it must stay on the anchor it frames.
+        let center = match *offscreen {
+            ScreenIndicatorOffscreen::ClampToEdge { margin_px }
+                if arrow.is_some() || matches!(size_mode, ScreenIndicatorSize::Content) =>
+            {
                 clamp_box_to_rect(center, size, viewport, margin_px, floor_px)
             }
             _ => center,
@@ -1242,6 +1247,51 @@ mod tests {
         };
         assert!((px(node.left) - 370.0).abs() < 0.5, "left {:?}", node.left);
         assert!((px(node.top) - 290.0).abs() < 0.5, "top {:?}", node.top);
+        assert_eq!(
+            *world.entity(indicator).get::<Visibility>().unwrap(),
+            Visibility::Visible
+        );
+    }
+
+    #[test]
+    fn a_content_chip_on_an_anchor_near_the_edge_stays_whole_in_view() {
+        let mut world = World::new();
+        spawn_camera(&mut world);
+        // The anchor projects on screen, about 28 px from the left edge: a
+        // 180 px chip centred on it would start at x = -62.
+        let indicator = world
+            .spawn((
+                screen_indicator_node(
+                    ScreenIndicatorConfig {
+                        anchor: Some(ScreenIndicatorAnchorKind::Point(Vec3::new(
+                            -12.4, 0.0, -10.0,
+                        ))),
+                        size: ScreenIndicatorSize::Content,
+                        offscreen: ScreenIndicatorOffscreen::ClampToEdge { margin_px: 20.0 },
+                        ..default()
+                    },
+                    Node::default(),
+                ),
+                ComputedNode {
+                    size: Vec2::new(180.0, 30.0),
+                    ..ComputedNode::DEFAULT
+                },
+            ))
+            .id();
+
+        world.run_system_once(update_screen_indicators).unwrap();
+
+        let node = world.entity(indicator).get::<Node>().unwrap();
+        assert_eq!(
+            node.left,
+            Val::Px(20.0),
+            "the chip starts at the margin, not off the edge"
+        );
+        assert_eq!(
+            node.top,
+            Val::Px(285.0),
+            "the chip keeps the anchor's height"
+        );
         assert_eq!(
             *world.entity(indicator).get::<Visibility>().unwrap(),
             Visibility::Visible

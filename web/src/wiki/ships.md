@@ -96,6 +96,35 @@ To loot a wreck, or a ship you neutralized in combat, [dock](../sections/docking
 
 The world streams in 32 km sectors, and the game keeps the 5 x 5 x 5 block of sectors around yours live. For the rest of the session, a sector that streams out and back in keeps its ships as you left them: a wreck you emptied stays empty, a ship you destroyed stays destroyed, goods you took or gave stay moved, credits you took stay taken, and a ship you neutralized stays neutralized. Each ship keeps its RCS magazine and a neutralized ship's brake as they stood; a magazine that was not firing refills for the time you were away, and one that was firing gets nothing for it. Only the sector's planetoids regenerate from the seed.
 
+## Encounters
+
+<!-- Director, travel rule, placement and end rules:
+     crates/nova_world_base/src/encounters.rs (`travel_counts`,
+     TRAVEL_SPEED_MIN 50 m/s, STATION_STANDOFF 10 km, PLACE_LEAD_SECONDS 30,
+     PLACE_LEAD 6 km to 40 km, PLACE_ASIDE 2 km, AMBUSH_BREAK_OFF 30 km,
+     DERELICT_FOUND 1 km, `end_encounters`, `mark_encounter_bodies`). Gap,
+     draw and offer window: crates/nova_gameplay/src/encounter.rs
+     (ENCOUNTER_GAP_S 300 to 900 s, `plan_encounter_draw`,
+     HAIL_OFFER_SECONDS 300). Base set:
+     crates/nova_authoring/src/base_content/encounters.rs. Raider count and
+     size: crates/nova_gameplay/src/jobs.rs `escort_raider_counts`,
+     `escort_raider_size`. -->
+
+On a long flight in a **New Game** world, the world puts an **encounter** ahead of your ship: one after each 5 to 15 minutes of travel. Travel counts only while you fly undocked at more than 50 m/s, more than 10 km from every station, out of combat, with your ship not neutralized and no [SOS call](../interface/#the-ship) open. One encounter is live at a time. Travel does not count while one is live or while you hold its job.
+
+An encounter stands on your line of flight, 30 seconds of flight ahead, not nearer than 6 km and not farther than 40 km, and 2 km to one side. Its hulls belong to the civilization that holds that space.
+
+| encounter | what stands there | it ends when |
+|---|---|---|
+| Distress call | a stranded civilian hull that hails you with a job: dock with it | you take the job and dock, you decline, or 5 minutes of play pass with no answer |
+| Supply call | a stranded civilian hull that hails you with a job: bring it the goods it names and dock with it | the same |
+| Ambush | raiders that wait for you, as many and as large as an escort job's raiders in that space. An unarmed ship meets none | every raider is neutralized or destroyed, or you are more than 30 km from all of them |
+| Derelict find | one civilian wreck with a gold `SIGNAL` chip and its distance | you come within 1 km of it |
+
+A hail reaches you three ways: the caller's line on [comms](../hud/#comms-and-objectives), a `HAIL <NAME>` [HUD notice](../hud/#flight-readouts), and a gold `HAIL` chip with the distance on the caller. The job is one row on the **Board** of the [Jobs pane](../interface/#jobs) while you are undocked, with **Accept** and an `X` that declines it. A dock with the caller while the offer stands accepts the job. The job is done and paid on the dock, in space: there is no station hand-in. An ambush sends no message: its raiders show as hostile contacts.
+
+When an encounter ends, its hulls stay in the world. The world seed fixes which encounter comes when, and a saved world keeps the count of encounters, the travel so far, a standing offer and a live encounter: a Load brings them back.
+
 ## The parts
 
 Every section is its own page - what it does, how it behaves, its numbers, and what it is like to face one. [Ship sections](../sections/) opens that chapter with what every part shares and the catalog at a glance.

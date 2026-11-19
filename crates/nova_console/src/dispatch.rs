@@ -61,6 +61,7 @@ pub fn execute(world: &mut World, invocation: &CommandInvocation) -> CommandResu
         "item give" => answered(cheats::item_give(world, arg(0), arg(1), arg(2))),
         "credits give" => answered(cheats::credits_give(world, arg(0), arg(1))),
         "credits set" => answered(cheats::credits_set(world, arg(0), arg(1))),
+        "encounter" => cheats::encounter(world, invocation.args.first().map(String::as_str)),
 
         name => CommandResult::error(
             name,

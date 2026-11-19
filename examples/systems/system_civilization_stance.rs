@@ -1055,6 +1055,7 @@ mod walk {
             world.resource::<GameTradeProfiles>(),
             world.resource::<GameRecipes>(),
             world.resource::<GameConsumables>(),
+            world.resource::<GameEncounters>(),
         )
         .unwrap_or_else(|refusal| {
             panic!("civilization stance: cannot open the leave save: {refusal}")

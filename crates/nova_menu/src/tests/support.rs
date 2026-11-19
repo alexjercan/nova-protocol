@@ -179,6 +179,7 @@ pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> Ap
     app.init_resource::<nova_gameplay::prelude::GameTradeProfiles>();
     app.init_resource::<nova_gameplay::prelude::GameRecipes>();
     app.init_resource::<nova_gameplay::prelude::GameConsumables>();
+    app.init_resource::<nova_gameplay::prelude::GameEncounters>();
     app.init_resource::<nova_ship::prelude::GameSections>();
     // Headless: no TimePlugin, so provide the clocks the pause systems and the
     // handbook's looping demonstrations touch. Nothing advances them, so a test

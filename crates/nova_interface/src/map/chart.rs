@@ -1771,7 +1771,8 @@ pub(crate) fn project_map_chart_labels(
 /// the selected mark's code, its last-seen name, what it is, its cell, and
 /// when the player found it, with a note for a station never docked at; for
 /// a visited cell, what its clusters hold and when the player entered it; for
-/// a held job, its title, reward and its poster > hand-in route. The SECTOR block
+/// a held job, its title, reward and its poster > hand-in route, or the
+/// caller's name for a hail job. The SECTOR block
 /// lists the cell's finds, services, stock and jobs. With nothing selected it
 /// reads blank; the focused layer and its visited count head the OBJECTIVES
 /// block instead ([`update_map_chart_objectives`]), since these header
@@ -1779,6 +1780,7 @@ pub(crate) fn project_map_chart_labels(
 pub(crate) fn chart_panel_field(
     chart: &Chart,
     jobs: &Jobs,
+    encounters: &Encounters,
     items: Option<&GameItems>,
     selected: Option<&MapChartMarkType>,
     field: MapPanelField,
@@ -1830,6 +1832,10 @@ pub(crate) fn chart_panel_field(
         ),
         (Some(MapChartMarkType::Job(id)), MapPanelField::Note) => (
             jobs.job(id).map_or_else(String::new, |job| {
+                // A hail job is done and paid at its caller: no route.
+                if let Some(caller) = encounters.caller_name(&job.id) {
+                    return caller.to_string();
+                }
                 let route = format!(
                     "{} > {}",
                     station_name(job.posted_by()),
@@ -1943,6 +1949,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<Chart>();
         world.init_resource::<Jobs>();
+        world.init_resource::<Encounters>();
         let player = world
             .spawn((
                 SpaceshipRootMarker,

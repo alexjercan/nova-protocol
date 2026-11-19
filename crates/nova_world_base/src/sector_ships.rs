@@ -611,7 +611,7 @@ pub fn ship_stock(
 /// An intact ship draws a balance from [`CREDITS`] at `advancement`. A wreck
 /// draws one the same way and keeps a share of it from
 /// [`WRECK_CREDIT_SHARE`], at least one credit.
-fn ship_credits(advancement: f32, condition: SectorShipConditionType, draw: u32) -> u32 {
+pub(crate) fn ship_credits(advancement: f32, condition: SectorShipConditionType, draw: u32) -> u32 {
     let mut stream = SeedStream::new(draw);
     let advancement = advancement.clamp(0.0, 1.0);
     let [(low_least, low_most), (high_least, high_most)] = CREDITS;
@@ -666,7 +666,7 @@ fn nearest(planetoids: &[Meters3], position: Meters3) -> Option<Meters3> {
 
 /// A rotation drawn uniformly from every orientation, from three draws in
 /// `[0, 1)` (Shoemake's method).
-fn uniform_rotation([u1, u2, u3]: [f32; 3]) -> Quat {
+pub(crate) fn uniform_rotation([u1, u2, u3]: [f32; 3]) -> Quat {
     let tau = std::f32::consts::TAU;
     let (low, high) = ((1.0 - u1).sqrt(), u1.sqrt());
     Quat::from_xyzw(

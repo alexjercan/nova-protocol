@@ -423,7 +423,13 @@ replaces it whole, so a mod retunes a base weight or rewrites a base line by
 reusing its id. The kinds are a closed set: a mod cannot add one.
 
 The draw is fixed by the world seed and the count of encounters the world has
-had, so one world meets the same encounters in the same order.
+had, so one world meets the same encounters in the same order. A draw the
+player's hull cannot take is spent with no encounter: a hail whose job the
+hull cannot do (no docking section, or no hold room for a supply stack), or a
+place where no civilization builds the hulls. The
+[wiki](../../wiki/ships/#encounters) says when an encounter comes, where it
+stands and how each kind ends. The cheat command `encounter <id>` puts one
+ahead of the ship at once, to test a pack.
 
 Lint, then load, refuse a pack whose encounter:
 

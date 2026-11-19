@@ -2504,9 +2504,9 @@ impl SlotDraw {
         let mut rng = WyRand::from_seed(key.to_le_bytes());
         Self {
             kind: mix.draw(&mut rng),
-            fee: rng.random_range(1..=FEE_STEPS) * FEE_STEP_CR,
+            fee: draw_job_fee(&mut rng),
             pick: rng.random_range(0..u32::MAX),
-            count: rng.random_range(PROCURE_COUNT.0..=PROCURE_COUNT.1),
+            count: draw_supply_count(&mut rng),
             cargo_cr: rng.random_range(ESCORT_CARGO_CR.0..=ESCORT_CARGO_CR.1),
             raiders: draw_escort_raiders(advancement, &mut rng),
             leg_pick: rng.random_range(0..u32::MAX),
@@ -2520,6 +2520,18 @@ impl SlotDraw {
         let (shortest, longest) = range;
         shortest + self.leg_pick % ((longest - shortest) / JOB_LEG_STEP_M + 1) * JOB_LEG_STEP_M
     }
+}
+
+/// The flat fee one job adds to its base: one draw off `rng`, one to
+/// [`FEE_STEPS`] steps of [`FEE_STEP_CR`].
+pub(crate) fn draw_job_fee(rng: &mut WyRand) -> u32 {
+    rng.random_range(1..=FEE_STEPS) * FEE_STEP_CR
+}
+
+/// The price lots a procurement or a supply job asks for: one draw off
+/// `rng` inside [`PROCURE_COUNT`].
+pub(crate) fn draw_supply_count(rng: &mut WyRand) -> u32 {
+    rng.random_range(PROCURE_COUNT.0..=PROCURE_COUNT.1)
 }
 
 /// A procurement of `count` units of `item`: no leg, no threat.
@@ -2569,7 +2581,7 @@ fn distress_posting(id: &JobId, draw: SlotDraw) -> Posting {
 /// its station's law.
 ///
 /// Owner decision 2026-11-13.
-fn supply_pool(items: &GameItems) -> Vec<&ItemDesign> {
+pub(crate) fn supply_pool(items: &GameItems) -> Vec<&ItemDesign> {
     items
         .iter()
         .filter(|design| {
@@ -2597,11 +2609,16 @@ fn supply_count(design: &ItemDesign, drawn: u32) -> u32 {
         .max(1)
 }
 
-/// The supply job `id` posts on `draw` from `pool` ([`supply_pool`], not
-/// empty), its caller at the end of the drawn leg. The draw picks a framing
-/// among the ones the pool fills, in [`SupplyFramingType`] order, then an
-/// item of it, so a pool rich in raw material does not crowd out the rescue.
-fn supply_posting(id: &JobId, draw: SlotDraw, pool: &[&ItemDesign]) -> Posting {
+/// The stack a supply job asks for from `pool` ([`supply_pool`], not
+/// empty) on the draws `pick` and `count`: the design and how many units.
+/// The pick takes a framing among the ones the pool fills, in
+/// [`SupplyFramingType`] order, then an item of it, so a pool rich in raw
+/// material does not crowd out the rescue.
+pub(crate) fn pick_supply_stack<'a>(
+    pool: &[&'a ItemDesign],
+    pick: u32,
+    count: u32,
+) -> (&'a ItemDesign, u32) {
     let framings: Vec<SupplyFramingType> = SupplyFramingType::ALL
         .into_iter()
         .filter(|framing| {
@@ -2609,13 +2626,21 @@ fn supply_posting(id: &JobId, draw: SlotDraw, pool: &[&ItemDesign]) -> Posting {
                 .any(|design| SupplyFramingType::of(design) == *framing)
         })
         .collect();
-    let framing = framings[draw.pick as usize % framings.len()];
-    let framed: Vec<&&ItemDesign> = pool
+    let framing = framings[pick as usize % framings.len()];
+    let framed: Vec<&'a ItemDesign> = pool
         .iter()
+        .copied()
         .filter(|design| SupplyFramingType::of(design) == framing)
         .collect();
-    let design = framed[(draw.pick / 7) as usize % framed.len()];
-    let count = supply_count(design, draw.count);
+    let design = framed[(pick / 7) as usize % framed.len()];
+    (design, supply_count(design, count))
+}
+
+/// The supply job `id` posts on `draw` from `pool` ([`supply_pool`], not
+/// empty), its caller at the end of the drawn leg, asking for the stack
+/// [`pick_supply_stack`] takes.
+fn supply_posting(id: &JobId, draw: SlotDraw, pool: &[&ItemDesign]) -> Posting {
+    let (design, count) = pick_supply_stack(pool, draw.pick, draw.count);
     Posting {
         kind: JobType::Supply {
             caller: id.spawned_body("caller", 0),

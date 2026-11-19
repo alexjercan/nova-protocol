@@ -78,7 +78,8 @@ use nova_gameplay::prelude::{
 };
 use nova_scenario::prelude::{
     base_scenario_object, spaceship_scenario_object, AIControllerConfig, BaseScenarioObjectConfig,
-    GameStartRoles, OpenWorldSession, ShipDesignSource, SpaceshipConfig, SpaceshipController,
+    GameStartRoles, OpenWorldSession, ShipDesign, ShipDesignSource, SpaceshipConfig,
+    SpaceshipController,
 };
 use nova_ship::prelude::{
     AIBehaviorState, AIPrey, DockedShip, DockingConnection, DockingSectionMarker, FlightCruiseCap,
@@ -93,6 +94,7 @@ use crate::{
     civilizations::{Civilization, CivilizationField},
     sector_ships::ship_stock,
     ship_layout::{generate_ship, ShipLayoutRequest, ShipSpareDriveType},
+    ship_parts::ShipPartSnapshot,
     NovaLayeredWorld,
 };
 
@@ -109,7 +111,7 @@ const HAULER_CRUISE: MetersPerSecond = MetersPerSecond(100.0);
 /// Where along the leg the raiders lie in wait, as a share of it.
 const RAIDER_AMBUSH_SHARE: f32 = 0.75;
 /// How far apart the raiders stand along the leg.
-const RAIDER_SPACING: Meters = Meters(600.0);
+pub(crate) const RAIDER_SPACING: Meters = Meters(600.0);
 /// How far off the leg's line the raiders lie in wait. Under the engage
 /// range, so a raider springs as the hauler passes, about 1.7 km before it
 /// draws level. On the shortest escort leg with the most raiders the nearest
@@ -118,9 +120,9 @@ const RAIDER_SPACING: Meters = Meters(600.0);
 /// both.
 const RAIDER_LATERAL: Meters = Meters(2_500.0);
 /// How far a raider leaves its wait for a target.
-const RAIDER_ENGAGE_RANGE: Meters = Meters(3_000.0);
+pub(crate) const RAIDER_ENGAGE_RANGE: Meters = Meters(3_000.0);
 /// How far a job body must stand from another generated body at spawn.
-const JOB_SPAWN_CLEARANCE: Meters = Meters(2_000.0);
+pub(crate) const JOB_SPAWN_CLEARANCE: Meters = Meters(2_000.0);
 /// The hauler's minimum center separation from its poster during direction
 /// selection, in place of the general 2 km body clearance. The 1 km standoff
 /// exceeds the station and generated hull radii together (300 + 400 m;
@@ -564,7 +566,7 @@ fn cube_around(centre: SectorCoord) -> Vec<SectorCoord> {
 
 /// The step a located job's leg is rounded to, in meters: a hull drifts,
 /// so a finer figure would promise more than the board knows.
-const FIELD_LEG_STEP: Meters = Meters(100.0);
+pub(crate) const FIELD_LEG_STEP: Meters = Meters(100.0);
 
 /// The bodies a board's located jobs may name, as the poster reads them:
 /// the derelicts, the intact hulls, their live weapon sections and where
@@ -805,29 +807,17 @@ pub(crate) fn spawn_job_bodies(
                 size,
                 condition,
                 spare_drive: ShipSpareDriveType| {
-        let request = ShipLayoutRequest {
-            seed: key(aspect),
-            civilization: civilization.id,
-            role,
-            advancement: civilization.advancement,
-            size,
-            spare_drive,
-        };
-        let layout = generate_ship(parts, request)
-            .unwrap_or_else(|failure| panic!("spawn_job_bodies: '{id}': {failure}"));
-        let stock = ship_stock(
+        job_hull(
             parts,
             &items,
-            &layout.design,
+            &civilization,
+            key(aspect),
             role,
+            size,
             condition,
-            civilization.advancement,
-            key(aspect).wrapping_add(1),
+            spare_drive,
         )
-        .unwrap_or_else(|| {
-            panic!("spawn_job_bodies: '{id}': the hold cannot fit one unit of its lightest item")
-        });
-        (layout.design, stock)
+        .unwrap_or_else(|fault| panic!("spawn_job_bodies: '{id}': {fault}"))
     };
     let raider = |index: u32, at: Meters3| {
         let id = &job.raider_ids()[index as usize];
@@ -841,33 +831,14 @@ pub(crate) fn spawn_job_bodies(
             SectorShipConditionType::Intact,
             ShipSpareDriveType::Without,
         );
-        (
-            base_scenario_object(&BaseScenarioObjectConfig {
-                id: id.to_string(),
-                name: format!("{} raider", civilization.id.name()),
-                position: at,
-                rotation: Quat::from_rotation_arc(Vec3::NEG_Z, -direction),
-            }),
-            id.clone(),
-            spaceship_scenario_object(SpaceshipConfig {
-                design: ShipDesignSource::Inline(design),
-                controller: SpaceshipController::AI(AIControllerConfig {
-                    leash: Some(RAIDER_LEASH),
-                    engage_range: Some(RAIDER_ENGAGE_RANGE),
-                    ..AIControllerConfig::default()
-                }),
-                initial_velocity: MetersPerSecond3::ZERO,
-                allegiance: Some(Allegiance::Enemy),
-                capabilities: ShipCapabilities::default(),
-                inventory: stock,
-                lootable: false,
-                credits: 0,
-            }),
-            // A raider lies in wait: the AI state's default is Engage, which
-            // would chase the hauler from the spawn at any sensor range
-            // instead of springing inside the engage range.
-            AIBehaviorState::Idle,
-            ChildOf(root),
+        raider_bundle(
+            id,
+            &civilization,
+            at,
+            Quat::from_rotation_arc(Vec3::NEG_Z, -direction),
+            design,
+            stock,
+            root,
         )
     };
     let leg = job_leg(job);
@@ -943,26 +914,15 @@ pub(crate) fn spawn_job_bodies(
                 ShipSpareDriveType::Without,
             );
             let stock = caller_stock(&job.kind, stock);
-            commands.spawn((
-                base_scenario_object(&BaseScenarioObjectConfig {
-                    id: caller.to_string(),
-                    name: format!("{} civilian, adrift", civilization.id.name()),
-                    position: mark,
-                    rotation: facing,
-                }),
-                caller.clone(),
-                spaceship_scenario_object(SpaceshipConfig {
-                    design: ShipDesignSource::Inline(design),
-                    controller: SpaceshipController::None,
-                    initial_velocity: MetersPerSecond3::ZERO,
-                    allegiance: Some(Allegiance::Neutral),
-                    capabilities: ShipCapabilities::default(),
-                    inventory: stock,
-                    lootable: true,
-                    credits: 0,
-                }),
-                ChildOf(root),
-                DerelictShipMarker,
+            commands.spawn(caller_bundle(
+                caller,
+                caller_name(&civilization),
+                mark,
+                facing,
+                design,
+                stock,
+                0,
+                root,
             ));
             info!(
                 "nova_world_base: '{}' puts the caller '{caller}' {} m out",
@@ -976,10 +936,142 @@ pub(crate) fn spawn_job_bodies(
     }
 }
 
+/// A hull of `civilization` for a job or an encounter, laid out off `seed`
+/// at the civilization's advancement, and its hold for `condition`, drawn
+/// off the next seed. The fault names a layout the civilization's parts
+/// cannot build or a hold that cannot fit one unit of its lightest item.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one hull request: the catalogs, the builder, the seed and the four layout choices"
+)]
+pub(crate) fn job_hull(
+    parts: &ShipPartSnapshot,
+    items: &GameItems,
+    civilization: &Civilization,
+    seed: u32,
+    role: ShipRoleType,
+    size: ShipSizeType,
+    condition: SectorShipConditionType,
+    spare_drive: ShipSpareDriveType,
+) -> Result<(ShipDesign, ShipInventoryStock), String> {
+    let request = ShipLayoutRequest {
+        seed,
+        civilization: civilization.id,
+        role,
+        advancement: civilization.advancement,
+        size,
+        spare_drive,
+    };
+    let layout = generate_ship(parts, request).map_err(|failure| failure.to_string())?;
+    let stock = ship_stock(
+        parts,
+        items,
+        &layout.design,
+        role,
+        condition,
+        civilization.advancement,
+        seed.wrapping_add(1),
+    )
+    .ok_or_else(|| "the hold cannot fit one unit of its lightest item".to_string())?;
+    Ok((layout.design, stock))
+}
+
+/// What a stranded civilian hull of `civilization` is called.
+pub(crate) fn caller_name(civilization: &Civilization) -> String {
+    format!("{} civilian, adrift", civilization.id.name())
+}
+
+/// A hull adrift under the cell `root`, as a distress caller, a supply
+/// caller and a derelict find spawn: neutral, with no controller, lootable,
+/// a derelict, with `credits` aboard.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one spawn: the id, the name, the pose, the hull, its hold, its balance and its root"
+)]
+pub(crate) fn caller_bundle(
+    id: &GeneratedBodyId,
+    name: String,
+    position: Meters3,
+    rotation: Quat,
+    design: ShipDesign,
+    stock: ShipInventoryStock,
+    credits: u32,
+    root: Entity,
+) -> impl Bundle {
+    (
+        base_scenario_object(&BaseScenarioObjectConfig {
+            id: id.to_string(),
+            name,
+            position,
+            rotation,
+        }),
+        id.clone(),
+        spaceship_scenario_object(SpaceshipConfig {
+            design: ShipDesignSource::Inline(design),
+            controller: SpaceshipController::None,
+            initial_velocity: MetersPerSecond3::ZERO,
+            allegiance: Some(Allegiance::Neutral),
+            capabilities: ShipCapabilities::default(),
+            inventory: stock,
+            lootable: true,
+            credits,
+        }),
+        ChildOf(root),
+        DerelictShipMarker,
+    )
+}
+
+/// A raider of `civilization` lying in wait under the cell `root`: hostile,
+/// idle until a hostile of its own comes inside [`RAIDER_ENGAGE_RANGE`],
+/// tethered by [`RAIDER_LEASH`] to where it waits.
+pub(crate) fn raider_bundle(
+    id: &GeneratedBodyId,
+    civilization: &Civilization,
+    position: Meters3,
+    rotation: Quat,
+    design: ShipDesign,
+    stock: ShipInventoryStock,
+    root: Entity,
+) -> impl Bundle {
+    (
+        base_scenario_object(&BaseScenarioObjectConfig {
+            id: id.to_string(),
+            name: raider_name(civilization),
+            position,
+            rotation,
+        }),
+        id.clone(),
+        spaceship_scenario_object(SpaceshipConfig {
+            design: ShipDesignSource::Inline(design),
+            controller: SpaceshipController::AI(AIControllerConfig {
+                leash: Some(RAIDER_LEASH),
+                engage_range: Some(RAIDER_ENGAGE_RANGE),
+                ..AIControllerConfig::default()
+            }),
+            initial_velocity: MetersPerSecond3::ZERO,
+            allegiance: Some(Allegiance::Enemy),
+            capabilities: ShipCapabilities::default(),
+            inventory: stock,
+            lootable: false,
+            credits: 0,
+        }),
+        // A raider lies in wait: the AI state's default is Engage, which
+        // would chase its prey from the spawn at any sensor range instead of
+        // springing inside the engage range.
+        AIBehaviorState::Idle,
+        ChildOf(root),
+    )
+}
+
+/// What a raider of `civilization` is called.
+pub(crate) fn raider_name(civilization: &Civilization) -> String {
+    format!("{} raider", civilization.id.name())
+}
+
 /// The hold a caller of `kind` spawns with: `stock` as drawn, less every
 /// unit of the item a supply job asks for, so the goods the player brings
 /// cannot come off the caller itself.
-fn caller_stock(kind: &JobType, stock: ShipInventoryStock) -> ShipInventoryStock {
+pub(crate) fn caller_stock(kind: &JobType, stock: ShipInventoryStock) -> ShipInventoryStock {
     match kind {
         JobType::Supply { item, .. } => ShipInventoryStock::new(
             stock
@@ -1400,38 +1492,97 @@ pub(crate) fn escort_on_arrival(
     }
 }
 
-/// The held, undone jobs whose caller is the subject of the `ondocked`
-/// `event` with the player's hull as the docker, `own_id`, picked by
-/// `kind`. Another hull's dock with a caller answers nothing.
-fn docked_callers(
-    event: &GameEvent,
-    jobs: &Jobs,
-    own_id: &EntityId,
-    kind: fn(&JobType) -> Option<&GeneratedBodyId>,
-) -> Vec<Job> {
+/// The id of the body the player's hull `own_id` just docked with, when
+/// `event` is that `ondocked`. Another hull's dock reads `None`.
+pub(crate) fn player_docked_with<'a>(event: &'a GameEvent, own_id: &EntityId) -> Option<&'a str> {
     if event.name() != OnDockedEvent::name() {
-        return Vec::new();
+        return None;
     }
-    let Some(subject) = event_subject(event) else {
-        return Vec::new();
-    };
+    let subject = event_subject(event)?;
     let docker = event
         .info()
         .data
         .as_ref()
         .and_then(|data| data.get("other_id"))
         .and_then(|id| id.as_str());
-    if docker != Some(own_id.0.as_str()) {
+    (docker == Some(own_id.0.as_str())).then_some(subject)
+}
+
+/// The held, undone board jobs whose caller is the subject of the `ondocked`
+/// `event` with the player's hull as the docker, `own_id`, picked by
+/// `kind`. Another hull's dock with a caller answers nothing. A hail job is
+/// left out: the encounter director owns its dock, where the accept of a
+/// standing offer comes before the answer.
+fn docked_callers(
+    event: &GameEvent,
+    jobs: &Jobs,
+    own_id: &EntityId,
+    kind: fn(&JobType) -> Option<&GeneratedBodyId>,
+) -> Vec<Job> {
+    let Some(subject) = player_docked_with(event, own_id) else {
         return Vec::new();
-    }
+    };
     jobs.held()
         .iter()
         .filter(|job| {
-            !jobs.is_done(&job.id)
+            !job.id.is_hail()
+                && !jobs.is_done(&job.id)
                 && kind(&job.kind).is_some_and(|caller| caller.to_string() == subject)
         })
         .cloned()
         .collect()
+}
+
+/// Mark the held distress call `job` done and raise its [`JobDone`]: the
+/// player docked with its caller.
+pub(crate) fn answer_distress(commands: &mut Commands, jobs: &mut Jobs, job: Job) {
+    jobs.mark_done(&job.id);
+    info!(
+        "nova_world_base: '{}' is done: the caller '{}' was docked with",
+        job.id,
+        job.located_body()
+            .expect("a distress call names its caller")
+    );
+    commands.trigger(JobDone { job });
+}
+
+/// Deliver the held supply job `job` from the player's `hold` on the dock
+/// with its caller: with the whole stack aboard ([`plan_job_supply`]) the
+/// dock takes it and marks the job done; with the hold short the job stays
+/// held and not done, the hold untouched, and [`SupplyRefused`] is raised.
+pub(crate) fn deliver_supply(
+    commands: &mut Commands,
+    jobs: &mut Jobs,
+    hold: &mut ShipInventory,
+    job: Job,
+) {
+    let JobType::Supply {
+        caller,
+        item,
+        count,
+    } = &job.kind
+    else {
+        unreachable!("the caller of deliver_supply picked a supply job")
+    };
+    let id = job.id.clone();
+    match plan_job_supply(hold, item, *count) {
+        Ok(()) => {
+            hold.remove(item, *count);
+            jobs.mark_done(&id);
+            info!(
+                "nova_world_base: '{id}' is done: the caller '{caller}' was docked with and \
+                 took {count} {item}"
+            );
+            commands.trigger(JobDone { job });
+        }
+        Err(refusal) => {
+            info!(
+                "nova_world_base: '{id}' is not done: the dock with '{caller}' was refused \
+                 ({refusal:?})"
+            );
+            commands.trigger(SupplyRefused { id, refusal });
+        }
+    }
 }
 
 /// Mark a held distress call done on the `ondocked` of the player with its
@@ -1450,14 +1601,7 @@ pub(crate) fn distress_on_answer(
         _ => None,
     });
     for job in answered {
-        jobs.mark_done(&job.id);
-        info!(
-            "nova_world_base: '{}' is done: the caller '{}' was docked with",
-            job.id,
-            job.located_body()
-                .expect("a distress call names its caller")
-        );
-        commands.trigger(JobDone { job });
+        answer_distress(&mut commands, &mut jobs, job);
     }
 }
 
@@ -1482,33 +1626,7 @@ pub(crate) fn supply_on_dock(
         _ => None,
     });
     for job in due {
-        let JobType::Supply {
-            caller,
-            item,
-            count,
-        } = &job.kind
-        else {
-            unreachable!("docked_callers picked supply jobs")
-        };
-        let id = job.id.clone();
-        match plan_job_supply(&hold, item, *count) {
-            Ok(()) => {
-                hold.remove(item, *count);
-                jobs.mark_done(&id);
-                info!(
-                    "nova_world_base: '{id}' is done: the caller '{caller}' was docked with and \
-                     took {count} {item}"
-                );
-                commands.trigger(JobDone { job });
-            }
-            Err(refusal) => {
-                info!(
-                    "nova_world_base: '{id}' is not done: the dock with '{caller}' was refused \
-                     ({refusal:?})"
-                );
-                commands.trigger(SupplyRefused { id, refusal });
-            }
-        }
+        deliver_supply(&mut commands, &mut jobs, &mut hold, job);
     }
 }
 

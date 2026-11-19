@@ -2202,6 +2202,7 @@ mod walk {
             world.resource::<GameTradeProfiles>(),
             world.resource::<GameRecipes>(),
             world.resource::<GameConsumables>(),
+            world.resource::<GameEncounters>(),
         )
         .unwrap_or_else(|refusal| panic!("station hire: cannot open the leave save: {refusal}"));
         (header, state)

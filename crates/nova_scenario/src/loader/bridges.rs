@@ -9,7 +9,8 @@
 //! The job events: the Jobs pane and the open world raise [`JobAccepted`],
 //! [`JobDone`], [`JobHandedIn`] and [`JobDropped`], which fire
 //! `OnJobAccepted`, `OnJobDone`, `OnJobHandedIn` and `OnJobDropped` through
-//! one payload builder, so the four payloads cannot drift apart.
+//! one payload builder, so the four payloads cannot drift apart. A hail
+//! job fires no `OnJobDone` ([`fire_job_done`]).
 //!
 //! The stance event: every site that steps a civilization's table stance
 //! raises [`StanceChanged`], which fires `OnStanceChanged`.
@@ -44,7 +45,12 @@ fn fire_job_accepted(accepted: On<JobAccepted>, mut commands: Commands) {
     commands.fire::<OnJobAcceptedEvent>(job_event_info(&accepted.job));
 }
 
+/// `OnJobDone` says a job waits for its hand-in. A hail job has none: the
+/// dock that does it pays it, so it fires `OnJobHandedIn` alone.
 fn fire_job_done(done: On<JobDone>, mut commands: Commands) {
+    if done.job.id.is_hail() {
+        return;
+    }
     commands.fire::<OnJobDoneEvent>(job_event_info(&done.job));
 }
 
@@ -154,6 +160,47 @@ mod tests {
             [
                 (OnJobAcceptedEvent::name(), fields(&job_fields)),
                 (OnJobDoneEvent::name(), fields(&job_fields)),
+                (OnJobHandedInEvent::name(), fields(&job_fields)),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_hail_job_fires_no_done_event_and_names_its_caller_as_the_station() {
+        let caller = GeneratedBodyId::new(SectorCoord::ORIGIN, "encounter_0_caller", 0);
+        let job = Job {
+            id: JobId::hail(caller.clone(), 0),
+            kind: JobType::Distress {
+                caller: caller.clone(),
+            },
+            target: caller.clone(),
+            leg_m: 6_000,
+            threat: 0,
+            reward: JobReward::flat(380),
+        };
+        let caller = caller.to_string();
+        let id = format!("{caller}#hail.0");
+        let job_fields = [
+            (ENTITY_ID_COMPONENT_NAME, id.as_str()),
+            (JOB_KIND_FIELD_NAME, "Distress"),
+            (JOB_POST_KEY_FIELD_NAME, ""),
+            (JOB_REWARD_FIELD_NAME, "380"),
+            (JOB_STATION_FIELD_NAME, caller.as_str()),
+        ];
+        let mut app = bridge_app();
+
+        app.world_mut().trigger(JobAccepted { job: job.clone() });
+        app.world_mut().trigger(JobDone { job: job.clone() });
+        app.world_mut().trigger(JobHandedIn {
+            job: job.clone(),
+            code: "JOB-1".to_string(),
+        });
+        app.world_mut().flush();
+
+        assert_eq!(
+            app.world().resource::<Fired>().0,
+            [
+                (OnJobAcceptedEvent::name(), fields(&job_fields)),
                 (OnJobHandedInEvent::name(), fields(&job_fields)),
             ]
         );

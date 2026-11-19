@@ -62,7 +62,7 @@ mod tests;
 
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::{Chart, JobPostings, Jobs, WorldClock};
+use nova_gameplay::prelude::{Chart, Encounters, JobPostings, Jobs, WorldClock};
 use nova_hud::prelude::PreviewPlugin;
 use nova_sound::prelude::{SoundBank, UiSfx};
 
@@ -174,6 +174,7 @@ impl Plugin for MapPanePlugin {
         // at zero.
         app.init_resource::<Chart>();
         app.init_resource::<Jobs>();
+        app.init_resource::<Encounters>();
         app.init_resource::<JobPostings>();
         app.init_resource::<WorldClock>();
         // The chart's tile textures and mark meshes, shared with the menu's

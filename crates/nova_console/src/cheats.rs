@@ -343,6 +343,54 @@ pub fn scenario_load(world: &mut World, id: &str) -> CommandResult {
     ])
 }
 
+/// `encounter [encounter-id]`: with no id, list the loaded encounters; with
+/// one, ask the open world's director to fire it ahead of the player ship
+/// ([`EncounterFireCommand`]). The director skips the travel clock and its
+/// rate rule, still needs a clear place ahead, and spends a draw number as a
+/// drawn encounter does. Refused while an encounter is live or a hail job is
+/// held.
+pub fn encounter(world: &mut World, id: Option<&str>) -> CommandResult {
+    const NAME: &str = "encounter";
+    let Some(designs) = world.get_resource::<GameEncounters>() else {
+        return CommandResult::error(NAME, Some(CLASS), "encounter: no encounters are loaded");
+    };
+    let known: Vec<String> = designs.0.keys().map(ToString::to_string).collect();
+    let Some(id) = id else {
+        let rows = known
+            .iter()
+            .map(|id| TerminalRow::output(format!("  {id}")))
+            .collect();
+        return CommandResult::ok(NAME, CLASS, format!("{} loaded", known.len())).with_rows(rows);
+    };
+    let design = EncounterDesignId::from(id);
+    if designs.get(&design).is_none() {
+        return CommandResult::error(
+            NAME,
+            Some(CLASS),
+            format!(
+                "encounter: no encounter named '{id}' ({})",
+                known.join(", ")
+            ),
+        );
+    }
+    let live = world
+        .get_resource::<Encounters>()
+        .is_some_and(|record| record.live.is_some());
+    let hail_held = world
+        .get_resource::<Jobs>()
+        .is_some_and(|jobs| jobs.held().iter().any(|job| job.id.is_hail()));
+    if live || hail_held {
+        return CommandResult::refused(NAME, CLASS, "encounter: one is live or a hail job is held");
+    }
+    let Some(mut asked) = world.get_resource_mut::<Messages<EncounterFireCommand>>() else {
+        return CommandResult::error(NAME, Some(CLASS), "encounter: no open world is running");
+    };
+    asked.write(EncounterFireCommand { design });
+    CommandResult::ok(NAME, CLASS, format!("{id}: asked")).with_rows(vec![TerminalRow::warn(
+        format!("{id}: fires ahead of the ship when a place is clear."),
+    )])
+}
+
 #[cfg(test)]
 mod tests {
     use nova_events::prelude::EntityId;
@@ -688,5 +736,63 @@ mod tests {
             );
         }
         assert_eq!(unarmed.get::<ShipCredits>(ship), Some(&ShipCredits(410)));
+    }
+
+    /// A world with one ambush design loaded and the director's message
+    /// queue standing.
+    fn world_with_encounters() -> World {
+        let mut world = World::new();
+        world.insert_resource(GameEncounters::new([EncounterDesign {
+            id: "base/ambush".into(),
+            weight: 1,
+            player: EncounterPlayerType::Armed,
+            kind: EncounterType::Ambush,
+        }]));
+        world.init_resource::<Messages<EncounterFireCommand>>();
+        world.init_resource::<Encounters>();
+        world
+    }
+
+    #[test]
+    fn encounter_lists_the_loaded_ids_and_asks_the_director_for_a_known_one() {
+        let mut world = world_with_encounters();
+        let listed = encounter(&mut world, None);
+        assert_eq!(listed.status, CommandStatus::Ok);
+        assert_eq!(listed.detail, "1 loaded");
+        assert!(world
+            .resource::<Messages<EncounterFireCommand>>()
+            .is_empty());
+
+        let unknown = encounter(&mut world, Some("nope"));
+        assert_eq!(unknown.status, CommandStatus::Error);
+        assert!(unknown.detail.contains("base/ambush"), "{}", unknown.detail);
+        assert!(world
+            .resource::<Messages<EncounterFireCommand>>()
+            .is_empty());
+
+        let asked = encounter(&mut world, Some("base/ambush"));
+        assert_eq!(asked.status, CommandStatus::Ok);
+        let sent: Vec<EncounterFireCommand> = world
+            .resource_mut::<Messages<EncounterFireCommand>>()
+            .drain()
+            .collect();
+        assert_eq!(sent.len(), 1);
+        assert_eq!(sent[0].design.as_str(), "base/ambush");
+    }
+
+    #[test]
+    fn encounter_is_refused_while_one_is_live() {
+        let mut world = world_with_encounters();
+        world.resource_mut::<Encounters>().live = Some(EncounterLive {
+            design: "base/ambush".into(),
+            name: "Raiders".to_string(),
+            bodies: Vec::new(),
+            started_at: 0.0,
+        });
+        let refused = encounter(&mut world, Some("base/ambush"));
+        assert_eq!(refused.status, CommandStatus::Refused);
+        assert!(world
+            .resource::<Messages<EncounterFireCommand>>()
+            .is_empty());
     }
 }

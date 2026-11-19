@@ -56,6 +56,16 @@
 //! an accept the same frame raises by holding the job first, changes
 //! nothing and plays the deny sound.
 //!
+//! In space, away from a station that posts jobs, a standing hail offer
+//! ([`Encounters::offer`]) is the Board's one row, with the same cells: its
+//! window counts down from [`HAIL_OFFER_SECONDS`], Accept is gated by
+//! [`plan_hail_accept`] with the board's tags, and its `X` declines at one
+//! click, with no fee and no confirm. Accept and `X` raise a
+//! [`HailAnswerCommand`], which the open world's encounter director
+//! answers; its [`HailAnswered`] plays the one cue. A hail job, offered or
+//! held, names its caller as target and hand-in: it is done and paid on the
+//! dock with that hull, so its held row never shows Hand in.
+//!
 //! Touch this module when changing what the lists show, what gates an
 //! offer, or what a hand-in moves.
 
@@ -90,7 +100,7 @@ use crate::{
 pub mod prelude {
     pub use super::{
         JobAcceptCommand, JobHandInCommand, JobsRuntime, JOBS_BOARD, JOBS_HELD, JOBS_MILESTONE,
-        JOBS_PANE, JOB_ACCEPT_PREFIX, JOB_HAND_IN_PREFIX, JOB_SHOW_ON_MAP,
+        JOBS_PANE, JOB_ACCEPT_PREFIX, JOB_HAIL_DECLINE, JOB_HAND_IN_PREFIX, JOB_SHOW_ON_MAP,
     };
 }
 
@@ -124,6 +134,8 @@ pub(crate) const JOB_REFRESH_CONFIRM_PREFIX: &str = "JobRefreshConfirm-";
 /// The `Name` prefix of a confirming board row's Back button:
 /// `JobRefreshBack-<row>`.
 pub(crate) const JOB_REFRESH_BACK_PREFIX: &str = "JobRefreshBack-";
+/// The `Name` of a hail row's `X` button, which declines the offer.
+pub const JOB_HAIL_DECLINE: &str = "JobHailDecline";
 /// The `Name` of the inspector's Show on Map button.
 pub const JOB_SHOW_ON_MAP: &str = "JobShowOnMap";
 
@@ -216,7 +228,13 @@ enum JobListType {
     Posted,
     /// The jobs the player holds: Hand in.
     Held,
+    /// The standing hail offer: Accept, in space.
+    Hail,
 }
+
+/// A hail row's `X`: it declines the standing offer.
+#[derive(Component, Clone, Copy, Debug)]
+struct HailDeclineButton;
 
 /// A row's action button: Accept on the board, Hand in on a held job.
 #[derive(Component, Clone, Debug)]
@@ -339,13 +357,16 @@ fn place_text(cell: SectorCoord, distance: Option<String>) -> String {
 }
 
 /// What a job is about, for the inspector: the poster for a procurement,
-/// else the wreck, the hauler, the caller or the hull.
-fn target_name(job: &Job, chart: &Chart) -> String {
+/// else the wreck, the hauler, the caller or the hull. A hail job's caller
+/// reads by its name, `hailer`.
+fn target_name(job: &Job, chart: &Chart, hailer: Option<&str>) -> String {
     match &job.kind {
         JobType::Procure { .. } => station_name(chart, &job.target),
         JobType::Recover { wreck_name, .. } => wreck_name.clone(),
         JobType::Escort { .. } => "the hauler".to_string(),
-        JobType::Distress { .. } | JobType::Supply { .. } => "the caller".to_string(),
+        JobType::Distress { .. } | JobType::Supply { .. } => {
+            hailer.unwrap_or("the caller").to_string()
+        }
         JobType::Neutralize { hull_name, .. } => hull_name.clone(),
     }
 }
@@ -434,6 +455,14 @@ fn accept_gate(refusal: &JobAcceptRefusalType) -> VerbGate {
     }
 }
 
+/// How Accept answers a refused hail accept: the board's own answers.
+fn hail_gate(refusal: &HailAcceptRefusalType) -> VerbGate {
+    match refusal {
+        HailAcceptRefusalType::Accept(refusal) => accept_gate(refusal),
+        HailAcceptRefusalType::Hull(refusal) => hull_gate(refusal),
+    }
+}
+
 /// How Hand in answers a refused hand-in: hidden away from the hand-in
 /// station (HAND IN HERE marks it), disabled while the work or the hold is
 /// short (the Progress count shows it), tagged when the station cannot pay.
@@ -502,6 +531,9 @@ struct PostedRow {
     /// A slot posting: the row shows the `X` that asks a paid refresh. A
     /// visit posting has no slot to renew.
     refreshable: bool,
+    /// The standing hail offer: Accept answers it in space and the row
+    /// shows the `X` that declines it.
+    hail: bool,
     /// Its `X` was pressed: the row asks Refresh or Back.
     confirming: bool,
     /// How the refresh's Delete answers the row while `confirming`.
@@ -581,7 +613,7 @@ fn update_jobs_pane(
     icons: Res<InterfaceIcons>,
     items: Option<Res<GameItems>>,
     table: Option<Res<GamePriceTable>>,
-    (chart, jobs, postings, clock, edge, progress, record): (
+    (chart, jobs, postings, clock, edge, progress, record, encounters): (
         Res<Chart>,
         Res<Jobs>,
         Res<JobPostings>,
@@ -589,6 +621,7 @@ fn update_jobs_pane(
         Option<Res<ChartSectorEdge>>,
         Res<GoalProgress>,
         Res<GoalRecord>,
+        Res<Encounters>,
     ),
     site: StationSite,
     hull: PlayerHull,
@@ -747,12 +780,46 @@ fn update_jobs_pane(
                     time_left,
                     gate,
                     refreshable: postings.slot(&job.id).is_some(),
+                    hail: false,
                     confirming,
                     refresh_gate,
                 })
             })
             .collect();
         Some(BoardView { rows })
+    });
+
+    // The share and the minutes left of a hail offer's window.
+    let hail_time_left = |offer: &EncounterOffer| {
+        let remaining = offer.expires_at - now;
+        (
+            (remaining / HAIL_OFFER_SECONDS) as f32,
+            format!("{} min", (remaining.max(0.0) / 60.0).ceil()),
+        )
+    };
+    // Away from a station that posts jobs, the standing hail is the board.
+    let hail = encounters.offer.as_ref().filter(|_| partner.is_none());
+    let board = board.or_else(|| {
+        let offer = hail?;
+        let job = &offer.job;
+        let gate = plan_hail_accept(job, &jobs, encounters.offer_expired(now), &items, fit)
+            .map_or_else(|refusal| hail_gate(&refusal), |()| VerbGate::Ready);
+        Some(BoardView {
+            rows: vec![PostedRow {
+                id: job.id.clone(),
+                icon: JobIconType::of(&job.kind),
+                title: job.title(&items),
+                range: range_text(job.leg_m),
+                threat: threat_text(job.threat),
+                reward_cr: job.reward.total_cr().into(),
+                time_left: hail_time_left(offer),
+                gate,
+                refreshable: false,
+                hail: true,
+                confirming: false,
+                refresh_gate: VerbGate::Ready,
+            }],
+        })
     });
 
     let held: Vec<HeldRow> = jobs
@@ -778,14 +845,20 @@ fn update_jobs_pane(
 
     // The selected job and whether the player holds it.
     let selected = runtime.selected.as_ref().and_then(|id| {
-        jobs.job(id).map(|job| (job, true)).or_else(|| {
-            let (_, station, _) = partner.as_ref()?;
-            let (board, _) = q_boards.get(*station).ok()?;
-            board
-                .job(id)
-                .filter(|job| !jobs.is_completed(&job.id) && !jobs.is_dropped(&job.id))
-                .map(|job| (job, false))
-        })
+        jobs.job(id)
+            .map(|job| (job, true))
+            .or_else(|| {
+                let (_, station, _) = partner.as_ref()?;
+                let (board, _) = q_boards.get(*station).ok()?;
+                board
+                    .job(id)
+                    .filter(|job| !jobs.is_completed(&job.id) && !jobs.is_dropped(&job.id))
+                    .map(|job| (job, false))
+            })
+            .or_else(|| {
+                hail.filter(|offer| offer.job.id == *id)
+                    .map(|offer| (&offer.job, false))
+            })
     });
     if selected.is_none() && runtime.selected.is_some() {
         runtime.selected = None;
@@ -804,14 +877,25 @@ fn update_jobs_pane(
             title: job.title(&items),
             done,
             task: job.task(&items),
-            target: format!("{}\n{}", target_name(job, &chart), place(job_cell(job))),
-            hand_in: station_name(&chart, &job.target),
+            target: format!(
+                "{}\n{}",
+                target_name(job, &chart, encounters.caller_name(&job.id)),
+                place(job_cell(job))
+            ),
+            // A hail job is paid on the dock with its caller.
+            hand_in: encounters
+                .caller_name(&job.id)
+                .map_or_else(|| station_name(&chart, &job.target), str::to_string),
             reward_cr: job.reward.total_cr().into(),
             terms: reward_term_rows(job),
             time_left: postings
                 .remaining(&job.id, rule, now)
                 .filter(|_| !held)
-                .map(|remaining| time_left(job, remaining)),
+                .map(|remaining| time_left(job, remaining))
+                .or_else(|| {
+                    hail.filter(|offer| !held && offer.job.id == job.id)
+                        .map(hail_time_left)
+                }),
             progress: held.then(|| job.progress(hold, done)),
             show,
         }
@@ -1405,11 +1489,24 @@ fn posted_row(r: &mut ChildSpawnerCommands, icons: &InterfaceIcons, index: usize
             format!("{JOB_ACCEPT_PREFIX}{index}"),
             "Accept",
             JobActionButton {
-                list: JobListType::Posted,
+                list: if row.hail {
+                    JobListType::Hail
+                } else {
+                    JobListType::Posted
+                },
                 id: row.id.clone(),
             },
             row.gate.clone(),
         );
+        if row.hail {
+            ask_button(
+                verbs,
+                icons,
+                JOB_HAIL_DECLINE.to_string(),
+                HailDeclineButton,
+            )
+            .observe(on_hail_decline);
+        }
         if row.refreshable {
             ask_button(
                 verbs,
@@ -1671,11 +1768,15 @@ fn on_job_button(
     q_button: Query<&JobActionButton>,
     mut accepts: MessageWriter<JobAcceptCommand>,
     mut hand_ins: MessageWriter<JobHandInCommand>,
+    mut answers: MessageWriter<HailAnswerCommand>,
 ) {
     let Ok(button) = q_button.get(activate.entity) else {
         return;
     };
     match button.list {
+        JobListType::Hail => {
+            answers.write(HailAnswerCommand::Accept);
+        }
         JobListType::Posted => {
             accepts.write(JobAcceptCommand {
                 id: button.id.clone(),
@@ -1686,6 +1787,30 @@ fn on_job_button(
                 id: button.id.clone(),
             });
         }
+    }
+}
+
+/// Decline the standing hail offer when its row's `X` is activated. The
+/// press is silent: the result plays the one cue.
+fn on_hail_decline(
+    activate: On<Activate>,
+    q_button: Query<(), With<HailDeclineButton>>,
+    mut answers: MessageWriter<HailAnswerCommand>,
+) {
+    if q_button.contains(activate.entity) {
+        answers.write(HailAnswerCommand::Decline);
+    }
+}
+
+/// Raise the cue of each hail answer the encounter director gave: the click
+/// for a taken accept or decline, the deny sound for one it refused.
+fn cue_hail_answers(mut answered: MessageReader<HailAnswered>, mut runtime: ResMut<JobsRuntime>) {
+    for answer in answered.read() {
+        runtime.cue.raise(if answer.taken {
+            ActionOutcomeType::Done
+        } else {
+            ActionOutcomeType::Refused
+        });
     }
 }
 
@@ -2077,9 +2202,19 @@ impl Plugin for JobsPanePlugin {
         app.add_message::<JobHandInCommand>();
         app.add_message::<JobDropCommand>();
         app.add_message::<JobOfferRefreshCommand>();
+        // Owned by the open world's encounter director; registered here as
+        // well so the pane stands alone. A second registration is a no-op.
+        app.add_message::<HailAnswerCommand>();
+        app.add_message::<HailAnswered>();
+        app.init_resource::<Encounters>();
         app.add_systems(
             Update,
-            (apply_job_commands, update_jobs_pane, play_jobs_cue)
+            (
+                apply_job_commands,
+                cue_hail_answers,
+                update_jobs_pane,
+                play_jobs_cue,
+            )
                 .chain()
                 .in_set(JobsPaneSystems),
         );
@@ -3302,6 +3437,7 @@ mod tests {
                 time_left: (0.5, "60 min".to_string()),
                 gate: VerbGate::Tagged("NO WEAPON"),
                 refreshable: true,
+                hail: false,
                 confirming: false,
                 refresh_gate: VerbGate::Ready,
             }],
@@ -3398,6 +3534,104 @@ mod tests {
             title.width() >= TITLE_MIN_PX - 0.5,
             "the title keeps its least width: {title:?}"
         );
+    }
+
+    /// A hail row's Accept and `X` each raise the director's command at one
+    /// click, with no confirm, and never a board accept.
+    #[test]
+    fn a_hail_row_s_accept_and_x_raise_the_hail_answers() {
+        use crate::pointer_rig::{click_at, pane_pointer_rig, settle};
+
+        let mut rig = pane_pointer_rig();
+        rig.app.add_message::<JobAcceptCommand>();
+        rig.app.add_message::<JobHandInCommand>();
+        rig.app.add_message::<HailAnswerCommand>();
+        rig.app.init_resource::<JobsRuntime>();
+        let caller = GeneratedBodyId::new(SectorCoord::ORIGIN, "encounter_0_caller", 0);
+        let board = BoardView {
+            rows: vec![PostedRow {
+                id: JobId::hail(caller, 0),
+                icon: JobIconType::Answer,
+                title: "Answer a distress call".to_string(),
+                range: "6 km".to_string(),
+                threat: String::new(),
+                reward_cr: 320,
+                time_left: (0.8, "4 min".to_string()),
+                gate: VerbGate::Ready,
+                refreshable: false,
+                hail: true,
+                confirming: false,
+                refresh_gate: VerbGate::Ready,
+            }],
+        };
+        let icons = InterfaceIcons::blank();
+        let content = rig.content_root;
+        rig.app
+            .world_mut()
+            .commands()
+            .entity(content)
+            .with_children(|content| {
+                content.spawn(column()).with_children(|col| {
+                    board_panel(col, &icons, &board, None, ScrollPosition::default());
+                });
+            });
+        settle(&mut rig.app);
+        let click = |rig: &mut crate::pointer_rig::PanePointerRig, name: &str| {
+            let centre = rig
+                .app
+                .world_mut()
+                .query::<(&Name, &ComputedNode, &UiGlobalTransform)>()
+                .iter(rig.app.world())
+                .find(|(each, ..)| each.as_str() == name)
+                .map(|(_, node, xf)| {
+                    assert!(node.size().min_element() > 0.0, "{name} has no area");
+                    xf.translation
+                })
+                .unwrap_or_else(|| panic!("{name} is laid out"));
+            click_at(rig, centre);
+        };
+        let answers = |rig: &mut crate::pointer_rig::PanePointerRig| -> Vec<HailAnswerCommand> {
+            rig.app
+                .world_mut()
+                .resource_mut::<Messages<HailAnswerCommand>>()
+                .drain()
+                .collect()
+        };
+
+        click(&mut rig, "JobAccept-0");
+        assert_eq!(answers(&mut rig), [HailAnswerCommand::Accept]);
+        click(&mut rig, JOB_HAIL_DECLINE);
+        assert_eq!(answers(&mut rig), [HailAnswerCommand::Decline]);
+        assert!(
+            rig.app
+                .world()
+                .resource::<Messages<JobAcceptCommand>>()
+                .is_empty(),
+            "a hail is not accepted off a station's board"
+        );
+    }
+
+    /// A hail answer the director took clicks once; one it refused buzzes
+    /// once.
+    #[test]
+    fn a_taken_hail_answer_clicks_and_a_refused_one_buzzes() {
+        let mut app = jobs_app();
+        app.add_message::<HailAnswered>();
+        app.add_systems(Update, cue_hail_answers.before(play_jobs_cue));
+        app.world_mut().write_message(HailAnswered {
+            answer: HailAnswerCommand::Decline,
+            taken: true,
+        });
+        app.update();
+        assert_eq!(take_cues(&mut app), [UiSfx::MenuSelect]);
+        app.world_mut().write_message(HailAnswered {
+            answer: HailAnswerCommand::Accept,
+            taken: false,
+        });
+        app.update();
+        assert_eq!(take_cues(&mut app), [UiSfx::EditorDeny]);
+        app.update();
+        assert!(take_cues(&mut app).is_empty(), "each cue plays once");
     }
 
     #[test]

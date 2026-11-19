@@ -25,6 +25,7 @@ pub(crate) fn publish_live_values(
     q_sections: Query<(&ChildOf, &EntityId), With<SectionMarker>>,
     scenarios: Option<Res<GameScenarios>>,
     items: Option<Res<GameItems>>,
+    encounters: Option<Res<GameEncounters>>,
     events: Option<Res<NovaEventWorld>>,
     bindings: Option<Res<InputBindings>>,
 ) {
@@ -69,6 +70,10 @@ pub(crate) fn publish_live_values(
             .map(|item| item.id.as_str().to_string())
             .collect();
         entries.push((live::ITEM.to_string(), ids));
+    }
+    if let Some(encounters) = encounters {
+        let ids: Vec<String> = encounters.0.keys().map(ToString::to_string).collect();
+        entries.push((live::ENCOUNTER.to_string(), ids));
     }
     if let Some(events) = events {
         let mut names: Vec<String> = events.variables().map(|(key, _)| key.clone()).collect();

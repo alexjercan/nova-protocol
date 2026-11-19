@@ -76,7 +76,7 @@ The prompt reads `cmd>`. As you type, a dim ghost continues the line toward the 
 NOVA OS v0.13.0 // COMMANDS
 POST ......... command shell / ok
 CORE ......... local game runtime / attached
-REGISTRY ..... 30 commands / ready
+REGISTRY ..... 31 commands / ready
 WORLD ........ tutorial / paused
 CHEATS ....... disabled / run clean
 Hint: type `help` and press Enter.
@@ -166,6 +166,7 @@ Every one of these is refused until you run `cheats enable`. That command is the
 | `item give <ship-id> <item-id> <quantity>` | add items to one ship's inventory, e.g. `item give player_spaceship HullPlate 12` |
 | `credits give <ship-id> <amount>` | add a signed amount to one ship's credits, e.g. `credits give player_spaceship -500` |
 | `credits set <ship-id> <amount>` | set one ship's credits, e.g. `credits set player_spaceship 5000` |
+| `encounter [encounter-id]` | list the loaded [encounters](../ships/#encounters), or put one ahead of your ship at once, e.g. `encounter base/ambush`. Open world only; refused while an encounter is live or you hold a hail job |
 
 <details class="explain">
 <summary>Show explanation</summary>

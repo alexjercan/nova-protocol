@@ -20,16 +20,16 @@ use nova_events::prelude::{EntityId, GeneratedBodyId, Meters3};
 use nova_gameplay::prelude::{
     nova_blast, resumed_lifetime, station_job_offers, AssetRef, CargoCanister,
     CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, CivilizationId, CivilizationStances,
-    ClockFreeze, ClusterType, DamageLevel, DamageMarks, DamageType, FreezeOwner, FrozenRoundFlight,
-    GameConsumables, GameItems, GameRecipes, GameTradeProfiles, GoalLine, GoalProgress, GoalRecord,
-    Health, ImpactSparkMarker, ImpactSparkPlugin, ImpactSparks, IntegrityDestroyMarker,
-    ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType, Job, JobField, JobId, JobMixType,
-    JobPostings, JobType, Jobs, NeutralizedMarker, PlayerFleetMarker, PlayerSpaceshipMarker,
-    PointRotationOutput, ProjectileDamage, ProjectileOwner, RailgunSlugProjectileMarker, RoundRake,
-    SavedBodyRef, SavedLifetime, SavedOwner, SavedSectionRef, SavedTargetRef, SectionMarker,
-    ShipCredits, ShipInventory, SpaceshipRootMarker, StanceType, StationServiceType,
-    StationSummary, StationVisits, TempEntity, TorpedoProjectileMarker, TradeProfileDesign,
-    TraderMarket, TurretBulletProjectileMarker,
+    ClockFreeze, ClusterType, DamageLevel, DamageMarks, DamageType, Encounters, FreezeOwner,
+    FrozenRoundFlight, GameConsumables, GameEncounters, GameItems, GameRecipes, GameTradeProfiles,
+    GoalLine, GoalProgress, GoalRecord, Health, ImpactSparkMarker, ImpactSparkPlugin, ImpactSparks,
+    IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType, Job,
+    JobField, JobId, JobMixType, JobPostings, JobType, Jobs, NeutralizedMarker, PlayerFleetMarker,
+    PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage, ProjectileOwner,
+    RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime, SavedOwner,
+    SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
+    SpaceshipRootMarker, StanceType, StationServiceType, StationSummary, StationVisits, TempEntity,
+    TorpedoProjectileMarker, TradeProfileDesign, TraderMarket, TurretBulletProjectileMarker,
 };
 use nova_scenario::prelude::{
     freeze_asteroid, freeze_fleet, freeze_ore_drop, freeze_ship, freeze_station,
@@ -260,6 +260,7 @@ fn state(generation: u64, credits: u32) -> WorldSaveState {
             position: Meters3::new(40_000.0, 0.0, 0.0),
             spawn: Meters3::new(41_000.0, 0.0, 0.0),
         },
+        encounters: Encounters::default(),
     }
 }
 
@@ -331,7 +332,8 @@ fn a_world_another_game_holds_open_is_refused() {
             &designs(),
             &profiles(),
             &recipes(),
-            &GameConsumables::default()
+            &GameConsumables::default(),
+            &GameEncounters::default()
         )
         .unwrap_err(),
         WorldRefusal::Locked
@@ -347,7 +349,8 @@ fn a_world_another_game_holds_open_is_refused() {
         &designs(),
         &profiles(),
         &recipes(),
-        &GameConsumables::default()
+        &GameConsumables::default(),
+        &GameEncounters::default()
     )
     .is_ok());
 }
@@ -453,7 +456,8 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
             &designs(),
             &profiles(),
             &recipes(),
-            &GameConsumables::default()
+            &GameConsumables::default(),
+            &GameEncounters::default()
         ),
         Err(WorldRefusal::Catalog { .. })
     ));
@@ -467,7 +471,7 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
                 &items(),
                 &scenarios(),
                 &designs(), &profiles(), &recipes(),
-                &GameConsumables::default()
+                &GameConsumables::default(), &GameEncounters::default()
             ),
             Err(WorldRefusal::Format { found: refused }) if refused == found
         ));
@@ -487,7 +491,8 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
             &designs(),
             &profiles(),
             &recipes(),
-            &GameConsumables::default()
+            &GameConsumables::default(),
+            &GameEncounters::default()
         ),
         Err(WorldRefusal::InvalidName(_))
     ));
@@ -550,6 +555,7 @@ fn a_written_world_opens_as_it_was_saved() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert_eq!(opened, folder);
@@ -594,6 +600,7 @@ fn a_state_of_another_release_than_its_header_is_refused() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     ) else {
         panic!("a mixed-release world opened");
     };
@@ -657,6 +664,7 @@ fn a_saved_fleet_opens_as_it_was_frozen_and_a_doubled_slot_is_refused() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     drop(lock);
@@ -689,6 +697,7 @@ fn a_saved_fleet_opens_as_it_was_frozen_and_a_doubled_slot_is_refused() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .map(|_| ())
     .unwrap_err();
@@ -720,6 +729,7 @@ fn a_failed_write_leaves_the_last_good_save() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert_eq!(read.generation, 1);
@@ -752,6 +762,7 @@ fn opening_a_world_removes_the_files_its_header_does_not_name() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert_eq!(
@@ -977,6 +988,7 @@ fn the_first_frame_and_a_leave_each_write_a_save() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert_eq!((header.generation, header.credits), (2, 410));
@@ -1650,6 +1662,7 @@ fn a_world_whose_saved_controls_name_what_it_does_not_keep_is_refused_on_open() 
             &profiles(),
             &recipes(),
             &GameConsumables::default(),
+            &GameEncounters::default(),
         )
         .map(|_| ())
     };
@@ -1729,6 +1742,7 @@ fn a_save_header_carries_the_play_time_hull_fleet_open_objectives_and_chart() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert_eq!(header.play_seconds, 90.0);
@@ -1808,6 +1822,7 @@ fn a_met_goal_is_not_listed_among_a_save_header_s_open_objectives() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert!(header.objectives.is_empty(), "{:?}", header.objectives);
@@ -1845,6 +1860,7 @@ fn a_saved_clock_resumes_at_the_play_time_it_was_written_with() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert_eq!(
@@ -1905,6 +1921,7 @@ fn a_saved_stance_table_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert_eq!(
@@ -1940,6 +1957,7 @@ fn a_saved_stance_table_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     );
     assert!(
         matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("stance stamp")),
@@ -2014,6 +2032,7 @@ fn a_pending_station_visit_resumes_and_a_bad_station_clock_or_layout_is_refused(
             &profiles(),
             &recipes(),
             &GameConsumables::default(),
+            &GameEncounters::default(),
         )
         .map(|_| ())
     };
@@ -2146,6 +2165,168 @@ fn a_pending_station_visit_resumes_and_a_bad_station_clock_or_layout_is_refused(
     );
 }
 
+/// A standing hail offer and its live encounter are written with a save and
+/// come back on a Load; a live record whose body the save lacks, one under an
+/// unknown design, and a state with no encounter record are refused.
+#[test]
+fn a_pending_hail_offer_and_its_live_encounter_resume_and_a_bad_record_is_refused() {
+    use nova_gameplay::prelude::{
+        plan_hail_offer, EncounterDesign, EncounterLive, EncounterOffer, EncounterPlayerType,
+        EncounterType, HailJobType,
+    };
+
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Session").unwrap();
+    drop(lock);
+    let coord = SectorCoord::new(3, 0, 0);
+    let caller = GeneratedBodyId::new(coord, "encounter_2_caller", 0);
+    let designs_ = GameEncounters::new([EncounterDesign {
+        id: "fixture/hail".into(),
+        weight: 1,
+        player: EncounterPlayerType::Any,
+        kind: EncounterType::Hail {
+            job: HailJobType::Distress,
+            line: "Mayday.".to_string(),
+        },
+    }]);
+    let job = plan_hail_offer(42, HailJobType::Distress, &caller, 2, 6_000, 0.5, &items())
+        .expect("a distress hail needs no item");
+    let encounters = Encounters {
+        fired: 3,
+        travel_seconds: 12.5,
+        offer: Some(EncounterOffer {
+            job,
+            expires_at: 450.0,
+        }),
+        live: Some(EncounterLive {
+            design: "fixture/hail".into(),
+            name: "Vell civilian, adrift".to_string(),
+            bodies: vec![caller.clone()],
+            started_at: 150.0,
+        }),
+    };
+    // A held body: the record binds the id, not the hull's state.
+    let ledger = |ids: &[&GeneratedBodyId]| -> FrozenSectors {
+        let transform = ron::to_string(&Transform::IDENTITY).unwrap();
+        let entries: Vec<String> = ids
+            .iter()
+            .map(|id| {
+                let body = FrozenBodyType::PendingShip { id: id.to_string() };
+                format!(
+                    "(id: Some({}), name: None, transform: {transform}, visibility: None, \
+                     motion: None, body: {}, frozen_at: 0.0)",
+                    ron::to_string(&id.to_string()).unwrap(),
+                    ron::to_string(&body).unwrap()
+                )
+            })
+            .collect();
+        ron::from_str(&format!(
+            "{{{}: Visited([{}])}}",
+            ron::to_string(&coord).unwrap(),
+            entries.join(", ")
+        ))
+        .unwrap()
+    };
+    let saved =
+        |generation: u64, ids: &[&GeneratedBodyId], encounters: &Encounters| WorldSaveState {
+            sectors: ledger(ids),
+            encounters: encounters.clone(),
+            clock: WorldClock {
+                play_seconds: 200.0,
+            },
+            ..state(generation, 750)
+        };
+    let open = |designs_: &GameEncounters| {
+        open_world(
+            root.path(),
+            "session",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios(),
+            &designs(),
+            &profiles(),
+            &recipes(),
+            &GameConsumables::default(),
+            designs_,
+        )
+    };
+
+    write_world(
+        &folder,
+        &header("Session", 1),
+        &saved(1, &[&caller], &encounters),
+    )
+    .unwrap();
+    let (opened, lock, header_, state_) = open(&designs_).unwrap();
+    assert_eq!(state_.encounters, encounters, "the save holds the record");
+    let mut app = App::new();
+    app.add_plugins(crate::test_support::WorldSaveTestPlugin);
+    let mut world = std::mem::take(app.world_mut());
+    crate::test_support::arm_save_fixture(&mut world);
+    let config = world
+        .remove_resource::<WorldConfig<NovaLayeredWorld>>()
+        .unwrap();
+    resume_world(&mut world, opened, lock, &header_, state_);
+    world.insert_resource(config);
+    restore_resumed_world(&mut world);
+    assert_eq!(
+        *world.resource::<Encounters>(),
+        encounters,
+        "the Load restored the offer and the live encounter"
+    );
+    drop(world);
+
+    write_world(&folder, &header("Session", 2), &saved(2, &[], &encounters)).unwrap();
+    assert_eq!(
+        open(&designs_).map(drop),
+        Err(WorldRefusal::Unreadable(format!(
+            "state.2.ron: the live encounter 'fixture/hail' names the body '{caller}', which is \
+             no ship the save holds"
+        ))),
+        "a live encounter whose body the save lacks"
+    );
+
+    write_world(
+        &folder,
+        &header("Session", 3),
+        &saved(3, &[&caller], &encounters),
+    )
+    .unwrap();
+    assert_eq!(
+        open(&GameEncounters::default()).map(drop),
+        Err(WorldRefusal::Unreadable(
+            "state.3.ron: the live encounter names the design 'fixture/hail', which is no \
+             encounter"
+                .to_string()
+        )),
+        "a live encounter of a design the loaded content lacks"
+    );
+
+    let quiet = saved(4, &[], &Encounters::default());
+    write_world(&folder, &header("Session", 4), &quiet).unwrap();
+    let text = std::fs::read_to_string(root.path().join("session/state.4.ron")).unwrap();
+    let record = "encounters:(fired:0,travel_seconds:0.0,offer:None,live:None)";
+    assert_eq!(
+        text.matches(record).count(),
+        1,
+        "the record is written once"
+    );
+    std::fs::write(
+        root.path().join("session/state.4.ron"),
+        text.replace(record, ""),
+    )
+    .unwrap();
+    let refused = open(&designs_).map(drop);
+    assert!(
+        matches!(
+            refused,
+            Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("encounters")
+        ),
+        "a state with no encounter record: {refused:?}"
+    );
+}
+
 /// The role goal's record is written with a leave save and comes back on a
 /// Load; a stamp ahead of the saved clock is a save the Load refuses.
 #[test]
@@ -2179,6 +2360,7 @@ fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert_eq!(
@@ -2216,6 +2398,7 @@ fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     );
     assert!(
         matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("stamped met")),
@@ -2282,6 +2465,7 @@ fn a_saved_posting_record_resumes_with_its_offers_and_a_held_job_outlives_its_sl
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert_eq!(
@@ -2328,6 +2512,7 @@ fn a_saved_posting_record_resumes_with_its_offers_and_a_held_job_outlives_its_sl
             &profiles(),
             &recipes(),
             &GameConsumables::default(),
+            &GameEncounters::default(),
         )
     };
     let mut state = state;
@@ -2422,6 +2607,7 @@ fn a_scenario_posting_is_saved_and_a_load_restores_it_and_a_save_without_one_rea
             &profiles(),
             &recipes(),
             &GameConsumables::default(),
+            &GameEncounters::default(),
         )
     };
     let (_, lock, _, state) = open_saved().unwrap();
@@ -2527,6 +2713,7 @@ fn a_dropped_job_id_is_saved_and_load_restores_it() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert!(
@@ -2607,6 +2794,7 @@ fn a_world_that_disarms_and_rearms_never_overwrites_its_save() {
             &profiles(),
             &recipes(),
             &GameConsumables::default(),
+            &GameEncounters::default(),
         )
         .unwrap();
         assert_eq!((header.generation, header.credits), (1, 300));
@@ -2791,6 +2979,7 @@ fn a_save_waits_visibly_until_the_player_camera_is_ready() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert_eq!(saved.player.view, expected_view);
@@ -2887,6 +3076,7 @@ fn load_in(mut app: App, root: &Path, digest: u64, roles: &GameStartRoles) -> Wo
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     resume_world(&mut world, folder, lock, &header, state);
@@ -3071,6 +3261,7 @@ fn a_load_saves_nothing_until_its_transients_are_back() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert_eq!(header.generation, 2);
@@ -3162,6 +3353,7 @@ fn a_save_waits_out_a_live_blast_and_a_raking_slug() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     let [FrozenTransient {
@@ -3231,6 +3423,7 @@ fn a_damage_spark_does_not_fail_the_save() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert!(
@@ -3983,7 +4176,8 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
                 &designs(),
                 &profiles(),
                 &recipes(),
-                &GameConsumables::default()
+                &GameConsumables::default(),
+                &GameEncounters::default()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -4018,6 +4212,7 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
             &profiles(),
             &recipes(),
             &GameConsumables::default(),
+            &GameEncounters::default(),
         )
         .unwrap();
         assert_eq!(saved.transients.len(), 1);
@@ -4053,6 +4248,7 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
             &profiles(),
             &recipes(),
             &GameConsumables::default(),
+            &GameEncounters::default(),
         )
         .unwrap();
         assert_eq!(saved.transients.len(), 1);
@@ -4079,6 +4275,7 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert_eq!(saved.transients.len(), 2);
@@ -4164,7 +4361,8 @@ fn a_world_with_a_duplicate_or_unminted_canister_is_refused_on_open() {
                 &designs(),
                 &profiles(),
                 &recipes(),
-                &GameConsumables::default()
+                &GameConsumables::default(),
+                &GameEncounters::default()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -4190,6 +4388,7 @@ fn a_world_with_a_duplicate_or_unminted_canister_is_refused_on_open() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert_eq!(saved.sectors.len(), 1);
@@ -4560,7 +4759,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
             &designs(),
             &profiles(),
             &recipes(),
-            &GameConsumables::default()
+            &GameConsumables::default(),
+            &GameEncounters::default()
         ),
         refused(1, "the player ship 'player'")
     );
@@ -4576,7 +4776,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
             &designs(),
             &profiles(),
             &recipes(),
-            &GameConsumables::default()
+            &GameConsumables::default(),
+            &GameEncounters::default()
         )
         .map(|_| ()),
         refused(1, "the player ship 'player'")
@@ -4616,7 +4817,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
                 &designs(),
                 &profiles(),
                 &recipes(),
-                &GameConsumables::default()
+                &GameConsumables::default(),
+                &GameEncounters::default()
             ),
             refused(generation, &owner),
             "check_world at generation {generation}"
@@ -4632,7 +4834,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
                 &designs(),
                 &profiles(),
                 &recipes(),
-                &GameConsumables::default()
+                &GameConsumables::default(),
+                &GameEncounters::default()
             )
             .map(|_| ()),
             refused(generation, &owner),
@@ -4674,7 +4877,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
             &designs(),
             &profiles(),
             &recipes(),
-            &GameConsumables::default()
+            &GameConsumables::default(),
+            &GameEncounters::default()
         ),
         chart_refused
     );
@@ -4689,7 +4893,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
             &designs(),
             &profiles(),
             &recipes(),
-            &GameConsumables::default()
+            &GameConsumables::default(),
+            &GameEncounters::default()
         )
         .map(|_| ()),
         chart_refused
@@ -4706,6 +4911,7 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert_eq!(
@@ -4894,7 +5100,8 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
                 &designs(),
                 &profiles(),
                 &recipes(),
-                &GameConsumables::default()
+                &GameConsumables::default(),
+                &GameEncounters::default()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -4922,6 +5129,7 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
             &profiles(),
             &recipes(),
             &GameConsumables::default(),
+            &GameEncounters::default(),
         )
         .unwrap();
         assert_eq!(saved.generation, generation, "stock within its caps opens");
@@ -5007,6 +5215,7 @@ fn a_load_refuses_a_living_trade_station_with_no_market_or_an_unpriceable_one() 
             &profiles(),
             &recipes(),
             &GameConsumables::default(),
+            &GameEncounters::default(),
         )
     };
     let cases = [
@@ -5069,7 +5278,8 @@ fn a_world_whose_clock_is_not_finite_or_negative_is_refused_on_open() {
                 &designs(),
                 &profiles(),
                 &recipes(),
-                &GameConsumables::default()
+                &GameConsumables::default(),
+                &GameEncounters::default()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -5109,7 +5319,8 @@ fn a_world_whose_body_froze_ahead_of_the_clock_is_refused_on_open() {
                 &designs(),
                 &profiles(),
                 &recipes(),
-                &GameConsumables::default()
+                &GameConsumables::default(),
+                &GameEncounters::default()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -5137,6 +5348,7 @@ fn a_world_whose_body_froze_ahead_of_the_clock_is_refused_on_open() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert_eq!(saved.generation, 4, "a body frozen at the clock opens");
@@ -5197,7 +5409,8 @@ fn a_world_whose_trader_has_no_role_preference_is_refused_on_open() {
                 &designs(),
                 &profiles(),
                 &recipes(),
-                &GameConsumables::default()
+                &GameConsumables::default(),
+                &GameEncounters::default()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -5224,6 +5437,7 @@ fn a_world_whose_trader_has_no_role_preference_is_refused_on_open() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert_eq!(saved.generation, 4, "a trader with a preference opens");
@@ -5301,7 +5515,8 @@ fn a_saved_station_pdc_reserve_opens_as_it_froze_and_a_malformed_one_is_refused(
                 &designs(),
                 &profiles(),
                 &recipes(),
-                &GameConsumables::default()
+                &GameConsumables::default(),
+                &GameEncounters::default()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -5328,6 +5543,7 @@ fn a_saved_station_pdc_reserve_opens_as_it_froze_and_a_malformed_one_is_refused(
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     let reserves: Vec<StationPdcReserve> = saved
@@ -5412,6 +5628,7 @@ fn a_world_whose_parked_escort_moves_non_finite_is_refused_on_open() {
             &profiles(),
             &recipes(),
             &GameConsumables::default(),
+            &GameEncounters::default(),
         )
         .map(|_| ())
     };
@@ -5584,7 +5801,8 @@ fn a_saved_job_on_a_section_the_design_lacks_or_of_an_unknown_recipe_is_refused_
                 &designs(),
                 &profiles(),
                 &recipes(),
-                &GameConsumables::default()
+                &GameConsumables::default(),
+                &GameEncounters::default()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -5661,6 +5879,7 @@ fn a_saved_consumable_effect_unknown_or_past_its_duration_is_refused_on_open() {
                 &profiles(),
                 &recipes(),
                 &consumables,
+                &GameEncounters::default(),
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -5740,7 +5959,8 @@ fn a_saved_ships_rcs_magazine_overspent_negative_non_finite_or_brakeless_is_refu
                 &designs(),
                 &profiles(),
                 &recipes(),
-                &GameConsumables::default()
+                &GameConsumables::default(),
+                &GameEncounters::default()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -5766,6 +5986,7 @@ fn a_saved_ships_rcs_magazine_overspent_negative_non_finite_or_brakeless_is_refu
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     assert_eq!(
@@ -5815,7 +6036,8 @@ fn a_saved_ships_rcs_magazine_overspent_negative_non_finite_or_brakeless_is_refu
             &designs(),
             &profiles(),
             &recipes(),
-            &GameConsumables::default()
+            &GameConsumables::default(),
+            &GameEncounters::default()
         )
         .map(|_| ()),
         Err(WorldRefusal::Unreadable(
@@ -5841,6 +6063,7 @@ fn a_saved_ships_rcs_magazine_overspent_negative_non_finite_or_brakeless_is_refu
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     )
     .unwrap();
     let brakes: Vec<_> = saved
@@ -6015,6 +6238,7 @@ fn a_load_restores_a_real_station_dock_through_a_real_physics_tick() {
             &profiles(),
             &recipes(),
             &GameConsumables::default(),
+            &GameEncounters::default(),
         )
         .unwrap();
         resume_world(&mut world, folder, lock, &header, state);
@@ -6341,6 +6565,7 @@ fn a_load_refuses_a_station_dock_that_names_a_port_its_ship_lacks() {
             &profiles(),
             &recipes(),
             &GameConsumables::default(),
+            &GameEncounters::default(),
         ),
         Ok(()),
         "the real dock's own ports open clean"
@@ -6374,6 +6599,7 @@ fn a_load_refuses_a_station_dock_that_names_a_port_its_ship_lacks() {
         &profiles(),
         &recipes(),
         &GameConsumables::default(),
+        &GameEncounters::default(),
     );
     assert!(
         matches!(

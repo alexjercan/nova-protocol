@@ -111,6 +111,9 @@ pub mod live {
     pub const CONTACT: &str = "contact";
     /// Item ids in the loaded item catalog, mod items included.
     pub const ITEM: &str = "item";
+    /// Encounter ids in the loaded encounter catalog, mod encounters
+    /// included.
+    pub const ENCOUNTER: &str = "encounter";
 
     /// Every token, so [`noun`] can be pinned against the list by test.
     pub const ALL: &[&str] = &[
@@ -124,6 +127,7 @@ pub mod live {
         COMMAND,
         CONTACT,
         ITEM,
+        ENCOUNTER,
     ];
 
     /// What the player is being ASKED for, as `help` phrases it. Tab is what
@@ -140,6 +144,7 @@ pub mod live {
             COMMAND => "a command name",
             CONTACT => "a contact label on the map",
             ITEM => "an item id",
+            ENCOUNTER => "an encounter id",
             _ => UNNAMED,
         }
     }
@@ -510,6 +515,16 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         arg_hint: Some("<ship-id> <amount>"),
         args: &[CommandArg::Live(live::SHIP), CommandArg::Free],
         examples: &["credits set player_spaceship 0"],
+    },
+    CommandSpec {
+        name: "encounter",
+        usage: "encounter [encounter-id]",
+        summary: "List the encounters, or fire one ahead of the player ship",
+        class: CommandClass::Cheat,
+        arity: CommandArity::Between(0, 1),
+        arg_hint: Some("[encounter-id]"),
+        args: &[CommandArg::Live(live::ENCOUNTER)],
+        examples: &["encounter", "encounter base/distress_call"],
     },
 ];
 

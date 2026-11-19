@@ -163,6 +163,7 @@ pub(crate) fn drive_pending_leave(
                         let profiles = world.resource::<GameTradeProfiles>();
                         let recipes = world.resource::<GameRecipes>();
                         let consumables = world.resource::<GameConsumables>();
+                        let encounters = world.resource::<GameEncounters>();
                         open_world(
                             root,
                             &slug,
@@ -174,6 +175,7 @@ pub(crate) fn drive_pending_leave(
                             profiles,
                             recipes,
                             consumables,
+                            encounters,
                         )
                         .map_err(|refusal| refusal.to_string())
                     }

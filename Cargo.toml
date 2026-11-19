@@ -116,6 +116,16 @@ name = "job_board_sandbox"
 path = "examples/playable/job_board_sandbox.rs"
 required-features = ["debug"]
 
+# The open world's encounters by hand: New Game on a pinned seed, the hull in
+# open space, and a key for each base encounter (the two hails, the ambush,
+# the derelict find). No deadline ends it; under NOVA_AUTOPILOT a smoke walk
+# calls each one, takes and is paid the distress hail and declines the supply
+# hail.
+[[example]]
+name = "encounter_sandbox"
+path = "examples/playable/encounter_sandbox.rs"
+required-features = ["debug"]
+
 # Buying a parked hull by hand: New Game on a pinned seed, docked at a living
 # generated station with hulls for sale parked at its ports, after one buy so
 # the old ship is parked as the player's own too. The overlay marks each port and hull
@@ -1103,6 +1113,14 @@ required-features = ["debug"]
 [[example]]
 name = "system_job_distress"
 path = "examples/systems/system_job_distress.rs"
+required-features = ["debug"]
+
+# The open world's encounters: New Game on a pinned seed, cruise in open
+# space until the drawn hail fires, accept its job in space, dock with the
+# caller for the pay, then carry a second offer through a Load.
+[[example]]
+name = "system_encounters"
+path = "examples/systems/system_encounters.rs"
 required-features = ["debug"]
 
 [[example]]

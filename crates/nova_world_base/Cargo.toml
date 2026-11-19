@@ -17,6 +17,8 @@ nova_assets = { path = "../nova_assets" }
 # cannot drift onto two noise implementations.
 noise = { version = "0.9" }
 # `Meters` and `Meters3`: the generator authors every quantity in meters.
+# `LinearVelocity`: the player's speed the encounter director reads.
+avian3d = { version = "0.8.0" }
 nova_events = { path = "../nova_events" }
 # `Fnv32` and `SeedStream`, the stable hash and the deterministic draw every
 # sector choice comes from, the player ship marker the world streams around,
@@ -35,8 +37,9 @@ nova_world = { path = "../nova_world" }
 
 # Saved worlds are native only: web builds have no world folder.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-# `Position`, `Rotation` and the velocities: a saved player's physics pose.
-avian3d = { version = "0.8.0" }
+# `serde` for the jobs, the chart and the encounter record a saved world
+# holds.
+nova_gameplay = { path = "../nova_gameplay", features = ["serde"] }
 # `serde` for the frozen player ship a saved world holds.
 nova_scenario = { path = "../nova_scenario", features = ["serde"] }
 # The saved-world header and state derive their RON form directly.

@@ -28,6 +28,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Refine is replaced by Craft: alloy plates, rail slugs and torpedoes are crafted at a Craft station for a fee a batch. Stations that offered Refine now offer Craft.
 - A job reward is now a sum of base, goods, range and threat: 30 cr a km, 300 cr per weapon against you. Base and range pay up to three times as much at an advanced station.
 - Escorts draw a leg of 10 to 16 km, distress calls and supply runs 6 to 16 km, up from a fixed 10 km. An escort pays a quarter of its cargo, down from half; a recovery's goods pay at most 2,000 cr.
+- Open World encounters: after 5 to 15 minutes of travel away from stations, a distress or supply hail, an ambush or a derelict find stands ahead. The seed fixes their order; a save keeps them.
+- A hailing hull offers a job in space: accept or decline it on the Jobs pane undocked, or dock with the caller to take it. The dock that does the job pays it at once, with no station hand-in.
 - A living generated station that paid out regains credits while its sector is unloaded, to its start balance in 30 minutes of play. Before, a drained one never paid again. Owned stations gain none.
 
 ### Combat & Weapons
@@ -47,6 +49,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Consumables are content: `Consumable((item, effect))`, effect `Repair`. Lint refuses bad numbers, an unknown or engine item, and a duplicate item.
 - **(breaking)** Station designs need `advancement` in [0, 1]. A station runs a Station recipe only at or above its `advancement`; lint refuses ammo below the weapons that fire it.
 - **(breaking)** The station service `Refine` is now `Craft`, and the `OnCreditsChanged` cause `Refine` is now `Craft`: one per party for each Station recipe batch.
+- New content kind `Encounter`: `id`, `weight`, `player` (`Any` or `Armed`) and `kind` (`Hail` with `job` and `line`, `Ambush` or `Derelict`). A mod adds one or replaces a base one by id.
+- Job events also follow a hail job: `station` is the hailing hull and `id` is `<hull id>#hail.<serial>`. It fires no `OnJobDone`; the dock that pays it fires `OnJobHandedIn`.
 
 ### Interface & HUD
 
@@ -60,6 +64,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Every Tab pane and editor control is one height in both themes. The pane head holds its tabs, mode tags, balance, clock and Close in fixed slots, so a growing balance moves nothing.
 - A verb that cannot work here is hidden, a short balance disables its verb and paints the number red, and a hidden cause shows one tag word. Refusal sentences and notice lines are gone.
 - Ship, Inventory and Craft blocks share one layout: heading, rows, verbs at the bottom right. Repair, a trade and craft batches are one amount row with Max. Delete hides away from a refit dock.
+- A hail shows a comms line, a `HAIL <NAME>` notice and a `HAIL` chip with its range; a derelict find wears `SIGNAL`. The cheat command `encounter [id]` lists the encounters or fires one.
+- A HUD chip on a target near the screen edge stays whole in view; before, the edge cut its first characters.
 - Jobs, Map and Station panes share that layout: Station offers are cards in an even grid, GOTO and Cancel sit side by side, and the tooltips that explained a tag or button are gone.
 - The parts catalogue shares it too: category chips, one Available chip, key chips for the hints, no second Close, and the last tile row in full. A price you cannot pay is red and disables Place.
 - A ghost button such as Cancel, Max or Close has a brighter frame in both themes, so it no longer reads as a disabled one.

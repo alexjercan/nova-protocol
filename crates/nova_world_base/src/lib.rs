@@ -66,6 +66,7 @@ mod chart;
 mod civilizations;
 mod clusters;
 mod economy;
+mod encounters;
 mod environment;
 mod goal;
 mod jobs;
@@ -107,6 +108,7 @@ pub use crate::{
         LAWFUL_SHARE, STANCE_ALLY_SHARE, STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS,
     },
     clusters::{sector_clusters, ClusterSummary, SectorClusters},
+    encounters::{EncounterPlugin, EncounterSystems, HAIL_CHIP, SIGNAL_CHIP},
     environment::{Environment, EnvironmentFieldType, EnvironmentFields},
     jobs::PlayerHull,
     layered::{NovaLayeredWorld, CLEARANCE_MARGIN},
@@ -144,17 +146,17 @@ pub mod prelude {
         role_style_id, sector_clusters, seeded_lawful, seeded_stance, settle, ship_stock, standing,
         start_preview, start_session, starting_station, station_archetype, station_ceiling,
         Civilization, CivilizationField, CivilizationReach, CivilizationStatusType, ClusterSummary,
-        Environment, EnvironmentFieldType, EnvironmentFields, HullLineageType, HullSlot,
-        NovaLayeredWorld, NovaWorldBasePlugin, NovaWorldBaseSystems, PlannedShip, PlayerHull,
-        RescueStation, SectorClusters, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
-        ShipLayoutFailure, ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType,
-        ShipPartFault, ShipPartPack, ShipPartSnapshot, ShipSpareDriveType, StanceStanding,
-        StartPreview, StationArchetypeType, StationLayout, StationLayoutConstraintType,
-        StationLayoutFailure, StationLayoutRequest, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID,
-        CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, CRAFT_ADVANCEMENT, FINE_CR, INDUSTRIAL_STYLE_ID,
-        MAX_SHIP_SECTIONS, OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID,
-        STANCE_ALLY_SHARE, STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS, START_PREVIEW_REACH,
-        STATION_STYLE_ID,
+        EncounterPlugin, EncounterSystems, Environment, EnvironmentFieldType, EnvironmentFields,
+        HullLineageType, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin, NovaWorldBaseSystems,
+        PlannedShip, PlayerHull, RescueStation, SectorClusters, ShipDriveLayoutType, ShipLayout,
+        ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipPart,
+        ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack, ShipPartSnapshot,
+        ShipSpareDriveType, StanceStanding, StartPreview, StationArchetypeType, StationLayout,
+        StationLayoutConstraintType, StationLayoutFailure, StationLayoutRequest, ARMOURED_STYLE_ID,
+        BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, CRAFT_ADVANCEMENT,
+        FINE_CR, HAIL_CHIP, INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS, OPEN_WORLD_BOUNDS_RADIUS_MAX,
+        OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID, SIGNAL_CHIP, STANCE_ALLY_SHARE,
+        STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS, START_PREVIEW_REACH, STATION_STYLE_ID,
     };
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::{
@@ -241,6 +243,15 @@ impl Plugin for NovaWorldBasePlugin {
         trace!("NovaWorldBasePlugin: build");
 
         app.add_plugins(NovaWorldPlugin::<NovaLayeredWorld>::default());
+        app.add_plugins(EncounterPlugin);
+        // After the boards and before the held jobs mark their bodies: the
+        // `HAIL` chip is off a caller before its accepted job's chip goes on.
+        app.configure_sets(
+            Update,
+            EncounterSystems
+                .after(jobs::post_station_boards)
+                .before(jobs::mark_held_job_targets),
+        );
         app.init_resource::<Chart>();
         app.init_resource::<Jobs>();
         app.init_resource::<JobPostings>();
@@ -376,7 +387,10 @@ impl Plugin for NovaWorldBasePlugin {
                 )
                     .chain()
                     .after(NovaWorldSystems::Retire)
-                    .after(goal::track_role_goal),
+                    .after(goal::track_role_goal)
+                    // A save on the frame an encounter fires holds its
+                    // bodies beside the record that names them.
+                    .after(EncounterSystems),
             ),
         );
     }

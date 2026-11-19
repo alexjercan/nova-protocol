@@ -148,6 +148,7 @@ fn the_save_notice_shows_new_saves_for_three_real_seconds_and_keeps_failures() {
         app.world().resource::<GameTradeProfiles>(),
         app.world().resource::<GameRecipes>(),
         app.world().resource::<GameConsumables>(),
+        app.world().resource::<GameEncounters>(),
     )
     .unwrap();
     app.insert_resource(WorldSaveSession::opened(folder, lock, &header));
@@ -271,6 +272,7 @@ fn leaving_a_saved_world_waits_for_the_leave_save_with_input_still_paused() {
         app.world().resource::<GameTradeProfiles>(),
         app.world().resource::<GameRecipes>(),
         app.world().resource::<GameConsumables>(),
+        app.world().resource::<GameEncounters>(),
     )
     .unwrap();
     let [FrozenTransient {
@@ -520,6 +522,7 @@ fn entering_the_menu_after_a_death_releases_the_world() {
         app.world().resource::<GameTradeProfiles>(),
         app.world().resource::<GameRecipes>(),
         app.world().resource::<GameConsumables>(),
+        app.world().resource::<GameEncounters>(),
     )
     .expect("the world opens again");
     assert_eq!(on_disk(&app, root.path()), (1, 300));
@@ -599,6 +602,7 @@ fn a_write_in_flight_keeps_the_world_locked_after_a_death_exit() {
             app.world().resource::<GameTradeProfiles>(),
             app.world().resource::<GameRecipes>(),
             app.world().resource::<GameConsumables>(),
+            app.world().resource::<GameEncounters>(),
         )
     };
     assert!(

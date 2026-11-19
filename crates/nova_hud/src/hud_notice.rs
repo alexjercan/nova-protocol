@@ -10,7 +10,11 @@
 //! no credits: the hand-in pays. A paid hand-in ([`JobHandedIn`]) posts
 //! `JOB-n PAID 1,460 CR` without the cue ([`HudNotice::silent`]): the Jobs
 //! pane plays the payout sound, and the pane hides the HUD and holds its
-//! clock, so the line shows for its whole dwell once the pane shuts. A dock
+//! clock, so the line shows for its whole dwell once the pane shuts. A hail
+//! job has no hand-in: its done posts nothing, and the dock that pays it
+//! posts the same `PAID` line with the payout sound
+//! ([`HudNotice::payout`]), since no pane is open. A hull that hails the
+//! player ([`HailRaised`]) posts `HAIL <CALLER>`. A dock
 //! with a held supply job's
 //! caller that delivers nothing ([`SupplyRefused`]) posts what the hold
 //! lacks, `JOB-n: SHORT 3 MEDKIT`, once per dock; it is raised after the
@@ -71,7 +75,10 @@ use super::NovaHudSystems;
 
 /// `HudNotice`, the notice spawner and its markers, and `HudNoticePlugin`.
 pub mod prelude {
-    pub use super::{hud_notice_hud, HudNotice, HudNoticeMarker, HudNoticePlugin, HudNoticeText};
+    pub use super::{
+        hud_notice_hud, HudNotice, HudNoticeCueType, HudNoticeMarker, HudNoticePlugin,
+        HudNoticeText,
+    };
 }
 
 /// How long a notice holds at full strength (virtual seconds).
@@ -96,14 +103,25 @@ const NOTICE_FONT_PX: f32 = 13.0;
 /// [`NOTICE_FONT_PX`], and `chip_node` adds 10 px of padding and border.
 pub(crate) const NOTICE_MAX_HEIGHT_PX: f32 = 26.0;
 
+/// The sound a new notice text plays.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HudNoticeCueType {
+    /// The notice cue.
+    Notice,
+    /// The payout sound: credits just came in and no pane is open to play
+    /// it.
+    Payout,
+    /// None: the line's event plays a sound of its own.
+    Silent,
+}
+
 /// A line to post to the HUD notice slot.
 #[derive(Message, Clone, Debug, PartialEq, Eq)]
 pub struct HudNotice {
     /// The line.
     pub text: String,
-    /// Whether a new text plays the notice cue. False for a line whose event
-    /// plays a sound of its own.
-    pub cue: bool,
+    /// The sound a new text plays.
+    pub cue: HudNoticeCueType,
 }
 
 impl HudNotice {
@@ -111,15 +129,23 @@ impl HudNotice {
     pub fn new(text: impl Into<String>) -> Self {
         Self {
             text: text.into(),
-            cue: true,
+            cue: HudNoticeCueType::Notice,
         }
     }
 
-    /// A line that shows without the notice cue: its event has its own sound.
+    /// A line that shows without a cue: its event has its own sound.
     pub fn silent(text: impl Into<String>) -> Self {
         Self {
             text: text.into(),
-            cue: false,
+            cue: HudNoticeCueType::Silent,
+        }
+    }
+
+    /// A line that plays the payout sound when it shows.
+    pub fn payout(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            cue: HudNoticeCueType::Payout,
         }
     }
 }
@@ -222,7 +248,7 @@ impl HudNoticeKeepOut<'_, '_> {
 
 /// Registers [`HudNotice`], posts a station's dock refusal, a MATCH refusal,
 /// a refused `DOCK` press, the player's clamp closing and letting go, a
-/// held job's done, a paid hand-in, a refused supply dock and a player repair
+/// held job's done, a paid hand-in, a hail, a refused supply dock and a player repair
 /// job's end to it, and runs `post_dock_refusal_notice`, `post_match_refusal_notice`,
 /// `post_dock_press_notice`, `post_repair_job_notice`, `post_rescue_notice`,
 /// `post_craft_job_notice`, `show_hud_notice` and
@@ -247,6 +273,7 @@ impl Plugin for HudNoticePlugin {
         app.register_type::<HudNoticeText>();
         app.add_observer(post_job_done_notice);
         app.add_observer(post_job_paid_notice);
+        app.add_observer(post_hail_notice);
         app.add_observer(post_supply_refused_notice);
         app.add_observer(post_dock_clamped_notice);
         app.add_observer(post_dock_released_notice);
@@ -537,7 +564,8 @@ fn post_dock_released_notice(
 }
 
 /// Post `JOB-n done: hand in at STN-m` when a held job's work is done. The
-/// poster is charted: the accept docked there.
+/// poster is charted: the accept docked there. A hail job posts nothing
+/// here: it has no hand-in, and the dock that does it pays it.
 ///
 /// # Panics
 ///
@@ -550,6 +578,9 @@ fn post_job_done_notice(
     chart: Res<Chart>,
     mut notices: MessageWriter<HudNotice>,
 ) {
+    if done.job.id.is_hail() {
+        return;
+    }
     let code = jobs
         .mark_code(&done.job.id)
         .expect("a done job is held: the world marks a held job done");
@@ -559,12 +590,24 @@ fn post_job_done_notice(
     notices.write(HudNotice::new(format!("{code} done: hand in at {station}")));
 }
 
-/// Post `JOB-n PAID <reward> CR` when a held job is handed in, without the
-/// notice cue: the hand-in plays the payout sound.
+/// Post `JOB-n PAID <reward> CR` when a held job is paid. A station hand-in
+/// posts without a cue: the Jobs pane plays the payout sound. A hail job is
+/// paid in space with no pane open, so its line plays the payout sound.
 fn post_job_paid_notice(handed_in: On<JobHandedIn>, mut notices: MessageWriter<HudNotice>) {
     let line = job_paid_line(&handed_in.code, handed_in.job.reward.total_cr());
     debug!("hud_notice: {line} ('{}')", handed_in.job.id);
-    notices.write(HudNotice::silent(line));
+    notices.write(if handed_in.job.id.is_hail() {
+        HudNotice::payout(line)
+    } else {
+        HudNotice::silent(line)
+    });
+}
+
+/// Post `HAIL <CALLER>` when a hull hails the player with a job.
+fn post_hail_notice(raised: On<HailRaised>, mut notices: MessageWriter<HudNotice>) {
+    let line = format!("HAIL {}", raised.caller.to_uppercase());
+    debug!("hud_notice: {line} ('{}')", raised.job.id);
+    notices.write(HudNotice::new(line));
 }
 
 /// The notice line of the held job `code` for a hand-in that paid
@@ -677,12 +720,15 @@ fn show_hud_notice(
         text: text.clone(),
         age_secs: 0.0,
     });
-    if *cue && !repeat {
+    let sound = match cue {
+        HudNoticeCueType::Notice => (UiSfx::HudNotice, SoundCategoryType::Notice),
+        // The category the Jobs pane plays a station hand-in's payout on.
+        HudNoticeCueType::Payout => (UiSfx::Payout, SoundCategoryType::UiConfirm),
+        HudNoticeCueType::Silent => return,
+    };
+    if !repeat {
         if let Some(bank) = bank {
-            commands.trigger(PlaySound::ui(
-                bank.get(UiSfx::HudNotice),
-                SoundCategoryType::Notice,
-            ));
+            commands.trigger(PlaySound::ui(bank.get(sound.0), sound.1));
         }
     }
 }
@@ -734,6 +780,7 @@ mod tests {
     #[derive(Resource, Default)]
     struct NoticeCues {
         interface: usize,
+        payout: usize,
         other: usize,
     }
 
@@ -763,6 +810,11 @@ mod tests {
                     && sfx.at == SoundAt::Ui
                 {
                     cues.interface += 1;
+                } else if sfx.sound == bank.get(UiSfx::Payout)
+                    && sfx.category == SoundCategoryType::UiConfirm
+                    && sfx.at == SoundAt::Ui
+                {
+                    cues.payout += 1;
                 } else {
                     cues.other += 1;
                 }
@@ -939,6 +991,61 @@ mod tests {
         app.update();
         assert_eq!(rendered(&mut app).0, "RELAY DOCK OCCUPIED");
         assert_eq!(app.world().resource::<NoticeCues>().interface, 1);
+    }
+
+    /// A hail posts `HAIL <CALLER>` with the notice cue. Its job's done posts
+    /// nothing, and its pay posts the `PAID` line with the payout sound once:
+    /// no pane is open in space to play it.
+    #[test]
+    fn a_hail_posts_its_caller_and_its_paid_job_plays_the_payout_sound() {
+        use nova_events::prelude::{GeneratedBodyId, SectorCoord};
+
+        let mut app = notice_app();
+        let caller = GeneratedBodyId::new(SectorCoord::ORIGIN, "encounter_0_caller", 0);
+        let job = Job {
+            id: JobId::hail(caller.clone(), 0),
+            kind: JobType::Distress {
+                caller: caller.clone(),
+            },
+            target: caller,
+            leg_m: 6_000,
+            threat: 0,
+            reward: JobReward::flat(300),
+        };
+        app.init_resource::<Chart>();
+        app.world_mut().trigger(HailRaised {
+            caller: "Vell civilian, adrift".to_string(),
+            job: job.clone(),
+        });
+        app.update();
+        assert_eq!(rendered(&mut app).0, "HAIL VELL CIVILIAN, ADRIFT");
+        assert_eq!(app.world().resource::<NoticeCues>().interface, 1);
+
+        let mut jobs = Jobs::default();
+        jobs.accept(job.clone());
+        jobs.mark_done(&job.id);
+        app.insert_resource(jobs);
+        app.world_mut().trigger(JobDone { job: job.clone() });
+        app.update();
+        assert_eq!(
+            rendered(&mut app).0,
+            "HAIL VELL CIVILIAN, ADRIFT",
+            "a done hail job names no hand-in"
+        );
+
+        app.world_mut().trigger(JobHandedIn {
+            job,
+            code: "JOB-1".to_string(),
+        });
+        app.update();
+        assert_eq!(rendered(&mut app), ("JOB-1 PAID 300 CR".to_string(), 1.0));
+        app.update();
+        let cues = app.world().resource::<NoticeCues>();
+        assert_eq!(
+            (cues.interface, cues.payout, cues.other),
+            (1, 1, 0),
+            "the paid line plays the payout sound once"
+        );
     }
 
     /// A refused supply dock posts `JOB-n: SHORT <missing> <ITEM>` with one

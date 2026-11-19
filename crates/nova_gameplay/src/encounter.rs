@@ -17,6 +17,11 @@
 //! that is live. It holds no entity: it names bodies by [`GeneratedBodyId`],
 //! so it outlives the cells that hold them. The open world crate owns the
 //! director that advances it and puts the bodies in the world.
+//!
+//! [`plan_hail_offer`] draws the job a hailing hull offers. The player
+//! answers a standing offer with a [`HailAnswerCommand`]; the director
+//! raises [`HailRaised`] when a hull hails, and a [`EncounterFireCommand`]
+//! asks it for a named encounter at once.
 
 use std::{collections::BTreeMap, fmt};
 
@@ -27,15 +32,21 @@ use rand::{RngExt, SeedableRng};
 
 use crate::{
     hash::Fnv64,
-    jobs::prelude::{Job, JobType},
+    inventory::prelude::GameItems,
+    jobs::{
+        draw_job_fee, draw_supply_count, pick_supply_stack,
+        prelude::{job_reward, Job, JobId, JobType},
+        supply_pool,
+    },
 };
 
 /// Glob-import surface: `use nova_gameplay::encounter::prelude::*`.
 pub mod prelude {
     pub use super::{
-        encounter_faults, plan_encounter_draw, EncounterDesign, EncounterDesignId, EncounterDraw,
-        EncounterLive, EncounterOffer, EncounterPlayerType, EncounterType, Encounters,
-        GameEncounters, HailJobType, ENCOUNTER_GAP_S, HAIL_LINE_MAX_CHARS,
+        encounter_faults, plan_encounter_draw, plan_hail_offer, EncounterDesign, EncounterDesignId,
+        EncounterDraw, EncounterFireCommand, EncounterLive, EncounterOffer, EncounterPlayerType,
+        EncounterType, Encounters, GameEncounters, HailAnswerCommand, HailAnswered, HailJobType,
+        HailRaised, ENCOUNTER_GAP_S, HAIL_LINE_MAX_CHARS, HAIL_OFFER_SECONDS,
     };
 }
 
@@ -47,6 +58,9 @@ pub const ENCOUNTER_GAP_S: (u32, u32) = (300, 900);
 
 /// The most characters a hail's line may hold: what one comms line shows.
 pub const HAIL_LINE_MAX_CHARS: usize = 120;
+
+/// The play seconds a hail offer stands unanswered.
+pub const HAIL_OFFER_SECONDS: f64 = 300.0;
 
 /// The authored id of an encounter, namespaced like a recipe:
 /// `base/distress_call`. A save names the live encounter by it.
@@ -304,6 +318,10 @@ pub struct EncounterOffer {
 pub struct EncounterLive {
     /// The design that fired.
     pub design: EncounterDesignId,
+    /// What its first body is called, not empty: the caller of a hail, the
+    /// wreck of a find, the first raider of an ambush. The record keeps it
+    /// because a list names the caller while its cell is frozen.
+    pub name: String,
     /// Every body it put in the world, at least one, none twice.
     pub bodies: Vec<GeneratedBodyId>,
     /// The [`crate::clock::WorldClock`] reading it fired at.
@@ -331,7 +349,7 @@ impl Encounters {
     /// Refuse a record a Load could not have built, against the loaded
     /// `designs` and the clock at `clock_seconds`: travel seconds that are
     /// not finite or are negative; a live record under a design the catalog
-    /// lacks, with no body, with a body listed twice or with a stamp that is
+    /// lacks, with no name, with no body, with a body listed twice or with a stamp that is
     /// not finite, is negative or stands ahead of the clock; an offer with
     /// no live record, with an end that is not finite or is negative, whose
     /// job is no hail job or one [`Job::validate`] refuses, whose caller is
@@ -352,6 +370,12 @@ impl Encounters {
                         live.design
                     ));
                 };
+                if live.name.trim().is_empty() {
+                    return Err(format!(
+                        "the live encounter '{}' names its first body with an empty name",
+                        live.design
+                    ));
+                }
                 if live.bodies.is_empty() {
                     return Err(format!(
                         "the live encounter '{}' holds no body",
@@ -423,6 +447,158 @@ impl Encounters {
     }
 }
 
+impl Encounters {
+    /// Add `seconds` of eligible travel.
+    pub fn count_travel(&mut self, seconds: f64) {
+        self.travel_seconds += seconds;
+    }
+
+    /// Spend the draw that was due without an encounter: the next one is
+    /// drawn under the next number, after a gap of its own.
+    pub fn consume_draw(&mut self) {
+        self.fired += 1;
+        self.travel_seconds = 0.0;
+    }
+
+    /// Record the encounter that just fired as `live`, with the `offer` a
+    /// hail makes: the draw is spent ([`Encounters::consume_draw`]).
+    ///
+    /// # Panics
+    ///
+    /// When an encounter is live already: the world holds one at a time.
+    pub fn fire(&mut self, live: EncounterLive, offer: Option<EncounterOffer>) {
+        assert!(
+            self.live.is_none() && self.offer.is_none(),
+            "Encounters fires '{}' while '{}' is live",
+            live.design,
+            self.live
+                .as_ref()
+                .map_or("an offer", |live| live.design.as_str())
+        );
+        self.consume_draw();
+        self.live = Some(live);
+        self.offer = offer;
+    }
+
+    /// End the live encounter and the offer that stands with it. The bodies
+    /// stay in the world.
+    pub fn end(&mut self) {
+        self.live = None;
+        self.offer = None;
+    }
+
+    /// Whether the standing offer is past its end at `clock_seconds`. No
+    /// offer is not past one.
+    pub fn offer_expired(&self, clock_seconds: f64) -> bool {
+        self.offer
+            .as_ref()
+            .is_some_and(|offer| clock_seconds >= offer.expires_at)
+    }
+
+    /// The name of the hull that posted the hail job `id`, while the live
+    /// encounter holds that hull.
+    pub fn caller_name(&self, id: &JobId) -> Option<&str> {
+        let live = self.live.as_ref()?;
+        (id.is_hail() && live.bodies.contains(&id.poster)).then_some(live.name.as_str())
+    }
+}
+
+/// The player's answer to the standing hail offer. The open world's
+/// director reads it; with no offer standing it changes nothing.
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HailAnswerCommand {
+    /// Take the offered job.
+    Accept,
+    /// Refuse it: the offer ends and the hull stays where it is.
+    Decline,
+}
+
+/// What the director made of one [`HailAnswerCommand`], so the pane that
+/// raised it plays the result's one cue.
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HailAnswered {
+    /// The command.
+    pub answer: HailAnswerCommand,
+    /// Whether it was taken: the job is held, or the offer is declined. A
+    /// refused accept and a command with no offer standing are not.
+    pub taken: bool,
+}
+
+/// Ask the open world's director for the encounter `design` at once,
+/// whatever the travel clock reads. A cheat: the director refuses it while
+/// an encounter is live or a hail job is held, and it spends a draw number
+/// like any encounter, so the bodies it names are never named twice.
+#[derive(Message, Clone, Debug, PartialEq, Eq)]
+pub struct EncounterFireCommand {
+    /// The encounter to fire.
+    pub design: EncounterDesignId,
+}
+
+/// Raised by the open world's director the moment a hull hails the player.
+#[derive(Event, Clone, Debug)]
+pub struct HailRaised {
+    /// What the hailing hull is called.
+    pub caller: String,
+    /// The job it offers.
+    pub job: Job,
+}
+
+/// The job the hull `caller` offers on hail `serial` of a world of `seed`,
+/// of the `kind` its encounter hails with: `leg_m` meters from the player at
+/// the hail, with no threat, priced by [`job_reward`] at the `advancement`
+/// of the place on a drawn fee. A supply job asks for an item and a count
+/// drawn as a board draws them, over the same pool.
+///
+/// The draws come off one `WyRand` keyed by the seed, the caller and the
+/// serial, in a fixed order whatever the kind decides. `None` for a supply
+/// job when the catalog holds no item a supply job may ask for.
+pub fn plan_hail_offer(
+    seed: u32,
+    kind: HailJobType,
+    caller: &GeneratedBodyId,
+    serial: u32,
+    leg_m: u32,
+    advancement: f32,
+    items: &GameItems,
+) -> Option<Job> {
+    let key = Fnv64::new()
+        .write(&seed.to_le_bytes())
+        .write(b"hail_jobs")
+        .write(caller.to_string().as_bytes())
+        .write(&serial.to_le_bytes())
+        .finish();
+    let mut rng = WyRand::from_seed(key.to_le_bytes());
+    let fee_cr = draw_job_fee(&mut rng);
+    let pick = rng.random_range(0..u32::MAX);
+    let count = draw_supply_count(&mut rng);
+    let kind = match kind {
+        HailJobType::Distress => JobType::Distress {
+            caller: caller.clone(),
+        },
+        HailJobType::Supply => {
+            let pool = supply_pool(items);
+            if pool.is_empty() {
+                return None;
+            }
+            let (design, count) = pick_supply_stack(&pool, pick, count);
+            JobType::Supply {
+                caller: caller.clone(),
+                item: design.id.clone(),
+                count,
+            }
+        }
+    };
+    let reward = job_reward(&kind, leg_m, 0, advancement, fee_cr, items);
+    Some(Job {
+        id: JobId::hail(caller.clone(), serial),
+        kind,
+        target: caller.clone(),
+        leg_m,
+        threat: 0,
+        reward,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use nova_events::prelude::SectorCoord;
@@ -489,6 +665,7 @@ mod tests {
             offer: Some(distress_offer(&caller)),
             live: Some(EncounterLive {
                 design: "base/distress_call".into(),
+                name: "Vell civilian, adrift".to_string(),
                 bodies: vec![caller],
                 started_at: 1_000.0,
             }),

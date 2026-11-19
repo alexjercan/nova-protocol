@@ -62,10 +62,10 @@ use nova_assets::{prelude::LoadedSectionPacks, storage::write_atomic};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
     kg_text, CargoCanisterRuntimeId, Chart, CivilizationStances, ClusterType, CraftSiteType,
-    GameConsumables, GameItems, GameRecipes, GameTradeProfiles, GoalRecord, ItemDesignId,
-    JobPostings, JobSourceType, Jobs, SavedBodyRef, SavedOwner, SavedSectionRef, SavedTargetRef,
-    StationServiceType, StationVisits, CARGO_CANISTER_MAX_MASS_G, CRAFT_BATCHES_MAX,
-    PLATE_REPAIR_SECS, RESCUE_SECS,
+    Encounters, GameConsumables, GameEncounters, GameItems, GameRecipes, GameTradeProfiles,
+    GoalRecord, ItemDesignId, JobPostings, JobSourceType, Jobs, SavedBodyRef, SavedOwner,
+    SavedSectionRef, SavedTargetRef, StationServiceType, StationVisits, CARGO_CANISTER_MAX_MASS_G,
+    CRAFT_BATCHES_MAX, PLATE_REPAIR_SECS, RESCUE_SECS,
 };
 use nova_scenario::prelude::{
     FleetEscort, FrozenShip, GameScenarios, GameShipDesigns, GameStartRoles, SavedScenario,
@@ -333,6 +333,9 @@ pub struct WorldSaveState {
     /// The allied station the player started docked at: the one board that
     /// posts starter jobs.
     pub start: StartingStation,
+    /// The encounters: how many fired, the travel counted toward the next,
+    /// the standing hail offer and the live encounter's bodies.
+    pub encounters: Encounters,
 }
 
 /// The player ship as it was saved.
@@ -553,6 +556,7 @@ pub fn open_world(
     profiles: &GameTradeProfiles,
     recipes: &GameRecipes,
     consumables: &GameConsumables,
+    encounters: &GameEncounters,
 ) -> Result<(WorldFolder, WorldLock, WorldSaveHeader, WorldSaveState), WorldRefusal> {
     check_slug(slug)?;
     let path = root.join(slug);
@@ -567,6 +571,7 @@ pub fn open_world(
         profiles,
         recipes,
         consumables,
+        encounters,
     )?;
     sweep_orphans(&path, &state_file(header.generation));
     Ok((
@@ -600,6 +605,7 @@ pub fn check_world(
     profiles: &GameTradeProfiles,
     recipes: &GameRecipes,
     consumables: &GameConsumables,
+    encounters: &GameEncounters,
 ) -> Result<(), WorldRefusal> {
     check_slug(slug)?;
     let path = root.join(slug);
@@ -613,6 +619,7 @@ pub fn check_world(
         profiles,
         recipes,
         consumables,
+        encounters,
     )
     .map(drop)
 }
@@ -627,6 +634,7 @@ fn read_state(
     profiles: &GameTradeProfiles,
     recipes: &GameRecipes,
     consumables: &GameConsumables,
+    encounters: &GameEncounters,
 ) -> Result<WorldSaveState, WorldRefusal> {
     let state_name = state_file(header.generation);
     let text = std::fs::read_to_string(path.join(&state_name))
@@ -680,6 +688,11 @@ fn read_state(
     state
         .goal
         .validate(state.clock.play_seconds)
+        .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    state
+        .encounters
+        .validate(encounters, state.clock.play_seconds)
+        .and_then(|()| check_saved_encounters(&state))
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_fleet(&state)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
@@ -775,6 +788,39 @@ fn check_saved_fleet(state: &WorldSaveState) -> Result<(), String> {
         held.push(escort.side);
     }
     Ok(())
+}
+
+/// Every body of the live encounter is a ship the save holds: the director
+/// puts each in a live cell, and a save records every cell the window held
+/// live and every frozen one, so a body the save lacks names nothing a Load
+/// could thaw. A ship held back by the observer counts, by its generated id.
+pub(crate) fn check_saved_encounters(state: &WorldSaveState) -> Result<(), String> {
+    let Some(live) = &state.encounters.live else {
+        return Ok(());
+    };
+    let ships: BTreeSet<&str> = state
+        .sectors
+        .iter()
+        .flat_map(|(_, record)| record.each_body())
+        .filter(|body| {
+            matches!(
+                body.body(),
+                FrozenBodyType::Ship(_) | FrozenBodyType::PendingShip { .. }
+            )
+        })
+        .filter_map(|body| body.id())
+        .collect();
+    match live
+        .bodies
+        .iter()
+        .find(|body| !ships.contains(body.to_string().as_str()))
+    {
+        Some(lost) => Err(format!(
+            "the live encounter '{}' names the body '{lost}', which is no ship the save holds",
+            live.design
+        )),
+        None => Ok(()),
+    }
 }
 
 /// Every pending station visit names a ship and a station the save holds. A

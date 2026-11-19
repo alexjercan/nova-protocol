@@ -1314,6 +1314,7 @@ fn record_transient_fixture_state(world: &mut World) -> serde_json::Value {
         world.resource::<GameTradeProfiles>(),
         world.resource::<GameRecipes>(),
         world.resource::<GameConsumables>(),
+        world.resource::<GameEncounters>(),
     )
     .unwrap_or_else(|e| {
         panic!(

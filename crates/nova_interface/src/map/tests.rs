@@ -80,6 +80,7 @@ fn scripted_world() -> (World, Entity, Entity) {
     let mut world = World::new();
     world.init_resource::<Chart>();
     world.init_resource::<Jobs>();
+    world.init_resource::<Encounters>();
     let player = world
         .spawn((
             SpaceshipRootMarker,
@@ -143,6 +144,7 @@ fn crowded_world() -> World {
     let mut world = World::new();
     world.init_resource::<Chart>();
     world.init_resource::<Jobs>();
+    world.init_resource::<Encounters>();
     world.spawn((
         SpaceshipRootMarker,
         PlayerSpaceshipMarker,
@@ -238,6 +240,7 @@ fn a_marked_body_is_one_objective_contact() {
     let mut world = World::new();
     world.init_resource::<Chart>();
     world.init_resource::<Jobs>();
+    world.init_resource::<Encounters>();
     let player = world
         .spawn((
             SpaceshipRootMarker,
@@ -360,6 +363,7 @@ fn a_contact_code_follows_its_marker() {
     let mut world = World::new();
     world.init_resource::<Chart>();
     world.init_resource::<Jobs>();
+    world.init_resource::<Encounters>();
     world.spawn((
         SpaceshipRootMarker,
         PlayerSpaceshipMarker,
@@ -402,6 +406,7 @@ fn a_station_draws_its_cube_and_chart_code_at_every_side() {
     let mut world = World::new();
     world.init_resource::<Chart>();
     world.init_resource::<Jobs>();
+    world.init_resource::<Encounters>();
     world.spawn((
         SpaceshipRootMarker,
         PlayerSpaceshipMarker,
@@ -483,6 +488,7 @@ fn an_authored_station_reads_stn_on_the_map() {
     let mut world = World::new();
     world.init_resource::<Chart>();
     world.init_resource::<Jobs>();
+    world.init_resource::<Encounters>();
     world.spawn((
         SpaceshipRootMarker,
         PlayerSpaceshipMarker,
@@ -529,6 +535,7 @@ fn map_scene_lives_while_the_map_pane_is_shown() {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Ship);
@@ -578,6 +585,7 @@ fn map_scene_builds_and_drives_with_render_assets() {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.init_resource::<ActiveUiTheme>();
     app.insert_resource(InterfaceIcons::blank());
     app.init_resource::<NovaOsCloseTransition>();
@@ -639,6 +647,7 @@ fn map_focus_follow_recenters_on_a_new_selection() {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Map);
@@ -703,6 +712,7 @@ fn a_rebound_goto_key_is_the_key_the_map_answers() {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Map);
 
@@ -768,6 +778,7 @@ fn map_goto_sets_autopilot_on_the_player_ship() {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Map);
 
@@ -1036,6 +1047,7 @@ fn a_goto_set_on_the_map_stays_set_over_the_next_frames() {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Map);
     app.add_systems(
@@ -1130,6 +1142,7 @@ fn a_wheel_over_the_map_panel_scrolls_it_and_leaves_the_chart_zoom() {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Map);
     app.add_systems(Update, (scroll_map_panel, map_input).chain());
@@ -1211,6 +1224,7 @@ fn the_goto_button_sets_the_goto_the_key_sets() {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Map);
     app.add_systems(
@@ -1347,6 +1361,7 @@ fn chart_stances_show_seeded_advancement_in_overview_and_selected_station() {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.init_resource::<WorldClock>();
     app.init_resource::<CivilizationStances>();
     app.add_systems(Update, update_map_stance_block);
@@ -1409,6 +1424,7 @@ fn chart_stance_details_lay_out_at_their_text_height() {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.init_resource::<WorldClock>();
     app.init_resource::<CivilizationStances>();
     app.add_systems(Update, update_map_stance_block);
@@ -1506,6 +1522,7 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station() {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.init_resource::<WorldClock>();
     app.init_resource::<CivilizationStances>();
     app.add_message::<StanceSettleCommand>();
@@ -2275,6 +2292,7 @@ fn map_input_app() -> App {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<NovaOsCloseTransition>();
     app.insert_resource(InterfacePaneType::Map);
@@ -2386,6 +2404,7 @@ fn a_station_blip_relabels_from_stn_to_its_chart_code_when_the_chart_finds_it() 
 fn a_second_click_on_the_selected_chart_mark_and_reframe_return_the_chart_to_its_overview() {
     let mut app = map_input_app();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     {
         let mut runtime = app.world_mut().resource_mut::<MapRuntime>();
         runtime.chart = true;
@@ -2942,6 +2961,7 @@ fn the_focus_hub_is_the_size_of_what_it_marks() {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.world_mut().resource_mut::<MapRuntime>().active = true;
 
     app.world_mut().spawn((
@@ -3024,6 +3044,7 @@ fn a_selected_contact_fills_the_panel_in_place() {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.add_systems(Update, (assign_map_contact_codes, update_map_panel).chain());
     track_node_churn(app);
     let content = rig.content_root;
@@ -3102,6 +3123,7 @@ fn chart_selection_fills_code_and_range_in_place() {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.add_systems(Update, update_map_panel);
     let content = rig.content_root;
     app.world_mut()
@@ -3166,6 +3188,7 @@ fn map_header_hides_only_with_nothing_selected() {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.add_systems(Update, update_map_panel);
     let content = rig.content_root;
     app.world_mut()
@@ -3237,6 +3260,7 @@ fn chart_objectives_heading_follows_the_focused_layer() {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.init_resource::<GoalProgress>();
     app.init_resource::<GoalRecord>();
     app.add_systems(Update, update_map_chart_objectives);
@@ -3300,6 +3324,7 @@ fn a_marked_job_body_lists_every_matching_job() {
     app.init_resource::<MapRuntime>();
     app.init_resource::<Chart>();
     app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
     app.add_systems(Update, (assign_map_contact_codes, update_map_panel).chain());
     let content = rig.content_root;
     app.world_mut()

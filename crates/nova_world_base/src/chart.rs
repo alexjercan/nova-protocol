@@ -13,9 +13,10 @@
 use bevy::prelude::*;
 use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::{
-    Chart, ChartSectorEdge, CivilizationStances, DerelictShipMarker, GoalProgress, GoalRecord,
-    JobPostings, Jobs, OwnedStationMarker, PlayerSpaceshipMarker, ShipInventory, StationMarker,
-    StationServices, StationStorage, StationSummary, StationVisits, TraderMarket, WorldClock,
+    Chart, ChartSectorEdge, CivilizationStances, DerelictShipMarker, Encounters, GoalProgress,
+    GoalRecord, JobPostings, Jobs, OwnedStationMarker, PlayerSpaceshipMarker, ShipInventory,
+    StationMarker, StationServices, StationStorage, StationSummary, StationVisits, TraderMarket,
+    WorldClock,
 };
 use nova_ship::prelude::{DockedShip, DockingConnection, SensorContacts};
 use nova_world::prelude::{CurrentSector, SectorClusterTypes, SectorRoot, WorldConfig};
@@ -23,7 +24,7 @@ use nova_world::prelude::{CurrentSector, SectorClusterTypes, SectorRoot, WorldCo
 use crate::NovaLayeredWorld;
 
 /// Forget the chart, the jobs, the job postings, the station visits, the
-/// civilization stances and the role goal's record and progress on every
+/// civilization stances, the encounters and the role goal's record and progress on every
 /// frame `Cleanup` drops the frozen ledger, and keep [`ChartSectorEdge`] on
 /// the armed world's edge.
 #[expect(
@@ -41,7 +42,11 @@ pub(crate) fn clear_chart(
     mut stances: ResMut<CivilizationStances>,
     mut goal: ResMut<GoalRecord>,
     mut progress: ResMut<GoalProgress>,
+    mut encounters: ResMut<Encounters>,
 ) {
+    if *encounters != Encounters::default() {
+        *encounters = Encounters::default();
+    }
     if !chart.is_empty() {
         chart.clear();
     }

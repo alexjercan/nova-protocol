@@ -63,9 +63,9 @@ The whole vocabulary at a glance:
 | [`OnStripped`](#hold-events) | `id`, `type_name`, `hull`, `section`, `parts` | an Inventory pane strip takes a section off a docked wreck, once per section, the berth port last; or a Ship pane delete takes a section off the ship itself |
 | [`OnStored`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player stores a stack in a docked station's storage |
 | [`OnWithdrawn`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player withdraws a stack from a docked station's storage, or Take all or Strip takes one from a dead station's |
-| [`OnJobAccepted`](#onjobaccepted) | `id`, `kind`, `station`, `reward_cr`, `post_key` | the Jobs pane accepts a board offer; `id` is the job's id; a refused accept and a Load fire none |
-| [`OnJobDone`](#onjobdone) | `id`, `kind`, `station`, `reward_cr`, `post_key` | a held job's work in the world is finished and the job waits for its hand-in; a `Procure` and a Load fire none |
-| [`OnJobHandedIn`](#onjobhandedin) | `id`, `kind`, `station`, `reward_cr`, `post_key` | the Jobs pane hands a held job in at its posting station and the reward is paid; a refused hand-in fires none |
+| [`OnJobAccepted`](#onjobaccepted) | `id`, `kind`, `station`, `reward_cr`, `post_key` | the Jobs pane accepts a board offer or a hail job, or a dock with a hailing hull accepts its job; `id` is the job's id; a refused accept and a Load fire none |
+| [`OnJobDone`](#onjobdone) | `id`, `kind`, `station`, `reward_cr`, `post_key` | a held job's work in the world is finished and the job waits for its hand-in; a `Procure`, a hail job and a Load fire none |
+| [`OnJobHandedIn`](#onjobhandedin) | `id`, `kind`, `station`, `reward_cr`, `post_key` | the Jobs pane hands a held job in at its posting station and the reward is paid, or the dock with its caller pays a hail job; a refused hand-in fires none |
 | [`OnJobDropped`](#onjobdropped) | `id`, `kind`, `station`, `reward_cr`, `post_key`, `cause` | a held job ends with no hand-in: `cause` is `Lost` (the world took it) or `Abandoned` (the Drop button) |
 | [`OnStanceChanged`](#onstancechanged) | `civilization`, `from`, `to` | a civilization's stance toward the player moves; a provocation and a Load fire none |
 | [`OnSectorEntered`](#onsectorentered) | `sector`, `x`, `y`, `z`, `from` | the player crosses into another sector of a generated world; a New Game and a Load fire none |
@@ -968,16 +968,17 @@ The example mod's `example_prospect` scenario runs all but `OnRebuilt`,
 
 ## Job events
 
-Four events follow one job of a generated world's station board from the
-accept to its end, a job a [`PostJob`](../actions/#postjob) action posted
-included. All four carry the same job fields; `OnJobDropped` adds
-`cause`.
+Four events follow one job of a generated world from the accept to its
+end: a job of a station board, a job a [`PostJob`](../actions/#postjob)
+action posted, and a hail job, which a stranded hull of an
+[encounter](../mod-files/#encounters) offers in space. All four carry the
+same job fields; `OnJobDropped` adds `cause`.
 
 | field | type | value |
 |---|---|---|
-| `id` | text | the job's id: `<station id>#<slot>.<posting>` for a slot job, `<station id>#<visit id>.<index>` for a visit posting, `<station id>#<key>` for a `PostJob` job |
+| `id` | text | the job's id: `<station id>#<slot>.<posting>` for a slot job, `<station id>#<visit id>.<index>` for a visit posting, `<station id>#<key>` for a `PostJob` job, `<hull id>#hail.<serial>` for a hail job |
 | `kind` | text | `Procure`, `Recover`, `Escort`, `Distress`, `Neutralize` or `Supply` |
-| `station` | text | the scenario id of the station that posted the job, the part of `id` before `#` |
+| `station` | text | the scenario id of the body that posted the job, the part of `id` before `#`: a station, or the hailing hull for a hail job |
 | `reward_cr` | number | the reward the hand-in pays, in credits |
 | `post_key` | text | the `key` of the [`PostJob`](../actions/#postjob) that posted the job; empty for a job a board or a visitor posted |
 | `cause` | text | `OnJobDropped` only: `Lost` or `Abandoned` |
@@ -985,6 +986,7 @@ included. All four carry the same job fields; `OnJobDropped` adds
 | a job's life | events, in order |
 |---|---|
 | accepted, worked, handed in | `OnJobAccepted`, `OnJobDone` (not for a `Procure`), `OnJobHandedIn` |
+| a hail job accepted, then done by the dock with its caller | `OnJobAccepted`, `OnJobHandedIn` |
 | accepted, then its hauler, wreck, caller or poster is lost | `OnJobAccepted`, `OnJobDropped` with `cause` `Lost` |
 | accepted, then dropped from the Jobs pane | `OnJobAccepted`, `OnJobDropped` with `cause` `Abandoned` |
 
@@ -1024,7 +1026,8 @@ so a `once` handler on any of them never runs twice for one job.
 ## OnJobAccepted
 
 Fires once per successful accept from the Jobs pane, after the job is held.
-A refused accept fires nothing.
+A refused accept fires nothing. A dock with a hailing hull while its offer
+stands accepts the hail job and fires it too.
 
 ```ron
 (
@@ -1037,7 +1040,9 @@ A refused accept fires nothing.
 ## OnJobDone
 
 Fires once when a held job's work in the world is finished: the job stays
-held and waits for its hand-in at the posting station.
+held and waits for its hand-in at the posting station. A hail job has no
+hand-in and fires none: the dock that does it pays it and fires
+[`OnJobHandedIn`](#onjobhandedin).
 
 | kind | done when |
 |---|---|
@@ -1054,6 +1059,9 @@ Fires once per successful hand-in from the Jobs pane, after the reward is
 paid and the job is listed completed. A refused hand-in fires nothing. The
 payout itself is two [`OnCreditsChanged`](#hold-events) events with cause
 `JobReward`, one for each party, raised before this one.
+
+A hail job fires it when the dock with its caller does the job. No station
+pays: the payout is one `OnCreditsChanged` event, on the player's ship.
 
 ## OnJobDropped
 
