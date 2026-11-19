@@ -1,6 +1,6 @@
 # Start roles: even difficulty, fun start ships, better goals
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.19.0, roles, balance
 
@@ -104,7 +104,7 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
 - Every role reaches its first payout and first goal step in a comparable
   time on the bench, and the owner signs off the goals.
 
-## Delivery record (2026-11-19; OPEN until the owner signs off the goals)
+## Delivery record (2026-11-19; task CLOSED)
 - Landed (`54e9fe1f2`, `ddf5877a3`, then the review fixes):
   - Recover and Neutralize jobs with no target in reach post with their
     own wreck or raider, spawned on Accept under the poster's cell root.
@@ -163,3 +163,8 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
   ice"; job route reads "X station > X station" when poster and hand-in
   match; map labels crowd in one cell at default zoom; a red range label
   overlaps a JOB chip.
+
+## Owner sign-off (2026-11-19)
+- Owner: the goal order and the six lines are fine for now. The pirate
+  goal stays at Hulls taken 3 with no board row, for now.
+- Still the owner's: the role `about` and `lore` texts.
