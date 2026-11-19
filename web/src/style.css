@@ -2780,33 +2780,24 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     color: var(--phosphor-dim);
     text-shadow: none;
 }
-/* The flight key row: the core chips end at the centre line and the
-   situational chips start from it, as on the HUD. */
+/* The flight key row. The widget sets the row's justify, wrap, gap and
+   side padding from the game's layout, so the chips centre and wrap as on
+   the HUD. */
 .widget__dock {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    display: flex;
     margin: 14px 0 0;
-    padding: 12px;
     background: var(--screen);
     border: 1px solid var(--edge-soft);
     border-radius: var(--radius);
 }
-.widget__dock-side {
-    display: flex;
-    flex-wrap: wrap;
-    align-content: flex-start;
-    gap: 8px 12px;
-    padding: 0 12px;
-}
-.widget__dock-side:first-child {
-    justify-content: flex-end;
-    border-right: 1px solid var(--edge);
-}
 .widget__chip {
     display: inline-flex;
+    /* A chip keeps its content width, as in the game: the row wraps, a
+       chip does not squeeze. */
+    flex: none;
     align-items: center;
     gap: 5px;
-    padding: 3px 6px;
+    padding: 3px 5px;
     border: 1px solid transparent;
     border-radius: var(--radius);
     font-size: 0.7rem;
@@ -4565,20 +4556,5 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     [data-widget="advancement-gates"] .widget-mark--axis,
     [data-widget="advancement-gates"] .widget-mark--label-tier {
         font-size: 15px;
-    }
-    /* The key row keeps its two sides on a phone, stacked: there is no
-       room for a centre line with chips on both sides of it. */
-    .widget__dock {
-        grid-template-columns: minmax(0, 1fr);
-        gap: 10px;
-    }
-    .widget__dock-side {
-        padding: 0;
-    }
-    .widget__dock-side:first-child {
-        justify-content: flex-start;
-        padding-bottom: 10px;
-        border-right: none;
-        border-bottom: 1px solid var(--edge);
     }
 }

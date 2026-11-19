@@ -18,7 +18,7 @@ import {
     CIVILIZATION_LATTICE_KM,
     gateReach,
     INFLUENCE_REACH_KM,
-    KEY_ROW_CORE_LEN,
+    KEY_ROW_LAYOUT,
     KEY_ROW_VERBS,
     keyRowChips,
     PART_KNOWN_CHANCE,
@@ -1546,7 +1546,7 @@ console.log("widgets: the corridor scope reproduces the stand bank");
 
 // ---- key-row --------------------------------------------------------------
 
-// The key row scope's verbs, order, core group and default sources are the
+// The key row scope's verbs, order, layout and default sources are the
 // game's.
 {
     const DOCK = "crates/nova_hud/src/keybind_dock.rs";
@@ -1560,10 +1560,17 @@ console.log("widgets: the corridor scope reproduces the stand bank");
         KEY_ROW_VERBS.map((entry) => entry.verb),
         [...verbs.matchAll(/"(\w+)"/g)].map((hit) => hit[1])
     );
-    assert.equal(
-        KEY_ROW_CORE_LEN,
-        rustNumber(DOCK, /pub const DOCK_CORE_LEN: usize = (\d+);/)
-    );
+    // One centred row that wraps upward: the dock node's own layout.
+    assert.deepEqual(KEY_ROW_LAYOUT, {
+        justify: rustSays(DOCK, /justify_content: JustifyContent::(\w+),/),
+        wrap: rustSays(DOCK, /flex_wrap: FlexWrap::(\w+),/),
+        gapPx: rustNumber(DOCK, /const DOCK_CHIP_GAP_PX: f32 = ([\d.]+);/),
+        sidePx: rustNumber(DOCK, /const DOCK_SIDE_PX: f32 = ([\d.]+);/),
+    });
+    for (const gap of ["column_gap", "row_gap"]) {
+        rustSays(DOCK, new RegExp(`(${gap}): Val::Px\\(DOCK_CHIP_GAP_PX\\)`));
+    }
+    rustSays(DOCK, /(padding): UiRect::horizontal\(Val::Px\(DOCK_SIDE_PX\)\)/);
 
     // The first desk source and the first pad source an action declares.
     const action = (name: string): { desk: string; pad?: string } => {

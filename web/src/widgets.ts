@@ -14013,16 +14013,15 @@ function initAdvancementGates(host: HTMLElement): void {
 
 // ---- v0.18.0: the key row -------------------------------------------------
 
-// The flight key row, mirrored from the game as data. The verbs, their order
-// and the core group: crates/nova_hud/src/keybind_dock.rs DOCK_VERBS :109 and
-// DOCK_CORE_LEN :129. `from` names the action or the section class whose
-// default sources the chip draws, in Rust spelling: flight_bindings :30,
-// camera_bindings :133 and section_default_bindings :193 of
+// The flight key row, mirrored from the game as data. The verbs and their
+// order: crates/nova_hud/src/keybind_dock.rs DOCK_VERBS :137. `from` names
+// the action or the section class whose default sources the chip draws, in
+// Rust spelling: flight_bindings :30, camera_bindings :133 and
+// section_default_bindings :193 of
 // crates/nova_ship/src/input/bindings.rs, and interface_toggle at
 // crates/nova_interface/src/bindings.rs :50. DOCK and HELM hold no pad button:
 // on a pad each is the RCS button plus the GOTO or ORBIT button
 // (crates/nova_ship/src/input/player/hints.rs `chord` :322).
-export const KEY_ROW_CORE_LEN = 5;
 export const KEY_ROW_VERBS: {
     verb: string;
     from: string;
@@ -14088,6 +14087,25 @@ const KEY_ROW_CAPS: Record<string, string> = {
 };
 
 /**
+ * How the game lays the row out, in Rust spelling: the dock node of
+ * keybind_dock.rs `keybind_dock_hud` :409, with DOCK_CHIP_GAP_PX :133 between
+ * chips and between wrapped lines, and DOCK_SIDE_PX :130 at each side. One
+ * centred row; a row too wide wraps its last chips onto lines above it, and
+ * each line is centred.
+ */
+export const KEY_ROW_LAYOUT = {
+    justify: "Center",
+    wrap: "WrapReverse",
+    gapPx: 7,
+    sidePx: 12,
+};
+
+/** The CSS keyword for a Bevy layout variant: `WrapReverse`, `wrap-reverse`. */
+function cssKeyword(variant: string): string {
+    return variant.replace(/(?!^)[A-Z]/g, "-$&").toLowerCase();
+}
+
+/**
  * What the travel lock is, or what holds the ship. A docked ship keeps its
  * lock on the partner. `DockedShip` is a new dock on a living ship, which
  * flies the pair; `DockedHeld` is that dock after HELM; `DockedStation` is a
@@ -14130,7 +14148,7 @@ export interface KeyChip {
  * that grants every maneuver, has RCS propellant, holds no key down and flies
  * no autopilot maneuver. Each rule cites its line in
  * crates/nova_ship/src/input/player/hints.rs `update_flight_verb_hints`; the
- * hot states are keybind_dock.rs `chip_state` :676.
+ * hot states are keybind_dock.rs `chip_state` :668.
  */
 export function keyRowChips(context: KeyRowContext): KeyChip[] {
     const { lock } = context;
@@ -14194,8 +14212,9 @@ function initKeyRow(host: HTMLElement): void {
     header(
         host,
         "Key row scope: the chips that apply",
-        "Set the flight context. The row draws the chips the game draws: " +
-            "five core chips before the centre line, the rest after it. " +
+        "Set the flight context. The row draws the chips the game draws, " +
+            "in the game's order, centred as on the HUD. A row too wide " +
+            "for the screen puts its last chips on a line above. " +
             "A dark chip is on the row but the press does nothing now; an " +
             "inverted chip names a state the ship is in."
     );
@@ -14256,28 +14275,26 @@ function initKeyRow(host: HTMLElement): void {
     }
 
     const dock = el("div", "widget__dock");
+    dock.style.justifyContent = cssKeyword(KEY_ROW_LAYOUT.justify);
+    dock.style.flexWrap = cssKeyword(KEY_ROW_LAYOUT.wrap);
+    dock.style.gap = `${KEY_ROW_LAYOUT.gapPx}px`;
+    dock.style.padding = `12px ${KEY_ROW_LAYOUT.sidePx}px`;
     const readout = el("p", "widget__readout");
     readout.setAttribute("aria-live", "polite");
 
     const update = (): void => {
         const chips = keyRowChips(context);
-        const core = KEY_ROW_VERBS.slice(0, KEY_ROW_CORE_LEN).map(
-            (entry) => entry.verb
+        dock.replaceChildren(
+            ...chips.map((chip) => {
+                const node = el("span", "widget__chip");
+                node.classList.add(`is-${chip.state.toLowerCase()}`);
+                for (const cap of chip.caps) {
+                    node.appendChild(el("kbd", "widget__cap", cap));
+                }
+                node.appendChild(el("b", undefined, chip.verb));
+                return node;
+            })
         );
-        const groups = [
-            el("div", "widget__dock-side"),
-            el("div", "widget__dock-side"),
-        ];
-        for (const chip of chips) {
-            const node = el("span", "widget__chip");
-            node.classList.add(`is-${chip.state.toLowerCase()}`);
-            for (const cap of chip.caps) {
-                node.appendChild(el("kbd", "widget__cap", cap));
-            }
-            node.appendChild(el("b", undefined, chip.verb));
-            groups[core.includes(chip.verb) ? 0 : 1].appendChild(node);
-        }
-        dock.replaceChildren(groups[0], groups[1]);
 
         const words = (state: KeyChipStateType): string =>
             chips
