@@ -1,16 +1,18 @@
 //! Built-in START ROLE content: the six New Game starts.
 //!
 //! `content gen` serializes this builder into
-//! `assets/base/roles/base.content.ron`. A kit's worth at ask is its credits
-//! plus its items at their base `ask_cr`: 3,000 cr for an unarmed kit, and
-//! 2,000 to 2,200 cr for a PDC-armed kit without its rounds. A PDC-armed hull
-//! also carries 3,000 PDC rounds in its shared hold, not per mount: 30 whole
-//! lots of 100 at 10 cr, so 300 cr at ask and 2,300 to 2,500 cr in all. One
-//! start-band escort can empty a 2-PDC hull's 2,000-round load, so 3,000 in
-//! the hold is two such fights or more before the first station Buy.
+//! `assets/base/roles/base.content.ron`. The credits follow what a role
+//! must buy before it earns: 2,200 cr on the two unarmed hulls, 1,800 cr on
+//! the three hulls that start with PDCs and no working income but a fight,
+//! 1,500 cr on the salvage hauler, whose first wreck pays in goods. A
+//! PDC-armed hull also carries 3,000 PDC rounds in its shared hold, not per
+//! mount: 30 whole lots of 100. One start-band escort can empty a 2-PDC
+//! hull's 2,000-round load, so 3,000 in the hold is two such fights or more
+//! before the first station Buy.
 //!
-//! On top of that worth every kit carries three repair kits (360 cr at
-//! ask), so each start can patch its hull before it can craft.
+//! Every kit carries three repair kits, hull plates and six section
+//! panels, so each start can patch its hull and rebuild one small lost
+//! section before it can craft.
 //!
 //! Goals are the roles' finite milestones over saved facts. Every role's
 //! progress opens with its own count and ends with the same last line, one
@@ -25,7 +27,7 @@ use nova_gameplay::prelude::{
 use nova_scenario::prelude::{RoleGoal, RoleGoalType, StartKit, StartRole};
 
 use super::{
-    items::REPAIR_KIT,
+    items::{REPAIR_KIT, SECTION_PANEL},
     ships::{
         INTERCEPTOR_SHIP_ID, LIGHT_FREIGHTER_SHIP_ID, MINING_TUG_SHIP_ID, PATROL_PICKET_SHIP_ID,
         RAIDER_SHIP_ID, SALVAGE_HAULER_SHIP_ID,
@@ -46,6 +48,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             &[
                 (ItemRoleType::HullPlate.id(), 15),
                 (ItemRoleType::Rations.id(), 25),
+                (SECTION_PANEL, 6),
                 (REPAIR_KIT, 3),
             ],
             JobMixType::Mining,
@@ -63,10 +66,11 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             "A salvage hauler with the largest start hold, a cargo intake, a bow mining \
              beam and one point-defense mount. Pick wrecks clean and sell what you take.",
             SALVAGE_HAULER_SHIP_ID,
-            1_800,
+            1_500,
             &[
                 (ItemRoleType::PdcRound.id(), 3_000),
                 (ItemRoleType::HullPlate.id(), 10),
+                (SECTION_PANEL, 6),
                 (REPAIR_KIT, 3),
             ],
             JobMixType::Salvage,
@@ -83,10 +87,12 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             "A light freighter with a deep stack, a flank pod and no weapons. Buy cargo at \
              one station and sell it at another.",
             LIGHT_FREIGHTER_SHIP_ID,
-            2_000,
+            2_200,
             &[
                 (ItemRoleType::Rations.id(), 50),
                 (ItemRoleType::WaterIce.id(), 50),
+                (ItemRoleType::HullPlate.id(), 10),
+                (SECTION_PANEL, 6),
                 (REPAIR_KIT, 3),
             ],
             JobMixType::Trade,
@@ -104,10 +110,11 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             "An interceptor with two point-defense mounts. Hunt armed ships for the price \
              on them.",
             INTERCEPTOR_SHIP_ID,
-            1_600,
+            1_800,
             &[
                 (ItemRoleType::PdcRound.id(), 3_000),
                 (ItemRoleType::HullPlate.id(), 10),
+                (SECTION_PANEL, 6),
                 (REPAIR_KIT, 3),
             ],
             JobMixType::Bounty,
@@ -124,11 +131,12 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             "A patrol picket with two point-defense mounts and a torpedo bay on light \
              plate. Answer distress calls and escort haulers past the raiders.",
             PATROL_PICKET_SHIP_ID,
-            1_000,
+            1_800,
             &[
                 (ItemRoleType::Torpedo.id(), 2),
                 (ItemRoleType::PdcRound.id(), 3_000),
                 (ItemRoleType::HullPlate.id(), 10),
+                (SECTION_PANEL, 6),
                 (REPAIR_KIT, 3),
             ],
             JobMixType::Patrol,
@@ -149,6 +157,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             &[
                 (ItemRoleType::PdcRound.id(), 3_000),
                 (ItemRoleType::HullPlate.id(), 10),
+                (SECTION_PANEL, 6),
                 (REPAIR_KIT, 3),
             ],
             JobMixType::Raid,

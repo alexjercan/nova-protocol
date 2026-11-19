@@ -24,7 +24,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Crafting: recipes run as timed jobs on the game clock. Ship recipes run in flight; Station recipes need a docked station that offers Craft.
 - Ship recipes: PDC rounds, hull plates, section panels, repair kits, docking collars and actuator packs, so a lost docking port rebuilds in the field.
 - Repair kit: Use in the Inventory pane heals 80 HP over 10 s, most damaged section first. A refused use keeps the item; a second kit while one runs is refused.
-- Generated stations sell repair kits. Start kits add 3 repair kits.
+- Generated stations sell repair kits. Start kits add 3 repair kits and 6 section panels; the transport's also adds 10 hull plates.
 - Refine is replaced by Craft: alloy plates, rail slugs and torpedoes are crafted at a Craft station for a fee a batch. Stations that offered Refine now offer Craft.
 - A job reward is now a sum of base, goods, range and threat: 30 cr a km, 300 cr per weapon against you. Base and range pay up to three times as much at an advanced station.
 - Escorts draw a leg of 10 to 16 km, distress calls and supply runs 6 to 16 km, up from a fixed 10 km. An escort pays a quarter of its cargo, down from half; a recovery's goods pay at most 2,000 cr.
@@ -35,6 +35,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A recovery or a neutralize with no wreck or hostile near the station now names its own: a derelict or one raider up to 16 km out, put there on Accept. Before, it posted as a Bring job.
 - Your starting station's board now posts three jobs your start hull can do and lists every one. Before, it hid a job the hull could not do and could list fewer than three.
 - A role goal now reads its own line first, three of the role's work, then one owned station. The transport counts cargo runs; the pirate counts trading hulls it neutralizes.
+- Start credits are 2,200 cr for the industrial and the transport, 1,800 cr for the bounty hunter, the military and the pirate, and 1,500 cr for the scavenger. Before, 1,000 to 2,200 cr.
+- A station board asks for raw material by the lot of four: 8 to 32 units of an ore, up from 2 to 8, so an ore run pays about what another job pays for its time.
 
 ### Combat & Weapons
 
@@ -44,6 +46,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 ### Ships & Sections
 
 - Undocked, a lost section rebuilds in the field from its recipe parts in the hold, with no credits, 5 s a part (20 s at least). A lost docking port no longer ends docking for good.
+- The Interceptor flies five drives, up from three: the fastest armed start. The Patrol Picket gains a third drive and six hull cells in two aft strakes, and stays the lightest armed start.
 
 ### Modding & Mod Portal
 

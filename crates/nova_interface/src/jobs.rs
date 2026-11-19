@@ -27,7 +27,8 @@
 //!
 //! A click on Accept or Hand in raises a [`JobAcceptCommand`] or a
 //! [`JobHandInCommand`]; [`apply_job_commands`] plans it with
-//! [`plan_job_accept`] or [`plan_job_hand_in`], moves the goods and the
+//! [`plan_board_accept`], the plan the pane gates Accept on, or
+//! [`plan_job_hand_in`], moves the goods and the
 //! credits, moves the job in [`Jobs`] and raises [`JobAccepted`] so the open
 //! world puts the job's bodies in place. The result plays one sound and the
 //! changed balance and lists show it; the buttons are silent on press. A
@@ -499,17 +500,13 @@ fn offer_refresh_gate(refusal: &JobOfferRefreshRefusalType) -> VerbGate {
     }
 }
 
-/// The gate of Accept on a board row whose offer the hull gate judged `fit`
-/// and the accept rule judged `accept`. The hull's cause comes first: it is
-/// the one the player can act on.
-fn board_listing(
-    fit: Result<(), JobHullRefusalType>,
-    accept: Result<(), JobAcceptRefusalType>,
-) -> VerbGate {
-    match (fit, accept) {
-        (Err(refusal), _) => hull_gate(&refusal),
-        (Ok(()), Err(refusal)) => accept_gate(&refusal),
-        (Ok(()), Ok(())) => VerbGate::Ready,
+/// The gate of Accept on a board row whose accept [`plan_board_accept`]
+/// judged `plan`.
+fn board_listing(plan: Result<(), BoardAcceptRefusalType>) -> VerbGate {
+    match plan {
+        Err(BoardAcceptRefusalType::Hull(refusal)) => hull_gate(&refusal),
+        Err(BoardAcceptRefusalType::Accept(refusal)) => accept_gate(&refusal),
+        Ok(()) => VerbGate::Ready,
     }
 }
 
@@ -784,16 +781,15 @@ fn update_jobs_pane(
                     || (1.0, NO_WINDOW_TEXT.to_string()),
                     |remaining| time_left(job, remaining),
                 );
-                let gate = board_listing(
-                    plan_job_hull_fit(job, &items, fit),
-                    plan_job_accept(
-                        job,
-                        Some(station_id),
-                        &jobs,
-                        false,
-                        target_standing(job, &q_targets),
-                    ),
-                );
+                let gate = board_listing(plan_board_accept(
+                    job,
+                    Some(station_id),
+                    &jobs,
+                    false,
+                    target_standing(job, &q_targets),
+                    &items,
+                    fit,
+                ));
                 let confirming = runtime.confirm_refresh.as_ref() == Some(&job.id);
                 let refresh_gate = if confirming {
                     offer_refresh_gate(job)
@@ -1950,7 +1946,7 @@ fn play_jobs_cue(
     runtime.cue.tick(bank.as_deref(), &mut commands);
 }
 
-/// Apply [`JobAcceptCommand`]s by the [`plan_job_accept`] rule and
+/// Apply [`JobAcceptCommand`]s by the [`plan_board_accept`] rule and
 /// [`JobHandInCommand`]s by the [`plan_job_hand_in`] rule: an accept holds
 /// the job and raises [`JobAccepted`]; a hand-in takes a procurement's goods
 /// out of the hold, pays the reward with `JobReward` credit changes on both
@@ -2006,7 +2002,8 @@ fn apply_job_commands(
     site: StationSite,
     (q_ids, q_bodies): (Query<&GeneratedBodyId>, Query<(Entity, &GeneratedBodyId)>),
     q_boards: Query<&JobBoard>,
-    mut q_holds: ParamSet<(JobTargets, Query<&mut ShipInventory>)>,
+    // The hull an accept is planned for reads the hold a hand-in writes.
+    mut q_holds: ParamSet<(JobTargets, Query<&mut ShipInventory>, PlayerHull)>,
     mut q_credits: ParamSet<(
         Query<&ShipCredits>,
         Query<(&mut ShipCredits, &mut ShipInventoryReports)>,
@@ -2044,12 +2041,15 @@ fn apply_job_commands(
             continue;
         };
         let expired = !postings.offers(&job.id, table.0.jobs, clock.play_seconds);
-        match plan_job_accept(
+        let fit = q_holds.p2().fit();
+        match plan_board_accept(
             job,
             Some(station_id),
             &jobs,
             expired,
             target_standing(job, &q_holds.p0()),
+            &items,
+            fit,
         ) {
             Ok(()) => {
                 let title = job.title(&items);
@@ -2390,6 +2390,8 @@ mod tests {
             .spawn((
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
+                // The hull read (`PlayerHull`) asks for a placed root.
+                Transform::default(),
                 ShipDesignSections::default(),
                 ShipCredits(2_000),
                 ShipInventoryReports::default(),
@@ -3033,6 +3035,53 @@ mod tests {
         );
     }
 
+    /// The accept command plans with the hull gate the pane greys a row by:
+    /// a procurement whose stack outweighs the hold is refused, holds
+    /// nothing and raises no accept.
+    #[test]
+    fn an_accept_command_for_a_job_the_hull_cannot_do_is_refused() {
+        #[derive(Resource, Default)]
+        struct Accepted(u32);
+        let mut app = jobs_app();
+        app.init_resource::<Accepted>();
+        app.add_observer(|_: On<JobAccepted>, mut accepted: ResMut<Accepted>| accepted.0 += 1);
+        let (_, slot_job) = hand_in_fixture(&mut app, neutral_civilization());
+        let station_id = slot_job.id.poster.clone();
+        let iron = ItemDesignId::from(ItemRoleType::IronOre.id());
+        // The fixture's hold takes 100 kg.
+        let one_g = test_items().design(&iron).stack_mass_g(1);
+        let count = u32::try_from(100_000 / one_g + 1).expect("a small count");
+        let job = Job {
+            id: JobId::scenario(station_id.clone(), "heavy"),
+            kind: JobType::Procure { item: iron, count },
+            target: station_id,
+            leg_m: 0,
+            threat: 0,
+            reward: JobReward::flat(90),
+        };
+        let world = app.world_mut();
+        world
+            .resource_mut::<JobPostings>()
+            .post_scenario(job.clone(), 0.0);
+        let mut boards = world.query::<&mut JobBoard>();
+        boards
+            .single_mut(world)
+            .expect("the fixture spawns one station")
+            .0
+            .push(job.clone());
+        take_cues(&mut app);
+
+        app.world_mut()
+            .write_message(JobAcceptCommand { id: job.id.clone() });
+        app.update();
+        assert!(
+            !app.world().resource::<Jobs>().holds(&job.id),
+            "the hold cannot take the stack, so the board refuses the accept"
+        );
+        assert_eq!(app.world().resource::<Accepted>().0, 0);
+        assert_eq!(take_cues(&mut app), [UiSfx::EditorDeny]);
+    }
+
     /// The hand-in that takes a civilization's third merit raises one
     /// `StanceChanged` with its step up.
     #[test]
@@ -3179,24 +3228,22 @@ mod tests {
 
     #[test]
     fn a_board_tags_the_accept_of_a_job_the_hull_cannot_do_before_a_gone_target() {
-        let unfit = || Err(JobHullRefusalType::NoWeapon);
         assert_eq!(
-            board_listing(unfit(), Ok(())),
+            board_listing(Err(BoardAcceptRefusalType::Hull(
+                JobHullRefusalType::NoWeapon
+            ))),
             VerbGate::Tagged("NO WEAPON"),
             "a board lists it tagged with the part the hull lacks"
         );
         assert_eq!(
-            board_listing(unfit(), Err(JobAcceptRefusalType::TargetGone)),
-            VerbGate::Tagged("NO WEAPON"),
-            "the hull's cause comes before the accept rule's"
-        );
-        assert_eq!(
-            board_listing(Ok(()), Err(JobAcceptRefusalType::TargetGone)),
+            board_listing(Err(BoardAcceptRefusalType::Accept(
+                JobAcceptRefusalType::TargetGone
+            ))),
             VerbGate::Tagged("GONE"),
             "a fit job with a gone target is listed tagged"
         );
         assert_eq!(
-            board_listing(Ok(()), Ok(())),
+            board_listing(Ok(())),
             VerbGate::Ready,
             "a fit, open job lists with Accept"
         );

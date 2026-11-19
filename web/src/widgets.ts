@@ -2717,8 +2717,8 @@ function cell(
 // The Interceptor (`interceptor` in assets/base/ships/base.content.ron), the
 // small military boat and the hull the drydock figures pose. A two-deck
 // armoured body with two aft sponsons, two PDC mounts on the upper deck, a
-// cargo intake on the top deck aft, three bell drives in the stern row and a
-// docking collar off the port flank. Nothing here is a mesh: every cell is a
+// cargo intake on the top deck aft, three bell drives in the stern row, one
+// more on each sponson tip and a docking collar off the port flank. Nothing here is a mesh: every cell is a
 // section on the same build grid a player builds on.
 export const INTERCEPTOR_CELLS: ShipPart[] = [
     cell("plate_0", -1, 0, -2, HULL_CELL, "hull"),
@@ -2748,9 +2748,10 @@ export const INTERCEPTOR_CELLS: ShipPart[] = [
     cell("plate_24", 1, 1, 1, HULL_CELL, "hull"),
     cell("plate_25", 1, 1, 2, HULL_CELL, "hull"),
     cell("plate_26", -2, 0, 1, HULL_CELL, "sponsons"),
-    cell("plate_27", -2, 0, 2, HULL_CELL, "sponsons"),
-    cell("plate_28", 2, 0, 1, HULL_CELL, "sponsons"),
-    cell("plate_29", 2, 0, 2, HULL_CELL, "sponsons"),
+    cell("plate_27", 2, 0, 1, HULL_CELL, "sponsons"),
+    // Each sponson ends in a bell drive, so losing one costs push too.
+    cell("drive_wing_port", -2, 0, 2, BASIC_DRIVE, "sponsons"),
+    cell("drive_wing_starboard", 2, 0, 2, BASIC_DRIVE, "sponsons"),
     cell("bridge", 0, 1, -1, CONTROLLER_CELL, "bridge"),
     cell("pdc_port", -1, 1.75, -1, PDC_MOUNT, "guns"),
     cell("pdc_starboard", 1, 1.75, -1, PDC_MOUNT, "guns"),
@@ -6090,10 +6091,10 @@ function initTorpedoRun(host: HTMLElement): void {
 // at different rates. The model counts structure only: the skin plates
 // every base hull carries are heavier still (see bomMass), so each curve is an
 // upper bound on what the clad ship does.
-// The tug and the interceptor fly the SAME drive fit - three basic
-// thrusters each, in assets/base/ships/base.content.ron - so the only thing
-// separating their curves is how much structure sits behind them. The
-// training picket carries two basic thrusters on a light-plate frame.
+// The tug flies three basic thrusters and the interceptor five, in
+// assets/base/ships/base.content.ron, so the heavier hull out-accelerates
+// the lighter one by drive count alone. The training picket carries two
+// basic thrusters on a light-plate frame.
 interface DriveRig {
     name: string;
     detail: string;
@@ -6131,14 +6132,14 @@ const DRIVE_RIGS: DriveRig[] = [
         name: "interceptor",
         detail: "interceptor, 38 sections",
         bom: [
-            { proto: HULL_CELL, count: 30 },
+            { proto: HULL_CELL, count: 28 },
             { proto: CONTROLLER_CELL, count: 1 },
             { proto: PDC_MOUNT, count: 2 },
             { proto: CARGO_INTAKE, count: 1 },
-            { proto: BASIC_DRIVE, count: 3 },
+            { proto: BASIC_DRIVE, count: 5 },
             { proto: DOCK_PORT, count: 1 },
         ],
-        drives: 3,
+        drives: 5,
     },
 ];
 
@@ -6147,8 +6148,8 @@ function initThrusterMass(host: HTMLElement): void {
         host,
         "What the drive has to move",
         "Every drive here is a basic drive pushing the same 1.0. The tug " +
-            "and the interceptor carry three, the picket two. What differs " +
-            "is the MASS on the other " +
+            "carries three, the interceptor five, the picket two. What " +
+            "differs beside the count is the MASS on the other " +
             "side of it - a section weighs its own box, and nothing " +
             "authors that. Structure only: the hull's skin plates add " +
             "mass the scope leaves out, so every figure is an upper bound. " +
@@ -6183,9 +6184,9 @@ function initThrusterMass(host: HTMLElement): void {
         "aria-label":
             "Upper-bound acceleration against drives added, one curve per " +
             "base hull, structure mass only. " +
-            "All three climb toward the same hard ceiling; the light picket " +
-            "starts highest, and the tug above the heavier interceptor on " +
-            "the same three drives.",
+            "All three climb toward the same hard ceiling; the interceptor " +
+            "starts highest on five drives, the light picket next on two, " +
+            "and the tug last on three.",
     });
     for (const a of [0, 200, 400, 600]) {
         svg.appendChild(

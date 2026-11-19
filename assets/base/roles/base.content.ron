@@ -11,6 +11,7 @@
                 "HullPlate": 15,
                 "Rations": 25,
                 "RepairKit": 3,
+                "SectionPanel": 6,
             },
         ),
         jobs: Mining,
@@ -29,11 +30,12 @@
         about: "A salvage hauler with the largest start hold, a cargo intake, a bow mining beam and one point-defense mount. Pick wrecks clean and sell what you take.",
         hull: "salvage_hauler",
         kit: (
-            credits: 1800,
+            credits: 1500,
             stock: {
                 "HullPlate": 10,
                 "PdcRound": 3000,
                 "RepairKit": 3,
+                "SectionPanel": 6,
             },
         ),
         jobs: Salvage,
@@ -52,10 +54,12 @@
         about: "A light freighter with a deep stack, a flank pod and no weapons. Buy cargo at one station and sell it at another.",
         hull: "light_freighter",
         kit: (
-            credits: 2000,
+            credits: 2200,
             stock: {
+                "HullPlate": 10,
                 "Rations": 50,
                 "RepairKit": 3,
+                "SectionPanel": 6,
                 "WaterIce": 50,
             },
         ),
@@ -75,11 +79,12 @@
         about: "An interceptor with two point-defense mounts. Hunt armed ships for the price on them.",
         hull: "interceptor",
         kit: (
-            credits: 1600,
+            credits: 1800,
             stock: {
                 "HullPlate": 10,
                 "PdcRound": 3000,
                 "RepairKit": 3,
+                "SectionPanel": 6,
             },
         ),
         jobs: Bounty,
@@ -98,11 +103,12 @@
         about: "A patrol picket with two point-defense mounts and a torpedo bay on light plate. Answer distress calls and escort haulers past the raiders.",
         hull: "patrol_picket",
         kit: (
-            credits: 1000,
+            credits: 1800,
             stock: {
                 "HullPlate": 10,
                 "PdcRound": 3000,
                 "RepairKit": 3,
+                "SectionPanel": 6,
                 "Torpedo": 2,
             },
         ),
@@ -127,6 +133,7 @@
                 "HullPlate": 10,
                 "PdcRound": 3000,
                 "RepairKit": 3,
+                "SectionPanel": 6,
             },
         ),
         jobs: Raid,

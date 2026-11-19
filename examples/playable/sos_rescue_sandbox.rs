@@ -7,7 +7,7 @@
 //! the player lets go and jumps 20 km off the starting station, at rest.
 //!
 //! THE DAMAGE IS DISCLOSED FIXTURE STATE. When the new window has streamed
-//! in, the sandbox puts the interceptor's bridge (`CTL-1`), its three drives
+//! in, the sandbox puts the interceptor's bridge (`CTL-1`), its five drives
 //! and its port collar (`DOCK-1`) at zero, the way the damage path does. The
 //! ship has no drive, no flight computer and no free port, and an armed ship
 //! with its computer lost is neutralized. The SOS offer reads only the

@@ -152,9 +152,8 @@ mod walk {
     /// Seconds a load, a stream or a beat gets on a software-rendered GPU.
     const SESSION_SECS: f32 = 240.0;
     /// Frames a refused berth attempt gets, after the player pulls back,
-    /// before the walk calls it settled. The pull-back comes first: a refused
-    /// hull left at the berth takes contact damage, and an earlier run lost
-    /// the player's docking port to it before the save.
+    /// before the walk calls it settled. The pull-back comes in the frame of
+    /// the request ([`berth_refused_and_stand_off`]).
     const SETTLE_FRAMES: u32 = 10;
     /// The virtual clock's clamp on the software rasterizer.
     const WALK_CLOCK_SECS: f32 = 1.0;
@@ -587,6 +586,17 @@ mod walk {
             entity: player,
             target: station,
         });
+    }
+
+    /// Ask the Enemy station for its berth from the berth pose, then stand
+    /// off in the same frame. The station answers inside the request, so the
+    /// refusal needs no frame at the berth. An Enemy station fires on a hull
+    /// at its berth: one frame there on the software rasterizer took 38
+    /// turret hits and the player's only docking port, and the last dock of
+    /// the walk then had no port to use.
+    fn berth_refused_and_stand_off(world: &mut World) {
+        berth_and_dock(world);
+        park_beside(world);
     }
 
     fn set_field_text(world: &mut World, name: &str, text: &str) {
@@ -1287,12 +1297,8 @@ mod walk {
             .until(shot_written(HUD_SHOT))
             .deadline(SHOT_DEADLINE_SECS)
             .add()
-            .step("civilization stance: a refused berth attempt")
-            .on_enter(berth_and_dock)
-            .until(frames(1))
-            .add()
-            .step("civilization stance: stand off after the refusal")
-            .on_enter(park_beside)
+            .step("civilization stance: a refused berth attempt and the stand-off")
+            .on_enter(berth_refused_and_stand_off)
             .until(frames(SETTLE_FRAMES))
             .deadline(SESSION_SECS)
             .add()

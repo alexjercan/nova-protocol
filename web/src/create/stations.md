@@ -598,18 +598,18 @@ Each slot draws its kind by the start role's `jobs` mix (see
 
 | mix | roles | Procure | Recover | Escort | Distress | Neutralize | Supply |
 |---|---|---|---|---|---|---|---|
-| `Mining` | industrial | 4 | 1 | 0 | 2 | 0 | 5 |
+| `Mining` | industrial | 5 | 1 | 0 | 2 | 0 | 4 |
 | `Salvage` | scavenger | 1 | 6 | 1 | 2 | 1 | 1 |
 | `Trade` | transport; no session | 3 | 1 | 1 | 2 | 0 | 5 |
-| `Bounty` | bounty hunter | 1 | 1 | 2 | 1 | 7 | 0 |
-| `Patrol` | military | 1 | 0 | 4 | 3 | 1 | 3 |
+| `Bounty` | bounty hunter | 2 | 2 | 2 | 2 | 4 | 0 |
+| `Patrol` | military | 2 | 0 | 4 | 1 | 3 | 2 |
 | `Raid` | pirate | 1 | 4 | 0 | 1 | 5 | 1 |
 
 A weight of 0 never draws its kind.
 
 | kind | title | what it asks | reward |
 |---|---|---|---|
-| `Procure` | `Bring 4 Iron ore` | bring that many units of the item to the poster | goods: the stack at the ask plus half |
+| `Procure` | `Bring 8 Iron ore` | bring that many units of the item to the poster | goods: the stack at the ask plus half |
 | `Recover` | `Recover 2 Hull plate from <wreck>` | take that many off the named derelict and undock with them aboard, the wreck's stack gone. The board names a derelict standing in the cube; with none left to name, the job names a wreck of its own, a derelict civilian hull of the poster's civilization that the accept spawns at the end of the job's leg, and one stack of its hold | base 100; goods: half the stack at the ask, at most 2,000 cr; range: the metres from the poster to the wreck at the posting, or the drawn leg of its own wreck |
 | `Escort` | `Escort a hauler carrying 1200 cr` | a working-hull hauler spawns 1 km off the poster on the job's leg and leaves at 100 m/s once you are undocked and within 1 km of it; see it reach its mark. Raiders lie in wait 2.5 km off the leg, 75 % along it, and engage within 3 km; they hunt the hauler and turn on a ship that shoots them for as long as it keeps shooting. The posting draws their count once from its civilization's advancement: 1 below 0.25, 1 or 2 below 0.5, 2 or 3 below 0.75, then 3. Each raider is a scavenger held to a size budget by the same bands: about 40 sections and one turret below 0.25, 68 and two turrets below 0.5, 108 and three below 0.75, with no torpedo bay or lance; then the full hull. The hauler mounts a mirrored pair of its bank's drive, firing aft, as near its primary flight computer as the hull allows, so a split keeps a drive on the piece that keeps the computer | base 200; goods: a quarter of the cargo value; range: the leg; threat: the raiders times the weapons of one raider, which is its band's turret count, or a full scavenger hull's weapon slots in the top band (3 at 0.75, 4 at 1) |
 | `Distress` | `Answer a distress call` | a neutral drifting caller spawns at the end of the job's leg: dock with the caller | base 200; range: the leg |
@@ -665,7 +665,7 @@ The fee is 50 to 250 cr. The sector's clusters pick the item categories a
 
 A `Procure` draws a distinct item from those categories while the pool
 allows (a catalog with none of them draws from every item) and a count of 2
-to 8. A `Recover` names a derelict with a non-empty hold in the cube and one
+to 8 units, or 2 to 8 lots of four units for a `Raw` item: 8 to 32. A `Recover` names a derelict with a non-empty hold in the cube and one
 of its stacks; a `Neutralize` names an intact, un-neutralized Enemy hull in
 the cube. A new offer never names a wreck or hull that a held job, a body a
 held job spawned, or an unexpired offer on any board already names, so two

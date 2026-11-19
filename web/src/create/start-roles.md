@@ -140,20 +140,20 @@ first, so a role that a mod change removed shows `content changed`.
      `start_role_catalog`; prices: assets/base/items/base.content.ron. -->
 
 A kit's worth at ask is its credits plus its items at their `ask_cr` per
-`price_lot`. Without its rounds and repair kits, each unarmed kit is worth
-3,000 cr and each PDC-armed kit 2,000 to 2,200 cr. A PDC-armed hull also
-carries 3,000 `PdcRound` in its shared hold, not per mount: 30 whole lots of
-100 at 10 cr each, so 300 cr at ask. Every kit also carries 3 `RepairKit`,
-360 cr at ask.
+`price_lot`. An unarmed role starts with 2,200 cr, an armed one with
+1,800 cr and the scavenger, whose hull is the dearest, with 1,500 cr. A
+PDC-armed hull also carries 3,000 `PdcRound` in its shared hold, not per
+mount: 30 whole lots of 100 at 10 cr each, so 300 cr at ask. Every kit also
+carries 3 `RepairKit`, 360 cr at ask, and 6 `SectionPanel`, 120 cr at ask.
 
 | id | hull | kit |
 |---|---|---|
-| `industrial` | `mining_tug` | 2,200 cr, 15 `HullPlate`, 25 `Rations`, 3 `RepairKit` |
-| `scavenger` | `salvage_hauler` | 1,800 cr, 3,000 `PdcRound`, 10 `HullPlate`, 3 `RepairKit` |
-| `transport` | `light_freighter` | 2,000 cr, 50 `Rations`, 50 `WaterIce`, 3 `RepairKit` |
-| `bounty_hunter` | `interceptor` | 1,600 cr, 3,000 `PdcRound`, 10 `HullPlate`, 3 `RepairKit` |
-| `military` | `patrol_picket` | 1,000 cr, 2 `Torpedo`, 3,000 `PdcRound`, 10 `HullPlate`, 3 `RepairKit` |
-| `pirate` | `raider` | 1,800 cr, 3,000 `PdcRound`, 10 `HullPlate`, 3 `RepairKit` |
+| `industrial` | `mining_tug` | 2,200 cr, 15 `HullPlate`, 25 `Rations`, 6 `SectionPanel`, 3 `RepairKit` |
+| `scavenger` | `salvage_hauler` | 1,500 cr, 3,000 `PdcRound`, 10 `HullPlate`, 6 `SectionPanel`, 3 `RepairKit` |
+| `transport` | `light_freighter` | 2,200 cr, 50 `Rations`, 50 `WaterIce`, 10 `HullPlate`, 6 `SectionPanel`, 3 `RepairKit` |
+| `bounty_hunter` | `interceptor` | 1,800 cr, 3,000 `PdcRound`, 10 `HullPlate`, 6 `SectionPanel`, 3 `RepairKit` |
+| `military` | `patrol_picket` | 1,800 cr, 2 `Torpedo`, 3,000 `PdcRound`, 10 `HullPlate`, 6 `SectionPanel`, 3 `RepairKit` |
+| `pirate` | `raider` | 1,800 cr, 3,000 `PdcRound`, 10 `HullPlate`, 6 `SectionPanel`, 3 `RepairKit` |
 
 The roles are generated into `assets/base/roles/base.content.ron`.
 

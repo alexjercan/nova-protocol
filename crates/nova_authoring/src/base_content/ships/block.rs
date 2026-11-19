@@ -386,7 +386,8 @@ pub(super) fn freighter_derelict() -> BlockShip {
 
 /// The bounty hunter start: a compact two-deck body of light plate with stub
 /// wings, two point-defense mounts on the top deck, a cargo intake aft of
-/// them and three bell drives.
+/// them and five bell drives: three across the stern and one on each wing
+/// tip. It out-accelerates every other armed start.
 pub(super) fn interceptor() -> BlockShip {
     BlockShip {
         cells: union(vec![
@@ -417,6 +418,16 @@ pub(super) fn interceptor() -> BlockShip {
                 DRIVE_STARBOARD_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
                 IVec3::new(1, 0, 2),
+            ),
+            cell_part(
+                "drive_wing_port",
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(-2, 0, 2),
+            ),
+            cell_part(
+                "drive_wing_starboard",
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(2, 0, 2),
             ),
             flank_collar(
                 BLOCK_PORT_COLLAR_SECTION_ID,
@@ -487,12 +498,16 @@ pub(super) fn raider() -> BlockShip {
 /// The military start: a slim dart of light plate with one
 /// point-defense mount on the nose face, where the hull cannot mask its
 /// forward arc, a second mount on the dorsal spine, a torpedo bay under the
-/// nose, a cargo intake on the aft deck and two bell drives.
+/// nose, a cargo intake on the aft deck, an aft strake of three cells on
+/// each flank and three bell drives. It stays the armed start with the
+/// least hull to lose.
 pub(super) fn patrol_picket() -> BlockShip {
     BlockShip {
         cells: union(vec![
             block(IVec3::new(-1, 0, -2), IVec3::new(3, 1, 6)),
             block(IVec3::new(0, 1, -2), IVec3::new(1, 1, 2)),
+            block(IVec3::new(-2, 0, 1), IVec3::new(1, 1, 3)),
+            block(IVec3::new(2, 0, 1), IVec3::new(1, 1, 3)),
             vec![IVec3::new(0, 0, -3)],
         ]),
         specials: vec![
@@ -523,6 +538,11 @@ pub(super) fn patrol_picket() -> BlockShip {
                 DRIVE_PORT_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
                 IVec3::new(-1, 0, 3),
+            ),
+            cell_part(
+                DRIVE_CENTRE_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(0, 0, 3),
             ),
             cell_part(
                 DRIVE_STARBOARD_SECTION_ID,

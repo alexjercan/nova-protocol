@@ -51,13 +51,13 @@ use nova_gameplay::prelude::{
     GamePriceTable, GameTradeProfiles, ItemDesignId, ItemTradeType, Job, JobField,
     JobHandInPartner, JobHullFit, JobId, JobKindType, JobPostings, JobType, Jobs,
     NeutralizedMarker, PlayerSpaceshipMarker, PriceTable, RailgunSectionMarker, SectionMarker,
-    ShipInventory, SlotDraw, SpaceshipRootMarker, StationMarker, StationServiceType,
+    ShipInventory, SlotDraw, SpaceshipRootMarker, StanceType, StationMarker, StationServiceType,
     StationServices, TorpedoSectionMarker, TradePriceType, TraderMarket, TurretSectionMarker,
-    WorldClock, JOBS_PER_BOARD,
+    WorldClock, JOBS_PER_BOARD, OFFENCE_STEP,
 };
 use nova_scenario::prelude::{
-    resolve_ship_design, GameShipDesigns, GameStartRoles, OpenWorldSession, ShipDesignSource,
-    StartRole, StartingStation,
+    ore_for_asteroid_kind, resolve_ship_design, GameShipDesigns, GameStartRoles, OpenWorldSession,
+    RoleGoalType, ShipDesignSource, StartRole, StartingStation,
 };
 use nova_ship::prelude::{
     hull_price_cr, AmmoCapacity, DockingSectionMarker, GameSections, GameStyles, SectionKind,
@@ -69,8 +69,8 @@ use nova_world::prelude::{
     WorldGeometry,
 };
 use nova_world_base::prelude::{
-    goal_progress, post_station_boards, starting_station, CivilizationField, FieldBodies,
-    GoalFacts, NovaLayeredWorld, PlayerHull, HAULER_CRUISE, OPEN_WORLD_ACTIVE_RADIUS,
+    goal_progress, post_station_boards, seeded_stance, starting_station, CivilizationField,
+    FieldBodies, GoalFacts, NovaLayeredWorld, PlayerHull, HAULER_CRUISE, OPEN_WORLD_ACTIVE_RADIUS,
     OPEN_WORLD_SECTOR_EDGE,
 };
 
@@ -89,6 +89,19 @@ const DOCK_ALLOWANCE_S: f64 = 60.0;
 
 /// Where the greedy model stops: fifteen minutes of paper time.
 const HORIZON_S: f64 = 900.0;
+
+/// The paper seconds one hostile hull costs: closing from the raider's
+/// leash, tracking it and breaking it. An assumption, not a measurement.
+/// Content gives no figure: a start-band raider's health over the raw
+/// damage rate of two point-defence mounts is a few seconds, and the
+/// measured ammunition ledger (582 and 1,971 rounds for one raider) is 3 to
+/// 10 s of trigger time, so the trigger is not what bounds a fight.
+const FIGHT_S_PER_HOSTILE: f64 = 60.0;
+
+/// The paper seconds to stop at a rock, open the emitter, line the beam up
+/// and wait out the first pulse, which seeds the rock's field and takes
+/// nothing. An assumption, not a measurement.
+const MINING_SETUP_S: f64 = 30.0;
 
 /// The most jobs one greedy run hands in. A docked procurement costs no
 /// paper time, so only this bounds a run that never leaves the station.
@@ -137,6 +150,8 @@ struct RoleHull {
     torpedo_bays: usize,
     railguns: usize,
     miners: usize,
+    /// The first mining beam on the hull.
+    beam: Option<Beam>,
     hull_cr: u64,
     stock_cr: u64,
     credits: u32,
@@ -147,6 +162,24 @@ struct RoleHull {
     /// Each section's markers as [`PlayerHull`] reads them: clamp, turret,
     /// torpedo bay, railgun.
     marks: Vec<[bool; 4]>,
+}
+
+/// A mining beam as the section's config states it.
+#[derive(Clone, Copy)]
+struct Beam {
+    reach_m: f64,
+    pulse_s: f64,
+    /// The ore one pulse into fresh rock is modelled to yield: one item a
+    /// field corner, and half the carve sphere's volume in cells, since the
+    /// beam meets a surface.
+    ore_per_pulse: u32,
+}
+
+impl Beam {
+    /// The paper seconds to mine `count` items once the hull is at the rock.
+    fn mine_s(&self, count: u32) -> f64 {
+        MINING_SETUP_S + f64::from(count.div_ceil(self.ore_per_pulse)) * self.pulse_s
+    }
 }
 
 impl RoleHull {
@@ -165,7 +198,12 @@ impl RoleHull {
 
     /// The flip-and-burn seconds over `leg_m` from rest to rest.
     fn burn_s(&self, leg_m: u32) -> f64 {
-        2.0 * (f64::from(leg_m) / self.accel).sqrt()
+        self.burn_over_s(f64::from(leg_m))
+    }
+
+    /// [`RoleHull::burn_s`] over a distance that is no posted leg.
+    fn burn_over_s(&self, metres: f64) -> f64 {
+        2.0 * (metres / self.accel).sqrt()
     }
 }
 
@@ -187,6 +225,55 @@ struct SeedWorld {
     ships: Vec<Vec<ShipFacts>>,
     /// The start station's hold capacity, off its hull design.
     station_hold_g: u32,
+    /// Per ore, the metres from the start station to the nearest rock of
+    /// its cell that yields it, less the rock's authored radius.
+    rocks: BTreeMap<ItemDesignId, f64>,
+    /// Every intact ship of the window that trades: the hulls the Outlaw
+    /// goal counts when the player neutralizes them.
+    prey: Vec<Prey>,
+    /// Where the start station stands, in metres.
+    station_at: Vec3,
+    /// The hulls of the start station's civilization the player may take
+    /// before the next one steps it to Enemy and its stations refuse the
+    /// dock: [`OFFENCE_STEP`] a step from the seeded stance, less one.
+    home_spare: u32,
+}
+
+/// One trading hull of the window.
+#[derive(Clone, Copy)]
+struct Prey {
+    /// Where the manifest puts it, in metres. Traffic moves after that.
+    at: Vec3,
+    /// It belongs to the start station's civilization.
+    home: bool,
+}
+
+/// A hunt-only paper run of the hull whose goal counts hulls taken: from
+/// the start station to the nearest trading hull, then the nearest left,
+/// one flip-and-burn and one fight each, no dock.
+#[derive(Clone, Copy)]
+struct Hunt {
+    prey: usize,
+    prey_home: usize,
+    nearest_m: Option<f64>,
+    /// Hulls taken inside the horizon.
+    taken: u32,
+    /// Of those, hulls of the start station's civilization.
+    taken_home: u32,
+    /// The paper seconds at the third hull, however late.
+    three_s: Option<f64>,
+    /// Hulls taken inside the horizon by a run that keeps its dock: it
+    /// passes over a hull of the start station's civilization once
+    /// `home_spare` of them are taken.
+    kept_taken: u32,
+    /// The paper seconds at that run's third hull, however late.
+    kept_three_s: Option<f64>,
+    /// The paper seconds when that run is back off the start station with
+    /// two hulls taken.
+    two_back_s: Option<f64>,
+    /// The credits gained and the jobs handed in by the split run: two
+    /// hulls first, then the greedy run on what is left of the horizon.
+    split: Option<(f64, f64)>,
 }
 
 /// The start station as every role of one seed finds it.
@@ -232,7 +319,9 @@ enum FillType {
     Kit,
     /// The station sells the stack and the player can pay and stow it.
     Station,
-    /// Neither: the goods are not to be had while docked.
+    /// The hull's beam cuts the stack from a rock of the station's cell.
+    Mined,
+    /// None of these: the goods are not to be had.
     Short,
 }
 
@@ -378,6 +467,8 @@ struct SeedMeasure {
     seed: u32,
     start: StartFacts,
     roles: Vec<RoleMeasure>,
+    /// The hunt-only run of each role whose goal counts hulls taken.
+    hunts: Vec<(usize, Hunt)>,
 }
 
 /// A live mirror of one seed's window with the real board pass in `Update`.
@@ -483,6 +574,7 @@ fn role_hull(
         torpedo_bays: 0,
         railguns: 0,
         miners: 0,
+        beam: None,
         hull_cr: hull_price_cr(
             items,
             design
@@ -532,7 +624,16 @@ fn role_hull(
                 hull.railguns += 1;
                 mark[3] = true;
             }
-            SectionKind::Mining(_) => hull.miners += 1,
+            SectionKind::Mining(beam) => {
+                hull.miners += 1;
+                let radius = f64::from(beam.carve_radius_cells);
+                hull.beam.get_or_insert(Beam {
+                    reach_m: f64::from(beam.reach.get()),
+                    pulse_s: f64::from(beam.pulse_interval_seconds),
+                    ore_per_pulse: ((2.0 / 3.0) * std::f64::consts::PI * radius.powi(3)).floor()
+                        as u32,
+                });
+            }
             SectionKind::Hull(_)
             | SectionKind::Thruster(_)
             | SectionKind::Controller(_)
@@ -617,12 +718,45 @@ fn seed_world(catalog: &Catalog, seed: u32) -> Result<SeedWorld, String> {
         &station.id,
     )
     .cargo_capacity_g();
+    let home = manifests
+        .iter()
+        .find(|manifest| manifest.stations.iter().any(|other| other.id == start.id))
+        .expect("the start station's cell is in the window");
+    let station_at = station.position.get();
+    let mut rocks: BTreeMap<ItemDesignId, f64> = BTreeMap::new();
+    for rock in &home.asteroids {
+        let Some(ore) = ore_for_asteroid_kind(&rock.config.kind) else {
+            continue;
+        };
+        let off = f64::from((rock.position.get() - station_at).length() - rock.config.radius.get())
+            .max(0.0);
+        let nearest = rocks.entry(ore.id().into()).or_insert(f64::INFINITY);
+        *nearest = nearest.min(off);
+    }
+    let prey = manifests
+        .iter()
+        .flat_map(|manifest| &manifest.ships)
+        .filter(|ship| ship.market.is_some())
+        .map(|ship| Prey {
+            at: ship.position.get(),
+            home: ship.civilization == station.civilization,
+        })
+        .collect();
+    let home_spare = match seeded_stance(&station.civilization) {
+        StanceType::Ally => 2 * OFFENCE_STEP - 1,
+        StanceType::Neutral => OFFENCE_STEP - 1,
+        StanceType::Enemy => 0,
+    };
     Ok(SeedWorld {
         seed,
         start,
         manifests,
         ships,
         station_hold_g,
+        rocks,
+        prey,
+        station_at,
+        home_spare,
     })
 }
 
@@ -853,6 +987,10 @@ fn spawn_cell(catalog: &Catalog, world: &SeedWorld, cell: usize, mirror: &mut Mi
         if derelict {
             entity.insert(DerelictShipMarker);
         }
+        // The spawn puts an intact ship's market on its root.
+        if let Some(market) = &ship.market {
+            entity.insert(market.clone());
+        }
         let entity = entity.id();
         mirror.bodies.insert(ship.id.clone(), entity);
         // A derelict's weapons spawn inactive; the field counts live ones.
@@ -1001,17 +1139,16 @@ fn kind_of(job: &Job) -> JobKindType {
     }
 }
 
-/// The role's own goal line over `completed`, the first of its progress:
-/// what it has and what it asks for. No hull is taken, so the line of a
-/// goal that counts hulls stays at 0.
-fn goal_count(catalog: &Catalog, role: usize, completed: &[Job]) -> (u64, u64) {
+/// The role's own goal line over `completed` and `hulls_taken`, the first
+/// of its progress: what it has and what it asks for.
+fn goal_count(catalog: &Catalog, role: usize, completed: &[Job], hulls_taken: u64) -> (u64, u64) {
     let progress = goal_progress(
         &catalog.roles[role].goal,
         &GoalFacts {
             completed,
             owned_stations: 0,
             items: &catalog.items,
-            hulls_taken: 0,
+            hulls_taken,
         },
     );
     let own = progress
@@ -1019,6 +1156,78 @@ fn goal_count(catalog: &Catalog, role: usize, completed: &[Job]) -> (u64, u64) {
         .first()
         .expect("a goal's progress opens with the role's own line");
     (own.have, own.need)
+}
+
+/// Whether neutralizing the hull of `job` takes a trading hull: a Neutralize
+/// of a hull that stood in the field. Every field hostile is an intact
+/// generated ship, which carries a market; a job's own raider carries none.
+fn takes_trading_hull(job: &Job) -> bool {
+    matches!(job.kind, JobType::Neutralize { .. }) && !job.spawns_target()
+}
+
+/// One hunt-only chain of `hull` over the trading hulls of `world`: the
+/// hulls taken inside the horizon, of them the start civilization's, the
+/// metres to the first and the paper seconds at the third. With
+/// `home_spare` the chain passes over a hull of the start civilization once
+/// that many are taken.
+fn hunt_chain(
+    hull: &RoleHull,
+    world: &SeedWorld,
+    home_spare: Option<u32>,
+) -> (u32, u32, Option<f64>, Option<f64>, Option<f64>) {
+    let mut left: Vec<Prey> = world.prey.clone();
+    let mut at = world.station_at;
+    let (mut clock, mut home, mut taken, mut taken_home) = (0.0, 0, 0, 0);
+    let (mut nearest_m, mut three_s, mut two_back_s) = (None, None, None);
+    for step in 0..3 {
+        left.retain(|prey| !prey.home || home_spare.is_none_or(|spare| home < spare));
+        let Some((next, off)) = left
+            .iter()
+            .enumerate()
+            .map(|(next, prey)| (next, f64::from((prey.at - at).length())))
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+        else {
+            break;
+        };
+        if step == 0 {
+            nearest_m = Some(off);
+        }
+        let prey = left.swap_remove(next);
+        at = prey.at;
+        home += u32::from(prey.home);
+        clock += hull.burn_over_s(off) + FIGHT_S_PER_HOSTILE;
+        if clock <= HORIZON_S {
+            taken += 1;
+            taken_home += u32::from(prey.home);
+        }
+        if step == 1 {
+            let back_m = f64::from((at - world.station_at).length());
+            two_back_s = Some(clock + hull.burn_over_s(back_m));
+        }
+        if step == 2 {
+            three_s = Some(clock);
+        }
+    }
+    (taken, taken_home, nearest_m, three_s, two_back_s)
+}
+
+/// The hunt-only paper runs of `hull` over the trading hulls of `world`.
+fn hunt(hull: &RoleHull, world: &SeedWorld) -> Hunt {
+    let (taken, taken_home, nearest_m, three_s, _) = hunt_chain(hull, world, None);
+    let (kept_taken, _, _, kept_three_s, two_back_s) =
+        hunt_chain(hull, world, Some(world.home_spare));
+    Hunt {
+        prey: world.prey.len(),
+        prey_home: world.prey.iter().filter(|prey| prey.home).count(),
+        nearest_m,
+        taken,
+        taken_home,
+        three_s,
+        kept_taken,
+        kept_three_s,
+        two_back_s,
+        split: None,
+    }
 }
 
 /// The station's price of `item` at its stock now.
@@ -1040,6 +1249,7 @@ fn quote(
 /// stand: its goods, their cost and its paper time.
 fn judge(
     catalog: &Catalog,
+    world: &SeedWorld,
     role: usize,
     fit: JobHullFit,
     job: &Job,
@@ -1086,8 +1296,20 @@ fn judge(
     let burn = hull.burn_s(job.leg_m);
     let (goods, cost_cr, kept_cr, paper_s) = match &job.kind {
         JobType::Procure { item, count } => {
-            let (goods, cost_cr) = stocked(item, *count);
-            let paper = (goods.fill != FillType::Short).then_some(0.0);
+            let (mut goods, cost_cr) = stocked(item, *count);
+            let mut paper = (goods.fill != FillType::Short).then_some(0.0);
+            // The beam cuts what the kit and the station lack: out to the
+            // nearest rock of the cell that yields the ore, the cut, back
+            // and one dock.
+            let room =
+                items.design(item).stack_mass_g(*count) <= u64::from(purse.hold.free_g(items));
+            if let (FillType::Short, Some(beam), Some(off), true) =
+                (goods.fill, hull.beam, world.rocks.get(item), room)
+            {
+                let flight = hull.burn_over_s((off - beam.reach_m).max(0.0));
+                goods.fill = FillType::Mined;
+                paper = Some(2.0 * flight + beam.mine_s(*count) + dock);
+            }
             (Some(goods), cost_cr, 0, paper)
         }
         JobType::Supply { item, count, .. } => {
@@ -1107,13 +1329,18 @@ fn judge(
             )
         }
         JobType::Distress { .. } => (None, 0, 0, Some(2.0 * burn + 2.0 * dock)),
-        JobType::Escort { .. } => (
+        JobType::Escort { raiders, .. } => (
             None,
             0,
             0,
-            Some(f64::from(job.leg_m) / f64::from(HAULER_CRUISE.0) + burn + dock),
+            Some(
+                f64::from(job.leg_m) / f64::from(HAULER_CRUISE.0)
+                    + f64::from(*raiders) * FIGHT_S_PER_HOSTILE
+                    + burn
+                    + dock,
+            ),
         ),
-        JobType::Neutralize { .. } => (None, 0, 0, Some(2.0 * burn + dock)),
+        JobType::Neutralize { .. } => (None, 0, 0, Some(2.0 * burn + FIGHT_S_PER_HOSTILE + dock)),
     };
     let (posting, slot) = job
         .id
@@ -1128,7 +1355,13 @@ fn judge(
         spawned: job.spawns_target(),
         redrawn: kind_of(job) != drawn,
         fits: plan_job_hull_fit(job, items, fit).is_ok(),
-        goal: goal_count(catalog, role, std::slice::from_ref(job)).0 > 0,
+        goal: goal_count(
+            catalog,
+            role,
+            std::slice::from_ref(job),
+            u64::from(takes_trading_hull(job)),
+        )
+        .0 > 0,
         goods,
         cost_cr,
         kept_cr,
@@ -1223,7 +1456,7 @@ fn board_census(
             if posting == 0 && SHOWN_SEEDS.contains(&world.seed) {
                 titles.push(job.title(&catalog.items));
             }
-            let row = judge(catalog, role, fit, job, drawn, &purse, &counter);
+            let row = judge(catalog, world, role, fit, job, drawn, &purse, &counter);
             check_row(world.seed, &row, &field);
             rows.push(row);
         }
@@ -1232,17 +1465,25 @@ fn board_census(
 }
 
 /// The greedy model of one role on one seed.
-fn greedy(catalog: &Catalog, world: &SeedWorld, role: usize, advancement: f32) -> Greedy {
+fn greedy(
+    catalog: &Catalog,
+    world: &SeedWorld,
+    role: usize,
+    advancement: f32,
+    head_s: f64,
+) -> Greedy {
     let (mut mirror, ..) = stream(catalog, world, role);
     let fit = hull_fit(&mut mirror.app);
     let (mut purse, mut counter) = opening(catalog, world, role);
     let items = &catalog.items;
     let mix = catalog.roles[role].jobs;
-    // The player spawns off the station and docks once before any accept.
-    let mut clock = DOCK_ALLOWANCE_S;
+    // The player spawns off the station and docks once before any accept,
+    // `head_s` after the start.
+    let mut clock = head_s + DOCK_ALLOWANCE_S;
     let mut done: Vec<Done> = Vec::new();
     let mut sales_cr = 0;
     let mut first_payout_s = None;
+    let mut hulls_taken = 0;
     let stop = loop {
         if done.len() >= GREEDY_JOB_CAP {
             break StopType::JobCap;
@@ -1261,7 +1502,7 @@ fn greedy(catalog: &Catalog, world: &SeedWorld, role: usize, advancement: f32) -
                 continue;
             }
             let drawn = SlotDraw::of(world.seed, &job.id, mix, advancement).kind;
-            let row = judge(catalog, role, fit, &job, drawn, &purse, &counter);
+            let row = judge(catalog, world, role, fit, &job, drawn, &purse, &counter);
             let stage = if !row.fits {
                 StopType::NothingFits
             } else if row.paper_s.is_none() {
@@ -1296,13 +1537,15 @@ fn greedy(catalog: &Catalog, world: &SeedWorld, role: usize, advancement: f32) -
             | JobType::Distress { .. }
             | JobType::Neutralize { .. } => None,
         };
-        if let (Some((item, count)), Some(FillType::Station)) =
-            (goods, row.goods.as_ref().map(|goods| goods.fill))
-        {
-            purse.hold.add(items, item, count);
-            counter.stock.remove(item, count);
-            purse.credits -= row.cost_cr;
-            counter.credits += row.cost_cr;
+        match (goods, row.goods.as_ref().map(|goods| goods.fill)) {
+            (Some((item, count)), Some(FillType::Station)) => {
+                purse.hold.add(items, item, count);
+                counter.stock.remove(item, count);
+                purse.credits -= row.cost_cr;
+                counter.credits += row.cost_cr;
+            }
+            (Some((item, count)), Some(FillType::Mined)) => purse.hold.add(items, item, count),
+            _ => {}
         }
         mirror
             .app
@@ -1333,12 +1576,19 @@ fn greedy(catalog: &Catalog, world: &SeedWorld, role: usize, advancement: f32) -
             JobType::Neutralize { hull, .. } => {
                 if !job.spawns_target() {
                     let hull = mirror.bodies[hull];
+                    assert!(
+                        mirror.app.world().get::<TraderMarket>(hull).is_some(),
+                        "seed {}: the field hostile of '{}' trades",
+                        world.seed,
+                        job.id
+                    );
                     mirror
                         .app
                         .world_mut()
                         .entity_mut(hull)
                         .insert(NeutralizedMarker);
                 }
+                hulls_taken += u64::from(takes_trading_hull(job));
             }
             JobType::Escort { .. } | JobType::Distress { .. } => {}
         }
@@ -1406,6 +1656,7 @@ fn greedy(catalog: &Catalog, world: &SeedWorld, role: usize, advancement: f32) -
         catalog,
         role,
         mirror.app.world().resource::<Jobs>().completed(),
+        hulls_taken,
     );
     Greedy {
         end_cr: purse.credits,
@@ -1433,14 +1684,45 @@ fn measure_seed(catalog: &Catalog, seed: u32) -> Result<SeedMeasure, String> {
             RoleMeasure {
                 cells_live,
                 field,
-                goal_all: goal_count(catalog, role, &fitting),
-                greedy: greedy(catalog, &world, role, start.advancement),
+                goal_all: goal_count(
+                    catalog,
+                    role,
+                    &fitting,
+                    fitting.iter().filter(|job| takes_trading_hull(job)).count() as u64,
+                ),
+                greedy: greedy(catalog, &world, role, start.advancement, 0.0),
                 rows,
                 titles,
             }
         })
         .collect();
-    Ok(SeedMeasure { seed, start, roles })
+    let hunts = catalog
+        .roles
+        .iter()
+        .enumerate()
+        .filter(|(_, role)| matches!(role.goal.kind, RoleGoalType::Outlaw { .. }))
+        .map(|(role, _)| {
+            let hull = &catalog.hulls[role];
+            let mut hunt = hunt(hull, &world);
+            hunt.split = hunt
+                .two_back_s
+                .filter(|head_s| head_s + DOCK_ALLOWANCE_S < HORIZON_S)
+                .map(|head_s| {
+                    let run = greedy(catalog, &world, role, start.advancement, head_s);
+                    (
+                        f64::from(run.end_cr) - f64::from(hull.credits),
+                        run.done.len() as f64,
+                    )
+                });
+            (role, hunt)
+        })
+        .collect();
+    Ok(SeedMeasure {
+        seed,
+        start,
+        roles,
+        hunts,
+    })
 }
 
 // --- The report -----------------------------------------------------------
@@ -1576,7 +1858,17 @@ fn quickest_row(rows: &[&Row]) -> Option<Row> {
 }
 
 /// One line of the cross-role summary.
+/// The four numbers the roles are held even on.
+struct Band {
+    gain: f64,
+    first_payout_s: Option<f64>,
+    goal: f64,
+    need: u64,
+    no_job: f64,
+}
+
 struct Summary {
+    band: Band,
     role: String,
     cells: Vec<String>,
 }
@@ -1668,8 +1960,23 @@ fn report_header(out: &mut String, catalog: &Catalog, measured: usize, refused: 
          - Visit postings, scenario postings, hails and encounters do not exist here. No \
          stance changes. No restock.\n\
          - Goal: a row counts when `goal_progress` over that one job alone moves the role's \
-         own line, the first. Stations owned is 0 and hulls taken is 0, so no row counts for a \
-         goal that reads hulls taken.\n",
+         own line, the first. Stations owned is 0. For a goal that reads hulls taken, a \
+         Neutralize of a hull that stood in the field counts as one hull taken: every field \
+         hostile is an intact generated ship and carries a market. A job's own raider carries \
+         none and does not count. The cross-role goal count of such a role is a hunt-only \
+         paper run: from the start station to the nearest trading hull of the window \
+         (an intact ship with a market, at its manifest position), then the nearest left, one \
+         flip and burn and one fight each, no dock, no job. The run that counts keeps its \
+         dock: {OFFENCE_STEP} hulls of one civilization inside the offence window step it one \
+         stance down and an Enemy station refuses the dock, so that run passes over a hull of \
+         the start station's civilization once the next one would step it to Enemy from its \
+         seeded stance. The free run, which takes the nearest hull whatever its side, is \
+         listed beside it. A hunt earns nothing, so it is an upper bound beside the greedy \
+         run, not a part of it. The split run joins the two: the first two hulls of the run \
+         that keeps its dock, one flip and burn back to the start station, then the greedy \
+         run on what is left of the horizon; its goal count is 2. Traffic moves after the manifest, the steps a kill passes to \
+         a neighbour civilization are not applied, and a trading hull's own weapons and \
+         escorts are not read.\n",
         rule.offer_seconds.max(rule.escort_offer_seconds) + 1.0,
         rule.offer_seconds,
         rule.escort_offer_seconds,
@@ -1686,15 +1993,32 @@ fn report_header(out: &mut String, catalog: &Catalog, measured: usize, refused: 
          | kind | paper seconds from accept to payout |\n\
          |---|---|\n\
          | Procure | 0 when the kit holds the stack or the station sells it and the player can \
-         pay and stow it; else not doable (mining and trade elsewhere are not modelled) |\n\
+         pay and stow it; else, for a hull with a mining beam, a stack of an ore a rock of \
+         the station's cell yields and the free hold takes: 2 t(rock) + cut + 1 dock; else \
+         not doable (trade elsewhere is not modelled) |\n\
          | Supply | 2 t(leg) + 2 docks, with the stack from the kit or the station; else not \
          doable |\n\
          | Recover | 2 t(leg) + 2 docks; not doable when the stack does not fit the free hold |\n\
          | Distress | 2 t(leg) + 2 docks |\n\
-         | Escort | leg / {} m/s (the hauler's cruise, `HAULER_CRUISE`) + t(leg) + 1 dock |\n\
-         | Neutralize | 2 t(leg) + 1 dock |\n\n\
-         No combat time, no losses, no ammunition spent: an Escort and a Neutralize cost only \
-         their legs. Net pay is the reward less the goods bought at the station's ask; a stack \
+         | Escort | leg / {} m/s (the hauler's cruise, `HAULER_CRUISE`) + raiders x fight + \
+         t(leg) + 1 dock |\n\
+         | Neutralize | 2 t(leg) + fight + 1 dock |\n\n\
+         Fight: {FIGHT_S_PER_HOSTILE} s a hostile hull (`FIGHT_S_PER_HOSTILE`, an assumption, \
+         not a measurement). Content does not give it: a start-band raider's health over two \
+         point-defence mounts' raw damage rate is a few seconds, and the measured ammunition \
+         ledger (582 and 1,971 rounds for one raider) is 3 to 10 s of trigger time, so closing \
+         and tracking bound a fight, and no content field states those. A hull with no weapon \
+         section is refused such rows by the hull gate. No losses, no hull damage, no deaths \
+         and no ammunition spent are modelled.\n\n\
+         Mining: rock is the metres from the start station to the nearest asteroid of its cell \
+         whose kind yields the ore (`ore_for_asteroid_kind`), less the rock's authored radius \
+         and the beam's reach. The cut is {MINING_SETUP_S} s (`MINING_SETUP_S`, an assumption: \
+         stop, open the emitter, aim, and the first pulse, which takes nothing) plus one pulse \
+         interval for every pulse, each pulse yielding half the carve sphere's volume in cells \
+         as items (one item a field corner; the beam meets a surface). The rendered rock is \
+         larger than its authored radius, so the flight is an upper bound. A hull with no \
+         beam cannot fill such a row.\n\n\
+         Net pay is the reward less the goods bought at the station's ask; a stack \
          from the kit costs 0. A recovered stack stays with the player and is not in net pay.\n",
         Time::<Fixed>::default().timestep().as_secs_f64(),
         HAULER_CRUISE.0,
@@ -1714,7 +2038,7 @@ fn report_header(out: &mut String, catalog: &Catalog, measured: usize, refused: 
          bid when the market takes it; that sale is listed apart. A Neutralize marks its hull \
          neutralized. A spawned target has no body here: its stack goes to the player and its \
          raider counts as neutralized. A run stops at {GREEDY_JOB_CAP} jobs. Escort and Neutralize income is \
-         listed apart because the model gives them no combat time and no losses.\n"
+         listed apart because the model gives them a flat fight time and no losses.\n"
     );
 }
 
@@ -2016,7 +2340,7 @@ fn report_role(out: &mut String, catalog: &Catalog, role: usize, seeds: &[SeedMe
     };
     let _ = writeln!(
         out,
-        "{}\n{}\n{}\n{}\n{}\n{}\n{}\n",
+        "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n",
         goods_line("rows", &|rows| rows.len().to_string()),
         goods_line("kit holds the stack", &|rows| of(rows, |goods| goods
             .kit_holds)),
@@ -2029,7 +2353,10 @@ fn report_role(out: &mut String, catalog: &Catalog, role: usize, seeds: &[SeedMe
         goods_line("bought at the station", &|rows| of(rows, |goods| {
             goods.fill == FillType::Station
         })),
-        goods_line("not to be had while docked", &|rows| of(rows, |goods| {
+        goods_line("cut with the hull's beam", &|rows| of(rows, |goods| {
+            goods.fill == FillType::Mined
+        })),
+        goods_line("not to be had", &|rows| of(rows, |goods| {
             goods.fill == FillType::Short
         })),
         goods_line(
@@ -2219,7 +2546,97 @@ fn report_role(out: &mut String, catalog: &Catalog, role: usize, seeds: &[SeedMe
             .join(", "),
     );
 
+    // A goal that counts hulls taken is measured by the hunt-only run: the
+    // board posts no row for it unless a hostile stands in the field.
+    let hunted: Vec<Hunt> = seeds
+        .iter()
+        .flat_map(|seed| &seed.hunts)
+        .filter(|(hunter, _)| *hunter == role)
+        .map(|(_, hunt)| *hunt)
+        .collect();
+    if !hunted.is_empty() {
+        let of = |get: &dyn Fn(&Hunt) -> Option<f64>| -> Vec<f64> {
+            hunted.iter().filter_map(|hunt| get(hunt)).collect()
+        };
+        let _ = writeln!(
+            out,
+            "| hunt-only paper run | value |\n|---|---|\n\
+             | trading hulls in the window, quartiles | {} |\n\
+             | of those, hulls of the start station's civilization, quartiles | {} |\n\
+             | metres to the nearest, quartiles | {} |\n\
+             | hulls taken inside {HORIZON_S} s, quartiles | {} |\n\
+             | of those, hulls of the start station's civilization, quartiles | {} |\n\
+             | seeds with no hull taken | {} |\n\
+             | paper s at the third hull, quartiles | {} |\n\
+             | seeds with fewer than three trading hulls in the window | {} |\n\
+             | hulls taken inside {HORIZON_S} s by a run that keeps its dock, quartiles | {} |\n\
+             | that run: seeds with 0 / 1 / 2 / 3 hulls taken | {} |\n\
+             | that run: paper s at the third hull, quartiles | {} |\n\
+             | that run: seeds with no third hull to take | {} |\n\
+             | split run, two hulls then the board: paper s back at the station, quartiles | {} |\n\
+             | split run: gain cr at 15 min, quartiles | {} |\n\
+             | split run: jobs handed in, quartiles | {} |\n\
+             | split run: seeds with no second hull to take | {} |\n\
+             | board goal count at 15 min in the greedy run, quartiles | {} |\n",
+            quartiles(of(&|hunt| Some(hunt.prey as f64))),
+            quartiles(of(&|hunt| Some(hunt.prey_home as f64))),
+            quartiles(of(&|hunt| hunt.nearest_m)),
+            quartiles(of(&|hunt| Some(f64::from(hunt.taken)))),
+            quartiles(of(&|hunt| Some(f64::from(hunt.taken_home)))),
+            share(hunted.iter().filter(|hunt| hunt.taken == 0).count(), n),
+            quartiles(of(&|hunt| hunt.three_s)),
+            share(
+                hunted.iter().filter(|hunt| hunt.three_s.is_none()).count(),
+                n
+            ),
+            quartiles(of(&|hunt| Some(f64::from(hunt.kept_taken)))),
+            (0..=3)
+                .map(|count| share(
+                    hunted
+                        .iter()
+                        .filter(|hunt| hunt.kept_taken == count)
+                        .count(),
+                    n
+                ))
+                .collect::<Vec<_>>()
+                .join(" / "),
+            quartiles(of(&|hunt| hunt.kept_three_s)),
+            share(
+                hunted
+                    .iter()
+                    .filter(|hunt| hunt.kept_three_s.is_none())
+                    .count(),
+                n
+            ),
+            quartiles(of(&|hunt| hunt.two_back_s)),
+            quartiles(of(&|hunt| hunt.split.map(|(gain, _)| gain))),
+            quartiles(of(&|hunt| hunt.split.map(|(_, jobs)| jobs))),
+            share(hunted.iter().filter(|hunt| hunt.split.is_none()).count(), n),
+            quartiles(runs.iter().map(|run| run.goal.0 as f64).collect()),
+        );
+    }
+    let goal_runs: Vec<f64> = if hunted.is_empty() {
+        runs.iter().map(|run| run.goal.0 as f64).collect()
+    } else {
+        hunted
+            .iter()
+            .map(|hunt| f64::from(hunt.kept_taken))
+            .collect()
+    };
+    let first_payout: Vec<f64> = quickest
+        .iter()
+        .filter_map(|row| row.paper_s)
+        .map(|seconds| seconds + DOCK_ALLOWANCE_S)
+        .collect();
+
     Summary {
+        band: Band {
+            gain: median(runs.iter().map(|run| gain(run)).collect()).unwrap_or(0.0),
+            first_payout_s: median(first_payout.clone()),
+            goal: median(goal_runs.clone()).unwrap_or(0.0),
+            need,
+            no_job: runs.iter().filter(|run| run.done.is_empty()).count() as f64 / n as f64,
+        },
         role: spec.id.to_string(),
         cells: vec![
             hull.hull_cr.to_string(),
@@ -2237,22 +2654,72 @@ fn report_role(out: &mut String, catalog: &Catalog, role: usize, seeds: &[SeedMe
             share(goal_first, n),
             share(goal_first_pays, n),
             share(goal_never, n),
-            median_text(
-                quickest
-                    .iter()
-                    .filter_map(|row| row.paper_s)
-                    .map(|seconds| seconds + DOCK_ALLOWANCE_S)
-                    .collect(),
-            ),
+            median_text(first_payout),
             quartiles(runs.iter().map(|run| gain(run)).collect()),
             median_text(runs.iter().map(|run| run.done.len() as f64).collect()),
             share(runs.iter().filter(|run| run.done.is_empty()).count(), n),
-            format!(
-                "{} / {need}",
-                median_text(runs.iter().map(|run| run.goal.0 as f64).collect())
-            ),
+            format!("{} / {need}", median_text(goal_runs)),
             fight,
         ],
+    }
+}
+
+/// The share of the six-role median a role may stand at, low and high.
+const BAND: (f64, f64) = (0.75, 1.33);
+/// The share of seeds with no job handed in a role may have.
+const NO_JOB_MAX: f64 = 0.05;
+
+/// The four even-ness checks over the role medians, each cell marked `ok`
+/// or `OUT`.
+fn report_bands(out: &mut String, summaries: &[Summary]) {
+    // The true median: the mean of the two middle roles of six.
+    let mid = |values: Vec<f64>| {
+        let values = sorted(values);
+        match values.len() {
+            0 => 0.0,
+            n if n % 2 == 1 => values[n / 2],
+            n => (values[n / 2 - 1] + values[n / 2]) / 2.0,
+        }
+    };
+    let gain = mid(summaries.iter().map(|s| s.band.gain).collect());
+    let first = mid(summaries
+        .iter()
+        .filter_map(|s| s.band.first_payout_s)
+        .collect());
+    let mark = |ok: bool| if ok { "ok" } else { "OUT" };
+    let in_band = |value: f64, centre: f64| value >= BAND.0 * centre && value <= BAND.1 * centre;
+    let _ = writeln!(
+        out,
+        "\n## Band check\n\n\
+         A role median is in band between {} and {} times the median of the six role medians: \
+         gain {gain:.0} cr, first payout {first:.0} s. The goal count is in band at 1 or 2. At \
+         most {:.0}% of seeds may hand in no job.\n\n\
+         | role | median gain cr at 15 min | x median | | median first payout s | x median | | \
+         median goal count at 15 min | | seeds with no job | |\n\
+         |---|---|---|---|---|---|---|---|---|---|---|",
+        BAND.0,
+        BAND.1,
+        100.0 * NO_JOB_MAX,
+    );
+    for summary in summaries {
+        let band = &summary.band;
+        let payout = band.first_payout_s.unwrap_or(f64::INFINITY);
+        let _ = writeln!(
+            out,
+            "| {} | {:.0} | {:.2} | {} | {:.0} | {:.2} | {} | {} / {} | {} | {:.1}% | {} |",
+            summary.role,
+            band.gain,
+            band.gain / gain,
+            mark(in_band(band.gain, gain)),
+            payout,
+            payout / first,
+            mark(in_band(payout, first)),
+            number(band.goal),
+            band.need,
+            mark((1.0..=2.0).contains(&band.goal)),
+            100.0 * band.no_job,
+            mark(band.no_job <= NO_JOB_MAX),
+        );
     }
 }
 
@@ -2388,6 +2855,7 @@ fn every_start_role_is_measured_over_the_seed_list() {
     for summary in &summaries {
         let _ = writeln!(out, "| {} | {} |", summary.role, summary.cells.join(" | "));
     }
+    report_bands(&mut out, &summaries);
     print!("{out}");
     if let Ok(path) = std::env::var("NOVA_CENSUS_ROWS") {
         std::fs::write(&path, rows_dump(&catalog, &measured))

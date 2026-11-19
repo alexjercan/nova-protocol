@@ -29,9 +29,9 @@
 //! supply runs, `scavenger` recoveries, `bounty_hunter` neutralizations.
 //! Your jobs opens with the role goal's own line; the Map's chart view
 //! (`M`, then `C`) lists it under OBJECTIVES. On the pinned seed the
-//! `scavenger` board posts a recovery and a neutralize that name their own
-//! target, the `bounty_hunter` board two neutralizes and the `pirate` board
-//! a recovery and two neutralizes: Accept puts the wreck or the raider in
+//! `scavenger` and the `bounty_hunter` boards post a recovery and a
+//! neutralize that name their own target and the `pirate` board a recovery
+//! and two neutralizes at two legs: Accept puts the wreck or the raider in
 //! the world 6 to 16 km out, Show on Map opens the chart on its mark, and
 //! undocked the HUD chip `JOB-n` points at it.
 //!
