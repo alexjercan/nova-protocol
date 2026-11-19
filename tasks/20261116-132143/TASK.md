@@ -103,3 +103,63 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
 ## Done when
 - Every role reaches its first payout and first goal step in a comparable
   time on the bench, and the owner signs off the goals.
+
+## Delivery record (2026-11-19; OPEN until the owner signs off the goals)
+- Landed (`54e9fe1f2`, `ddf5877a3`, then the review fixes):
+  - Recover and Neutralize jobs with no target in reach post with their
+    own wreck or raider, spawned on Accept under the poster's cell root.
+  - Six mixes; a starter board of three rows the start hull can do; the
+    Accept command checks the hull as the pane does.
+  - Role goals as in the table above; the transport title is "A freight
+    line".
+  - Kits, credits and the two hulls as decided. Interceptor: five drives,
+    77.6 m/s2, hold 2,800 kg. Patrol picket: three drives, 51.5 m/s2,
+    2,320 HP.
+  - `NOVA_SANDBOX_ROLE` on `job_board_sandbox` and `start_role_sandbox`.
+- Changed from the Decisions during tuning (agent calls):
+  - Final mixes (Procure, Recover, Escort, Distress, Neutralize, Supply):
+    Mining 5,1,0,2,0,4; Salvage 1,6,1,2,1,1; Trade 3,1,1,2,0,5; Bounty
+    2,2,2,2,4,0; Patrol 2,0,4,1,3,2; Raid 1,4,0,1,5,1.
+  - A Raw procurement asks a lot of four (8 to 32 units), on every board.
+    The reward formula is unchanged.
+  - Two own-target rows of one kind on a board never share a leg. Own
+    raider leg 8 to 16 km, own wreck leg 6 to 16 km.
+  - A hull taken is a ship (never a station) with a market, neutralized
+    within 30 s of a hit by the player or a fleet escort. A stance offence
+    uses the same rule (before: any old hit).
+  - A recovery needs hold room for its stack. A dropped or renewed job
+    retires its bodies from a frozen sector too.
+- Evidence: `CENSUS-BEFORE.md`, `CENSUS-AFTER.md` (240 seeds). Median
+  gain at 15 min 3,280 to 4,532 cr for the six roles (before 0 to 2,504);
+  median first payout 177 to 241 s; goal 1 or 2 of 3 for five roles;
+  at most 1.7% of seeds with no job (before up to 58.8%).
+- Not met: the pirate goal. The board posts no row for it; a pirate that
+  only hunts takes three hulls in about 270 paper seconds, one that only
+  works the board takes none. Owner call: keep 3, raise the count, or put
+  a row for it on the Raid board.
+- Model limits: paper time; 60 s a hostile; mining from beam yield; no
+  deaths, no dock skill, no trader weapons or escorts. No bench play and
+  no hand play was done ("on the bench" in Done when is judged by the
+  census).
+- Review (independent, read-only): 0 high, 1 medium, 5 low, 5 suspicions.
+  Fixed: goal and dropped-job records leaked into a New Game; hull-taken
+  rule too wide; starter-board wait after the renewal loop; thruster
+  widget text; census accept path. Suspicions found real and fixed:
+  frozen job bodies outlived a drop; a board could name a wreck retired on
+  the same pass; Recover passed the hull gate with no hold room. Not real:
+  leash centre after thaw; a stuck job on death, SOS or hull buy.
+- Verified: filtered unit and ECS tests (defects have tests that failed
+  first); workspace check; content gen and lint; 13 probe walks under Xvfb
+  and lavapipe after the retune, 6 again after the fixes; frames read
+  (six first boards, six goal lines, spawned job chips, both hulls).
+- Not verified: hand play; a drop with a frozen cell live; the SOS rescue
+  bill against an undone Recover stack; saves written between the two
+  commits may hold orphan job bodies; workspace tests and clippy.
+- Open for the owner: goal order and counts (sign-off); role `about` and
+  `lore` texts (industrial says "sell it", transport says "buy ... sell";
+  the goals count job hand-ins); the pirate goal call above.
+- Seen, not changed: a station-stocked Procure can be filled by buying
+  from the same station; "Recover 43 Rations" beside "Recover 2 Water
+  ice"; job route reads "X station > X station" when poster and hand-in
+  match; map labels crowd in one cell at default zoom; a red range label
+  overlaps a JOB chip.
