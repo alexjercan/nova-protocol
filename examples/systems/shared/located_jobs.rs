@@ -11,12 +11,12 @@
 //! hand-in, or no hand-in, builds on [`walk_to_done`] and, when it hands in,
 //! closes with [`hand_in`]. `NOVA_JOB_SEED=<u32>` plays another world seed than
 //! the kind's pinned one, to hunt a seed whose window posts the kind. The
-//! neutralize range plants its hostile: generated hostiles stand with their
-//! own Enemy civilization, so no scanned seed put one in the cube of a
-//! living friendly station near the spawn; the walk re-sides one intact
-//! generated ship within one cell of the spawn to Enemy before any board
-//! posts, and the spawn cell's board names it as it would any hostile. Each range asserts the same
-//! four claims for its kind:
+//! recover and the neutralize ranges take a job that names its own target
+//! ([`Job::spawns_target`]): the board found no wreck or hostile in its
+//! field, so the accept puts a derelict or one raider in the world at the
+//! job's leg, and claim 1 reads it there. The neutralize range does not
+//! fight: it spends the raider's sections as a scripted hit does. Each range
+//! asserts the same four claims for its kind:
 //!
 //! | # | marker | claim |
 //! | - | - | - |
@@ -52,7 +52,7 @@ use nova_protocol::{
     prelude::*,
 };
 use nova_ui::widget::TextFieldValue;
-use nova_world::prelude::{desired_sectors, SectorRoot, SectorShipConditionType, WorldConfig};
+use nova_world::prelude::{desired_sectors, SectorRoot, WorldConfig};
 
 /// The four `outcome:` markers a range emits, held as literals in the
 /// including example so the probe roster test reads them beside the range.
@@ -119,19 +119,17 @@ impl LocatedKindType {
         }
     }
 
-    /// The start role whose boards lean to the kind and whose hull can do
-    /// it. Escort plays the military start: the Trade starts that lean to
-    /// it fly unarmed hulls, and the starting station's board hides a job
-    /// the hull cannot do. Neutralize plays the bounty hunter, whose kill
-    /// list counts the hand-in. Supply plays the bounty hunter too: the
-    /// Combat mix weighs it as it weighs a distress call.
+    /// The start role whose boards post the kind and whose hull can do it.
+    /// Escort and Supply play the military start: its Patrol mix weighs
+    /// both, and the Bounty mix posts no Supply. Neutralize plays the bounty
+    /// hunter, whose kill list counts the hand-in; Distress plays it too.
     pub const fn role(self) -> &'static str {
         match self {
             LocatedKindType::Recover => "scavenger",
             LocatedKindType::Escort => "military",
             LocatedKindType::Distress => "bounty_hunter",
             LocatedKindType::Neutralize => "bounty_hunter",
-            LocatedKindType::Supply => "bounty_hunter",
+            LocatedKindType::Supply => "military",
         }
     }
 
@@ -260,8 +258,6 @@ pub struct LocatedJobWatch {
     job: Option<(usize, Job)>,
     /// Whether the work's one-shot world edit landed.
     worked: bool,
-    /// The hostile the neutralize walk planted.
-    planted: Option<GeneratedBodyId>,
     /// The player's and the station's balances before the hand-in.
     before_cr: Option<(u32, u32)>,
     /// What the escort flight saw.
@@ -315,7 +311,6 @@ impl LocatedJobWatch {
             station: None,
             job: None,
             worked: false,
-            planted: None,
             before_cr: None,
             escort: EscortWatch::default(),
         }
@@ -359,11 +354,6 @@ impl Plugin for LocatedJobWalkPlugin {
         app.add_systems(Update, hold_the_walk_clock);
         if self.0 == LocatedKindType::Escort {
             app.add_observer(note_the_last_damage);
-        }
-        if self.0 == LocatedKindType::Neutralize {
-            // Every frame from boot: the spawn cell's board can post while
-            // the world still loads, before the walk's first step runs.
-            app.add_systems(Update, plant_a_hostile);
         }
     }
 }
@@ -835,31 +825,26 @@ fn set_field_text(world: &mut World, name: &str, text: &str) {
 }
 
 /// Every living, non-Enemy station board in the window, nearest the origin
-/// first: the id, the cell, the position, the jobs and whether it is the
-/// starting station's board.
-fn posted_boards(
-    world: &mut World,
-) -> Vec<(GeneratedBodyId, SectorCoord, Meters3, Vec<Job>, bool)> {
+/// first: the id, the cell, the position and the jobs.
+fn posted_boards(world: &mut World) -> Vec<(GeneratedBodyId, SectorCoord, Meters3, Vec<Job>)> {
     let (edge, _) = world_shape(world);
-    let mut boards: Vec<(GeneratedBodyId, SectorCoord, Meters3, Vec<Job>, bool)> = world
+    let mut boards: Vec<(GeneratedBodyId, SectorCoord, Meters3, Vec<Job>)> = world
         .query_filtered::<(
             &GeneratedBodyId,
             &Position,
             &JobBoard,
-            Has<StarterBoardMarker>,
             Has<DerelictShipMarker>,
             Option<&Allegiance>,
         ), With<StationMarker>>()
         .iter(world)
         .filter(|(.., derelict, allegiance)| !derelict && *allegiance != Some(&Allegiance::Enemy))
-        .map(|(id, position, board, starter, ..)| {
+        .map(|(id, position, board, ..)| {
             let position = Meters3::from_engine(position.0);
             (
                 id.clone(),
                 SectorCoord::containing(position, edge),
                 position,
                 board.0.clone(),
-                starter,
             )
         })
         .collect();
@@ -887,124 +872,14 @@ fn stack_fits(world: &World, job: &Job) -> bool {
         })
 }
 
-/// How far above the start's spawn point the neutralize walk plants its
-/// hostile: in the start's cell, clear of the starting station and the start
-/// role's ship.
-const PLANT_ABOVE: Meters = Meters(4_000.0);
-
-/// Where the neutralize walk plants its hostile: [`PLANT_ABOVE`] the
-/// session's spawn point.
-fn plant_at(world: &World) -> Meters3 {
-    let spawn = world.resource::<OpenWorldSession>().start.spawn;
-    Meters3(spawn.get() + Vec3::Y * PLANT_ABOVE.get())
-}
-
-/// Plant one intact Armored hull on the Enemy side in the spawn's cell, once,
-/// before any board posts: the spawn's cell is in the cube of every station
-/// within one cell of it, so such a station's board names the hull as a
-/// hostile. The hull is laid out and stocked as the open world lays out and
-/// stocks a raider, for the civilization in reach of the spawn; its crew
-/// is a non-combatant so the walk's docking beats are not shot at.
-fn plant_a_hostile(world: &mut World) {
-    if world.resource::<LocatedJobWatch>().planted.is_some()
-        || !world.contains_resource::<WorldConfig<NovaLayeredWorld>>()
-    {
-        return;
-    }
-    let Some(home) = player_cell(world) else {
-        return;
-    };
-    let Some(origin) = world
-        .query::<(Entity, &SectorRoot)>()
-        .iter(world)
-        .find(|(_, root)| root.0 == home)
-        .map(|(entity, _)| entity)
-    else {
-        return;
-    };
-    let Some(items) = world.get_resource::<GameItems>().cloned() else {
-        return;
-    };
-    let id = GeneratedBodyId::new(home, "walk_hostile", 0);
-    let plant_at = plant_at(world);
-    let (name, design, stock) = {
-        let config = world.resource::<WorldConfig<NovaLayeredWorld>>();
-        let key = |aspect: &[u8]| {
-            Fnv32::new()
-                .write(&config.seed.to_le_bytes())
-                .write(aspect)
-                .write(id.to_string().as_bytes())
-                .finish()
-        };
-        let parts = config.generator.parts();
-        let civilization = CivilizationField::new(config.seed)
-            .in_reach(plant_at)
-            .unwrap_or_else(|fault| panic!("neutralize job: the plant: {fault}"))
-            .into_iter()
-            .max_by(|a, b| a.selection_weight.total_cmp(&b.selection_weight))
-            .expect("neutralize job: a civilization reaches the spawn")
-            .civilization;
-        let request = ShipLayoutRequest {
-            seed: key(b"walk_hostile_hull"),
-            civilization: civilization.id,
-            role: ShipRoleType::Armored,
-            advancement: civilization.advancement,
-            size: ShipSizeType::Advancement,
-            spare_drive: ShipSpareDriveType::Without,
-        };
-        let layout = generate_ship(parts, request)
-            .unwrap_or_else(|failure| panic!("neutralize job: the plant: {failure}"));
-        let stock = ship_stock(
-            parts,
-            &items,
-            &layout.design,
-            ShipRoleType::Armored,
-            SectorShipConditionType::Intact,
-            civilization.advancement,
-            key(b"walk_hostile_stock"),
-        )
-        .expect("neutralize job: the plant's hold fits its role's lightest item");
-        (
-            format!("{} raider, planted", civilization.id.name()),
-            layout.design,
-            stock,
-        )
-    };
-    world.spawn((
-        base_scenario_object(&BaseScenarioObjectConfig {
-            id: id.to_string(),
-            name,
-            position: plant_at,
-            rotation: Quat::IDENTITY,
-        }),
-        id.clone(),
-        spaceship_scenario_object(SpaceshipConfig {
-            design: ShipDesignSource::Inline(design),
-            controller: SpaceshipController::AI(AIControllerConfig {
-                non_combatant: true,
-                ..AIControllerConfig::default()
-            }),
-            initial_velocity: MetersPerSecond3::ZERO,
-            allegiance: Some(Allegiance::Enemy),
-            capabilities: ShipCapabilities::default(),
-            inventory: stock,
-            lootable: false,
-            credits: 0,
-        }),
-        ChildOf(origin),
-    ));
-    info!("neutralize job: the walk plants the hostile '{id}' at {plant_at:?}");
-    world.resource_mut::<LocatedJobWatch>().planted = Some(id);
-}
-
 /// Pick the nearest living, non-Enemy station whose board posts a job of
-/// the walked kind, and that job; nothing while no board does, so the step
-/// keeps looking as boards post.
+/// the walked kind the hull can do, and that job; nothing while no board
+/// does, so the step keeps looking as boards post. A recovery or a
+/// neutralize is taken only when it names its own target.
 fn choose_the_job(world: &mut World) {
     let kind = kind(world);
     let boards = posted_boards(world);
-    // The Jobs pane leaves a job the hull cannot do off the starting
-    // station's board, so the walk cannot accept one there.
+    // The Jobs pane disables Accept on a job the hull cannot do.
     let player = player(world);
     let mut fit = JobHullFit {
         hold_capacity_g: world
@@ -1029,19 +904,22 @@ fn choose_the_job(world: &mut World) {
         }
     }
     let items = world.resource::<GameItems>();
-    let found = boards
-        .iter()
-        .find_map(|(id, cell, position, board, starter)| {
-            board
-                .iter()
-                .enumerate()
-                .find(|(_, job)| {
-                    kind.wants(&job.kind, items)
-                        && stack_fits(world, job)
-                        && (!starter || plan_job_hull_fit(job, items, fit).is_ok())
-                })
-                .map(|(index, job)| (id.clone(), *cell, *position, index, job.clone()))
-        });
+    let found = boards.iter().find_map(|(id, cell, position, board)| {
+        board
+            .iter()
+            .enumerate()
+            .find(|(_, job)| {
+                let own_target = match job.kind {
+                    JobType::Recover { .. } | JobType::Neutralize { .. } => job.spawns_target(),
+                    _ => true,
+                };
+                kind.wants(&job.kind, items)
+                    && own_target
+                    && stack_fits(world, job)
+                    && plan_job_hull_fit(job, items, fit).is_ok()
+            })
+            .map(|(index, job)| (id.clone(), *cell, *position, index, job.clone()))
+    });
     let Some((id, cell, position, index, job)) = found else {
         return;
     };
@@ -1207,6 +1085,20 @@ fn assert_the_accept(world: &mut World) {
                 aboard >= *count,
                 "{tag} job: the wreck carries {aboard} of the {count} {item} asked"
             );
+            assert!(
+                job.spawns_target(),
+                "{tag} job: the walk took a recovery that names its own wreck"
+            );
+            assert!(
+                world.get::<DerelictShipMarker>(entity).is_some(),
+                "{tag} job: the job's own wreck drifts derelict"
+            );
+            assert_eq!(
+                world.get::<Allegiance>(entity),
+                Some(&Allegiance::Neutral),
+                "{tag} job: the job's own wreck is neutral"
+            );
+            assert_the_leg(world, &job, entity);
         }
         JobType::Neutralize { hull, .. } => {
             let entity = body_wearing(world, hull).expect("the hull stands");
@@ -1214,6 +1106,16 @@ fn assert_the_accept(world: &mut World) {
                 world.get::<NeutralizedMarker>(entity).is_none(),
                 "{tag} job: the hull is not neutralized yet"
             );
+            assert!(
+                job.spawns_target(),
+                "{tag} job: the walk took a neutralize that names its own raider"
+            );
+            assert_eq!(
+                world.get::<Allegiance>(entity),
+                Some(&Allegiance::Enemy),
+                "{tag} job: the job's own raider is Enemy"
+            );
+            assert_the_leg(world, &job, entity);
         }
         JobType::Procure { .. } => panic!("{tag} job: a located job was chosen"),
     }
@@ -1229,6 +1131,27 @@ fn assert_the_accept(world: &mut World) {
         serde_json::json!({ "job": job.id.to_string(), "title": title, "bodies": bodies }),
     );
     info!("{tag} job: holds '{}' ({title}); bodies {bodies:?}", job.id);
+}
+
+/// How far off its posted leg a job's own target may read at the accept
+/// assert: the wreck drifts and the raider holds its wait point on its
+/// drive, a few frames after the spawn.
+const LEG_SLACK: Meters = Meters(500.0);
+
+/// The job's own target `entity` stands the job's leg from its poster,
+/// within [`LEG_SLACK`].
+fn assert_the_leg(world: &World, job: &Job, entity: Entity) {
+    let tag = tag(world);
+    let out = distance_between(world, station(world), entity);
+    assert!(
+        (out - job.leg_m as f32).abs() <= LEG_SLACK.get(),
+        "{tag} job: the job's own target stands {out:.0} m from the poster on a {} m leg",
+        job.leg_m
+    );
+    info!(
+        "{tag} job: the job's own target stands {out:.0} m out on a {} m leg",
+        job.leg_m
+    );
 }
 
 /// Claim 2: Your jobs greys the Hand in button while the job is not done.
@@ -2149,8 +2072,8 @@ fn assert_the_done(world: &mut World) {
     );
     if kind(world) == LocatedKindType::Neutralize {
         assert_eq!(
-            world.resource::<GoalProgress>().lines[1],
-            GoalLine::new("Bounties handed in", 0, 6),
+            world.resource::<GoalProgress>().lines[0],
+            GoalLine::new("Bounties handed in", 0, 3),
             "{tag} job: the kill alone counts no bounty"
         );
     }
@@ -2231,8 +2154,8 @@ fn assert_the_hand_in(world: &mut World) {
     );
     if kind(world) == LocatedKindType::Neutralize {
         assert_eq!(
-            world.resource::<GoalProgress>().lines[1],
-            GoalLine::new("Bounties handed in", 1, 6),
+            world.resource::<GoalProgress>().lines[0],
+            GoalLine::new("Bounties handed in", 1, 3),
             "{tag} job: the hand-in counts one bounty"
         );
     }

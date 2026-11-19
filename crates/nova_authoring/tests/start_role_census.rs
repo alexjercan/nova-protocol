@@ -252,11 +252,12 @@ struct Row {
     slot: u32,
     drawn: JobKindType,
     posted: JobKindType,
-    /// The drawn kind had no body to name and fell back to a procurement.
-    fallback: bool,
-    /// The starter board's assured-fit rule replaced the slot's offer.
-    swapped: bool,
-    /// The real hull gate passes, which is also what a starter board lists.
+    /// A recovery or a neutralize that names its own target: the field had
+    /// no body left to name, so the accept puts one in the world.
+    spawned: bool,
+    /// The starter board's redraw posted another kind than the slot drew.
+    redrawn: bool,
+    /// The real hull gate passes: the Jobs pane offers Accept on the row.
     fits: bool,
     /// Handing the job in alone counts toward the role's goal.
     goal: bool,
@@ -1000,8 +1001,9 @@ fn kind_of(job: &Job) -> JobKindType {
     }
 }
 
-/// The role's goal count over `completed`, less the shared stations-owned
-/// line: what it has and what it asks for.
+/// The role's own goal line over `completed`, the first of its progress:
+/// what it has and what it asks for. No hull is taken, so the line of a
+/// goal that counts hulls stays at 0.
 fn goal_count(catalog: &Catalog, role: usize, completed: &[Job]) -> (u64, u64) {
     let progress = goal_progress(
         &catalog.roles[role].goal,
@@ -1009,16 +1011,14 @@ fn goal_count(catalog: &Catalog, role: usize, completed: &[Job]) -> (u64, u64) {
             completed,
             owned_stations: 0,
             items: &catalog.items,
-            outlaw: (0, 0),
+            hulls_taken: 0,
         },
     );
-    progress
+    let own = progress
         .lines
-        .iter()
-        .skip(1)
-        .fold((0, 0), |(have, need), line| {
-            (have + line.have, need + line.need)
-        })
+        .first()
+        .expect("a goal's progress opens with the role's own line");
+    (own.have, own.need)
 }
 
 /// The station's price of `item` at its stock now.
@@ -1038,17 +1038,12 @@ fn quote(
 
 /// Judge `job` for the hull `fit` with the purse and the counter as they
 /// stand: its goods, their cost and its paper time.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one row read off the catalog, the role, the hull gate, the draw, the purse and the counter"
-)]
 fn judge(
     catalog: &Catalog,
     role: usize,
     fit: JobHullFit,
     job: &Job,
     drawn: JobKindType,
-    marks: (bool, bool),
     purse: &Purse,
     counter: &Counter,
 ) -> Row {
@@ -1130,8 +1125,8 @@ fn judge(
         slot,
         drawn,
         posted: kind_of(job),
-        fallback: marks.0,
-        swapped: marks.1,
+        spawned: job.spawns_target(),
+        redrawn: kind_of(job) != drawn,
         fits: plan_job_hull_fit(job, items, fit).is_ok(),
         goal: goal_count(catalog, role, std::slice::from_ref(job)).0 > 0,
         goods,
@@ -1142,54 +1137,37 @@ fn judge(
     }
 }
 
-/// Whether each slot's drawn kind fell back to a procurement and whether
-/// the assured-fit rule replaced its offer, for a draw of every slot over
-/// `field`.
+/// Check one judged row of the start board against the draw rules this
+/// census reports.
 ///
 /// # Panics
 ///
-/// When a slot other than the first posts a kind its draw and the field do
-/// not explain: the board pass would then be doing something this census
-/// does not report.
-fn draw_marks(
-    seed: u32,
-    offers: &[Job],
-    drawn: &[JobKindType],
-    field: &JobField,
-) -> Vec<(bool, bool)> {
-    let mut wrecks = field.wrecks.len();
-    let mut hostiles = field.hostiles.len();
-    offers
-        .iter()
-        .zip(drawn)
-        .enumerate()
-        .map(|(index, (job, drawn))| {
-            let take = |left: &mut usize| {
-                if *left == 0 {
-                    (JobKindType::Procure, true)
-                } else {
-                    *left -= 1;
-                    (*drawn, false)
-                }
-            };
-            let (expected, fallback) = match drawn {
-                JobKindType::Recover => take(&mut wrecks),
-                JobKindType::Neutralize => take(&mut hostiles),
-                JobKindType::Procure
-                | JobKindType::Escort
-                | JobKindType::Distress
-                | JobKindType::Supply => (*drawn, false),
-            };
-            let swapped = kind_of(job) != expected;
-            assert!(
-                !swapped || index == 0,
-                "seed {seed}: '{}' drew {drawn:?}, expected {expected:?} and posted {:?}",
-                job.id,
-                kind_of(job)
-            );
-            (fallback, swapped)
-        })
-        .collect()
+/// When the starter board's redraw posted a job the hull is refused for, or
+/// a row names a body as the field's that the cube does not hold: the board
+/// pass would then be doing something this census does not report.
+fn check_row(seed: u32, row: &Row, field: &FieldSeen) {
+    assert!(
+        !row.redrawn || row.fits,
+        "seed {seed}: '{}' drew {:?} and was redrawn to a {:?} the hull is refused for",
+        row.job.id,
+        row.drawn,
+        row.posted
+    );
+    let target = match &row.job.kind {
+        JobType::Recover { wreck: target, .. } | JobType::Neutralize { hull: target, .. }
+            if !row.spawned =>
+        {
+            target
+        }
+        _ => return,
+    };
+    let stands = field.whole.wrecks.iter().any(|wreck| wreck.id == *target)
+        || field.whole.hostiles.iter().any(|hull| hull.id == *target);
+    assert!(
+        stands,
+        "seed {seed}: '{}' names '{target}', which is no body of the cube and not its own",
+        row.job.id
+    );
 }
 
 /// The board census of one role on one seed: the first posting and the
@@ -1234,8 +1212,7 @@ fn board_census(
             .iter()
             .map(|job| SlotDraw::of(world.seed, &job.id, mix, advancement).kind)
             .collect();
-        let marks = draw_marks(world.seed, &offers, &drawn, &field.seen);
-        for ((job, drawn), marks) in offers.iter().zip(drawn).zip(marks) {
+        for (job, drawn) in offers.iter().zip(drawn) {
             assert_eq!(
                 job.id.slot_posting().map(|(_, at)| at),
                 Some(posting),
@@ -1246,9 +1223,9 @@ fn board_census(
             if posting == 0 && SHOWN_SEEDS.contains(&world.seed) {
                 titles.push(job.title(&catalog.items));
             }
-            rows.push(judge(
-                catalog, role, fit, job, drawn, marks, &purse, &counter,
-            ));
+            let row = judge(catalog, role, fit, job, drawn, &purse, &counter);
+            check_row(world.seed, &row, &field);
+            rows.push(row);
         }
     }
     (cells_live, first, rows, titles)
@@ -1284,16 +1261,7 @@ fn greedy(catalog: &Catalog, world: &SeedWorld, role: usize, advancement: f32) -
                 continue;
             }
             let drawn = SlotDraw::of(world.seed, &job.id, mix, advancement).kind;
-            let row = judge(
-                catalog,
-                role,
-                fit,
-                &job,
-                drawn,
-                (false, false),
-                &purse,
-                &counter,
-            );
+            let row = judge(catalog, role, fit, &job, drawn, &purse, &counter);
             let stage = if !row.fits {
                 StopType::NothingFits
             } else if row.paper_s.is_none() {
@@ -1348,23 +1316,29 @@ fn greedy(catalog: &Catalog, world: &SeedWorld, role: usize, advancement: f32) -
             JobType::Recover {
                 wreck, item, count, ..
             } => {
-                let wreck = mirror.bodies[wreck];
-                mirror
-                    .app
-                    .world_mut()
-                    .get_mut::<ShipInventory>(wreck)
-                    .expect("a wreck carries its hold")
-                    .remove(item, *count);
+                // A job's own wreck is not mirrored: no accept runs here
+                // to put it in the world, and no later draw can name it.
+                if !job.spawns_target() {
+                    let wreck = mirror.bodies[wreck];
+                    mirror
+                        .app
+                        .world_mut()
+                        .get_mut::<ShipInventory>(wreck)
+                        .expect("a wreck carries its hold")
+                        .remove(item, *count);
+                }
                 purse.hold.add(items, item, *count);
                 lifted = Some((item, *count));
             }
             JobType::Neutralize { hull, .. } => {
-                let hull = mirror.bodies[hull];
-                mirror
-                    .app
-                    .world_mut()
-                    .entity_mut(hull)
-                    .insert(NeutralizedMarker);
+                if !job.spawns_target() {
+                    let hull = mirror.bodies[hull];
+                    mirror
+                        .app
+                        .world_mut()
+                        .entity_mut(hull)
+                        .insert(NeutralizedMarker);
+                }
             }
             JobType::Escort { .. } | JobType::Distress { .. } => {}
         }
@@ -1607,7 +1581,7 @@ struct Summary {
     cells: Vec<String>,
 }
 
-const SUMMARY_HEAD: [&str; 20] = [
+const SUMMARY_HEAD: [&str; 22] = [
     "role",
     "hull cr",
     "kit stock cr",
@@ -1616,8 +1590,10 @@ const SUMMARY_HEAD: [&str; 20] = [
     "hold kg",
     "weapons",
     "fire s",
-    "rows shown (mean)",
-    "boards with 0 rows",
+    "rows that fit (mean)",
+    "boards with 0 rows that fit",
+    "Recover rows with a spawned target",
+    "Neutralize rows with a spawned target",
     "first board has a row that pays",
     "first board has a goal row",
     "first board has a goal row that pays",
@@ -1665,8 +1641,9 @@ fn report_header(out: &mut String, catalog: &Catalog, measured: usize, refused: 
          - The world generator (`NovaLayeredWorld`) and the start pick (`starting_station`).\n\
          - The board pass `post_station_boards`, run as a system: station order, the 27-cell \
          cube gate, the field rule (`FieldBodies`), the bodies other boards name, the draw \
-         (`station_job_offers`, `SlotDraw`), the fallback to Procure, the assured-fit rule of \
-         the starter board, rewards and renewals.\n\
+         (`station_job_offers`, `SlotDraw`), the target a Recover or a Neutralize names for \
+         itself with none left in the field (its leg, its threat and the hold of its wreck, \
+         `job_wreck`), the starter board's redraw for the hull, rewards and renewals.\n\
          - The hull gate (`PlayerHull::fit`, `plan_job_hull_fit`), the accept rule \
          (`plan_job_accept`), the hand-in (`plan_job_hand_in`), trades (`plan_item_trade`, \
          `price`), and the goal count (`goal_progress`).\n\
@@ -1679,17 +1656,20 @@ fn report_header(out: &mut String, catalog: &Catalog, measured: usize, refused: 
          planets and parked sale hulls are not mirrored; the board pass reads none of them.\n\
          - Streaming: one cell a frame, nearest to the spawn cell first. The game prepares \
          cells on worker threads, so its order can differ between cells at equal distance.\n\
-         - A row counts as shown when the hull gate passes. That is the starter-board rule of \
-         the Jobs pane (`board_listing` in `crates/nova_interface/src/jobs.rs`), stated here and \
-         not called: this crate does not depend on the interface crate.\n\
+         - A row counts as fitting when the hull gate passes. The Jobs pane lists every row \
+         and offers Accept on those (`board_listing` in `crates/nova_interface/src/jobs.rs`), \
+         stated here and not called: this crate does not depend on the interface crate.\n\
+         - A spawned target is not mirrored: no accept runs, so its wreck and its raider never \
+         stand. The row carries the leg, the threat and the stack the board posted.\n\
          - Postings 2 to {POSTINGS} of a slot are window renewals: the play clock steps past \
          the longer offer window ({} s; Procure and the rest stand {} s, Escort {} s), no job \
          taken, so every board of the window renews, the start board whole. Kit, credits and \
          station stock stay as at the start for every posting.\n\
          - Visit postings, scenario postings, hails and encounters do not exist here. No \
          stance changes. No restock.\n\
-         - Goal: a row counts when `goal_progress` over that one job alone moves a line other \
-         than `Stations owned`. Stations owned is 0 and the outlaw facts are (0, 0).\n",
+         - Goal: a row counts when `goal_progress` over that one job alone moves the role's \
+         own line, the first. Stations owned is 0 and hulls taken is 0, so no row counts for a \
+         goal that reads hulls taken.\n",
         rule.offer_seconds.max(rule.escort_offer_seconds) + 1.0,
         rule.offer_seconds,
         rule.escort_offer_seconds,
@@ -1732,7 +1712,8 @@ fn report_header(out: &mut String, catalog: &Catalog, measured: usize, refused: 
          The handed-in slot renews on the next board pass, the other slots stand. A Recover \
          empties its stack off the wreck and the player sells the stack to the station at its \
          bid when the market takes it; that sale is listed apart. A Neutralize marks its hull \
-         neutralized. A run stops at {GREEDY_JOB_CAP} jobs. Escort and Neutralize income is \
+         neutralized. A spawned target has no body here: its stack goes to the player and its \
+         raider counts as neutralized. A run stops at {GREEDY_JOB_CAP} jobs. Escort and Neutralize income is \
          listed apart because the model gives them no combat time and no losses.\n"
     );
 }
@@ -1860,13 +1841,12 @@ fn report_role(out: &mut String, catalog: &Catalog, role: usize, seeds: &[SeedMe
     );
 
     // The first board.
-    let shown: Vec<usize> = firsts
+    let fitting: Vec<usize> = firsts
         .iter()
         .map(|rows| rows.iter().filter(|row| row.fits).count())
         .collect();
-    let shown_mean = shown.iter().sum::<usize>() as f64 / n as f64;
-    let shown_share =
-        |count: usize| share(shown.iter().filter(|shown| **shown == count).count(), n);
+    let fit_mean = fitting.iter().sum::<usize>() as f64 / n as f64;
+    let fit_share = |count: usize| share(fitting.iter().filter(|fit| **fit == count).count(), n);
     let with =
         |list: fn(&FieldSeen) -> usize| measures.iter().filter(|m| list(&m.field) > 0).count();
     let nearest = |list: fn(&FieldSeen) -> Option<u32>| {
@@ -1891,8 +1871,8 @@ fn report_role(out: &mut String, catalog: &Catalog, role: usize, seeds: &[SeedMe
     let _ = writeln!(
         out,
         "| first board | value |\n|---|---|\n\
-         | rows shown, mean of 3 | {shown_mean:.2} |\n\
-         | boards with 0 / 1 / 2 / 3 rows shown | {} / {} / {} / {} |\n\
+         | rows that fit, mean of 3 | {fit_mean:.2} |\n\
+         | boards with 0 / 1 / 2 / 3 rows that fit | {} / {} / {} / {} |\n\
          | cells live when the board posts, min / median / max | {} |\n\
          | seeds with a wreck the draw can name | {} |\n\
          | wrecks when any, median; nearest wreck m, median | {}; {} |\n\
@@ -1900,10 +1880,10 @@ fn report_role(out: &mut String, catalog: &Catalog, role: usize, seeds: &[SeedMe
          | hostiles when any, median; nearest hostile m, median | {}; {} |\n\
          | seeds with a wreck in the cube, named by another board or not | {} |\n\
          | seeds with a hostile in the cube, named by another board or not | {} |\n",
-        shown_share(0),
-        shown_share(1),
-        shown_share(2),
-        shown_share(3),
+        fit_share(0),
+        fit_share(1),
+        fit_share(2),
+        fit_share(3),
         span(measures.iter().map(|m| m.cells_live as f64).collect()),
         share(with(|field| field.seen.wrecks.len()), n),
         counts(|field| field.seen.wrecks.len()),
@@ -1925,8 +1905,8 @@ fn report_role(out: &mut String, catalog: &Catalog, role: usize, seeds: &[SeedMe
          | drawn, {POSTINGS} postings | {} |\n\
          | posted, first board | {} |\n\
          | posted, {POSTINGS} postings | {} |\n\
-         | posted and shown, first board | {} |\n\
-         | posted and shown, {POSTINGS} postings | {} |\n",
+         | posted and fit, first board | {} |\n\
+         | posted and fit, {POSTINGS} postings | {} |\n",
         kind_shares(&kinds_of(&all, |row| row.drawn)),
         kind_shares(&kinds_of(&first, |row| row.posted)),
         kind_shares(&kinds_of(&all, |row| row.posted)),
@@ -1946,25 +1926,28 @@ fn report_role(out: &mut String, catalog: &Catalog, role: usize, seeds: &[SeedMe
             |row| row.posted
         )),
     );
-    let fell = |kind: JobKindType| {
-        let drawn = all.iter().filter(|row| row.drawn == kind).count();
-        let fell = all
+    let spawned = |kind: JobKindType| {
+        let posted = all.iter().filter(|row| row.posted == kind).count();
+        let spawned = all
             .iter()
-            .filter(|row| row.drawn == kind && row.fallback)
+            .filter(|row| row.posted == kind && row.spawned)
             .count();
-        format!("{fell} of {drawn} ({})", share(fell, drawn))
+        (
+            share(spawned, posted),
+            format!("{spawned} of {posted} ({})", share(spawned, posted)),
+        )
     };
-    let swapped = all.iter().filter(|row| row.swapped).count();
+    let (recover_spawned, recover_line) = spawned(JobKindType::Recover);
+    let (neutralize_spawned, neutralize_line) = spawned(JobKindType::Neutralize);
+    let redrawn = all.iter().filter(|row| row.redrawn).count();
     let _ = writeln!(
         out,
         "| draw outcome, {POSTINGS} postings | value |\n|---|---|\n\
-         | Recover draws that fell back to Procure | {} |\n\
-         | Neutralize draws that fell back to Procure | {} |\n\
-         | rows the assured-fit rule replaced | {swapped} of {} ({}) |\n",
-        fell(JobKindType::Recover),
-        fell(JobKindType::Neutralize),
+         | Recover rows with a spawned target | {recover_line} |\n\
+         | Neutralize rows with a spawned target | {neutralize_line} |\n\
+         | rows the starter redraw posted as another kind | {redrawn} of {} ({}) |\n",
         all.len(),
-        share(swapped, all.len()),
+        share(redrawn, all.len()),
     );
 
     // Per kind.
@@ -2246,8 +2229,10 @@ fn report_role(out: &mut String, catalog: &Catalog, role: usize, seeds: &[SeedMe
             (hull.hold_g / 1000).to_string(),
             hull.weapons().to_string(),
             fire,
-            format!("{shown_mean:.2}"),
-            shown_share(0),
+            format!("{fit_mean:.2}"),
+            fit_share(0),
+            recover_spawned,
+            neutralize_spawned,
             share(best.len(), n),
             share(goal_first, n),
             share(goal_first_pays, n),
@@ -2300,7 +2285,7 @@ fn report_shown(out: &mut String, catalog: &Catalog, seeds: &[SeedMeasure]) {
 /// Every board row of every seed and role, one tab-separated line each.
 fn rows_dump(catalog: &Catalog, seeds: &[SeedMeasure]) -> String {
     let mut out = String::from(
-        "seed\trole\tposting\tslot\tdrawn\tposted\tfallback\tassured_swap\tfits_and_shown\tgoal\t\
+        "seed\trole\tposting\tslot\tdrawn\tposted\tspawned_target\tredrawn\tfits\tgoal\t\
          leg_m\tthreat\tbase_cr\tgoods_cr\trange_cr\tthreat_cr\treward_cr\tkit_holds\t\
          station_stocks\tstack_at_ask_cr\tfill\tgoods_cost_cr\tnet_cr\tpaper_s\ttitle\n",
     );
@@ -2320,8 +2305,8 @@ fn rows_dump(catalog: &Catalog, seeds: &[SeedMeasure]) -> String {
                     row.slot,
                     kind_label(row.drawn),
                     kind_label(row.posted),
-                    flag(Some(row.fallback)),
-                    flag(Some(row.swapped)),
+                    flag(Some(row.spawned)),
+                    flag(Some(row.redrawn)),
                     flag(Some(row.fits)),
                     flag(Some(row.goal)),
                     row.job.leg_m,

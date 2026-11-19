@@ -79,16 +79,14 @@ pub fn fine_cr(civilization: &CivilizationId) -> u64 {
     (low + (high - low) * advancement).round() as u64
 }
 
-/// Apply an offence against `civilization` at `now`: an outlaw hull is
-/// counted first, so the kill that flips it is not one taken while Enemy;
-/// then the offence is recorded and the step it made, if any, reaches the
-/// neighbours. Every step made, the civilization's own first.
+/// Apply an offence against `civilization` at `now`: the offence is
+/// recorded and the step it made, if any, reaches the neighbours. Every
+/// step made, the civilization's own first.
 pub fn apply_offence(
     stances: &mut CivilizationStances,
     civilization: CivilizationId,
     now: f64,
 ) -> Vec<StanceStep> {
-    stances.count_outlaw_hull(&civilization);
     let Some(step) = stances.offence(civilization, seeded_stance(&civilization), now) else {
         return Vec::new();
     };
@@ -380,16 +378,12 @@ fn log_step(step: &StanceStep, now: f64) {
 mod tests {
     use std::collections::BTreeSet;
 
-    use nova_gameplay::prelude::{GameItems, OFFENCE_STEP};
-    use nova_scenario::prelude::{RoleGoal, RoleGoalType};
+    use nova_gameplay::prelude::OFFENCE_STEP;
 
     use super::*;
-    use crate::{
-        civilizations::{
-            sweep::{sweep_nodes, SWEEP_SEEDS},
-            CivilizationStatusType,
-        },
-        goal::{goal_progress, GoalFacts},
+    use crate::civilizations::{
+        sweep::{sweep_nodes, SWEEP_SEEDS},
+        CivilizationStatusType,
     };
 
     /// A living civilization of `seed` with at least one living neighbour.
@@ -750,59 +744,6 @@ mod tests {
             ]
         );
         assert!(app.world().resource::<CivilizationStances>().is_empty());
-    }
-
-    /// The offences that turn a Neutral civilization Enemy take no outlaw
-    /// hull, the flipping kill included; six more while it stands Enemy
-    /// meet the pirate's charter.
-    #[test]
-    fn the_flipping_kill_counts_no_outlaw_hull_and_six_after_it_meet_the_outlaw_charter() {
-        let id = SWEEP_SEEDS
-            .into_iter()
-            .find_map(|seed| {
-                let field = CivilizationField::new(seed);
-                sweep_nodes().into_iter().find_map(|node| {
-                    let civilization = field.civilization(node);
-                    (civilization.status == CivilizationStatusType::Living
-                        && civilization.stance == StanceType::Neutral)
-                        .then_some(civilization.id)
-                })
-            })
-            .expect("the sweep holds a living Neutral civilization");
-        let goal = RoleGoal {
-            title: "An outlaw's name".to_string(),
-            kind: RoleGoalType::Outlaw { hulls: 6 },
-        };
-        let charter = |stances: &CivilizationStances| {
-            goal_progress(
-                &goal,
-                &GoalFacts {
-                    completed: &[],
-                    owned_stations: 1,
-                    items: &GameItems::default(),
-                    outlaw: stances.outlaw_progress(),
-                },
-            )
-        };
-        let mut stances = CivilizationStances::default();
-        for offence in 0..OFFENCE_STEP {
-            apply_offence(&mut stances, id, f64::from(offence));
-        }
-        assert_eq!(stances.stance(&id, StanceType::Neutral), StanceType::Enemy);
-        assert_eq!(
-            stances.record(&id).map(|record| record.outlaw_hulls),
-            Some(0),
-            "the flipping kill is no outlaw hull"
-        );
-        assert!(!charter(&stances).is_met());
-        for kill in 0..6 {
-            apply_offence(&mut stances, id, 10.0 + f64::from(kill));
-        }
-        assert_eq!(
-            stances.record(&id).map(|record| record.outlaw_hulls),
-            Some(6)
-        );
-        assert!(charter(&stances).is_met());
     }
 
     /// The fine reads the low end at advancement 0 and the high end at 1,

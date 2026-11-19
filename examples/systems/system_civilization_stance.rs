@@ -21,10 +21,9 @@
 //! offences inside `OFFENCE_WINDOW_SECONDS`. X steps to Enemy, the world
 //! layer writes that side onto its station, the HUD's dock hint carries the
 //! refusal line, a real berth attempt leaves the player undocked, and the
-//! pirate's charter counts X turned Enemy (and any Ally of X the step
-//! dropped to Enemy). N, on X's Enemy edge, steps up to Ally: the walk jumps
-//! to N's centroid, waits for a hull of N to stream in, and shows every one
-//! of them flies the Player side and
+//! pirate's charter counts the three hulls taken. N, on X's Enemy edge,
+//! steps up to Ally: the walk jumps to N's centroid, waits for a hull of N
+//! to stream in, and shows every one of them flies the Player side and
 //! the hire rule admits N's station as a partner. A remote living
 //! civilization R, no neighbour of X, holds no record. The walk leaves to
 //! the main menu, reads the leave save back off disk through
@@ -40,7 +39,7 @@
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: three neutralized hulls turn their civilization enemy and its station refuses docking` | the station admits the player before the kills; after the third, `CivilizationStances` reads X Enemy, X's station flies the Enemy side, the HUD's dock hint reads `<NAME> REFUSES DOCKING`, a real berth attempt leaves the player undocked, and the pirate's charter reads at least one civilization turned Enemy (X, plus any Ally of X the step dropped to Enemy) |
+//! | 1 | `outcome: three neutralized hulls turn their civilization enemy and its station refuses docking` | the station admits the player before the kills; after the third, `CivilizationStances` reads X Enemy, X's station flies the Enemy side, the HUD's dock hint reads `<NAME> REFUSES DOCKING`, a real berth attempt leaves the player undocked, and the pirate's charter reads `Hulls taken` 3 / 3 |
 //! | 2 | `outcome: the rival neighbour warms to ally and its station hires out escorts` | X's rival N reads Ally in the table, every live hull of N flies the Player side, and `plan_escort_hire` admits N's station as an allied partner |
 //! | 3 | `outcome: the stances survive a save and a load and a remote civilization is untouched` | the leave save's `stances` read X Enemy, N Ally and no record for R; after a real Load the table reads the same and the HUD hint still refuses X's station |
 //! | 4 | `outcome: an enemy by events decays to neutral and the station admits again` | once `WorldClock.play_seconds` passes X's `enemy_since` by `ENEMY_DECAY_SECONDS`, `expire_stances` returns X to Neutral and the station admits the player again |
@@ -137,7 +136,7 @@ mod walk {
     const CREATE_WORLD_BUTTON: &str = "Create World Button";
     const WORLD_NEXT_BUTTON: &str = "World Next Button";
     /// The start role the walk picks: the pirate, whose charter counts the
-    /// civilizations its kills turn Enemy.
+    /// hulls it takes.
     const START_ROLE_BUTTON: &str = "Start Role Button: pirate";
     const PAUSE_EXIT_BUTTON: &str = "Pause Exit Button";
     const BACK_TO_MENU_BUTTON: &str = "Back To Menu Button";
@@ -505,10 +504,20 @@ mod walk {
 
     /// The lowest free, live docking port mounted on `root`.
     fn free_port(world: &mut World, root: Entity) -> Entity {
-        free_ports(world, root)
-            .into_iter()
-            .next()
-            .unwrap_or_else(|| panic!("civilization stance: {root:?} has no free docking port"))
+        let Some(port) = free_ports(world, root).into_iter().next() else {
+            let mounted: Vec<(Entity, bool, bool)> = world
+                .query_filtered::<(Entity, Has<SectionInactiveMarker>, Has<DockedPort>), With<DockingSectionMarker>>()
+                .iter(world)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .filter(|(port, ..)| mounted_on(world, *port, root))
+                .collect();
+            panic!(
+                "civilization stance: {root:?} has no free docking port; its ports as (port, \
+                 inactive, docked): {mounted:?}"
+            );
+        };
+        port
     }
 
     /// The free port of `target` that faces most squarely away from its
@@ -875,7 +884,7 @@ mod walk {
 
     /// Claim 1, part one: X reads Enemy, its station flies the Enemy side,
     /// the HUD's dock hint reads the refusal line, and the charter counts
-    /// the civilization.
+    /// the hulls.
     fn assert_the_hint(world: &mut World) {
         let (civ, seeded) = the_civilization(world);
         let expected = world
@@ -904,15 +913,10 @@ mod walk {
             Some(expected.as_str()),
             "civilization stance: the HUD's dock hint reads the refusal line"
         );
-        let (turned, need) = charter_line(world, "Civilizations turned Enemy");
         assert_eq!(
-            need, 1,
-            "civilization stance: the pirate's charter asks one civilization turned Enemy"
-        );
-        assert!(
-            turned >= 1,
-            "civilization stance: the pirate's charter counts X; an Ally of X dropped to Enemy \
-             by the step counts too, so it reads {turned}"
+            charter_line(world, "Hulls taken"),
+            (u64::from(KILLS), 3),
+            "civilization stance: the pirate's charter counts each hull the player took"
         );
         info!("civilization stance: the HUD reads '{expected}'");
     }
@@ -936,7 +940,7 @@ mod walk {
             serde_json::json!({
                 "civilization": civ.name(),
                 "line": expected,
-                "charter": charter_line(world, "Civilizations turned Enemy"),
+                "charter": charter_line(world, "Hulls taken"),
             }),
         );
         info!(

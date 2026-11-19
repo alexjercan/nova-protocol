@@ -2,10 +2,11 @@
 //! and what the Map shows this frame, [`GoalProgress`].
 //!
 //! A start role's goal is content (`RoleGoal` in `nova_scenario`): a
-//! predicate over facts the world save already carries: the stations the
-//! player owns, the jobs the player handed in and the civilization stances.
-//! Every role's progress opens with the same line, one owned station, then
-//! the role's flavour line. The open world crate derives the progress every
+//! predicate over facts the world save carries: the jobs the player handed
+//! in, the stations the player owns and the trading hulls the player took
+//! out, the one fact the record itself counts. Every role's progress opens
+//! with the role's own line and closes with the same line, one owned
+//! station. The open world crate derives the progress every
 //! frame and stamps the record once every line holds; the Map's chart view,
 //! the Jobs pane and the save header read both. They live here, below the world crates, for
 //! the same reason the chart and the jobs do: the interface cannot depend on
@@ -19,8 +20,8 @@ pub mod prelude {
     pub use super::{GoalLine, GoalProgress, GoalRecord};
 }
 
-/// The one saved fact of the role goal: standing, or met at a play-time
-/// stamp.
+/// The saved facts of the role goal: standing, or met at a play-time stamp,
+/// and the trading hulls the player took out.
 ///
 /// Stamped once by the open world crate when the goal's progress is met,
 /// with the world clock's reading, and never cleared back while the world
@@ -34,6 +35,10 @@ pub struct GoalRecord {
     /// Play seconds on the world clock when the goal was met; `None` while
     /// it stands.
     pub met_at: Option<f64>,
+    /// Trading hulls the player neutralized, of any civilization on any
+    /// stance: the count an outlaw goal reads. Counted for every role, so
+    /// the record means the same whichever goal reads it.
+    pub hulls_taken: u32,
 }
 
 impl GoalRecord {
@@ -42,9 +47,9 @@ impl GoalRecord {
         self.met_at.is_some()
     }
 
-    /// Forget the stamp: the world on hand is gone.
+    /// Forget the stamp and the count: the world on hand is gone.
     pub fn clear(&mut self) {
-        self.met_at = None;
+        *self = Self::default();
     }
 
     /// Whether a saved record is one a session could have written: no stamp,
@@ -118,13 +123,14 @@ mod tests {
     /// standing record and a stamp at or under the clock pass.
     #[test]
     fn a_record_validates_only_a_stamp_within_the_saved_clock() {
+        let stamped = |at| GoalRecord {
+            met_at: Some(at),
+            hulls_taken: 0,
+        };
         assert!(GoalRecord::default().validate(0.0).is_ok());
-        assert!(GoalRecord { met_at: Some(5.0) }.validate(5.0).is_ok());
+        assert!(stamped(5.0).validate(5.0).is_ok());
         for at in [5.5, -1.0, f64::NAN, f64::INFINITY] {
-            assert!(
-                GoalRecord { met_at: Some(at) }.validate(5.0).is_err(),
-                "{at}"
-            );
+            assert!(stamped(at).validate(5.0).is_err(), "{at}");
         }
     }
 

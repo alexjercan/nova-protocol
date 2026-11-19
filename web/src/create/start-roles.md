@@ -30,8 +30,8 @@ spelling rules, see
         ),
         jobs: Trade,
         goal: (
-            title: "A courier network",
-            kind: StationNetwork(stations: 4),
+            title: "Courier runs",
+            kind: CargoRuns(jobs: 3),
         ),
         lore: "Stations need what they cannot make. Couriers carry it.",
     )),
@@ -48,7 +48,7 @@ Every field is required.
 | `about` | string | how the role plays, for a reader |
 | `hull` | string | the id of a [ship design](../ships/) the player starts in: a base ship id, one of your mod's own, or one from a mod you depend on |
 | `kit` | kit | what the ship starts with, see below |
-| `jobs` | `Trade`, `Salvage` or `Combat` | the job mix every station board leans to for this start, see [Jobs](../stations/#jobs) |
+| `jobs` | `Mining`, `Salvage`, `Trade`, `Bounty`, `Patrol` or `Raid` | the job mix every station board leans to for this start, see [Jobs](../stations/#jobs) |
 | `goal` | goal | the role's goal, one finite milestone, see [The goal](#the-goal) |
 | `lore` | string | background text for the role |
 
@@ -62,11 +62,11 @@ A `kit` has two fields, both required:
 ## The goal
 
 A `goal` is one finite milestone the role plays toward, read off the saved
-world. Every role's progress opens with the same shared first line,
-`Stations owned`, which needs one station the player owns, live or kept in
-a sector left behind; the goal's own flavour line follows it. The Map's
-chart view OBJECTIVES block lists the next unmet line, station line first,
-until both are met, then reads `Goal reached at` the play time it happened.
+world. Every role's progress opens with the goal's own line, the count its
+`kind` names, and closes with the same shared line, `Stations owned`, which
+needs one station the player owns, live or kept in a sector left behind.
+The Map's chart view OBJECTIVES block lists the next unmet line, the goal's
+own line first, until both are met, then reads `Goal reached at` the play time it happened.
 It is not an ending: the world is an endless sandbox, a met goal stamps the
 save and nothing else, and there is no completion screen. It has two
 fields, both required:
@@ -74,32 +74,28 @@ fields, both required:
 | field | type | meaning |
 |---|---|---|
 | `title` | string | the name the New Game role step and the Load screen show |
-| `kind` | goal kind | the flavour line after the shared station line, one of the kinds below |
+| `kind` | goal kind | the goal's own line, before the shared station line, one of the kinds below |
 
 | kind | fields | met when |
 |---|---|---|
 | `OreDeliveries` | `jobs` | the player handed in `jobs` Procure jobs whose item is in the `Raw` category: ore and ice |
 | `Recoveries` | `jobs` | the player handed in `jobs` Recover jobs |
-| `StationNetwork` | `stations` | the player handed in Procure or Escort jobs posted by `stations` distinct stations |
+| `CargoRuns` | `jobs` | the player handed in `jobs` Procure, Supply or Escort jobs |
 | `KillList` | `hulls` | the player handed in Neutralize jobs naming `hulls` distinct hulls |
 | `Patrols` | `jobs` | the player handed in `jobs` Distress, Supply or Escort jobs |
-| `Outlaw` | `hulls` | the player's own kills turned a civilization `Enemy` (a seeded `Enemy` does not count) and the player neutralized `hulls` more intact hulls of it while it stands `Enemy`; the kill that flips it does not count, and a settlement or the decay clears the count, see [Civilization stances](../stations/#civilization-stances) |
+| `Outlaw` | `hulls` | the player or a fleet escort neutralized `hulls` trading hulls, the hulls a kill is an [offence](../stations/#civilization-stances) on, of any civilization at any stance. A raider or a caller a job put in the world does not count |
 
-Every count is a whole number above zero. The base `industrial` role asks
-for six ore deliveries; the base `scavenger` asks for six recoveries; the
-base `transport` asks for a station network of four stations; the base
-`bounty_hunter` asks for a kill list of six hulls; the base `military` asks
-for a patrol record of six jobs; the base `pirate` asks for an outlaw's
-name (`Outlaw`): one civilization its own kills turned Enemy, then six more
-intact hulls of it neutralized while it stands Enemy.
+Every count is a whole number above zero. Each base role asks for three:
+`industrial` three ore deliveries, `scavenger` three recoveries, `transport`
+three cargo runs, `bounty_hunter` a kill list of three hulls, `military` a
+patrol record of three jobs and `pirate` three hulls taken (`Outlaw`).
 
-Progress is derived from the saved world each frame: the stations you own,
-live or frozen in a sector you left, the jobs you handed in, and the
-[civilizations](../stations/#civilization-stances) your kills turned Enemy
-with the hulls you took from them since. The frame both lines are met, the
-save records the play time; the OBJECTIVES block then reads `Goal reached
-at` that time, and a Load brings it back. The world does not change on a
-met goal.
+Progress is derived from the saved world each frame: the jobs you handed
+in, the trading hulls you neutralized, a count the save keeps, and the
+stations you own, live or frozen in a sector you left. The frame both lines
+are met, the save records the play time; the OBJECTIVES block then reads
+`Goal reached at` that time, and a Load brings it back. The world does not
+change on a met goal.
 
 ## Overlay and lint
 
@@ -127,7 +123,7 @@ The second step of the New Game wizard lists the roles and selects the
 first. The details pane shows the selected role's `name`, `about`, the
 hull's design name, the kit, the goal's `title` as its milestone, and the
 `lore`. In the game the Map's chart view OBJECTIVES block lists the goal's
-next unmet line, station line first, until all are met. **Create** starts
+next unmet line, the goal's own line first, until all are met. **Create** starts
 the base `open_world` scenario, whose
 [`SpawnStartRole`](../actions/#spawnstartrole) action spawns the role's hull
 with its kit and binds its weapons, docked at the starting station: the

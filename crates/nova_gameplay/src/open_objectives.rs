@@ -135,10 +135,10 @@ mod tests {
         }]);
         let hold = ShipInventory::new(&items, 10_000, [("IronOre".into(), 3)]);
         let progress = GoalProgress {
-            title: "A station network".to_string(),
+            title: "Cargo runs".to_string(),
             lines: vec![
-                GoalLine::new("Stations owned", 1, 1),
-                GoalLine::new("Stations served", 1, 4),
+                GoalLine::new("Cargo runs", 3, 3),
+                GoalLine::new("Stations owned", 0, 1),
             ],
         };
         let open = open_objectives(
@@ -170,7 +170,7 @@ mod tests {
                     done: true,
                     hand_in: "STN-1".to_string(),
                 },
-                OpenObjectiveType::Milestone(GoalLine::new("Stations served", 1, 4)),
+                OpenObjectiveType::Milestone(GoalLine::new("Stations owned", 0, 1)),
             ]
         );
 
@@ -181,7 +181,10 @@ mod tests {
                 Some(&items),
                 None,
                 &progress,
-                &GoalRecord { met_at: Some(90.0) },
+                &GoalRecord {
+                    met_at: Some(90.0),
+                    hulls_taken: 0,
+                },
             )
             .is_empty(),
             "a met goal lists no milestone"

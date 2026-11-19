@@ -2,20 +2,20 @@
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
 //! seed as the `bounty_hunter` start role, whose boards lean to this kind, and
-//! walks the shared located-job range in [`located_jobs`]: plant one intact
-//! Enemy hull in the spawn's cell before any board posts (generated hostiles
-//! keep to their own civilization, so no scanned seed put one beside a
-//! living friendly station), find a living station posting
-//! a neutralize job, dock, accept it off the Jobs tab, read
-//! the hand-in refused as not done, undock, do the work in the world, see the
-//! open world mark the job done, dock again and hand it in for the reward.
+//! walks the shared located-job range in [`located_jobs`]: find a living
+//! station posting a neutralize job that names its own raider (generated
+//! hostiles keep to their own civilization, so the board found none in its
+//! field), dock, accept it off the Jobs tab, read the hand-in refused as not
+//! done, undock, do the work in the world, see the open world mark the job
+//! done, dock again and hand it in for the reward. The work is no fight: the
+//! range spends the raider's sections as a scripted hit does.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: a neutralize job is posted and accepted` | a living station's board posts the kind; after the Accept click the job is held and its bodies stand under the poster's cell root |
+//! | 1 | `outcome: a neutralize job is posted and accepted` | a living station's board posts the kind; after the Accept click the job is held and its own raider stands under the poster's cell root, Enemy, the job's leg from the poster |
 //! | 2 | `outcome: the hand-in is refused until the neutralize job is done` | docked at the poster with the job held, Your jobs greys the Hand in button |
-//! | 3 | `outcome: the world marks the neutralize job done` | after the work the job is listed done while still held, and the kill list reads `Bounties handed in` 0 / 6 |
-//! | 4 | `outcome: the hand-in pays the neutralize job` | docked again, the Hand in click pays the reward from the station, lists the job completed, and the kill list reads `Bounties handed in` 1 / 6 |
+//! | 3 | `outcome: the world marks the neutralize job done` | after the work the job is listed done while still held, and the kill list reads `Bounties handed in` 0 / 3 |
+//! | 4 | `outcome: the hand-in pays the neutralize job` | docked again, the Hand in click pays the reward from the station, lists the job completed, and the kill list reads `Bounties handed in` 1 / 3 |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text

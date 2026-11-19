@@ -31,6 +31,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Open World encounters: after 5 to 15 minutes of travel away from stations, a distress or supply hail, an ambush or a derelict find stands ahead. The seed fixes their order; a save keeps them.
 - A hailing hull offers a job in space: accept or decline it under Available on the Jobs pane with no dock, or dock with the caller to take it. That dock pays at once; Hand in works while it holds.
 - A living generated station that paid out regains credits while its sector is unloaded, to its start balance in 30 minutes of play. Before, a drained one never paid again. Owned stations gain none.
+- Job boards draw from six mixes, one per start role: Mining, Salvage, Trade, Bounty, Patrol and Raid. A role's boards lean to its own work, and a mix may never post a kind.
+- A recovery or a neutralize with no wreck or hostile near the station now names its own: a derelict or one raider up to 16 km out, put there on Accept. Before, it posted as a Bring job.
+- Your starting station's board now posts three jobs your start hull can do and lists every one. Before, it hid a job the hull could not do and could list fewer than three.
+- A role goal now reads its own line first, three of the role's work, then one owned station. The transport counts cargo runs; the pirate counts trading hulls it neutralizes.
 
 ### Combat & Weapons
 
@@ -51,6 +55,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** The station service `Refine` is now `Craft`, and the `OnCreditsChanged` cause `Refine` is now `Craft`: one per party for each Station recipe batch.
 - New content kind `Encounter`: `id`, `weight`, `player` (`Any` or `Armed`) and `kind` (`Hail` with `job` and `line`, `Ambush` or `Derelict`). A mod adds one or replaces a base one by id.
 - A job hailed in space fires no job events: `OnJobAccepted`, `OnJobDone`, `OnJobHandedIn` and `OnJobDropped` follow station board and `PostJob` jobs only.
+- **(breaking)** A start role's `jobs` is `Mining`, `Salvage`, `Trade`, `Bounty`, `Patrol` or `Raid`. `Combat` is gone and `Trade` has new weights.
+- **(breaking)** Goal kind `StationNetwork` is gone. `CargoRuns(jobs: n)` counts Procure, Supply and Escort hand-ins; `Outlaw(hulls: n)` counts each trading hull you neutralize, at any stance.
 
 ### Interface & HUD
 

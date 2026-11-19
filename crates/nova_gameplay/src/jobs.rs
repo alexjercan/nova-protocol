@@ -8,8 +8,9 @@
 //! resource). The offer is drawn once, when the slot posts, as a function of
 //! the world seed, the station's id, the slot, the posting, the cluster
 //! types of its cell, the start role's [`JobMixType`], the [`JobField`] of
-//! wrecks and hostile hulls standing around it and the board's other offers
-//! ([`station_job_offers`]); it is kept as drawn until the slot renews,
+//! wrecks and hostile hulls standing around it, the targets the poster
+//! spawns where the field has none ([`JobSpawns`]) and the board's other
+//! offers ([`station_job_offers`]); it is kept as drawn until the slot renews,
 //! whatever the field does, and saved with the world. A new offer never
 //! names a body a held job or another unexpired offer names
 //! ([`JobPostings::named_bodies`]), so two boards never pay for one wreck or
@@ -39,16 +40,19 @@
 //! or by a hand-in while that dock holds ([`plan_hail_hand_in`]), and paid
 //! where it is done ([`plan_hail_pay`]). Every job asks something of the hull
 //! ([`plan_job_hull_fit`]): the starting station's board
-//! ([`StarterBoardMarker`]) lists only the jobs the current hull can do, and a
-//! renewal there keeps one such offer open while a slot renews; every other
-//! board lists them all and refuses the accept with the reason.
+//! ([`StarterBoardMarker`]) draws a slot again when the hull it posts for
+//! cannot do the drawn offer, so every slot posts a job that hull can do;
+//! every board lists all its offers and refuses the accept of one the
+//! current hull cannot do with the reason.
 //!
 //! Six kinds ([`JobType`]). A procurement is done at the hand-in, by the
 //! goods in the hold. A located kind is done in the world: the open world
 //! crate watches one existing event kind per type and marks the held job
 //! done ([`Jobs::mark_done`]); the hand-in is refused until then. An Escort,
 //! a Distress call and a Supply job put generated bodies in the world on the
-//! accept ([`JobAccepted`]), named by the job ([`Job::spawned_bodies`]). The
+//! accept ([`JobAccepted`]), named by the job ([`Job::spawned_bodies`]); so
+//! do a Recover and a Neutralize the board posted with no wreck and no
+//! hostile hull in reach ([`Job::spawns_target`]). The
 //! dock that answers a Supply job takes the asked goods from the hold
 //! ([`plan_job_supply`]); with the hold short the job stays open and the
 //! world raises [`SupplyRefused`]. The item a Supply job asks for frames
@@ -92,10 +96,10 @@ pub mod prelude {
         JobDone, JobDropped, JobField, JobHandInPartner, JobHandInPlan, JobHandInRefusalType,
         JobHandedIn, JobHull, JobHullFit, JobHullRefusalType, JobId, JobKindType, JobMixType,
         JobOfferRefreshPlan, JobOfferRefreshRefusalType, JobPostings, JobReward, JobSourceType,
-        JobType, JobWreck, Jobs, ScenarioPosting, ShipSizeType, SlotDraw, SlotPosting,
+        JobSpawns, JobType, JobWreck, Jobs, ScenarioPosting, ShipSizeType, SlotDraw, SlotPosting,
         StarterBoardMarker, SupplyFramingType, SupplyRefusalType, SupplyRefused, VisitPosting,
         ESCORT_LEG_M, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, JOB_LEG_M, JOB_LEG_STEP_M,
-        JOB_OFFER_REFRESH_FEE_CR, JOB_RANGE_CR_PER_KM, JOB_THREAT_CR_PER_WEAPON,
+        JOB_OFFER_REFRESH_FEE_CR, JOB_RANGE_CR_PER_KM, JOB_THREAT_CR_PER_WEAPON, NEUTRALIZE_LEG_M,
         RECOVER_GOODS_CAP_CR, SUPPLY_MASS_CAP_G, VISIT_EXTRAS_MAX, VISIT_EXTRA_OFFER_SECONDS,
     };
 }
@@ -158,6 +162,11 @@ pub const JOB_LEG_M: (u32, u32) = (6_000, 16_000);
 /// reaches the poster and the waiting hauler, and a raider follows the
 /// hauler back into the station. The longest is [`JOB_LEG_M`]'s.
 pub const ESCORT_LEG_M: (u32, u32) = (10_000, JOB_LEG_M.1);
+/// The shortest and the longest leg a neutralize's own raider waits out, in
+/// meters, both included, in steps of [`JOB_LEG_STEP_M`]. The raider chases
+/// on the escort raiders' 6 km tether, so the shortest leg ends its chase
+/// 2 km short of the poster. The longest is [`JOB_LEG_M`]'s.
+pub const NEUTRALIZE_LEG_M: (u32, u32) = (8_000, JOB_LEG_M.1);
 /// The step between two drawn legs, in meters.
 pub const JOB_LEG_STEP_M: u32 = 2_000;
 /// The most a supply job's goods weigh, in grams: 200 kg, two hull
@@ -403,10 +412,11 @@ impl JobId {
     }
 
     /// Every body id an offer under this id could have put in the world,
-    /// whatever its kind: the hauler, [`ESCORT_RAIDERS_MAX`] raiders and the
-    /// caller. A renewal takes the live ones out of the world first. None
-    /// for a visit posting and a scenario posting, which only procure, and
-    /// none for a hail, whose caller stood before the offer.
+    /// whatever its kind: the hauler, [`ESCORT_RAIDERS_MAX`] raiders, of
+    /// which the first is also a neutralize's own raider, the caller and a
+    /// recovery's own wreck. A renewal takes the live ones out of the world
+    /// first. None for a visit posting and a scenario posting, which only
+    /// procure, and none for a hail, whose caller stood before the offer.
     pub fn possible_bodies(&self) -> Vec<GeneratedBodyId> {
         if self.slot_posting().is_none() {
             return Vec::new();
@@ -414,6 +424,7 @@ impl JobId {
         std::iter::once(self.spawned_body("hauler", 0))
             .chain((0..ESCORT_RAIDERS_MAX).map(|index| self.spawned_body("raider", index)))
             .chain(std::iter::once(self.spawned_body("caller", 0)))
+            .chain(std::iter::once(self.spawned_body("wreck", 0)))
             .collect()
     }
 }
@@ -999,70 +1010,99 @@ fn is_open(jobs: &Jobs, id: &JobId) -> bool {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum JobMixType {
-    /// Procurements and escorts: the industrial and transport starts.
-    Trade,
+    /// Supply jobs and procurements, no fight: the industrial start.
+    Mining,
     /// Recoveries off wrecks: the scavenger start.
     Salvage,
-    /// Distress calls and neutralizations: the bounty hunter, military and
-    /// pirate starts.
-    Combat,
+    /// Supply jobs and procurements with a rare escort: the transport
+    /// start, and a generated scenario that runs with no session.
+    Trade,
+    /// Neutralizes: the bounty hunter start.
+    Bounty,
+    /// Escorts, distress calls and supply jobs: the military start.
+    Patrol,
+    /// Neutralizes and recoveries: the pirate start.
+    Raid,
 }
 
 /// The six kinds, for the weighted draw. Public so a board census can name
-/// the kind a slot drew before any fallback to a procurement
+/// the kind a slot drew before the starter board draws it again
 /// ([`SlotDraw::kind`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum JobKindType {
     /// A procurement.
     Procure,
-    /// A recovery off a wreck of the field.
+    /// A recovery off a wreck of the field, or off the job's own.
     Recover,
     /// An escort of a hauler.
     Escort,
     /// A distress call.
     Distress,
-    /// A neutralize of a hostile hull of the field.
+    /// A neutralize of a hostile hull of the field, or of the job's own
+    /// raider.
     Neutralize,
     /// A supply job.
     Supply,
 }
 
+impl JobKindType {
+    /// Every kind, in the order [`JobMixType::weights`] lists them.
+    pub const ALL: [Self; 6] = [
+        Self::Procure,
+        Self::Recover,
+        Self::Escort,
+        Self::Distress,
+        Self::Neutralize,
+        Self::Supply,
+    ];
+}
+
+/// The kind `pick` lands on among `weights`, in [`JobKindType::ALL`] order:
+/// each kind takes a run of the picks as long as its weight, so a kind of
+/// weight zero takes none. `None` when every weight is zero.
+fn pick_kind(weights: [u32; 6], pick: u32) -> Option<JobKindType> {
+    let total: u32 = weights.iter().sum();
+    let mut at = pick.checked_rem(total)?;
+    for (kind, weight) in JobKindType::ALL.into_iter().zip(weights) {
+        if at < weight {
+            return Some(kind);
+        }
+        at -= weight;
+    }
+    unreachable!("the pick is below the weight total")
+}
+
 impl JobMixType {
+    /// Every mix, in declaration order.
+    pub const ALL: [Self; 6] = [
+        Self::Mining,
+        Self::Salvage,
+        Self::Trade,
+        Self::Bounty,
+        Self::Patrol,
+        Self::Raid,
+    ];
+
     /// The draw weight of each kind, in [`JobKindType`] order: Procure,
-    /// Recover, Escort, Distress, Neutralize, Supply. Every kind keeps a
-    /// weight, so no start sees one kind only. A Supply job weighs what a
-    /// Distress call weighs in each mix.
-    ///
-    /// Agent decision 2026-10-16 for owner review; the Supply weight is the
-    /// owner's decision of 2026-11-13.
+    /// Recover, Escort, Distress, Neutralize, Supply. A kind of weight zero
+    /// is never drawn: an unarmed start's mix holds no fight. Every mix
+    /// keeps a procurement, the one kind any hull with a hold can do.
     pub const fn weights(self) -> [u32; 6] {
         match self {
-            JobMixType::Trade => [4, 1, 4, 1, 1, 1],
-            JobMixType::Salvage => [1, 5, 1, 2, 1, 2],
-            JobMixType::Combat => [1, 1, 1, 3, 4, 3],
+            JobMixType::Mining => [4, 1, 0, 2, 0, 5],
+            JobMixType::Salvage => [1, 6, 1, 2, 1, 1],
+            JobMixType::Trade => [3, 1, 1, 2, 0, 5],
+            JobMixType::Bounty => [1, 1, 2, 1, 7, 0],
+            JobMixType::Patrol => [1, 0, 4, 3, 1, 3],
+            JobMixType::Raid => [1, 4, 0, 1, 5, 1],
         }
     }
 
     /// Draw a kind off `rng` by this mix's weights.
     fn draw(self, rng: &mut WyRand) -> JobKindType {
-        const KINDS: [JobKindType; 6] = [
-            JobKindType::Procure,
-            JobKindType::Recover,
-            JobKindType::Escort,
-            JobKindType::Distress,
-            JobKindType::Neutralize,
-            JobKindType::Supply,
-        ];
         let weights = self.weights();
         let total: u32 = weights.iter().sum();
-        let mut draw = rng.random_range(0..total);
-        for (kind, weight) in KINDS.into_iter().zip(weights) {
-            if draw < weight {
-                return kind;
-            }
-            draw -= weight;
-        }
-        unreachable!("the draw is below the weight total")
+        pick_kind(weights, rng.random_range(0..total)).expect("every mix weighs a procurement")
     }
 }
 
@@ -1082,6 +1122,9 @@ pub enum JobType {
     /// Take the whole stack of `item`, `count` units, off the derelict
     /// `wreck` and undock with it aboard. Done on the undock from the wreck
     /// with the hold carrying at least `count` and the wreck carrying none.
+    /// The wreck stands in the field when the board posts, or, with none in
+    /// reach, is the job's own, which the accept puts in the world
+    /// ([`Job::spawns_target`]).
     Recover {
         /// The derelict that holds the stack.
         wreck: GeneratedBodyId,
@@ -1114,7 +1157,9 @@ pub enum JobType {
         /// The caller's id.
         caller: GeneratedBodyId,
     },
-    /// Neutralize or destroy the hostile `hull`.
+    /// Neutralize or destroy the hostile `hull`. The hull stands in the
+    /// field when the board posts, or, with none in reach, is the job's own
+    /// raider, which the accept puts in the world ([`Job::spawns_target`]).
     Neutralize {
         /// The hull's id.
         hull: GeneratedBodyId,
@@ -1268,14 +1313,16 @@ pub struct Job {
     /// job is done and paid on the dock with it.
     pub target: GeneratedBodyId,
     /// How far the work lies from the poster when the board posts, in
-    /// meters: the drawn leg of an escort ([`ESCORT_LEG_M`]), a distress call
-    /// and a supply job ([`JOB_LEG_M`]), the way to the wreck of a recovery
-    /// or the hull of a neutralize. Zero for a procurement.
+    /// meters: the drawn leg of an escort ([`ESCORT_LEG_M`]), a distress
+    /// call, a supply job and a recovery's own wreck ([`JOB_LEG_M`]) and a
+    /// neutralize's own raider ([`NEUTRALIZE_LEG_M`]), the way to the wreck
+    /// of a recovery or the hull of a neutralize that stands in the field.
+    /// Zero for a procurement.
     pub leg_m: u32,
     /// The weapons the job puts against the player when the board posts: an
     /// escort's raiders times the weapons of each
-    /// ([`escort_raider_weapons`]), a neutralize's hull's live weapon
-    /// sections. Zero for every other kind.
+    /// ([`escort_raider_weapons`]), the same for a neutralize's own raider,
+    /// a field hull's live weapon sections. Zero for every other kind.
     pub threat: u32,
     /// What the poster pays on the hand-in, by term; the total is above
     /// zero.
@@ -1532,11 +1579,31 @@ impl Job {
         }
     }
 
+    /// Whether the wreck of a recovery or the hull of a neutralize is the
+    /// job's own: the board found none in the field, so the accept puts it
+    /// in the world under an id the job mints. `false` for a target that
+    /// stood in the field at posting and for every other kind.
+    pub fn spawns_target(&self) -> bool {
+        if self.id.slot_posting().is_none() {
+            return false;
+        }
+        match &self.kind {
+            JobType::Recover { wreck, .. } => *wreck == self.id.spawned_body("wreck", 0),
+            JobType::Neutralize { hull, .. } => *hull == self.id.spawned_body("raider", 0),
+            JobType::Procure { .. }
+            | JobType::Escort { .. }
+            | JobType::Distress { .. }
+            | JobType::Supply { .. } => false,
+        }
+    }
+
     /// Every body the accept puts in the world: the hauler and its raiders,
-    /// or the caller of a distress call or a supply job. Empty for a
-    /// procurement, a recovery and a neutralize, which name bodies that
-    /// already stand, and for a hail job, whose caller hailed before the
-    /// accept and stays in the world when the job ends.
+    /// the caller of a distress call or a supply job, or the own wreck of a
+    /// recovery or the own raider of a neutralize ([`Job::spawns_target`]).
+    /// Empty for a procurement, for a recovery and a neutralize that name a
+    /// body of the field, which stands already, and for a hail job, whose
+    /// caller hailed before the accept and stays in the world when the job
+    /// ends.
     pub fn spawned_bodies(&self) -> Vec<GeneratedBodyId> {
         if self.id.is_hail() {
             return Vec::new();
@@ -1546,9 +1613,14 @@ impl Job {
                 .chain(self.raider_ids())
                 .collect(),
             JobType::Distress { caller } | JobType::Supply { caller, .. } => vec![caller.clone()],
-            JobType::Procure { .. } | JobType::Recover { .. } | JobType::Neutralize { .. } => {
-                Vec::new()
+            JobType::Recover { wreck: target, .. } | JobType::Neutralize { hull: target, .. } => {
+                if self.spawns_target() {
+                    vec![target.clone()]
+                } else {
+                    Vec::new()
+                }
             }
+            JobType::Procure { .. } => Vec::new(),
         }
     }
 
@@ -1789,11 +1861,11 @@ impl JobBoard {
 }
 
 /// The board of the station the player started docked at: the one board
-/// whose list hides every job the current hull cannot do
-/// ([`plan_job_hull_fit`]), so the first jobs are ones the start can finish.
-/// Its draw also assures the hull one offer ([`station_job_offers`]).
-/// Put beside the [`JobBoard`] by the open world from the session's starting
-/// station id, and never on another board.
+/// whose every slot posts a job the hull it posts for can do
+/// ([`station_job_offers`]), so the first jobs are ones the start can
+/// finish. Put beside the [`JobBoard`] by the open world from the session's
+/// starting station id, for as long as the session lasts, and never on
+/// another board.
 #[derive(Component, Debug, Default)]
 pub struct StarterBoardMarker;
 
@@ -2259,30 +2331,51 @@ fn wanted_categories(clusters: &[ClusterType]) -> Vec<ItemCategoryType> {
     wanted
 }
 
+/// What a station's own jobs put in the world on the accept: the target of
+/// a recovery or a neutralize that finds no body in the [`JobField`]. The
+/// open world crate fills it from the poster's civilization, whose hulls
+/// the jobs spawn.
+pub struct JobSpawns<'a> {
+    /// What a recovery's own wreck is called.
+    pub wreck_name: String,
+    /// The hold of the wreck the slot job of an id would put in the world:
+    /// its stacks, at least one, each above zero. The same id gives the
+    /// same hold, the one the accept spawns the wreck with. Asked only for
+    /// a slot that posts a recovery with no wreck of the field left.
+    pub wreck_hold: &'a dyn Fn(&JobId) -> Vec<(ItemDesignId, u32)>,
+    /// What a neutralize's own raider is called.
+    pub raider_name: String,
+}
+
 /// The offers the slots `ids` of one station's board post in the world of
 /// `seed`, the station standing in a cell whose clusters are `clusters`,
-/// for a start whose boards lean by `mix`, with `field` standing around it,
-/// beside the board's `standing` offers, which keep their slots: one offer
-/// per id, in order, each kind drawn by the mix's weights. No offer names a
-/// body a standing offer names, and a procurement asks for no item a
-/// standing one asks for while the pool allows. The caller leaves out of
-/// `field` every body another board or a held job names
-/// ([`JobPostings::named_bodies`]).
+/// for a start whose boards lean by `mix`, with `field` standing around it
+/// and `spawns` for the targets it lacks, beside the board's `standing`
+/// offers, which keep their slots: one offer per id, in order, each kind
+/// drawn by the mix's weights. No offer names a body a standing offer
+/// names, and a procurement asks for no item a standing one asks for while
+/// the pool allows. The caller leaves out of `field` every body another
+/// board or a held job names ([`JobPostings::named_bodies`]).
 ///
 /// A procurement asks for an item from the categories the cell asks for
 /// ([`wanted_categories`]), distinct while the pool allows, [`PROCURE_COUNT`]
 /// units. A recovery names a wreck of the field and one of its stacks,
-/// whole; an escort a hauler carrying [`ESCORT_CARGO_CR`] at ask past the
-/// raiders its poster's advancement draws; a neutralize names a hostile of
-/// the field. A supply job draws a framing, then an item of it from its own
-/// pool ([`supply_pool`]), [`supply_count`] units. An escort, a distress
-/// call and a supply job draw their leg ([`ESCORT_LEG_M`] for an escort,
-/// [`JOB_LEG_M`] for the other two); a recovery and a neutralize read theirs
-/// off the field body. Every offer is priced by
-/// [`job_reward`] on a drawn fee of one to [`FEE_STEPS`] times
-/// [`FEE_STEP_CR`]. A kind drawn with no candidate left in the field, or a
-/// supply job with an empty pool, posts a procurement instead; a wreck or a
-/// hull is named once per board.
+/// whole; with no wreck left it names its own, a wreck the accept puts a
+/// drawn leg out ([`JOB_LEG_M`]) with the hold `spawns` gives. An escort
+/// names a hauler carrying [`ESCORT_CARGO_CR`] at ask past the raiders its
+/// poster's advancement draws. A neutralize names a hostile of the field;
+/// with none left it names its own, one raider of the escort band of the
+/// poster's advancement ([`escort_raider_size`]) that the accept puts a
+/// drawn leg out ([`NEUTRALIZE_LEG_M`]), its weapons
+/// ([`escort_raider_weapons`]) the job's threat. A supply job draws a
+/// framing, then an item of it from its own pool ([`supply_pool`]),
+/// [`supply_count`] units. An escort, a distress call and a supply job draw
+/// their leg ([`ESCORT_LEG_M`] for an escort, [`JOB_LEG_M`] for the other
+/// two); a recovery and a neutralize of the field read theirs off the body.
+/// Every offer is priced by [`job_reward`] on a drawn fee of one to
+/// [`FEE_STEPS`] times [`FEE_STEP_CR`]. A supply job drawn with an empty
+/// pool posts a procurement instead; a wreck or a hull is named once per
+/// board.
 ///
 /// Each slot's draws come off its own `WyRand`, seeded from the world seed,
 /// the station id, the slot and its posting, in a fixed number, so the same
@@ -2290,21 +2383,25 @@ fn wanted_categories(clusters: &[ClusterType]) -> Vec<ItemCategoryType> {
 /// afresh. A catalog with no item of the wanted categories draws from every
 /// item that is not contraband. A reward past a credit balance saturates.
 ///
-/// `assured` is the hull one of these offers must fit, `None` when no such
-/// hull is asked for. When none of the drawn offers fits it, the first id's
-/// offer turns into the first kind the hull can do, on that slot's own draws
-/// ([`fitted_posting`]); the other offers stand as drawn. A hull with no such
-/// kind keeps the draw. Only that offer may repeat an asked item or leave
-/// the wanted categories, when nothing else fits the hold.
+/// `fitted` is the hull every one of these offers must fit
+/// ([`plan_job_hull_fit`]), `None` when no hull is asked for: the starter
+/// board passes the player's. A slot whose drawn offer that hull cannot do
+/// draws again: one more number of the slot's own stream picks, by the
+/// mix's weights, among the kinds whose offer on this slot the hull can do.
+/// A procurement the hold cannot take whole is cut to a stack it takes
+/// ([`cut_procurement`]); only that offer may repeat an asked item or leave
+/// the wanted categories. A hull that can do no kind of the mix keeps the
+/// draw.
 ///
 /// # Panics
 ///
 /// When `ids` is empty, spans stations, repeats a slot or names one past
-/// the board, and when the catalog is empty or holds contraband alone: a
-/// board always has an item to ask for.
+/// the board, when the catalog is empty or holds contraband alone: a board
+/// always has an item to ask for; and when `spawns` gives a wreck an empty
+/// hold: every generated hull carries goods.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one pure draw: the seed, the slots, the cell, the poster's advancement, the catalog, the mix, the field, the standing offers and the assured hull"
+    reason = "one pure draw: the seed, the slots, the cell, the poster's advancement, the catalog, the mix, the field, the spawned targets, the standing offers and the fitted hull"
 )]
 pub fn station_job_offers(
     seed: u32,
@@ -2314,8 +2411,9 @@ pub fn station_job_offers(
     items: &GameItems,
     mix: JobMixType,
     field: &JobField,
+    spawns: &JobSpawns<'_>,
     standing: &[Job],
-    assured: Option<JobHullFit>,
+    fitted: Option<JobHullFit>,
 ) -> Vec<Job> {
     let station = &ids
         .first()
@@ -2362,92 +2460,228 @@ pub fn station_job_offers(
     if !unasked.is_empty() {
         pool = unasked;
     }
-    let mut wrecks: Vec<&JobWreck> = field
-        .wrecks
-        .iter()
-        .filter(|wreck| {
-            !standing_bodies.contains(&&wreck.id)
-                && wreck.stacks.iter().any(|(_, count)| *count > 0)
-        })
-        .collect();
-    let mut hostiles: Vec<&JobHull> = field
-        .hostiles
-        .iter()
-        .filter(|hull| !standing_bodies.contains(&&hull.id))
-        .collect();
-    let supplies = supply_pool(items);
-    let mut offers: Vec<Job> = ids
-        .iter()
-        .map(|id| {
-            let id = id.clone();
-            let draw = SlotDraw::of(seed, &id, mix, advancement);
-            let mut kind = draw.kind;
-            if kind == JobKindType::Recover && wrecks.is_empty()
-                || kind == JobKindType::Neutralize && hostiles.is_empty()
-                || kind == JobKindType::Supply && supplies.is_empty()
-            {
-                kind = JobKindType::Procure;
-            }
-            let posting = match kind {
-                JobKindType::Procure => {
-                    let at = draw.pick as usize % pool.len();
-                    let item = if pool.len() > 1 {
-                        pool.swap_remove(at)
-                    } else {
-                        pool[at]
-                    };
-                    procurement(item, draw.count)
-                }
-                JobKindType::Recover => {
-                    let wreck = wrecks.swap_remove(draw.pick as usize % wrecks.len());
-                    let stacks: Vec<&(ItemDesignId, u32)> = wreck
-                        .stacks
-                        .iter()
-                        .filter(|(_, count)| *count > 0)
-                        .collect();
-                    let (item, count) = stacks[(draw.pick / 7) as usize % stacks.len()].clone();
-                    Posting {
-                        kind: JobType::Recover {
-                            wreck: wreck.id.clone(),
-                            wreck_name: wreck.name.clone(),
-                            item,
-                            count,
-                        },
-                        leg_m: wreck.leg_m,
-                        threat: 0,
-                    }
-                }
-                JobKindType::Escort => escort_posting(&id, draw, advancement),
-                JobKindType::Distress => distress_posting(&id, draw),
-                JobKindType::Supply => supply_posting(&id, draw, &supplies),
-                JobKindType::Neutralize => {
-                    let hull = hostiles.swap_remove(draw.pick as usize % hostiles.len());
-                    Posting {
-                        kind: JobType::Neutralize {
-                            hull: hull.id.clone(),
-                            hull_name: hull.name.clone(),
-                        },
-                        leg_m: hull.leg_m,
-                        threat: hull.weapons,
-                    }
-                }
-            };
-            posting.job(id, draw.fee, advancement, items)
-        })
-        .collect();
-    if let Some(fit) = assured {
-        let fitted = offers
+    let mut board = BoardPool {
+        items,
+        advancement,
+        spawns,
+        pool,
+        wrecks: field
+            .wrecks
             .iter()
-            .any(|offer| plan_job_hull_fit(offer, items, fit).is_ok());
-        if !fitted {
-            let id = offers[0].id.clone();
-            let draw = SlotDraw::of(seed, &id, mix, advancement);
-            if let Some(posting) = fitted_posting(&id, draw, advancement, &pool, items, fit) {
-                offers[0] = posting.job(id, draw.fee, advancement, items);
+            .filter(|wreck| {
+                !standing_bodies.contains(&&wreck.id)
+                    && wreck.stacks.iter().any(|(_, count)| *count > 0)
+            })
+            .collect(),
+        hostiles: field
+            .hostiles
+            .iter()
+            .filter(|hull| !standing_bodies.contains(&&hull.id))
+            .collect(),
+        supplies: supply_pool(items),
+    };
+    ids.iter()
+        .map(|id| {
+            let draw = SlotDraw::of(seed, id, mix, advancement);
+            let drawn = board.posting(id, draw, draw.kind).unwrap_or_else(|| {
+                board
+                    .posting(id, draw, JobKindType::Procure)
+                    .expect("a procurement always posts")
+            });
+            let (posting, taken) = match fitted {
+                Some(fit) if hull_fit(&drawn.0.kind, items, fit).is_err() => {
+                    board.redraw(id, draw, mix, fit).unwrap_or(drawn)
+                }
+                _ => drawn,
+            };
+            board.take(taken);
+            posting.job(id.clone(), draw.fee, advancement, items)
+        })
+        .collect()
+}
+
+/// What one board's slots draw from, in slot order: the items no offer of
+/// the board asks for yet, the field's wrecks and hostiles none names yet,
+/// the supply pool and the poster's own targets.
+struct BoardPool<'a> {
+    items: &'a GameItems,
+    advancement: f32,
+    spawns: &'a JobSpawns<'a>,
+    pool: Vec<&'a ItemDesignId>,
+    wrecks: Vec<&'a JobWreck>,
+    hostiles: Vec<&'a JobHull>,
+    supplies: Vec<&'a ItemDesign>,
+}
+
+/// What a posting takes out of its [`BoardPool`], so no later slot of the
+/// board names it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TakenType {
+    /// Nothing: the posting names a body of its own, or the last item of
+    /// the pool, which a small pool repeats.
+    Nothing,
+    /// The item at this place of the pool.
+    Item(usize),
+    /// The wreck at this place of the field's wrecks.
+    Wreck(usize),
+    /// The hull at this place of the field's hostiles.
+    Hostile(usize),
+}
+
+impl<'a> BoardPool<'a> {
+    /// What the slot `id` posts for `kind` on `draw`, and what that takes
+    /// out of the pool once it is posted ([`BoardPool::take`]). `None` for
+    /// a supply job while the supply pool is empty.
+    fn posting(
+        &self,
+        id: &JobId,
+        draw: SlotDraw,
+        kind: JobKindType,
+    ) -> Option<(Posting, TakenType)> {
+        let pick = draw.pick as usize;
+        Some(match kind {
+            JobKindType::Procure => {
+                let at = pick % self.pool.len();
+                let taken = if self.pool.len() > 1 {
+                    TakenType::Item(at)
+                } else {
+                    TakenType::Nothing
+                };
+                (procurement(self.pool[at], draw.count), taken)
+            }
+            JobKindType::Recover if self.wrecks.is_empty() => {
+                let stacks = (self.spawns.wreck_hold)(id);
+                let stacks: Vec<&(ItemDesignId, u32)> =
+                    stacks.iter().filter(|(_, count)| *count > 0).collect();
+                assert!(
+                    !stacks.is_empty(),
+                    "station_job_offers: the own wreck of '{id}' holds nothing"
+                );
+                let (item, count) = stacks[(draw.pick / 7) as usize % stacks.len()].clone();
+                let posting = Posting {
+                    kind: JobType::Recover {
+                        wreck: id.spawned_body("wreck", 0),
+                        wreck_name: self.spawns.wreck_name.clone(),
+                        item,
+                        count,
+                    },
+                    leg_m: draw.leg_m(JOB_LEG_M),
+                    threat: 0,
+                };
+                (posting, TakenType::Nothing)
+            }
+            JobKindType::Recover => {
+                let at = pick % self.wrecks.len();
+                let wreck = self.wrecks[at];
+                let stacks: Vec<&(ItemDesignId, u32)> = wreck
+                    .stacks
+                    .iter()
+                    .filter(|(_, count)| *count > 0)
+                    .collect();
+                let (item, count) = stacks[(draw.pick / 7) as usize % stacks.len()].clone();
+                let posting = Posting {
+                    kind: JobType::Recover {
+                        wreck: wreck.id.clone(),
+                        wreck_name: wreck.name.clone(),
+                        item,
+                        count,
+                    },
+                    leg_m: wreck.leg_m,
+                    threat: 0,
+                };
+                (posting, TakenType::Wreck(at))
+            }
+            JobKindType::Escort => (
+                escort_posting(id, draw, self.advancement),
+                TakenType::Nothing,
+            ),
+            JobKindType::Distress => (distress_posting(id, draw), TakenType::Nothing),
+            JobKindType::Supply => {
+                if self.supplies.is_empty() {
+                    return None;
+                }
+                (supply_posting(id, draw, &self.supplies), TakenType::Nothing)
+            }
+            JobKindType::Neutralize if self.hostiles.is_empty() => {
+                let posting = Posting {
+                    kind: JobType::Neutralize {
+                        hull: id.spawned_body("raider", 0),
+                        hull_name: self.spawns.raider_name.clone(),
+                    },
+                    leg_m: draw.leg_m(NEUTRALIZE_LEG_M),
+                    threat: escort_raider_weapons(self.advancement),
+                };
+                (posting, TakenType::Nothing)
+            }
+            JobKindType::Neutralize => {
+                let at = pick % self.hostiles.len();
+                let hull = self.hostiles[at];
+                let posting = Posting {
+                    kind: JobType::Neutralize {
+                        hull: hull.id.clone(),
+                        hull_name: hull.name.clone(),
+                    },
+                    leg_m: hull.leg_m,
+                    threat: hull.weapons,
+                };
+                (posting, TakenType::Hostile(at))
+            }
+        })
+    }
+
+    /// What the slot `id` posts in place of a drawn offer a hull of `fit`
+    /// cannot do: the number `draw` keeps for it picks, by the weights of
+    /// `mix`, among the kinds whose offer on this slot the hull can do. A
+    /// procurement the hold cannot take whole stands in as its cut
+    /// ([`cut_procurement`]). `None` for a hull that can do no kind of the
+    /// mix.
+    fn redraw(
+        &self,
+        id: &JobId,
+        draw: SlotDraw,
+        mix: JobMixType,
+        fit: JobHullFit,
+    ) -> Option<(Posting, TakenType)> {
+        let fits =
+            |posting: &(Posting, TakenType)| hull_fit(&posting.0.kind, self.items, fit).is_ok();
+        let mut weights = mix.weights();
+        let mut postings: [Option<(Posting, TakenType)>; 6] = Default::default();
+        for (at, kind) in JobKindType::ALL.into_iter().enumerate() {
+            if weights[at] == 0 {
+                continue;
+            }
+            let mut posting = self.posting(id, draw, kind).filter(fits);
+            if posting.is_none() && kind == JobKindType::Procure {
+                posting = cut_procurement(draw, &self.pool, self.items, fit);
+            }
+            if posting.is_none() {
+                weights[at] = 0;
+            }
+            postings[at] = posting;
+        }
+        let kind = pick_kind(weights, draw.redraw)?;
+        postings[JobKindType::ALL
+            .iter()
+            .position(|other| *other == kind)
+            .expect("ALL lists every kind")]
+        .take()
+    }
+
+    /// Take what a posted offer named out of the pool.
+    fn take(&mut self, taken: TakenType) {
+        match taken {
+            TakenType::Nothing => {}
+            TakenType::Item(at) => {
+                self.pool.swap_remove(at);
+            }
+            TakenType::Wreck(at) => {
+                self.wrecks.swap_remove(at);
+            }
+            TakenType::Hostile(at) => {
+                self.hostiles.swap_remove(at);
             }
         }
     }
-    offers
 }
 
 /// What one slot posts before it is priced: the kind and the two posting
@@ -2487,19 +2721,22 @@ impl Posting {
 /// the kind decides, so the same slot reads the same numbers every time.
 ///
 /// Public with its kind alone, so a board census can read what a slot drew
-/// before [`station_job_offers`] posts a procurement in its place.
+/// before the starter board draws it again ([`station_job_offers`]).
 #[derive(Clone, Copy, Debug)]
 pub struct SlotDraw {
-    /// The kind the mix drew, before any fallback.
+    /// The kind the mix drew, before the starter board's second draw.
     pub kind: JobKindType,
     fee: u32,
     pick: u32,
     count: u32,
     cargo_cr: u32,
     raiders: u32,
-    /// Picks the leg of an escort, a distress call and a supply job
-    /// ([`leg_m`](Self::leg_m)).
+    /// Picks the leg of an escort, a distress call, a supply job and a
+    /// recovery's or a neutralize's own target ([`leg_m`](Self::leg_m)).
     leg_pick: u32,
+    /// Picks the kind a starter board posts in place of one the hull cannot
+    /// do ([`BoardPool::redraw`]).
+    redraw: u32,
 }
 
 impl SlotDraw {
@@ -2528,6 +2765,7 @@ impl SlotDraw {
             cargo_cr: rng.random_range(ESCORT_CARGO_CR.0..=ESCORT_CARGO_CR.1),
             raiders: draw_escort_raiders(advancement, &mut rng),
             leg_pick: rng.random_range(0..u32::MAX),
+            redraw: rng.random_range(0..u32::MAX),
         }
     }
 
@@ -2670,22 +2908,17 @@ fn supply_posting(id: &JobId, draw: SlotDraw, pool: &[&ItemDesign]) -> Posting {
     }
 }
 
-/// The first kind a hull of `fit` can do on the slot `id`, from `draw` at a
-/// station whose civilization has `advancement`, priced like any other
-/// offer: a procurement while the hold takes the least stack of an item
-/// of `pool`, else of any catalog item that is not contraband, of the drawn
-/// count or the most under
-/// it the hold takes; else a distress call for a clamp; else an escort for a
-/// weapon. A recovery and a neutralize need a field body, so they stay with
-/// the draw. `None` for a hull that fits none of them.
-fn fitted_posting(
-    id: &JobId,
+/// The procurement a hull of `fit` can stow when the drawn one outweighs
+/// its hold, from `draw`: an item of `pool` whose least stack the hold
+/// takes, else any catalog item that is not contraband, at the drawn count
+/// or the most under it the hold takes, and its place in `pool` to take.
+/// `None` when the hold takes the least stack of no item.
+fn cut_procurement(
     draw: SlotDraw,
-    advancement: f32,
     pool: &[&ItemDesignId],
     items: &GameItems,
     fit: JobHullFit,
-) -> Option<Posting> {
+) -> Option<(Posting, TakenType)> {
     let hold = u64::from(fit.hold_capacity_g);
     let stowed = |item: &ItemDesignId| items.design(item).stack_mass_g(PROCURE_COUNT.0) <= hold;
     let mut stowable: Vec<&ItemDesignId> =
@@ -2698,19 +2931,19 @@ fn fitted_posting(
             .filter(|item| stowed(item))
             .collect();
     }
-    if !stowable.is_empty() {
-        let item = stowable[draw.pick as usize % stowable.len()];
-        let count = (PROCURE_COUNT.0..=draw.count)
-            .rev()
-            .find(|count| items.design(item).stack_mass_g(*count) <= hold)
-            .expect("the stowable items hold their least stack");
-        return Some(procurement(item, count));
+    if stowable.is_empty() {
+        return None;
     }
-    if fit.has_clamp {
-        return Some(distress_posting(id, draw));
-    }
-    fit.has_weapon
-        .then(|| escort_posting(id, draw, advancement))
+    let item = stowable[draw.pick as usize % stowable.len()];
+    let count = (PROCURE_COUNT.0..=draw.count)
+        .rev()
+        .find(|count| items.design(item).stack_mass_g(*count) <= hold)
+        .expect("the stowable items hold their least stack");
+    let taken = match pool.iter().position(|other| *other == item) {
+        Some(at) if pool.len() > 1 => TakenType::Item(at),
+        Some(_) | None => TakenType::Nothing,
+    };
+    Some((procurement(item, count), taken))
 }
 
 /// Why an accept changes nothing, in check order.
@@ -2739,8 +2972,9 @@ pub enum JobAcceptRefusalType {
 /// against the player's `jobs`. `expired` is whether the offer's window has
 /// passed ([`SlotPosting::is_expired`]); `target_standing` is whether the
 /// wreck of a recovery still carries its stack, or the hull of a neutralize
-/// still stands un-neutralized, read for those two kinds only. A refusal
-/// changes nothing.
+/// still stands un-neutralized, read for those two kinds only, and not for
+/// a job whose target is its own ([`Job::spawns_target`]): the accept puts
+/// that body in the world. A refusal changes nothing.
 ///
 /// A hail job ([`JobSourceType::Hail`]) is offered in space, so `docked` is
 /// not read for it: every other rule stands. [`plan_hail_accept`] plans one
@@ -2771,7 +3005,7 @@ pub fn plan_job_accept(
         job.kind,
         JobType::Recover { .. } | JobType::Neutralize { .. }
     );
-    if located && !target_standing {
+    if located && !job.spawns_target() && !target_standing {
         return Err(JobAcceptRefusalType::TargetGone);
     }
     Ok(())
@@ -2830,9 +3064,9 @@ pub enum JobHullRefusalType {
 /// Plan whether a hull of `fit` can do `job`: a procurement needs hold
 /// capacity for its whole stack, a recovery and a distress call need a
 /// docking section, a supply job needs both, checked in that order, and an
-/// escort and a neutralize need a weapon section. The
-/// starter board hides a refused job; every other board lists it and greys
-/// its Accept with the refusal.
+/// escort and a neutralize need a weapon section. A board lists a refused
+/// job and greys its Accept with the refusal; the starter board posts none
+/// for the hull it draws for.
 ///
 /// Agent decision 2026-10-18 for owner review: the gate reads the hull, not
 /// the start class and a timer, so an upgrade opens jobs by itself.
@@ -2847,6 +3081,12 @@ pub fn plan_job_hull_fit(
     items: &GameItems,
     fit: JobHullFit,
 ) -> Result<(), JobHullRefusalType> {
+    hull_fit(&job.kind, items, fit)
+}
+
+/// [`plan_job_hull_fit`] over the kind alone: the gate reads nothing else of
+/// a job, so a board's draw judges a posting before it is priced.
+fn hull_fit(kind: &JobType, items: &GameItems, fit: JobHullFit) -> Result<(), JobHullRefusalType> {
     let holds = |item: &ItemDesignId, count: u32| {
         let need_g = items.design(item).stack_mass_g(count);
         if need_g > u64::from(fit.hold_capacity_g) {
@@ -2857,7 +3097,7 @@ pub fn plan_job_hull_fit(
         }
         Ok(())
     };
-    match &job.kind {
+    match kind {
         JobType::Procure { item, count } => holds(item, *count)?,
         JobType::Supply { item, count, .. } => {
             holds(item, *count)?;
@@ -3280,6 +3520,21 @@ mod tests {
         }
     }
 
+    /// The hold of every own wreck in these tests: two items every test
+    /// catalog a board draws over carries.
+    fn own_hold(_: &JobId) -> Vec<(ItemDesignId, u32)> {
+        vec![("Medkit".into(), 4), ("PdcRound".into(), 6)]
+    }
+
+    /// What a poster of these tests spawns for a job with no field target.
+    fn spawns() -> JobSpawns<'static> {
+        JobSpawns {
+            wreck_name: "Vell derelict".to_string(),
+            wreck_hold: &own_hold,
+            raider_name: "Vell raider".to_string(),
+        }
+    }
+
     /// The ids of `station`'s first postings, in slot order.
     fn first_ids(station: &GeneratedBodyId) -> Vec<JobId> {
         (0..JOBS_PER_BOARD)
@@ -3304,6 +3559,7 @@ mod tests {
             items,
             mix,
             field,
+            &spawns(),
             &[],
             None,
         )
@@ -3391,8 +3647,14 @@ mod tests {
                     assert_eq!((job.reward.range_cr, job.reward.threat_cr), (0, 0));
                     seen.push(item.clone());
                 }
-                JobType::Recover { .. } | JobType::Neutralize { .. } => {
-                    panic!("an empty field names no wreck and no hull: {job:?}")
+                JobType::Recover { .. } => {
+                    assert!(
+                        job.spawns_target(),
+                        "an empty field names no wreck: {job:?}"
+                    )
+                }
+                JobType::Neutralize { .. } => {
+                    panic!("the trade mix weighs no neutralize: {job:?}")
                 }
                 JobType::Escort { .. } | JobType::Distress { .. } | JobType::Supply { .. } => {}
             }
@@ -3419,37 +3681,139 @@ mod tests {
         }
     }
 
+    /// Over a fixed set of 400 seeds every mix posts each kind within five
+    /// points of its weight's share, and a kind of weight zero never: with
+    /// no field to name and a stocked supply pool, a slot posts the kind it
+    /// drew.
     #[test]
-    fn the_mix_weights_the_kinds_and_a_located_kind_names_the_field_once_per_board() {
-        let field = field();
-        let trade = kind_counts(&boards(JobMixType::Trade, &field));
-        let salvage = kind_counts(&boards(JobMixType::Salvage, &field));
-        let combat = kind_counts(&boards(JobMixType::Combat, &field));
-        assert!(
-            trade[0] + trade[2] > trade[1] + trade[3] + trade[4] + trade[5],
-            "a trade start sees mostly procurements and escorts: {trade:?}"
-        );
-        assert!(
-            salvage[1] > salvage[0] && salvage[1] > salvage[2],
-            "a salvage start sees mostly recoveries: {salvage:?}"
-        );
-        assert!(
-            combat[3] + combat[4] + combat[5] > combat[0] + combat[1] + combat[2],
-            "a combat start sees mostly calls, supply jobs and neutralizes: {combat:?}"
-        );
-        for counts in [trade, salvage, combat] {
-            assert!(
-                counts.iter().all(|count| *count > 0),
-                "every kind is posted somewhere: {counts:?}"
-            );
-        }
+    fn each_mix_posts_its_kinds_by_its_weights_and_never_a_kind_of_weight_zero() {
         let items = catalog();
-        for seed in 0..60 {
-            let posted = board(seed, &station(1), &[], &items, JobMixType::Combat, &field);
+        for mix in JobMixType::ALL {
+            let posted: Vec<Job> = (0..400)
+                .flat_map(|seed| board(seed, &station(1), &[], &items, mix, &JobField::default()))
+                .collect();
+            let counts = kind_counts(&posted);
+            let weights = mix.weights();
+            let total: u32 = weights.iter().sum();
+            for (kind, (count, weight)) in
+                JobKindType::ALL.into_iter().zip(counts.iter().zip(weights))
+            {
+                if weight == 0 {
+                    assert_eq!(*count, 0, "{mix:?} never posts {kind:?}: {counts:?}");
+                    continue;
+                }
+                let share = *count as f32 / posted.len() as f32;
+                let weighed = weight as f32 / total as f32;
+                assert!(
+                    (share - weighed).abs() < 0.05,
+                    "{mix:?} posts {kind:?} on {share:.3} of its slots, weighed {weighed:.3}: \
+                     {counts:?}"
+                );
+            }
+        }
+        assert_eq!(
+            JobMixType::ALL.map(JobMixType::weights),
+            [
+                [4, 1, 0, 2, 0, 5],
+                [1, 6, 1, 2, 1, 1],
+                [3, 1, 1, 2, 0, 5],
+                [1, 1, 2, 1, 7, 0],
+                [1, 0, 4, 3, 1, 3],
+                [1, 4, 0, 1, 5, 1],
+            ],
+            "Mining, Salvage, Trade, Bounty, Patrol, Raid over Procure, Recover, Escort, \
+             Distress, Neutralize, Supply"
+        );
+        assert_eq!(pick_kind([0; 6], 7), None, "no weight, no kind");
+        assert_eq!(
+            (0..12)
+                .map(|pick| pick_kind([0, 2, 0, 0, 1, 0], pick).unwrap())
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from([JobKindType::Recover, JobKindType::Neutralize]),
+            "a pick lands only on a kind with weight"
+        );
+    }
+
+    /// A recovery and a neutralize name a body of the field while one is
+    /// left, once per board, and read its leg and its threat; with none left
+    /// they name their own, a drawn leg out.
+    #[test]
+    fn a_located_kind_names_the_field_once_per_board_and_then_its_own_target() {
+        let field = field();
+        let items = catalog();
+        let (mut own_wrecks, mut own_raiders) = (0, 0);
+        // The salvage mix posts every kind and boards of three recoveries;
+        // the bounty mix posts boards of three neutralizes.
+        let boards = [JobMixType::Salvage, JobMixType::Bounty]
+            .into_iter()
+            .flat_map(|mix| (0..100).map(move |seed| (mix, seed)));
+        for (mix, seed) in boards {
+            let posted = board(seed, &station(1), &[], &items, mix, &field);
             let mut named = Vec::new();
             for job in &posted {
                 job.validate().unwrap();
+                own_wrecks += u32::from(job.spawns_target() && job.threat == 0);
+                own_raiders += u32::from(job.spawns_target() && job.threat > 0);
                 match &job.kind {
+                    JobType::Recover {
+                        wreck,
+                        wreck_name,
+                        item,
+                        count,
+                    } if job.spawns_target() => {
+                        assert_eq!(
+                            named
+                                .iter()
+                                .filter(|body| field.wrecks.iter().any(|w| w.id == **body))
+                                .count(),
+                            field.wrecks.len(),
+                            "a recovery names its own wreck only with the field's all named"
+                        );
+                        assert_eq!(
+                            wreck.to_string(),
+                            format!(
+                                "sector_1_0_0_cluster_0_0_0_station_job_{}_0_wreck_0",
+                                job.id.slot_posting().unwrap().0
+                            )
+                        );
+                        assert_eq!(wreck_name, "Vell derelict");
+                        assert!(own_hold(&job.id).contains(&(item.clone(), *count)));
+                        assert!(
+                            drawn_leg(job.leg_m, JOB_LEG_M) && job.threat == 0,
+                            "an own wreck draws its leg: {job:?}"
+                        );
+                        assert_eq!(
+                            u64::from(job.reward.goods_cr),
+                            items.design(item).reference_price().buy_cr(*count) / 2
+                        );
+                        assert_eq!(job.located_body(), Some(wreck));
+                        assert_eq!(job.spawned_bodies(), vec![wreck.clone()]);
+                        assert!(job.id.possible_bodies().contains(wreck));
+                    }
+                    JobType::Neutralize { hull, hull_name } if job.spawns_target() => {
+                        assert_eq!(
+                            named
+                                .iter()
+                                .filter(|body| field.hostiles.iter().any(|h| h.id == **body))
+                                .count(),
+                            field.hostiles.len(),
+                            "a neutralize names its own raider only with the field's all named"
+                        );
+                        assert_eq!(*hull, job.id.spawned_body("raider", 0));
+                        assert_eq!(hull_name, "Vell raider");
+                        assert!(
+                            drawn_leg(job.leg_m, NEUTRALIZE_LEG_M),
+                            "an own raider draws its leg: {job:?}"
+                        );
+                        assert_eq!(
+                            job.threat,
+                            escort_raider_weapons(0.0),
+                            "one raider of the poster's band"
+                        );
+                        assert_eq!(job.reward.threat_cr, JOB_THREAT_CR_PER_WEAPON * job.threat);
+                        assert_eq!(job.spawned_bodies(), vec![hull.clone()]);
+                        assert!(job.id.possible_bodies().contains(hull));
+                    }
                     JobType::Recover {
                         wreck,
                         wreck_name,
@@ -3545,6 +3909,163 @@ mod tests {
                     job.reward.range_cr,
                     JOB_RANGE_CR_PER_KM * job.leg_m / 1_000,
                     "at advancement 0 the range pays its plain rate: {job:?}"
+                );
+            }
+        }
+        assert!(
+            own_wrecks > 0 && own_raiders > 0,
+            "the boards posted {own_wrecks} own wreck(s) and {own_raiders} own raider(s)"
+        );
+    }
+
+    /// The kind a posted job is.
+    fn kind_of(job: &Job) -> JobKindType {
+        match job.kind {
+            JobType::Procure { .. } => JobKindType::Procure,
+            JobType::Recover { .. } => JobKindType::Recover,
+            JobType::Escort { .. } => JobKindType::Escort,
+            JobType::Distress { .. } => JobKindType::Distress,
+            JobType::Neutralize { .. } => JobKindType::Neutralize,
+            JobType::Supply { .. } => JobKindType::Supply,
+        }
+    }
+
+    /// With nothing standing in the field every slot of every mix posts the
+    /// kind it drew: a recovery and a neutralize name their own target, and
+    /// the accept of one asks for no standing body.
+    #[test]
+    fn a_recover_or_a_neutralize_draw_posts_as_drawn_with_no_target_in_the_field() {
+        let items = catalog();
+        let poster = station(1);
+        let (mut recoveries, mut neutralizes) = (0, 0);
+        for mix in JobMixType::ALL {
+            for seed in 0..200 {
+                let posted = board(seed, &poster, &[], &items, mix, &JobField::default());
+                for (id, job) in first_ids(&poster).iter().zip(&posted) {
+                    let drawn = SlotDraw::of(seed, id, mix, 0.0).kind;
+                    assert_eq!(kind_of(job), drawn, "{mix:?}, seed {seed}: {job:?}");
+                    if !matches!(drawn, JobKindType::Recover | JobKindType::Neutralize) {
+                        assert!(!job.spawns_target(), "{job:?}");
+                        continue;
+                    }
+                    recoveries += u32::from(drawn == JobKindType::Recover);
+                    neutralizes += u32::from(drawn == JobKindType::Neutralize);
+                    assert!(job.spawns_target(), "{job:?}");
+                    assert_eq!(
+                        plan_job_accept(job, Some(&poster), &Jobs::default(), false, false),
+                        Ok(()),
+                        "the accept puts the target in the world: {job:?}"
+                    );
+                }
+            }
+        }
+        assert!(recoveries > 0 && neutralizes > 0);
+    }
+
+    /// The first board of `station(1)` on `seed` under `mix`, drawn for a
+    /// hull of `fit` over an empty field.
+    fn fitted_board(seed: u32, mix: JobMixType, fit: Option<JobHullFit>) -> Vec<Job> {
+        station_job_offers(
+            seed,
+            &first_ids(&station(1)),
+            &[],
+            0.0,
+            &catalog(),
+            mix,
+            &JobField::default(),
+            &spawns(),
+            &[],
+            fit,
+        )
+    }
+
+    /// A board drawn for an unarmed hull with a clamp posts three jobs that
+    /// hull can do under every mix: a slot whose draw fits keeps its kind,
+    /// and a slot that drew a fight posts a kind of the mix the hull can do,
+    /// the same on every draw.
+    #[test]
+    fn a_board_drawn_for_an_unarmed_hull_posts_three_jobs_it_can_do() {
+        let items = catalog();
+        let unarmed = JobHullFit {
+            hold_capacity_g: 100_000_000,
+            has_clamp: true,
+            has_weapon: false,
+        };
+        for mix in JobMixType::ALL {
+            let (mut redrawn, mut kinds) = (0, BTreeSet::new());
+            for seed in 0..200 {
+                let drawn = fitted_board(seed, mix, None);
+                let posted = fitted_board(seed, mix, Some(unarmed));
+                assert_eq!(posted.len(), JOBS_PER_BOARD as usize);
+                assert_eq!(posted, fitted_board(seed, mix, Some(unarmed)));
+                for (job, drawn) in posted.iter().zip(&drawn) {
+                    job.validate().unwrap();
+                    assert_eq!(
+                        plan_job_hull_fit(job, &items, unarmed),
+                        Ok(()),
+                        "{mix:?}, seed {seed}: {job:?}"
+                    );
+                    assert!(
+                        mix.weights()[kind_of(job) as usize] > 0,
+                        "{mix:?} posts no {:?}",
+                        kind_of(job)
+                    );
+                    if plan_job_hull_fit(drawn, &items, unarmed).is_ok() {
+                        // The item may differ: a slot redrawn before this
+                        // one took another item out of the pool.
+                        assert_eq!(
+                            kind_of(job),
+                            kind_of(drawn),
+                            "a slot whose draw the hull can do keeps its kind"
+                        );
+                    } else {
+                        redrawn += 1;
+                        kinds.insert(kind_of(job));
+                    }
+                }
+            }
+            let fights = mix.weights()[JobKindType::Escort as usize]
+                + mix.weights()[JobKindType::Neutralize as usize];
+            assert_eq!(redrawn > 0, fights > 0, "{mix:?} redrew {redrawn} slot(s)");
+            if mix == JobMixType::Bounty {
+                assert_eq!(
+                    kinds,
+                    BTreeSet::from([
+                        JobKindType::Procure,
+                        JobKindType::Recover,
+                        JobKindType::Distress
+                    ]),
+                    "the bounty mix weighs no supply job, and the second draw reaches every \
+                     other kind an unarmed hull can do"
+                );
+            }
+        }
+    }
+
+    /// A hull with no clamp, no weapon and a hold of two units is posted
+    /// three procurements cut to its hold; a hull with no hold at all can
+    /// do no kind, and its board is the plain draw.
+    #[test]
+    fn a_board_drawn_for_a_bare_hull_cuts_its_procurements_to_the_hold() {
+        let items = catalog();
+        let bare = JobHullFit {
+            hold_capacity_g: 2_000,
+            has_clamp: false,
+            has_weapon: false,
+        };
+        for mix in JobMixType::ALL {
+            for seed in 0..50 {
+                for job in fitted_board(seed, mix, Some(bare)) {
+                    assert!(
+                        matches!(job.kind, JobType::Procure { count: 2, .. }),
+                        "{mix:?}, seed {seed}: {job:?}"
+                    );
+                    assert_eq!(plan_job_hull_fit(&job, &items, bare), Ok(()));
+                }
+                assert_eq!(
+                    fitted_board(seed, mix, Some(JobHullFit::default())),
+                    fitted_board(seed, mix, None),
+                    "a hull that can do nothing keeps the draw"
                 );
             }
         }
@@ -3909,6 +4430,7 @@ mod tests {
             raiders: 1,
             // The fourth step of a supply job's range: 12 km.
             leg_pick: 3,
+            redraw: 0,
         };
         let posting = supply_posting(&id, rescue, &pool);
         assert_eq!(
@@ -4006,6 +4528,7 @@ mod tests {
             raiders,
             // The first step of an escort's range: 10 km.
             leg_pick: 0,
+            redraw: 0,
         };
         // Each band's budget turrets, then the last band's scavenger slots.
         for (advancement, weapons) in [(0.0, 1), (0.2, 1), (0.25, 2), (0.5, 3), (0.75, 3), (1.0, 4)]
@@ -4096,7 +4619,7 @@ mod tests {
             (&whole, &ClusterType::ALL[..]),
             (&fallback, &[ClusterType::RockOnly][..]),
         ] {
-            for mix in [JobMixType::Trade, JobMixType::Combat] {
+            for mix in [JobMixType::Trade, JobMixType::Patrol] {
                 for seed in 0..40 {
                     for job in board(
                         seed,
@@ -4300,7 +4823,7 @@ mod tests {
         let items = catalog();
         let poster = station(1);
         let field = field();
-        let before = board(10, &poster, &[], &items, JobMixType::Combat, &field);
+        let before = board(10, &poster, &[], &items, JobMixType::Raid, &field);
         let mut postings = JobPostings::default();
         postings.post(before.clone(), 0.0);
         let id = before[0].id.clone();
@@ -4329,8 +4852,9 @@ mod tests {
             &[],
             0.0,
             &items,
-            JobMixType::Combat,
+            JobMixType::Raid,
             &field,
+            &spawns(),
             &before[1..],
             None,
         );
@@ -4347,17 +4871,17 @@ mod tests {
         let poster = station(1);
         let field = field();
         let located: Vec<Job> = (0..100)
-            .flat_map(|seed| board(seed, &poster, &[], &items, JobMixType::Combat, &field))
+            .flat_map(|seed| board(seed, &poster, &[], &items, JobMixType::Salvage, &field))
             .filter(|job| !job.kind.is_procurement())
             .collect();
         let recover = located
             .iter()
-            .find(|job| matches!(job.kind, JobType::Recover { .. }))
+            .find(|job| matches!(job.kind, JobType::Recover { .. }) && !job.spawns_target())
             .unwrap()
             .clone();
         let neutralize = located
             .iter()
-            .find(|job| matches!(job.kind, JobType::Neutralize { .. }))
+            .find(|job| matches!(job.kind, JobType::Neutralize { .. }) && !job.spawns_target())
             .unwrap()
             .clone();
         let escort = located
@@ -4560,7 +5084,7 @@ mod tests {
         let items = catalog();
         let poster = station(1);
         let field = field();
-        let before = board(10, &poster, &[], &items, JobMixType::Combat, &field);
+        let before = board(10, &poster, &[], &items, JobMixType::Raid, &field);
         let mut postings = JobPostings::default();
         postings.post(before.clone(), 0.0);
         let first: Vec<(u32, f64, &Job)> = postings
@@ -4584,8 +5108,9 @@ mod tests {
             &[],
             0.0,
             &items,
-            JobMixType::Combat,
+            JobMixType::Raid,
             &field,
+            &spawns(),
             &standing,
             None,
         );
@@ -4652,7 +5177,7 @@ mod tests {
         let items = catalog();
         let poster = station(1);
         let field = field();
-        let before = board(10, &poster, &[], &items, JobMixType::Combat, &field);
+        let before = board(10, &poster, &[], &items, JobMixType::Raid, &field);
         let mut postings = JobPostings::default();
         postings.post(before.clone(), 0.0);
         let id = before[0].id.clone();
@@ -4669,8 +5194,9 @@ mod tests {
             &[],
             0.0,
             &items,
-            JobMixType::Combat,
+            JobMixType::Raid,
             &field,
+            &spawns(),
             &before[1..],
             None,
         );
@@ -4687,7 +5213,7 @@ mod tests {
         let poster = station(1);
         let mut postings = JobPostings::default();
         postings.post(
-            board(10, &poster, &[], &catalog(), JobMixType::Combat, &field()),
+            board(10, &poster, &[], &catalog(), JobMixType::Raid, &field()),
             0.0,
         );
         postings.request_paid_refresh(&JobId::slot(poster, JOBS_PER_BOARD, 0));
@@ -4699,7 +5225,7 @@ mod tests {
         let poster = station(1);
         let mut postings = JobPostings::default();
         postings.post(
-            board(10, &poster, &[], &catalog(), JobMixType::Combat, &field()),
+            board(10, &poster, &[], &catalog(), JobMixType::Raid, &field()),
             0.0,
         );
         postings.request_paid_refresh(&JobId::slot(poster, 0, 1));
@@ -4748,6 +5274,7 @@ mod tests {
             &items,
             JobMixType::Salvage,
             &gone,
+            &spawns(),
             &standing,
             None,
         );
@@ -4781,6 +5308,7 @@ mod tests {
             &items,
             JobMixType::Salvage,
             &gone,
+            &spawns(),
             &standing,
             None,
         );
@@ -4793,7 +5321,7 @@ mod tests {
     /// A new offer leaves out what each held job is about and every body it
     /// put in the world, and what each unexpired offer on every board names;
     /// an expired or handed-in offer frees its body, and a board left with
-    /// no candidate posts procurements.
+    /// no candidate names targets of its own.
     #[test]
     fn no_new_offer_names_a_body_a_held_job_or_an_unexpired_offer_names() {
         let items = catalog();
@@ -4845,20 +5373,24 @@ mod tests {
         }
 
         let none = JobField::default();
-        for job in board(4, &b, &[], &items, JobMixType::Combat, &none) {
-            job.validate().unwrap();
-            assert!(
-                matches!(
+        let mut own = 0;
+        for seed in 0..20 {
+            for job in board(seed, &b, &[], &items, JobMixType::Raid, &none) {
+                job.validate().unwrap();
+                if matches!(
                     job.kind,
-                    JobType::Procure { .. }
-                        | JobType::Escort { .. }
-                        | JobType::Distress { .. }
-                        | JobType::Supply { .. }
-                ),
-                "a board with no candidate names no field body: {:?}",
-                job.kind
-            );
+                    JobType::Recover { .. } | JobType::Neutralize { .. }
+                ) {
+                    assert!(
+                        job.spawns_target(),
+                        "a board with no candidate names its own target: {:?}",
+                        job.kind
+                    );
+                    own += 1;
+                }
+            }
         }
+        assert!(own > 0, "a raid board with no field posts its own targets");
 
         let expired = postings.named_bodies(rule, 300.0, &Jobs::default());
         assert!(

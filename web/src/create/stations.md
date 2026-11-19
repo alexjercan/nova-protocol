@@ -520,7 +520,7 @@ read the side alone.
 | decay | a civilization your deeds made `Enemy` returns to `Neutral` after 7200 s of play with no new offence; a seeded `Enemy` never decays |
 | merchandise | a station you own, an escort in your fleet and a neutralized hull keep their side: a bought station flies yours, a dead hull is loot |
 | arrival | a generated crew holds fire for 8 s after its cell streams in, whatever its side, so a civilization you turned `Enemy` arrives with the grace a seeded `Enemy` gets; a `Neutral` or `Ally` crew provoked inside that window answers once it passes |
-| the charter | the base `pirate` role's goal counts the civilizations your kills turned `Enemy` and the intact hulls you took from one of them while it stood so, see [Start roles](../start-roles/#the-goal) |
+| the charter | the base `pirate` role's goal counts every trading hull you neutralize, the same kills an offence is recorded for, at any stance, see [Start roles](../start-roles/#the-goal) |
 | sectors and saves | the stances live on your save, not the station: an offence counts across a retire, a thaw and a Load, and a Load restores the table on its arming frame. A table stamped ahead of the saved play clock refuses the Load |
 | events | a settlement fires one `OnCreditsChanged` per party with `cause: Settle`, see [Hold events](../events/#hold-events) |
 
@@ -530,8 +530,8 @@ read the side alone.
 
 The proof is `system_civilization_stance`: on a New Game as the pirate, the
 player docks at a civilization's station, neutralizes three of its other
-hulls, sees the station refuse the dock and the charter count the
-civilization, finds its rival warmed to `Ally` with every hull on the Player
+hulls, sees the station refuse the dock and the charter count the three
+hulls, finds its rival warmed to `Ally` with every hull on the Player
 side, reads the stances back from the leave save and after a Load with a
 remote civilization untouched, and docks again once the Enemy decayed.
 
@@ -559,12 +559,14 @@ A living station that offers `Jobs` posts a board of three jobs
 cube of 27 around its own is live and settled. The station the player began
 docked at - the session's starting station, the nearest station of a
 civilization whose seeded stance is Ally, kept in the world save's `start`
-field - also wears `StarterBoardMarker` beside its board; it is the one board
-that posts the start role's starter jobs, and no other board ever carries the
-marker. When a slot there posts and no standing offer stays open to the
-player's current hull, the slot posts one the hull can do: a procurement the
-hold takes, else a distress call for a docking section, else an escort for a
-weapon. A held slot, and a slot that does not renew, stays as it is. Each
+field - also wears `StarterBoardMarker` beside its board, for every posting
+of the session; it is the one board that draws for the player's hull, and no
+other board ever carries the marker. Every slot that posts there posts a job
+the player's current hull can do: a slot whose drawn kind the hull is refused
+for draws again, by the mix's weights and off the same slot stream, among the
+kinds the hull can do, and a procurement too heavy for the hold is cut to it.
+The board waits for the player's ship to stand before it draws. A held slot,
+and a slot that does not renew, stays as it is. Each
 board slot carries a posting number, the play-time stamp it was posted at and
 the offer it posted (`SlotPosting`, kept per station in the `JobPostings`
 session resource, saved with the world). A slot's offer is drawn once, when
@@ -581,7 +583,7 @@ A slot renews - moves to its next posting, stamped now - when its job is
 handed in, when a player pays to delete a current unheld offer at the posting station, or when an
 unheld offer stands past the price table's `jobs.offer_seconds`
 (`jobs.escort_offer_seconds` for an escort). The bodies the old posting
-could have put in the world (a hauler, its raiders, a caller, each named
+could have put in the world (a hauler, its raiders, a caller, a wreck, each named
 `<station stem>_job_<slot>_<posting>_<part>`) are despawned before the
 slot posts again under the next posting number, with fresh body ids.
 Stations draw in id order. A job you hold is pinned: its slot never renews
@@ -596,17 +598,22 @@ Each slot draws its kind by the start role's `jobs` mix (see
 
 | mix | roles | Procure | Recover | Escort | Distress | Neutralize | Supply |
 |---|---|---|---|---|---|---|---|
-| `Trade` | industrial, transport; no session | 4 | 1 | 4 | 1 | 1 | 1 |
-| `Salvage` | scavenger | 1 | 5 | 1 | 2 | 1 | 2 |
-| `Combat` | bounty hunter, military, pirate | 1 | 1 | 1 | 3 | 4 | 3 |
+| `Mining` | industrial | 4 | 1 | 0 | 2 | 0 | 5 |
+| `Salvage` | scavenger | 1 | 6 | 1 | 2 | 1 | 1 |
+| `Trade` | transport; no session | 3 | 1 | 1 | 2 | 0 | 5 |
+| `Bounty` | bounty hunter | 1 | 1 | 2 | 1 | 7 | 0 |
+| `Patrol` | military | 1 | 0 | 4 | 3 | 1 | 3 |
+| `Raid` | pirate | 1 | 4 | 0 | 1 | 5 | 1 |
+
+A weight of 0 never draws its kind.
 
 | kind | title | what it asks | reward |
 |---|---|---|---|
 | `Procure` | `Bring 4 Iron ore` | bring that many units of the item to the poster | goods: the stack at the ask plus half |
-| `Recover` | `Recover 2 Hull plate from <wreck>` | take that many off the named derelict in the cube and undock with them aboard, the wreck's stack gone | base 100; goods: half the stack at the ask, at most 2,000 cr; range: the metres from the poster to the wreck at the posting |
+| `Recover` | `Recover 2 Hull plate from <wreck>` | take that many off the named derelict and undock with them aboard, the wreck's stack gone. The board names a derelict standing in the cube; with none left to name, the job names a wreck of its own, a derelict civilian hull of the poster's civilization that the accept spawns at the end of the job's leg, and one stack of its hold | base 100; goods: half the stack at the ask, at most 2,000 cr; range: the metres from the poster to the wreck at the posting, or the drawn leg of its own wreck |
 | `Escort` | `Escort a hauler carrying 1200 cr` | a working-hull hauler spawns 1 km off the poster on the job's leg and leaves at 100 m/s once you are undocked and within 1 km of it; see it reach its mark. Raiders lie in wait 2.5 km off the leg, 75 % along it, and engage within 3 km; they hunt the hauler and turn on a ship that shoots them for as long as it keeps shooting. The posting draws their count once from its civilization's advancement: 1 below 0.25, 1 or 2 below 0.5, 2 or 3 below 0.75, then 3. Each raider is a scavenger held to a size budget by the same bands: about 40 sections and one turret below 0.25, 68 and two turrets below 0.5, 108 and three below 0.75, with no torpedo bay or lance; then the full hull. The hauler mounts a mirrored pair of its bank's drive, firing aft, as near its primary flight computer as the hull allows, so a split keeps a drive on the piece that keeps the computer | base 200; goods: a quarter of the cargo value; range: the leg; threat: the raiders times the weapons of one raider, which is its band's turret count, or a full scavenger hull's weapon slots in the top band (3 at 0.75, 4 at 1) |
 | `Distress` | `Answer a distress call` | a neutral drifting caller spawns at the end of the job's leg: dock with the caller | base 200; range: the leg |
-| `Neutralize` | `Neutralize <hull>` | neutralize the named Enemy hull standing in the cube | base 300; range: the metres from the poster to the hull at the posting; threat: the hull's live turrets, torpedo bays and railguns at the posting |
+| `Neutralize` | `Neutralize <hull>` | neutralize the named Enemy hull. The board names one standing in the cube; with none left to name, the job names a raider of its own, one scavenger of the escort raiders' size band that the accept spawns at the end of the job's leg, Enemy, lying in wait there and engaging within 3 km | base 300; range: the metres from the poster to the hull at the posting, or the drawn leg of its own raider; threat: the hull's live turrets, torpedo bays and railguns at the posting, or the weapons of one raider of the band |
 | `Supply` | `Rescue a stranded crew with 3 Medkit` | a neutral drifting caller spawns at the end of the job's leg, with none of the asked item aboard: dock with the caller with the whole stack in the hold. The dock takes the stack. With the hold short the dock takes nothing, the job stays open and the HUD posts `JOB-1: SHORT 2 MEDKIT` | base 200; goods: the stack at the ask plus half; range: the leg |
 
 A reward is the sum of four terms, kept on the job as `base_cr`, `goods_cr`,
@@ -623,8 +630,10 @@ An `Escort`, a `Distress` and a `Supply` draw their leg per posting, in steps
 of 2,000 m: a `Distress` and a `Supply` 6,000 to 16,000 m, an `Escort` 10,000
 to 16,000 m. A raider chases within 6,000 m of where it lay in wait, and on a
 shorter escort leg that reaches the poster and the waiting hauler. A `Recover`
-and a `Neutralize` read theirs off the world at the posting, to 100 m. A
-`Procure` has no leg. A job posted by a [trade profile](../trade-profiles/) or
+and a `Neutralize` that name a body of the cube read theirs off the world at
+the posting, to 100 m; one that names its own target draws its leg like the
+others, a `Recover` 6,000 to 16,000 m and a `Neutralize` 8,000 to 16,000 m,
+so its raider's chase ends short of the poster. A `Procure` has no leg. A job posted by a [trade profile](../trade-profiles/) or
 a scenario's `PostJob` pays its authored `reward_cr` as its base alone, with
 no leg and no threat.
 
@@ -660,8 +669,9 @@ to 8. A `Recover` names a derelict with a non-empty hold in the cube and one
 of its stacks; a `Neutralize` names an intact, un-neutralized Enemy hull in
 the cube. A new offer never names a wreck or hull that a held job, a body a
 held job spawned, or an unexpired offer on any board already names, so two
-boards never pay for one target; a slot with no candidate left posts a
-`Procure` instead.
+boards never pay for one target; a slot with no candidate left names its
+own target, which the accept spawns. A `Supply` drawn while its item pool is
+empty posts a `Procure` instead.
 
 The player accepts and hands in only while docked at a living station that
 offers `Jobs` (`plan_job_accept`, `plan_job_hand_in`). An accept is refused
@@ -671,7 +681,9 @@ while the job is held or completed, while its offer's window has passed
 spawns its hauler and its raiders, and the hauler waits with no helm order
 until the player stands undocked from the poster and within 1 km of the
 hauler, then flies a `Move` to its mark under a 100 m/s cruise cap; a
-`Distress` or a `Supply` spawns its caller. A job is DONE when the open world sees its
+`Distress` or a `Supply` spawns its caller, and a `Recover` or a `Neutralize`
+that names its own target spawns it, with no refusal for a target that does
+not stand yet. A job is DONE when the open world sees its
 completion over the shipped event kinds: `onundocked` naming the wreck with
 the stack aboard and the wreck's stack gone (`Recover`), `onshipordercomplete`
 for the hauler's `Move` (`Escort`; the hauler neutralized or destroyed, or its
@@ -694,7 +706,7 @@ escort, with a zero count or reward, or naming an item the catalog lacks
 refuses the world, as does a board with the wrong slot count, a posting stamp
 ahead of the clock, or an offer that is not its slot's posting or that no
 board could post. A held job is checked by its own rules, not against its
-slot. A frozen sector keeps a spawned hauler, caller or raider as any ship,
+slot. A frozen sector keeps a spawned hauler, caller, wreck or raider as any ship,
 but not the hauler's helm order or its cruise cap: the jobs keep the hauler's
 mark and whether it left, so a thawed or loaded hauler that left flies to its
 mark again under the same cap. Authored `Station` content with `Jobs` in its

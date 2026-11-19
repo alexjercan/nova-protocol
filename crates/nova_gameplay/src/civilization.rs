@@ -224,11 +224,8 @@ pub struct StanceRecord {
     /// The play time an event (an offence step or a propagated step) made
     /// the civilization Enemy, restarted by every later offence; `None` for
     /// a civilization that is not Enemy or is Enemy by the seed alone. Drives
-    /// the decay and the pirate's outlaw count.
+    /// the decay.
     pub enemy_since: Option<f64>,
-    /// Intact hulls the player neutralized while the civilization was Enemy
-    /// by events: the pirate charter's count.
-    pub outlaw_hulls: u32,
 }
 
 impl StanceRecord {
@@ -239,7 +236,6 @@ impl StanceRecord {
             merits: 0,
             provoked_at: None,
             enemy_since: None,
-            outlaw_hulls: 0,
         }
     }
 
@@ -250,7 +246,6 @@ impl StanceRecord {
             && self.merits == 0
             && self.provoked_at.is_none()
             && self.enemy_since.is_none()
-            && self.outlaw_hulls == 0
     }
 }
 
@@ -352,8 +347,8 @@ impl CivilizationStances {
     }
 
     /// Move `civilization` by `by` (`-1` down, `+1` up) at `now`, saturating.
-    /// A step to Enemy stamps `enemy_since`; a step out of Enemy clears it
-    /// and the outlaw count. A saturated step is `None`.
+    /// A step to Enemy stamps `enemy_since`; a step out of Enemy clears it.
+    /// A saturated step is `None`.
     fn step(
         &mut self,
         civilization: CivilizationId,
@@ -373,7 +368,6 @@ impl CivilizationStances {
             record.enemy_since = Some(now);
         } else if from == StanceType::Enemy {
             record.enemy_since = None;
-            record.outlaw_hulls = 0;
         }
         Some(StanceStep {
             civilization,
@@ -390,14 +384,13 @@ impl CivilizationStances {
     /// still reads Enemy.
     ///
     /// Any other write replaces the record. The offences, the merits and the
-    /// provocation clear and the outlaw count returns to zero for every
-    /// target: the civilization starts clean on its new stance, so a pending
-    /// tally cannot step it away one event later and no kill made under the
-    /// old stance counts for the pirate's charter. `enemy_since` is `now`
+    /// provocation clear for every target: the civilization starts clean on
+    /// its new stance, so a pending tally cannot step it away one event
+    /// later. `enemy_since` is `now`
     /// when `to` is Enemy and the seed drew another stance, and `None`
     /// otherwise. So a scripted Enemy is an Enemy by events: it decays to
-    /// Neutral after [`ENEMY_DECAY_SECONDS`] with no new offence, the paid
-    /// fine settles it and its hulls count as outlaw hulls. A script that
+    /// Neutral after [`ENEMY_DECAY_SECONDS`] with no new offence and the paid
+    /// fine settles it. A script that
     /// wants it held sets it again on the `StanceChanged` the decay raises.
     /// A write of the seed's own stance leaves nothing the seed does not
     /// say, so the record is dropped: a seeded Enemy never decays.
@@ -507,32 +500,6 @@ impl CivilizationStances {
         };
         self.prune(&civilization, seeded);
         step
-    }
-
-    /// Count an intact hull of `civilization` the player neutralized while
-    /// it is Enemy by events. Nothing while it is not.
-    pub fn count_outlaw_hull(&mut self, civilization: &CivilizationId) {
-        if let Some(record) = self.records.get_mut(civilization) {
-            if record.stance == StanceType::Enemy && record.enemy_since.is_some() {
-                record.outlaw_hulls += 1;
-            }
-        }
-    }
-
-    /// The pirate charter's facts: how many civilizations the player's
-    /// events made Enemy and stand Enemy now, and the most outlaw hulls
-    /// counted on one of them.
-    pub fn outlaw_progress(&self) -> (u64, u64) {
-        let outlawed = self
-            .records
-            .values()
-            .filter(|record| record.stance == StanceType::Enemy && record.enemy_since.is_some());
-        let count = outlawed.clone().count() as u64;
-        let hulls = outlawed
-            .map(|record| u64::from(record.outlaw_hulls))
-            .max()
-            .unwrap_or(0);
-        (count, hulls)
     }
 
     /// Let the clock pass at `now`: offences older than the window are
@@ -754,27 +721,18 @@ mod tests {
         for at in [0.0, 1.0, 2.0] {
             table.offence(x, StanceType::Neutral, at);
         }
-        table.count_outlaw_hull(&x);
-        assert_eq!(table.outlaw_progress(), (1, 1));
         let steps = table.expire(2.0 + ENEMY_DECAY_SECONDS - 1.0, |_| StanceType::Neutral);
         assert!(steps.is_empty());
         let steps = table.expire(2.0 + ENEMY_DECAY_SECONDS, |_| StanceType::Neutral);
         assert_eq!(steps.len(), 1);
         assert_eq!(steps[0].to, StanceType::Neutral);
         assert_eq!(table.record(&x), None, "decayed to its seed");
-        assert_eq!(table.outlaw_progress(), (0, 0));
 
         let seeded_enemy = civilization([2, 0, 0]);
         table.provoke(seeded_enemy, StanceType::Enemy, 0.0);
         assert!(table
             .expire(ENEMY_DECAY_SECONDS * 2.0, |_| StanceType::Enemy)
             .is_empty());
-        table.count_outlaw_hull(&seeded_enemy);
-        assert_eq!(
-            table.outlaw_progress(),
-            (0, 0),
-            "a seeded Enemy is no outlaw mark"
-        );
     }
 
     /// A stamp ahead of the clock, below zero, offences out of order or at
@@ -823,7 +781,6 @@ mod tests {
                     table.offence(x, seeded, 6.0);
                     table.merit(x, seeded, 7.0);
                     table.provoke(x, seeded, 8.0);
-                    table.count_outlaw_hull(&x);
                     let before = table.clone();
                     let case = format!("seed {seeded:?}, {from:?} -> {to:?}");
 
@@ -865,7 +822,6 @@ mod tests {
         let mut table = CivilizationStances::default();
         let x = civilization([0, 0, 0]);
         table.set(x, StanceType::Neutral, StanceType::Enemy, 10.0);
-        assert_eq!(table.outlaw_progress(), (1, 0));
         assert!(table
             .expire(10.0 + ENEMY_DECAY_SECONDS - 1.0, |_| StanceType::Neutral)
             .is_empty());

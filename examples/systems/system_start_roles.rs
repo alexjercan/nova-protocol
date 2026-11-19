@@ -37,7 +37,7 @@
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 1 | `outcome: create starts the picked start role` | the session Create inserted names the picked role, the first save landed, and the charter progress is the role's goal or empty for a role with none |
-//! | 2 | `outcome: the start role spawns its hull with its kit and its weapons bound` | the player's design sections are the hull's, its credits and hold are the kit's, every turret is on the trigger, every railgun on R, every bay on F, every miner on V |
+//! | 2 | `outcome: the start role spawns its hull with its kit and its weapons bound` | the player's design sections are the hull's, its credits and hold are the kit's, every weapon and every mining emitter wears the keys `start_role_bindings` gives it |
 //! | 3 | `outcome: the start hull passes the post-build checks` | `ship_build_fault` finds no fault in the live design |
 //! | 4 | `outcome: the start hull docks at a generated station` | the start docks the player at the session's starting station, a living Ally one, and the walk undocks |
 //! | 5 | `outcome: the start hull jettisons and takes an item back in` | one kit unit planned by `plan_item_jettison` leaves the intake as a canister, the intake takes it back, and the hold is the kit again |
@@ -122,7 +122,6 @@ mod walk {
     };
 
     use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
-    use nova_input::prelude::InputSource;
     use nova_protocol::{
         nova_debug::harness::{AutopilotPlugin, Predicate},
         nova_interface::prelude::JobAcceptCommand,
@@ -618,10 +617,19 @@ mod walk {
             .collect();
         assert_eq!(held, kit, "start roles: '{id}' kit stock");
 
-        let trigger = vec![
-            InputSource::Mouse(MouseButton::Left),
-            InputSource::Gamepad(GamepadButton::RightTrigger2),
-        ];
+        // The keys the spawn binds: the same rule the walk reads the live
+        // sections against.
+        let expected = {
+            let designs = world.resource::<GameShipDesigns>();
+            let sections = world.resource::<GameSections>();
+            let design = ShipDesignSource::prototype(role.hull.clone());
+            let (resolved, errors) = resolve_ship_design(&design, designs, sections);
+            assert!(
+                errors.is_empty(),
+                "start roles: '{id}' hull resolves: {errors:?}"
+            );
+            start_role_bindings(&resolved)
+        };
         let weapons: Vec<(String, SectionKind)> = world
             .get::<ShipDesignSections>(player)
             .expect("start roles: the player carries its design sections")
@@ -632,36 +640,28 @@ mod walk {
         let mut bound = 0;
         for (section_id, kind) in weapons {
             let section = live_section(world, player, &section_id);
-            let (found, expected) = match kind {
-                SectionKind::Turret(_) => (
-                    world
-                        .get::<SpaceshipTurretInputBinding>(section)
-                        .map(|binding| binding.0.clone()),
-                    trigger.clone(),
-                ),
-                SectionKind::Railgun(_) => (
-                    world
-                        .get::<SpaceshipRailgunInputBinding>(section)
-                        .map(|binding| binding.0.clone()),
-                    vec![InputSource::Keyboard(KeyCode::KeyR)],
-                ),
-                SectionKind::Torpedo(_) => (
-                    world
-                        .get::<SpaceshipTorpedoInputBinding>(section)
-                        .map(|binding| binding.0.clone()),
-                    vec![InputSource::Keyboard(KeyCode::KeyF)],
-                ),
-                SectionKind::Mining(_) => (
-                    world
-                        .get::<SpaceshipMiningInputBinding>(section)
-                        .map(|binding| binding.0.clone()),
-                    vec![InputSource::Keyboard(KeyCode::KeyV)],
-                ),
+            let found = match kind {
+                SectionKind::Turret(_) => world
+                    .get::<SpaceshipTurretInputBinding>(section)
+                    .map(|binding| binding.0.clone()),
+                SectionKind::Railgun(_) => world
+                    .get::<SpaceshipRailgunInputBinding>(section)
+                    .map(|binding| binding.0.clone()),
+                SectionKind::Torpedo(_) => world
+                    .get::<SpaceshipTorpedoInputBinding>(section)
+                    .map(|binding| binding.0.clone()),
+                SectionKind::Mining(_) => world
+                    .get::<SpaceshipMiningInputBinding>(section)
+                    .map(|binding| binding.0.clone()),
                 _ => continue,
             };
+            let expected = expected.get(&section_id).cloned();
+            assert!(
+                expected.is_some(),
+                "start roles: '{id}' section '{section_id}' takes a default key"
+            );
             assert_eq!(
-                found,
-                Some(expected),
+                found, expected,
                 "start roles: '{id}' section '{section_id}' binding"
             );
             bound += 1;

@@ -13,17 +13,11 @@
 //! ask), so each start can patch its hull before it can craft.
 //!
 //! Goals are the roles' finite milestones over saved facts. Every role's
-//! progress opens with the same first line, one owned station, a rule in
-//! code; the goal here is the flavour line after it. Each count rests on
-//! the role's board mix: the trade mix draws Procure 4 of 12 and Procure or
-//! Escort 8 of 12, the salvage mix Recover 5 of 12, the combat mix
-//! Neutralize 4 of 13 and Distress, Supply or Escort 7 of 13, so six
-//! hand-ins of a role's dominant kind is about one board cycle, and four distinct posting
-//! stations is two trips out. The pirate's outlaw count is twice the
-//! offence step: the stance graph turns a Neutral civilization Enemy at
-//! three neutralized hulls within an hour of play, and six more of its hulls
-//! while it stands Enemy is twice that. A charter is a milestone, not an
-//! ending: the world plays on past it.
+//! progress opens with its own count and ends with the same last line, one
+//! owned station, a rule in code. Each count is three: three hand-ins of
+//! the kinds the role's board mix draws most, or for the pirate three
+//! trading hulls it neutralized, which no board posts. A charter is a
+//! milestone, not an ending: the world plays on past it.
 
 use nova_gameplay::prelude::{
     ItemDesignId, ItemRoleType, JobMixType, RoleIconType, ShipInventoryStock,
@@ -54,10 +48,10 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
                 (ItemRoleType::Rations.id(), 25),
                 (REPAIR_KIT, 3),
             ],
-            JobMixType::Trade,
+            JobMixType::Mining,
             RoleGoal {
                 title: "Ore to market".to_string(),
-                kind: RoleGoalType::OreDeliveries { jobs: 6 },
+                kind: RoleGoalType::OreDeliveries { jobs: 3 },
             },
             "Mining crews work the rock fields for whoever buys the ore. The tug is old, but \
              it pays.",
@@ -78,7 +72,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             JobMixType::Salvage,
             RoleGoal {
                 title: "A salvage run".to_string(),
-                kind: RoleGoalType::Recoveries { jobs: 6 },
+                kind: RoleGoalType::Recoveries { jobs: 3 },
             },
             "Every fight leaves wrecks behind. Scavengers take what still has a price.",
         ),
@@ -97,8 +91,8 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             ],
             JobMixType::Trade,
             RoleGoal {
-                title: "A station network".to_string(),
-                kind: RoleGoalType::StationNetwork { stations: 4 },
+                title: "A freight line".to_string(),
+                kind: RoleGoalType::CargoRuns { jobs: 3 },
             },
             "Stations need food, water and parts they cannot make. Haulers carry them \
              between stations.",
@@ -116,10 +110,10 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
                 (ItemRoleType::HullPlate.id(), 10),
                 (REPAIR_KIT, 3),
             ],
-            JobMixType::Combat,
+            JobMixType::Bounty,
             RoleGoal {
                 title: "A kill list".to_string(),
-                kind: RoleGoalType::KillList { hulls: 6 },
+                kind: RoleGoalType::KillList { hulls: 3 },
             },
             "Some ships carry a price on their hull. Hunters collect it.",
         ),
@@ -137,10 +131,10 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
                 (ItemRoleType::HullPlate.id(), 10),
                 (REPAIR_KIT, 3),
             ],
-            JobMixType::Combat,
+            JobMixType::Patrol,
             RoleGoal {
                 title: "Patrol record".to_string(),
-                kind: RoleGoalType::Patrols { jobs: 6 },
+                kind: RoleGoalType::Patrols { jobs: 3 },
             },
             "Patrol crews start on small pickets and earn larger hulls. Few reach a warship.",
         ),
@@ -157,10 +151,10 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
                 (ItemRoleType::HullPlate.id(), 10),
                 (REPAIR_KIT, 3),
             ],
-            JobMixType::Combat,
+            JobMixType::Raid,
             RoleGoal {
                 title: "An outlaw's name".to_string(),
-                kind: RoleGoalType::Outlaw { hulls: 6 },
+                kind: RoleGoalType::Outlaw { hulls: 3 },
             },
             "Past the patrol routes, a full hold is a target. Raiders live on what they take.",
         ),

@@ -1,9 +1,9 @@
 //! system_job_escort: Escort a hauler to its mark past the raiders its poster's advancement draws, from the board to the hand-in.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
-//! seed as the armed `military` start role (the Trade starts that lean to
-//! this kind fly unarmed hulls, so their starting station hides it; seed 37
-//! posts a one-raider escort), and walks the shared located-job range in
+//! seed as the armed `military` start role, whose Patrol mix leans to this
+//! kind (seed 37 posts a one-raider escort), and walks the shared
+//! located-job range in
 //! [`located_jobs`]: find a living station posting a escort job, dock,
 //! accept it off the Jobs tab, read the hand-in refused as not done, undock,
 //! fly GOTO to the waiting hauler, hold formation on its leg, meet the

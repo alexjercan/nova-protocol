@@ -1,17 +1,17 @@
-//! system_role_goals: a bounty hunter's charter starts standing, stands six
+//! system_role_goals: a bounty hunter's charter starts standing, stands three
 //! hand-ins against its kill-list line while no station stands, meets both
 //! lines once a station is bought, shows in the Map, and survives the leave
 //! save and a Load.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on seed 10,
 //! picks `bounty_hunter`, and waits for the armed world and its first save.
-//! The range checks the authored charter, then injects six completed
+//! The range checks the authored charter, then injects three completed
 //! Neutralize jobs as DISCLOSED FIXTURE STATE: each valid job goes through
 //! `Jobs::accept`, `mark_done` and `complete`, with posters in cells
-//! (1, 0, 0), (2, 0, 0), (3, 0, 0), (9, 0, 0), (10, 0, 0) and (11, 0, 0),
-//! each naming a distinct hull; this fixture replaces flying and fighting,
-//! not the goal tracker. It checks the kill-list line reads six with the
-//! shared station line still at zero, undocks, jumps to the origin, picks
+//! (1, 0, 0), (2, 0, 0) and (9, 0, 0), each naming a distinct hull; this
+//! fixture replaces flying and fighting, not the goal tracker. It checks the
+//! kill-list line reads three with the shared station line still at zero,
+//! undocks, jumps to the origin, picks
 //! the nearest living non-Enemy station outside the origin's cell, warms its
 //! civilization to Ally by merits the way a player does, berths and docks,
 //! sets the player's balance to 100,000,000 cr as a second piece of
@@ -24,10 +24,10 @@
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: the charter opens standing with its lines at zero` | the bounty hunter's `A kill list` has `Stations owned 0 / 1` and `Bounties handed in 0 / 6`, with no stamp |
-//! | 2 | `outcome: six neutralize hand-ins stand the kill list at the station line` | six completed Neutralize jobs on six distinct hulls yield `Stations owned 0 / 1` and `Bounties handed in 6 / 6`, not met, still no stamp |
-//! | 3 | `outcome: buying a station meets the kill list and stamps the record once` | buying one station through the Station pane reads `1 / 1` and `6 / 6`, met, with a stamp inside the play clock that does not move across two more frames |
-//! | 4 | `outcome: the map's chart view shows the charter met` | its OBJECTIVES block shows one `Goal reached at` row in place of the milestones and no milestone row |
+//! | 1 | `outcome: the charter opens standing with its lines at zero` | the bounty hunter's `A kill list` has `Bounties handed in 0 / 3` first and `Stations owned 0 / 1` second, with no stamp |
+//! | 2 | `outcome: three neutralize hand-ins stand the kill list at the station line` | three completed Neutralize jobs on three distinct hulls yield `Bounties handed in 3 / 3` and `Stations owned 0 / 1`, not met, still no stamp |
+//! | 3 | `outcome: buying a station meets the kill list and stamps the record once` | buying one station through the Station pane reads `3 / 3` and `1 / 1`, met, with a stamp inside the play clock that does not move across two more frames |
+//! | 4 | `outcome: the map's chart view shows the charter met` | its OBJECTIVES block shows one row with the stamp as a clock face in place of the milestones and no milestone row |
 //! | 5 | `outcome: the leave save keeps the met charter` | `open_world` reads the same met stamp from the leave save |
 //! | 6 | `outcome: a load restores the met charter` | after Load and a frame, the same stamp and met progress return |
 //!
@@ -49,7 +49,7 @@ use nova_protocol::prelude::*;
 #[command(name = "system_role_goals")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "Start the bounty hunter, stand its kill list at six hand-ins, buy a station to \
+    about = "Start the bounty hunter, stand its kill list at three hand-ins, buy a station to \
              meet the charter, read it in the Map, and check it through a save and a Load. \
              Autopilot-only correctness range",
     long_about = None
@@ -215,22 +215,6 @@ mod walk {
                 .is_some_and(GoalRecord::is_met)
     }
 
-    fn shown_texts(world: &mut World) -> Vec<String> {
-        world
-            .query::<&Text>()
-            .iter(world)
-            .map(|text| text.0.clone())
-            .collect()
-    }
-
-    fn a_text_reads(check: impl Fn(&str) -> bool + Send + Sync + 'static) -> Arc<Predicate> {
-        when(move |world| {
-            world
-                .try_query::<&Text>()
-                .is_some_and(|mut query| query.iter(world).any(|text| check(&text.0)))
-        })
-    }
-
     fn the_interface_shows(pane: Option<InterfacePaneType>) -> Arc<Predicate> {
         when(move |world| {
             world
@@ -271,7 +255,7 @@ mod walk {
     }
 
     fn charter_jobs() -> Vec<Job> {
-        [1, 2, 3, 9, 10, 11]
+        [1, 2, 9]
             .into_iter()
             .enumerate()
             .map(|(index, x)| {
@@ -292,7 +276,7 @@ mod walk {
             .collect()
     }
 
-    /// Disclosed fixture state: complete six valid neutralize jobs through
+    /// Disclosed fixture state: complete three valid neutralize jobs through
     /// the player's production Jobs API, each naming a distinct hull.
     fn inject_completed_jobs(world: &mut World) {
         let fixtures = charter_jobs();
@@ -323,11 +307,12 @@ mod walk {
         )
     }
 
-    /// The kill list's two lines at `stations` owned and `bounties` handed in.
+    /// The kill list's two lines, its own first, at `stations` owned and
+    /// `bounties` handed in.
     fn expected_lines(stations: u64, bounties: u64) -> Vec<GoalLine> {
         vec![
+            GoalLine::new("Bounties handed in", bounties, 3),
             GoalLine::new("Stations owned", stations, 1),
-            GoalLine::new("Bounties handed in", bounties, 6),
         ]
     }
 
@@ -351,24 +336,24 @@ mod walk {
             "outcome: the charter opens standing with its lines at zero",
             serde_json::json!({
                 "title": title,
-                "lines": ["Stations owned 0 / 1", "Bounties handed in 0 / 6"],
+                "lines": ["Bounties handed in 0 / 3", "Stations owned 0 / 1"],
                 "met_at": None::<f64>,
             }),
         );
         info!("role goals: the kill list opens standing at zero");
     }
 
-    /// Claim 2: six hand-ins stand the kill list at the station line.
+    /// Claim 2: three hand-ins stand the kill list at the station line.
     fn assert_hand_ins_stand_at_station_line(world: &mut World) {
         let (_, lines, met) = read_progress(world);
         assert_eq!(
             lines,
-            expected_lines(0, 6),
-            "role goals: six hand-ins meet the kill-list line alone"
+            expected_lines(0, 3),
+            "role goals: three hand-ins meet the kill-list line alone"
         );
         assert!(
             !met,
-            "role goals: six bounties with no station standing do not meet the charter"
+            "role goals: three bounties with no station standing do not meet the charter"
         );
         assert_eq!(
             world.resource::<GoalRecord>().met_at,
@@ -377,10 +362,10 @@ mod walk {
         );
         nova_probe::probe_marker(
             world,
-            "outcome: six neutralize hand-ins stand the kill list at the station line",
-            serde_json::json!({ "lines": ["Stations owned 0 / 1", "Bounties handed in 6 / 6"] }),
+            "outcome: three neutralize hand-ins stand the kill list at the station line",
+            serde_json::json!({ "lines": ["Bounties handed in 3 / 3", "Stations owned 0 / 1"] }),
         );
-        info!("role goals: six hand-ins stand the kill list at the station line");
+        info!("role goals: three hand-ins stand the kill list at the station line");
     }
 
     /// The entity wearing `id`, if one does.
@@ -755,7 +740,7 @@ mod walk {
         let (_, lines, met) = read_progress(world);
         assert_eq!(
             lines,
-            expected_lines(1, 6),
+            expected_lines(1, 3),
             "role goals: the bought station meets the kill list"
         );
         assert!(met, "role goals: the kill-list charter is met");
@@ -776,7 +761,7 @@ mod walk {
         let (_, lines, met) = read_progress(world);
         assert_eq!(
             lines,
-            expected_lines(1, 6),
+            expected_lines(1, 3),
             "role goals: the kill-list charter stays met"
         );
         assert!(met, "role goals: the kill-list charter stays met");
@@ -791,7 +776,7 @@ mod walk {
             "role goals: the met record is stamped only once"
         );
         let completed = world.resource::<Jobs>().completed().to_vec();
-        assert_eq!(completed.len(), 6, "role goals: six jobs completed");
+        assert_eq!(completed.len(), 3, "role goals: three jobs completed");
         assert!(
             completed
                 .iter()
@@ -813,19 +798,36 @@ mod walk {
     /// The chart view's OBJECTIVES block holds the reached goal's stamp row
     /// in place of the milestones.
     fn assert_map_charter(world: &mut World) {
-        let shown = shown_texts(world);
-        let met_row = shown
-            .iter()
-            .find(|text| text.starts_with("Goal reached at "))
-            .cloned()
-            .unwrap_or_else(|| panic!("role goals: the chart view shows its met stamp: {shown:?}"));
+        let expected = world
+            .resource::<GoalWatch>()
+            .met_at
+            .expect("role goals: the met stamp was captured");
+        let row = world
+            .query::<(Entity, &Name)>()
+            .iter(world)
+            .find(|(_, named)| named.as_str() == "MapChartObjectiveMet")
+            .map(|(entity, _)| entity)
+            .expect("role goals: the OBJECTIVES block holds the met row");
+        let mut q_children = world.query::<&Children>();
+        let mut q_text = world.query::<&Text>();
+        let mut open = vec![row];
+        let mut texts = Vec::new();
+        while let Some(entity) = open.pop() {
+            if let Ok(text) = q_text.get(world, entity) {
+                texts.push(text.0.clone());
+            }
+            if let Ok(children) = q_children.get(world, entity) {
+                open.extend(children.iter());
+            }
+        }
+        let met_row = play_time_text(expected);
         assert!(
-            named_node(world, "MapChartObjectiveMet"),
-            "role goals: the OBJECTIVES block holds the met row"
+            texts.contains(&met_row),
+            "role goals: the met row reads the stamp {met_row}: {texts:?}"
         );
         assert!(
             !named_node(world, "MapChartObjectiveMilestone"),
-            "role goals: a met role lists no milestone row: {shown:?}"
+            "role goals: a met role lists no milestone row"
         );
         nova_probe::probe_marker(
             world,
@@ -888,7 +890,7 @@ mod walk {
             .expect("role goals: the met stamp was captured");
         let (title, lines, met) = read_progress(world);
         assert_eq!(title, "A kill list", "role goals: loaded title");
-        assert_eq!(lines, expected_lines(1, 6), "role goals: loaded lines");
+        assert_eq!(lines, expected_lines(1, 3), "role goals: loaded lines");
         assert!(met, "role goals: loaded progress is met");
         assert_eq!(
             world.resource::<GoalRecord>().met_at,
@@ -955,7 +957,7 @@ mod walk {
             .on_enter(inject_completed_jobs)
             .until(frames(1))
             .add()
-            .step("role goals: assert six hand-ins stand at the station line")
+            .step("role goals: assert three hand-ins stand at the station line")
             .on_enter(assert_hand_ins_stand_at_station_line)
             .add()
             .step("role goals: undock from the starting station")
@@ -1042,7 +1044,7 @@ mod walk {
             script,
             "chart key",
             "map_chart",
-            a_text_reads(|text| text.starts_with("OBJECTIVES  LAYER ")),
+            ui_node_present("MapChartObjectiveMet"),
         )
         .step("role goals: settle the objectives block")
         .until(frames(6))

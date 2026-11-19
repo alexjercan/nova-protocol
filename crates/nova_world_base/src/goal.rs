@@ -1,21 +1,20 @@
 //! What derives the start role's goal progress while the open world streams,
 //! and stamps the goal met.
 //!
-//! Every role's goal opens with the same first line, one owned station, read
-//! live ([`OwnedStationMarker`]) and off the frozen ledger
-//! (`FrozenStation::owned`), so a bought station still counts while its cell
-//! is off the window. The flavour line after it (`RoleGoal`, content on the
-//! `StartRole`) is a predicate over facts the world save already carries:
-//! the jobs the player handed in ([`Jobs::completed`]), read by kind, by the
-//! item they brought ([`GameItems`] category), by their poster and by the
-//! hull they named; and the player's [`CivilizationStances`], for the
-//! civilizations the player's events made Enemy and the hulls taken while
-//! they stand so. [`track_role_goal`] derives [`GoalProgress`] from them
-//! every frame for the Map, the Jobs pane and the save header, and stamps
-//! [`GoalRecord`] with the world clock the first frame the progress is met.
-//! The record is the one saved fact; the progress is never saved. Both
-//! clear with the chart (`chart::clear_chart`) and the record comes back on
-//! a Load.
+//! Every role's goal opens with the role's own line (`RoleGoal`, content on
+//! the `StartRole`), a predicate over facts the world save carries: the jobs
+//! the player handed in ([`Jobs::completed`]), read by kind, by the item
+//! they brought ([`GameItems`] category) and by the hull they named; and
+//! the trading hulls the player took out ([`GoalRecord::hulls_taken`],
+//! counted by [`count_hull_taken`]). It closes with the same last line, one
+//! owned station, read live ([`OwnedStationMarker`]) and off the frozen
+//! ledger (`FrozenStation::owned`), so a bought station still counts while
+//! its cell is off the window. [`track_role_goal`] derives [`GoalProgress`]
+//! from them every frame for the Map, the Jobs pane and the save header,
+//! and stamps [`GoalRecord`] with the world clock the first frame the
+//! progress is met. The record is the saved part; the progress is never
+//! saved. Both clear with the chart (`chart::clear_chart`) and the record
+//! comes back on a Load.
 //!
 //! A met goal is an optional milestone, not an ending: the record is saved
 //! and shown only, and the world does not change at thaw.
@@ -24,16 +23,17 @@ use std::collections::BTreeSet;
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::{
-    CivilizationStances, GameItems, GoalLine, GoalProgress, GoalRecord, ItemCategoryType, Job,
-    JobType, Jobs, OwnedStationMarker,
+    GameItems, GoalLine, GoalProgress, GoalRecord, ItemCategoryType, Job, JobType, Jobs,
+    NeutralizedMarker, OwnedStationMarker, PlayerFleetMarker, PlayerSpaceshipMarker, TraderMarket,
 };
 use nova_scenario::prelude::{GameStartRoles, OpenWorldSession, RoleGoal, RoleGoalType};
+use nova_ship::prelude::LastAttacker;
 use nova_world::prelude::{FrozenBodyType, FrozenSectors, WorldClock};
 
-/// The label of the shared first line every role's goal opens with.
+/// The label of the shared last line every role's goal closes with.
 pub(crate) const STATIONS_OWNED_LABEL: &str = "Stations owned";
 
-/// How many stations the shared first line asks for.
+/// How many stations the shared last line asks for.
 pub(crate) const STATIONS_OWNED_NEED: u64 = 1;
 
 /// The saved facts one evaluation of a goal reads. Public so a start-role
@@ -45,29 +45,30 @@ pub struct GoalFacts<'a> {
     pub owned_stations: u64,
     /// The item catalog, for the category of a Procure job's item.
     pub items: &'a GameItems,
-    /// How many civilizations the player's events made Enemy, and the most
-    /// intact hulls taken from one of them while it stands so.
-    pub outlaw: (u64, u64),
+    /// How many trading hulls the player took out
+    /// ([`GoalRecord::hulls_taken`]).
+    pub hulls_taken: u64,
 }
 
-/// The progress of `goal` over `facts`: the shared `Stations owned` line
-/// first, then one `have / need` line per count the goal asks for, labelled
-/// as the Map prints them.
+/// The progress of `goal` over `facts`: the role's own `have / need` line
+/// first, then the shared `Stations owned` line, labelled as the Map prints
+/// them.
 ///
 /// An ore delivery is a Procure whose item is in the `Raw` category; a
-/// recovery is a Recover; a station served is a distinct poster of a Procure
-/// or an Escort; a bounty is a distinct hull named by a Neutralize; a patrol
-/// is a Distress, a Supply or an Escort. A Procure for an item the catalog lacks
-/// counts no delivery: the save check refuses such a job before a Load.
+/// recovery is a Recover; a cargo run is a Procure, a Supply or an Escort; a
+/// bounty is a distinct hull named by a Neutralize; a patrol is a Distress,
+/// a Supply or an Escort; a hull taken is one the record counted. A Procure
+/// for an item the catalog lacks counts no delivery: the save check refuses
+/// such a job before a Load.
 pub fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgress {
-    let completed =
-        |kept: fn(&JobType) -> bool| facts.completed.iter().filter(move |job| kept(&job.kind));
-    let mut lines = vec![GoalLine::new(
-        STATIONS_OWNED_LABEL,
-        facts.owned_stations,
-        STATIONS_OWNED_NEED,
-    )];
-    match &goal.kind {
+    let completed = |kept: fn(&JobType) -> bool| {
+        facts
+            .completed
+            .iter()
+            .filter(move |job| kept(&job.kind))
+            .count() as u64
+    };
+    let own = match &goal.kind {
         RoleGoalType::OreDeliveries { jobs } => {
             let have = facts
                 .completed
@@ -84,11 +85,7 @@ pub fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgress {
                     | JobType::Supply { .. } => false,
                 })
                 .count();
-            lines.push(GoalLine::new(
-                "Ore deliveries",
-                have as u64,
-                u64::from(*jobs),
-            ));
+            GoalLine::new("Ore deliveries", have as u64, u64::from(*jobs))
         }
         RoleGoalType::Recoveries { jobs } => {
             let have = completed(|kind| match kind {
@@ -98,29 +95,17 @@ pub fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgress {
                 | JobType::Distress { .. }
                 | JobType::Neutralize { .. }
                 | JobType::Supply { .. } => false,
-            })
-            .count();
-            lines.push(GoalLine::new(
-                "Wrecks recovered",
-                have as u64,
-                u64::from(*jobs),
-            ));
+            });
+            GoalLine::new("Wrecks recovered", have, u64::from(*jobs))
         }
-        RoleGoalType::StationNetwork { stations } => {
-            let served: BTreeSet<_> = completed(|kind| match kind {
-                JobType::Procure { .. } | JobType::Escort { .. } => true,
-                JobType::Recover { .. }
-                | JobType::Distress { .. }
-                | JobType::Neutralize { .. }
-                | JobType::Supply { .. } => false,
-            })
-            .map(Job::posted_by)
-            .collect();
-            lines.push(GoalLine::new(
-                "Stations served",
-                served.len() as u64,
-                u64::from(*stations),
-            ));
+        RoleGoalType::CargoRuns { jobs } => {
+            let have = completed(|kind| match kind {
+                JobType::Procure { .. } | JobType::Supply { .. } | JobType::Escort { .. } => true,
+                JobType::Recover { .. } | JobType::Distress { .. } | JobType::Neutralize { .. } => {
+                    false
+                }
+            });
+            GoalLine::new("Cargo runs", have, u64::from(*jobs))
         }
         RoleGoalType::KillList { hulls } => {
             let named: BTreeSet<_> = facts
@@ -135,11 +120,7 @@ pub fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgress {
                     | JobType::Supply { .. } => None,
                 })
                 .collect();
-            lines.push(GoalLine::new(
-                "Bounties handed in",
-                named.len() as u64,
-                u64::from(*hulls),
-            ));
+            GoalLine::new("Bounties handed in", named.len() as u64, u64::from(*hulls))
         }
         RoleGoalType::Patrols { jobs } => {
             let have = completed(|kind| match kind {
@@ -147,36 +128,50 @@ pub fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgress {
                 JobType::Procure { .. } | JobType::Recover { .. } | JobType::Neutralize { .. } => {
                     false
                 }
-            })
-            .count();
-            lines.push(GoalLine::new(
-                "Patrols flown",
-                have as u64,
-                u64::from(*jobs),
-            ));
+            });
+            GoalLine::new("Patrols flown", have, u64::from(*jobs))
         }
         RoleGoalType::Outlaw { hulls } => {
-            lines.push(GoalLine::new(
-                "Civilizations turned Enemy",
-                facts.outlaw.0,
-                1,
-            ));
-            lines.push(GoalLine::new(
-                "Hulls taken while Enemy",
-                facts.outlaw.1,
-                u64::from(*hulls),
-            ));
+            GoalLine::new("Hulls taken", facts.hulls_taken, u64::from(*hulls))
         }
-    }
+    };
     GoalProgress {
         title: goal.title.clone(),
-        lines,
+        lines: vec![
+            own,
+            GoalLine::new(
+                STATIONS_OWNED_LABEL,
+                facts.owned_stations,
+                STATIONS_OWNED_NEED,
+            ),
+        ],
     }
 }
 
-/// Derive the session role's goal progress from the player's owned stations,
-/// the completed jobs and the player's stances every frame, and stamp the
-/// record once when it is met.
+/// Count a trading hull the player just neutralized: the hull carries a
+/// [`TraderMarket`] (every intact generated ship and living station does)
+/// and its [`LastAttacker`] is the player's ship or a fleet escort, the
+/// hulls an offence is recorded for (`stance::record_offence`), whatever
+/// the civilization's stance. A hull thawed already neutralized carries no
+/// attacker and counts nothing; a hull a job put in the world carries no
+/// market.
+pub(crate) fn count_hull_taken(
+    add: On<Add<NeutralizedMarker>>,
+    hulls: Query<&LastAttacker, With<TraderMarket>>,
+    player: Query<(), Or<(With<PlayerSpaceshipMarker>, With<PlayerFleetMarker>)>>,
+    mut record: ResMut<GoalRecord>,
+) {
+    let Ok(LastAttacker(attacker)) = hulls.get(add.entity) else {
+        return;
+    };
+    if player.contains(*attacker) {
+        record.hulls_taken = record.hulls_taken.saturating_add(1);
+    }
+}
+
+/// Derive the session role's goal progress from the completed jobs, the
+/// hulls the record counted and the player's owned stations every frame,
+/// and stamp the record once when it is met.
 ///
 /// No session or a role the catalog does not hold: the progress is empty and
 /// the record is left as it is. Owned stations are read live and frozen.
@@ -188,7 +183,6 @@ pub(crate) fn track_role_goal(
     clock: Res<WorldClock>,
     owned: Query<(), With<OwnedStationMarker>>,
     frozen: Res<FrozenSectors>,
-    stances: Res<CivilizationStances>,
     mut progress: ResMut<GoalProgress>,
     mut record: ResMut<GoalRecord>,
 ) {
@@ -215,7 +209,7 @@ pub(crate) fn track_role_goal(
             completed: jobs.completed(),
             owned_stations: (owned.iter().count() + frozen_owned) as u64,
             items: &items,
-            outlaw: stances.outlaw_progress(),
+            hulls_taken: u64::from(record.hulls_taken),
         },
     );
     if next.is_met() && !record.is_met() {
@@ -232,8 +226,12 @@ pub(crate) fn track_role_goal(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use nova_events::prelude::{GeneratedBodyId, SectorCoord};
-    use nova_gameplay::prelude::{ItemDesign, JobId, JobReward};
+    use nova_gameplay::prelude::{
+        CivilizationId, ClusterType, ItemDesign, JobId, JobReward, StationMarker,
+    };
 
     use super::*;
 
@@ -319,7 +317,7 @@ mod tests {
             completed,
             owned_stations,
             items,
-            outlaw: (0, 0),
+            hulls_taken: 0,
         }
     }
 
@@ -338,65 +336,51 @@ mod tests {
         progress.lines.iter().map(|line| line.need).collect()
     }
 
-    /// Every kind opens with `Stations owned have / 1`, reads its title, and
-    /// stands with no owned station even when its own count is met; the
-    /// pirate's two lines follow the shared one.
+    /// Every kind reads its title, opens with its own line against its
+    /// count and closes with `Stations owned have / 1`; a goal whose own
+    /// count is met stands with no owned station.
     #[test]
-    fn every_goal_opens_with_the_shared_station_line_and_stands_without_a_station() {
+    fn every_goal_opens_with_its_own_line_and_closes_with_the_shared_station_line() {
         let items = items();
-        let six_kills: Vec<Job> = (0..6)
-            .map(|index| handed_in(1, index, kill(1, index)))
-            .collect();
         let kinds = [
-            RoleGoalType::OreDeliveries { jobs: 6 },
-            RoleGoalType::Recoveries { jobs: 6 },
-            RoleGoalType::StationNetwork { stations: 4 },
-            RoleGoalType::KillList { hulls: 6 },
-            RoleGoalType::Patrols { jobs: 6 },
-            RoleGoalType::Outlaw { hulls: 6 },
+            (RoleGoalType::OreDeliveries { jobs: 3 }, "Ore deliveries"),
+            (RoleGoalType::Recoveries { jobs: 3 }, "Wrecks recovered"),
+            (RoleGoalType::CargoRuns { jobs: 3 }, "Cargo runs"),
+            (RoleGoalType::KillList { hulls: 3 }, "Bounties handed in"),
+            (RoleGoalType::Patrols { jobs: 3 }, "Patrols flown"),
+            (RoleGoalType::Outlaw { hulls: 3 }, "Hulls taken"),
         ];
-        for kind in kinds {
+        for (kind, label) in kinds {
             let goal = goal("A charter", kind.clone());
             let progress = goal_progress(&goal, &facts(&[], &items, 0));
             assert_eq!(progress.title, "A charter", "{kind:?}");
             assert_eq!(
-                progress.lines[0],
-                GoalLine::new(STATIONS_OWNED_LABEL, 0, 1),
+                progress.lines,
+                [
+                    GoalLine::new(label, 0, 3),
+                    GoalLine::new(STATIONS_OWNED_LABEL, 0, 1)
+                ],
                 "{kind:?}"
             );
-            let flavour = if matches!(kind, RoleGoalType::Outlaw { .. }) {
-                3
-            } else {
-                2
-            };
-            assert_eq!(progress.lines.len(), flavour, "{kind:?}");
             assert!(!progress.is_met(), "{kind:?}");
         }
-        let kill_list = goal("A kill list", RoleGoalType::KillList { hulls: 6 });
-        let no_station = goal_progress(&kill_list, &facts(&six_kills, &items, 0));
-        assert_eq!(haves(&no_station), [0, 6]);
-        assert!(!no_station.is_met(), "six bounties with no station stand");
-        let outlaw = goal("An outlaw's name", RoleGoalType::Outlaw { hulls: 6 });
-        let progress = goal_progress(
-            &outlaw,
-            &GoalFacts {
-                outlaw: (1, 6),
-                ..facts(&[], &items, 1)
-            },
-        );
-        assert_eq!(haves(&progress), [1, 1, 6]);
-        assert_eq!(needs(&progress), [1, 1, 6]);
-        assert!(progress.is_met());
+        let three_kills: Vec<Job> = (0..3)
+            .map(|index| handed_in(1, index, kill(1, index)))
+            .collect();
+        let kill_list = goal("A kill list", RoleGoalType::KillList { hulls: 3 });
+        let no_station = goal_progress(&kill_list, &facts(&three_kills, &items, 0));
+        assert_eq!(haves(&no_station), [3, 0]);
+        assert!(!no_station.is_met(), "three bounties with no station stand");
     }
 
-    /// Six Procure hand-ins of a `Raw` item meet the deliveries with one
+    /// Three Procure hand-ins of a `Raw` item meet the deliveries with one
     /// owned station; a Procure of rations, a Recover and an Escort count
     /// none.
     #[test]
     fn ore_deliveries_count_raw_procure_hand_ins_only() {
         let items = items();
-        let goal = goal("Ore to market", RoleGoalType::OreDeliveries { jobs: 6 });
-        let mixed: Vec<Job> = (0..5)
+        let goal = goal("Ore to market", RoleGoalType::OreDeliveries { jobs: 3 });
+        let mixed: Vec<Job> = (0..2)
             .map(|slot| handed_in(1, slot, procure("IronOre")))
             .chain([
                 handed_in(2, 0, procure("Rations")),
@@ -405,138 +389,163 @@ mod tests {
             ])
             .collect();
         let progress = goal_progress(&goal, &facts(&mixed, &items, 1));
-        assert_eq!(haves(&progress), [1, 5]);
-        assert_eq!(needs(&progress), [1, 6]);
+        assert_eq!(haves(&progress), [2, 1]);
+        assert_eq!(needs(&progress), [3, 1]);
         assert!(!progress.is_met());
-        let six: Vec<Job> = (0..6)
+        let three: Vec<Job> = (0..3)
             .map(|slot| handed_in(1, slot, procure("IronOre")))
             .collect();
-        assert!(goal_progress(&goal, &facts(&six, &items, 1)).is_met());
+        assert!(goal_progress(&goal, &facts(&three, &items, 1)).is_met());
     }
 
-    /// Six Recover hand-ins meet the run with one owned station; a Procure
-    /// of the same item counts none.
+    /// Three Recover hand-ins meet the run with one owned station; a
+    /// Procure of the same item counts none.
     #[test]
     fn recoveries_count_recover_hand_ins_only() {
         let items = items();
-        let goal = goal("A salvage run", RoleGoalType::Recoveries { jobs: 6 });
-        let five: Vec<Job> = (0..5)
+        let goal = goal("A salvage run", RoleGoalType::Recoveries { jobs: 3 });
+        let two: Vec<Job> = (0..2)
             .map(|slot| handed_in(1, slot, recover(1)))
             .chain([handed_in(2, 0, procure("IronOre"))])
             .collect();
-        let progress = goal_progress(&goal, &facts(&five, &items, 1));
-        assert_eq!(haves(&progress), [1, 5]);
+        let progress = goal_progress(&goal, &facts(&two, &items, 1));
+        assert_eq!(haves(&progress), [2, 1]);
         assert!(!progress.is_met());
-        let six: Vec<Job> = (0..6).map(|slot| handed_in(1, slot, recover(1))).collect();
-        assert!(goal_progress(&goal, &facts(&six, &items, 1)).is_met());
+        let three: Vec<Job> = (0..3).map(|slot| handed_in(1, slot, recover(1))).collect();
+        assert!(goal_progress(&goal, &facts(&three, &items, 1)).is_met());
     }
 
-    /// Eight procurements at one station serve one station; Procure and
-    /// Escort hand-ins at four distinct posters meet the network with one
-    /// owned station; a Neutralize serves none.
+    /// A Procure, a Supply and an Escort hand-in each count a cargo run,
+    /// three at one station as well as at three; a Recover, a Distress and a
+    /// Neutralize count none.
     #[test]
-    fn a_station_network_counts_distinct_posters_of_trade_hand_ins() {
+    fn cargo_runs_count_procure_supply_and_escort_hand_ins() {
         let items = items();
-        let goal = goal(
-            "A station network",
-            RoleGoalType::StationNetwork { stations: 4 },
-        );
-        let one_station: Vec<Job> = (0..8)
-            .map(|slot| handed_in(1, slot, procure("Rations")))
-            .collect();
-        let progress = goal_progress(&goal, &facts(&one_station, &items, 1));
-        assert_eq!(haves(&progress), [1, 1]);
-        assert_eq!(needs(&progress), [1, 4]);
-        assert!(!progress.is_met());
-        let four: Vec<Job> = vec![
+        let goal = goal("Cargo runs", RoleGoalType::CargoRuns { jobs: 3 });
+        let two: Vec<Job> = vec![
             handed_in(1, 0, procure("Rations")),
-            handed_in(2, 0, escort(2)),
-            handed_in(3, 0, procure("IronOre")),
-            handed_in(9, 0, kill(9, 0)),
+            handed_in(1, 1, supply(1)),
+            handed_in(1, 2, recover(1)),
+            handed_in(2, 0, distress(2)),
+            handed_in(2, 1, kill(2, 0)),
         ];
-        assert_eq!(
-            haves(&goal_progress(&goal, &facts(&four, &items, 1))),
-            [1, 3]
-        );
-        let served: Vec<Job> = four
+        let progress = goal_progress(&goal, &facts(&two, &items, 1));
+        assert_eq!(haves(&progress), [2, 1]);
+        assert_eq!(needs(&progress), [3, 1]);
+        assert!(!progress.is_met());
+        let three: Vec<Job> = two
             .into_iter()
-            .chain([handed_in(4, 0, escort(4))])
+            .chain([handed_in(1, 3, escort(1))])
             .collect();
-        assert!(goal_progress(&goal, &facts(&served, &items, 1)).is_met());
+        assert!(goal_progress(&goal, &facts(&three, &items, 1)).is_met());
     }
 
-    /// Six Neutralize hand-ins naming six hulls meet the list with one owned
-    /// station; two completed jobs naming one hull count one bounty, a save
-    /// production never writes but the count still reads as hulls; a
+    /// Three Neutralize hand-ins naming three hulls meet the list with one
+    /// owned station; two completed jobs naming one hull count one bounty, a
+    /// save production never writes but the count still reads as hulls; a
     /// Distress counts none.
     #[test]
     fn a_kill_list_counts_distinct_hulls_of_neutralize_hand_ins() {
         let items = items();
-        let goal = goal("A kill list", RoleGoalType::KillList { hulls: 6 });
-        let duplicated: Vec<Job> = (0..5)
+        let goal = goal("A kill list", RoleGoalType::KillList { hulls: 3 });
+        let duplicated: Vec<Job> = (0..2)
             .map(|index| handed_in(1, index, kill(1, index)))
             .chain([handed_in(2, 0, kill(1, 0)), handed_in(9, 0, distress(9))])
             .collect();
         let progress = goal_progress(&goal, &facts(&duplicated, &items, 1));
         assert_eq!(
             haves(&progress),
-            [1, 5],
+            [2, 1],
             "one hull named twice is one bounty"
         );
-        assert_eq!(needs(&progress), [1, 6]);
+        assert_eq!(needs(&progress), [3, 1]);
         assert!(!progress.is_met());
-        let six: Vec<Job> = (0..6)
-            .map(|index| handed_in(if index < 3 { 1 } else { 9 }, index, kill(1, index)))
+        let three: Vec<Job> = (0..3)
+            .map(|index| handed_in(if index < 2 { 1 } else { 9 }, index, kill(1, index)))
             .collect();
-        assert!(goal_progress(&goal, &facts(&six, &items, 1)).is_met());
+        assert!(goal_progress(&goal, &facts(&three, &items, 1)).is_met());
     }
 
-    /// Distress, Supply and Escort hand-ins each count a patrol; six meet
+    /// Distress, Supply and Escort hand-ins each count a patrol; three meet
     /// the record with one owned station; a Neutralize counts none.
     #[test]
     fn patrols_count_distress_supply_and_escort_hand_ins() {
         let items = items();
-        let goal = goal("Patrol record", RoleGoalType::Patrols { jobs: 6 });
-        let five: Vec<Job> = vec![
+        let goal = goal("Patrol record", RoleGoalType::Patrols { jobs: 3 });
+        let two: Vec<Job> = vec![
             handed_in(1, 0, distress(1)),
-            handed_in(1, 1, escort(1)),
             handed_in(2, 0, supply(2)),
-            handed_in(2, 1, escort(2)),
-            handed_in(3, 0, distress(3)),
             handed_in(3, 1, kill(3, 0)),
         ];
-        let progress = goal_progress(&goal, &facts(&five, &items, 1));
-        assert_eq!(haves(&progress), [1, 5]);
+        let progress = goal_progress(&goal, &facts(&two, &items, 1));
+        assert_eq!(haves(&progress), [2, 1]);
         assert!(!progress.is_met());
-        let six: Vec<Job> = five
+        let three: Vec<Job> = two
             .into_iter()
             .chain([handed_in(4, 0, escort(4))])
             .collect();
-        assert!(goal_progress(&goal, &facts(&six, &items, 1)).is_met());
+        assert!(goal_progress(&goal, &facts(&three, &items, 1)).is_met());
     }
 
-    /// An outlaw's charter reads the civilizations the player's events made
-    /// Enemy against one and the hulls taken while Enemy against its count:
-    /// a seeded Enemy and the flipping kill count for nothing, six hulls
-    /// while Enemy with an owned station meet it.
+    /// An outlaw's charter reads the hulls the record counted against its
+    /// count and nothing of a stance: three hulls with an owned station
+    /// meet it.
     #[test]
-    fn an_outlaw_counts_civilizations_turned_enemy_and_hulls_taken_while_enemy() {
+    fn an_outlaw_counts_the_hulls_taken() {
         let items = items();
-        let goal = goal("An outlaw's name", RoleGoalType::Outlaw { hulls: 6 });
-        let clean = goal_progress(&goal, &facts(&[], &items, 1));
-        assert_eq!(haves(&clean), [1, 0, 0]);
-        assert!(!clean.is_met());
-        let outlawed = GoalFacts {
-            outlaw: (1, 5),
+        let goal = goal("An outlaw's name", RoleGoalType::Outlaw { hulls: 3 });
+        let taken = |hulls_taken| GoalFacts {
+            hulls_taken,
             ..facts(&[], &items, 1)
         };
-        let progress = goal_progress(&goal, &outlawed);
-        assert_eq!(haves(&progress), [1, 1, 5]);
+        let progress = goal_progress(&goal, &taken(2));
+        assert_eq!(haves(&progress), [2, 1]);
+        assert_eq!(needs(&progress), [3, 1]);
         assert!(!progress.is_met());
-        let met = GoalFacts {
-            outlaw: (1, 6),
-            ..facts(&[], &items, 1)
+        assert!(goal_progress(&goal, &taken(3)).is_met());
+    }
+
+    /// A trading hull the player's ship or a fleet escort neutralizes counts
+    /// one hull taken with no stance asked of its civilization; a hull
+    /// another ship took out, a hull with no market and a hull thawed
+    /// already neutralized count none.
+    #[test]
+    fn a_trading_hull_the_player_neutralizes_counts_one_hull_taken() {
+        let mut app = App::new();
+        app.init_resource::<GoalRecord>();
+        app.add_observer(count_hull_taken);
+        let market = || TraderMarket {
+            cluster: ClusterType::RockOnly,
+            civilization: CivilizationId {
+                world_seed: 7,
+                node: [0, 0, 0],
+            },
+            role_preference: [1.0; 4],
+            target: BTreeMap::new(),
+            profile: None,
         };
-        assert!(goal_progress(&goal, &met).is_met());
+        let world = app.world_mut();
+        let player = world.spawn(PlayerSpaceshipMarker).id();
+        let escort = world.spawn(PlayerFleetMarker).id();
+        let stranger = world.spawn_empty().id();
+        let taken = |world: &World| world.resource::<GoalRecord>().hulls_taken;
+
+        world.spawn((market(), LastAttacker(player), NeutralizedMarker));
+        assert_eq!(taken(world), 1, "the player's own kill");
+        world.spawn((market(), LastAttacker(escort), NeutralizedMarker));
+        assert_eq!(taken(world), 2, "a fleet escort's kill");
+        world.spawn((
+            StationMarker,
+            market(),
+            LastAttacker(stranger),
+            NeutralizedMarker,
+        ));
+        world.spawn((LastAttacker(player), NeutralizedMarker));
+        world.spawn((market(), NeutralizedMarker));
+        assert_eq!(
+            taken(world),
+            2,
+            "another ship's kill, a hull with no market and a thawed wreck count none"
+        );
     }
 }

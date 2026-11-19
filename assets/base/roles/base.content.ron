@@ -13,11 +13,11 @@
                 "RepairKit": 3,
             },
         ),
-        jobs: Trade,
+        jobs: Mining,
         goal: (
             title: "Ore to market",
             kind: OreDeliveries(
-                jobs: 6,
+                jobs: 3,
             ),
         ),
         lore: "Mining crews work the rock fields for whoever buys the ore. The tug is old, but it pays.",
@@ -40,7 +40,7 @@
         goal: (
             title: "A salvage run",
             kind: Recoveries(
-                jobs: 6,
+                jobs: 3,
             ),
         ),
         lore: "Every fight leaves wrecks behind. Scavengers take what still has a price.",
@@ -61,9 +61,9 @@
         ),
         jobs: Trade,
         goal: (
-            title: "A station network",
-            kind: StationNetwork(
-                stations: 4,
+            title: "A freight line",
+            kind: CargoRuns(
+                jobs: 3,
             ),
         ),
         lore: "Stations need food, water and parts they cannot make. Haulers carry them between stations.",
@@ -82,11 +82,11 @@
                 "RepairKit": 3,
             },
         ),
-        jobs: Combat,
+        jobs: Bounty,
         goal: (
             title: "A kill list",
             kind: KillList(
-                hulls: 6,
+                hulls: 3,
             ),
         ),
         lore: "Some ships carry a price on their hull. Hunters collect it.",
@@ -106,11 +106,11 @@
                 "Torpedo": 2,
             },
         ),
-        jobs: Combat,
+        jobs: Patrol,
         goal: (
             title: "Patrol record",
             kind: Patrols(
-                jobs: 6,
+                jobs: 3,
             ),
         ),
         lore: "Patrol crews start on small pickets and earn larger hulls. Few reach a warship.",
@@ -129,11 +129,11 @@
                 "RepairKit": 3,
             },
         ),
-        jobs: Combat,
+        jobs: Raid,
         goal: (
             title: "An outlaw\'s name",
             kind: Outlaw(
-                hulls: 6,
+                hulls: 3,
             ),
         ),
         lore: "Past the patrol routes, a full hold is a target. Raiders live on what they take.",

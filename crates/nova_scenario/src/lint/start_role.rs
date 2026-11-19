@@ -75,8 +75,8 @@ fn check_goal(id: &str, goal: &RoleGoal, source: &str, issues: &mut Vec<LintIssu
     let (count, what) = match &goal.kind {
         RoleGoalType::OreDeliveries { jobs }
         | RoleGoalType::Recoveries { jobs }
+        | RoleGoalType::CargoRuns { jobs }
         | RoleGoalType::Patrols { jobs } => (*jobs, "jobs"),
-        RoleGoalType::StationNetwork { stations } => (*stations, "stations"),
         RoleGoalType::KillList { hulls } | RoleGoalType::Outlaw { hulls } => (*hulls, "hulls"),
     };
     if count == 0 {
@@ -184,7 +184,7 @@ mod tests {
             jobs: JobMixType::Trade,
             goal: RoleGoal {
                 title: "A goal".to_string(),
-                kind: RoleGoalType::KillList { hulls: 6 },
+                kind: RoleGoalType::KillList { hulls: 3 },
             },
             lore: String::new(),
         }
@@ -226,7 +226,7 @@ mod tests {
             jobs: JobMixType::Trade,
             goal: RoleGoal {
                 title: "A goal".to_string(),
-                kind: RoleGoalType::KillList { hulls: 6 },
+                kind: RoleGoalType::KillList { hulls: 3 },
             },
             lore: String::new(),
         };
@@ -270,12 +270,12 @@ mod tests {
             .collect()
         };
         let sound = [
-            RoleGoalType::OreDeliveries { jobs: 6 },
-            RoleGoalType::Recoveries { jobs: 6 },
-            RoleGoalType::StationNetwork { stations: 4 },
-            RoleGoalType::KillList { hulls: 6 },
-            RoleGoalType::Patrols { jobs: 6 },
-            RoleGoalType::Outlaw { hulls: 6 },
+            RoleGoalType::OreDeliveries { jobs: 3 },
+            RoleGoalType::Recoveries { jobs: 3 },
+            RoleGoalType::CargoRuns { jobs: 3 },
+            RoleGoalType::KillList { hulls: 3 },
+            RoleGoalType::Patrols { jobs: 3 },
+            RoleGoalType::Outlaw { hulls: 3 },
         ];
         for kind in sound {
             assert!(goal_errors(kind.clone()).is_empty(), "{kind:?}");
@@ -283,7 +283,7 @@ mod tests {
         let zero = [
             (RoleGoalType::OreDeliveries { jobs: 0 }, "0 jobs"),
             (RoleGoalType::Recoveries { jobs: 0 }, "0 jobs"),
-            (RoleGoalType::StationNetwork { stations: 0 }, "0 stations"),
+            (RoleGoalType::CargoRuns { jobs: 0 }, "0 jobs"),
             (RoleGoalType::KillList { hulls: 0 }, "0 hulls"),
             (RoleGoalType::Patrols { jobs: 0 }, "0 jobs"),
             (RoleGoalType::Outlaw { hulls: 0 }, "0 hulls"),

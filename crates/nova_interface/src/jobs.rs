@@ -9,9 +9,8 @@
 //! completed and whose window has not passed, as kind icon | title | reward
 //! | time-left meter with its minutes | Accept `X`. With nothing to take the
 //! panel keeps its title and column heads over no row. Every offer asks
-//! something of the hull ([`plan_job_hull_fit`]): the starting station's
-//! board ([`StarterBoardMarker`]) leaves out what the hull cannot do; every
-//! other board lists it with Accept disabled and one tag word for the part
+//! something of the hull ([`plan_job_hull_fit`]): a board lists an offer
+//! the hull cannot do with Accept disabled and one tag word for the part
 //! the hull lacks, as it tags an offer whose target is gone. Under it "Your
 //! jobs" lists every held job as kind icon | title | `have / need` meter |
 //! hand-in | Hand in `X`. The hand-in column reads HAND IN HERE docked at
@@ -500,20 +499,17 @@ fn offer_refresh_gate(refusal: &JobOfferRefreshRefusalType) -> VerbGate {
     }
 }
 
-/// What a board does with an offer the hull gate judged `fit` and the
-/// accept rule judged `accept`: `None` leaves it off a starter board, else it
-/// is listed with Accept under the gate. The hull's cause comes first: it is
+/// The gate of Accept on a board row whose offer the hull gate judged `fit`
+/// and the accept rule judged `accept`. The hull's cause comes first: it is
 /// the one the player can act on.
 fn board_listing(
-    starter: bool,
     fit: Result<(), JobHullRefusalType>,
     accept: Result<(), JobAcceptRefusalType>,
-) -> Option<VerbGate> {
-    match (starter, fit, accept) {
-        (true, Err(_), _) => None,
-        (false, Err(refusal), _) => Some(hull_gate(&refusal)),
-        (_, Ok(()), Err(refusal)) => Some(accept_gate(&refusal)),
-        (_, Ok(()), Ok(())) => Some(VerbGate::Ready),
+) -> VerbGate {
+    match (fit, accept) {
+        (Err(refusal), _) => hull_gate(&refusal),
+        (Ok(()), Err(refusal)) => accept_gate(&refusal),
+        (Ok(()), Ok(())) => VerbGate::Ready,
     }
 }
 
@@ -636,7 +632,7 @@ fn update_jobs_pane(
     (q_ids, q_targets, q_boards, q_credits, q_holds, q_scroll): (
         Query<&GeneratedBodyId>,
         JobTargets,
-        Query<(&JobBoard, Has<StarterBoardMarker>)>,
+        Query<&JobBoard>,
         Query<&ShipCredits>,
         Query<&ShipInventory>,
         Query<(&JobsScrollType, &ScrollPosition)>,
@@ -772,7 +768,7 @@ fn update_jobs_pane(
         }
     });
     let posted = partner.as_ref().and_then(|(_, station, station_id)| {
-        let (board, starter) = q_boards.get(*station).ok()?;
+        let board = q_boards.get(*station).ok()?;
         let rows: Vec<PostedRow> = board
             .0
             .iter()
@@ -788,8 +784,7 @@ fn update_jobs_pane(
                     || (1.0, NO_WINDOW_TEXT.to_string()),
                     |remaining| time_left(job, remaining),
                 );
-                let Some(gate) = board_listing(
-                    starter,
+                let gate = board_listing(
                     plan_job_hull_fit(job, &items, fit),
                     plan_job_accept(
                         job,
@@ -798,9 +793,7 @@ fn update_jobs_pane(
                         false,
                         target_standing(job, &q_targets),
                     ),
-                ) else {
-                    return None;
-                };
+                );
                 let confirming = runtime.confirm_refresh.as_ref() == Some(&job.id);
                 let refresh_gate = if confirming {
                     offer_refresh_gate(job)
@@ -875,7 +868,7 @@ fn update_jobs_pane(
             .map(|job| (job, true))
             .or_else(|| {
                 let (_, station, _) = partner.as_ref()?;
-                let (board, _) = q_boards.get(*station).ok()?;
+                let board = q_boards.get(*station).ok()?;
                 board
                     .job(id)
                     .filter(|job| !jobs.is_completed(&job.id) && !jobs.is_dropped(&job.id))
@@ -3185,31 +3178,26 @@ mod tests {
     }
 
     #[test]
-    fn the_starter_board_hides_a_job_the_hull_cannot_do_and_a_core_board_tags_its_accept() {
+    fn a_board_tags_the_accept_of_a_job_the_hull_cannot_do_before_a_gone_target() {
         let unfit = || Err(JobHullRefusalType::NoWeapon);
         assert_eq!(
-            board_listing(true, unfit(), Ok(())),
-            None,
-            "the starter board leaves the job off"
+            board_listing(unfit(), Ok(())),
+            VerbGate::Tagged("NO WEAPON"),
+            "a board lists it tagged with the part the hull lacks"
         );
         assert_eq!(
-            board_listing(false, unfit(), Ok(())),
-            Some(VerbGate::Tagged("NO WEAPON")),
-            "a core board lists it tagged with the part the hull lacks"
-        );
-        assert_eq!(
-            board_listing(false, unfit(), Err(JobAcceptRefusalType::TargetGone)),
-            Some(VerbGate::Tagged("NO WEAPON")),
+            board_listing(unfit(), Err(JobAcceptRefusalType::TargetGone)),
+            VerbGate::Tagged("NO WEAPON"),
             "the hull's cause comes before the accept rule's"
         );
         assert_eq!(
-            board_listing(true, Ok(()), Err(JobAcceptRefusalType::TargetGone)),
-            Some(VerbGate::Tagged("GONE")),
-            "a fit job with a gone target is listed tagged on either board"
+            board_listing(Ok(()), Err(JobAcceptRefusalType::TargetGone)),
+            VerbGate::Tagged("GONE"),
+            "a fit job with a gone target is listed tagged"
         );
         assert_eq!(
-            board_listing(true, Ok(()), Ok(())),
-            Some(VerbGate::Ready),
+            board_listing(Ok(()), Ok(())),
+            VerbGate::Ready,
             "a fit, open job lists with Accept"
         );
     }

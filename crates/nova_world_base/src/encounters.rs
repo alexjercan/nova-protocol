@@ -59,14 +59,14 @@ use nova_world::prelude::{
 };
 
 use crate::{
-    civilizations::{Civilization, CivilizationField},
+    civilizations::CivilizationField,
     jobs::{
-        answer_distress, caller_bundle, caller_name, caller_stock, deliver_supply, job_hull,
-        player_docked_with, raider_bundle, raider_name, PlayerHull, FIELD_LEG_STEP,
-        JOB_SPAWN_CLEARANCE, RAIDER_SPACING,
+        answer_distress, caller_bundle, caller_name, caller_stock, deliver_supply, derelict_hull,
+        derelict_name, job_hull, player_docked_with, raider_bundle, raider_name, PlayerHull,
+        FIELD_LEG_STEP, JOB_SPAWN_CLEARANCE, RAIDER_SPACING,
     },
-    sector_ships::{ship_credits, ship_stock, uniform_rotation},
-    ship_layout::{generate_wreck, ShipLayoutRequest, ShipSpareDriveType},
+    sector_ships::{ship_credits, uniform_rotation},
+    ship_layout::ShipSpareDriveType,
     NovaLayeredWorld,
 };
 
@@ -573,7 +573,7 @@ pub(crate) fn drive_encounters(
                     Ok(built) => built,
                     Err(fault) => return unstaffed(fault),
                 };
-                let name = format!("{} derelict", civilization.id.name());
+                let name = derelict_name(&civilization);
                 commands.spawn(caller_bundle(
                     &wreck,
                     name.clone(),
@@ -713,44 +713,6 @@ pub(crate) fn drive_encounters(
             }
         }
     }
-}
-
-/// The wreck of a civilian hull of `civilization` and its hold, as a
-/// sector's derelict is built: the layout ruined off `seed`, the stock drawn
-/// off the next seed.
-fn derelict_hull(
-    parts: &crate::ship_parts::ShipPartSnapshot,
-    items: &GameItems,
-    civilization: &Civilization,
-    seed: u32,
-) -> Result<
-    (
-        nova_scenario::prelude::ShipDesign,
-        nova_gameplay::prelude::ShipInventoryStock,
-    ),
-    String,
-> {
-    let role = ShipRoleType::Civilian;
-    let request = ShipLayoutRequest {
-        seed,
-        civilization: civilization.id,
-        role,
-        advancement: civilization.advancement,
-        size: ShipSizeType::Advancement,
-        spare_drive: ShipSpareDriveType::Without,
-    };
-    let layout = generate_wreck(parts, request).map_err(|failure| failure.to_string())?;
-    let stock = ship_stock(
-        parts,
-        items,
-        &layout.design,
-        role,
-        SectorShipConditionType::Derelict,
-        civilization.advancement,
-        seed.wrapping_add(1),
-    )
-    .ok_or_else(|| "the hold cannot fit one unit of its lightest item".to_string())?;
-    Ok((layout.design, stock))
 }
 
 /// Hold the standing offer's job: the offer comes off the record, the job

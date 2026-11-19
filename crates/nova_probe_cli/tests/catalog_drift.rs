@@ -1214,7 +1214,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         "system_role_goals",
         &[
             "the charter opens standing with its lines at zero",
-            "six neutralize hand-ins stand the kill list at the station line",
+            "three neutralize hand-ins stand the kill list at the station line",
             "buying a station meets the kill list and stamps the record once",
             "the map's chart view shows the charter met",
             "the leave save keeps the met charter",

@@ -129,10 +129,11 @@ mod walk {
 
     use super::*;
 
-    /// The seed the range plays. Its window around the origin holds one
-    /// station, a living Neutral waystation in cell (1, 0, 0), 48 km out
-    /// (`system_world_chart` docks at the same one).
-    const STATION_SEED: u32 = 10;
+    /// The seed the range plays. The nearest living station to its origin
+    /// stands in cell (0, -1, 0), 48 km out, and its board under the Trade
+    /// mix posts a procurement, the job the walk holds, beside an escort,
+    /// the job the weaponless transport cannot do.
+    const STATION_SEED: u32 = 19;
 
     const NEW_GAME_BUTTON: &str = "New Game Button";
     const WORLD_NAME_FIELD: &str = "World Name Field";

@@ -24,10 +24,10 @@ use nova_gameplay::prelude::{
     FrozenRoundFlight, GameConsumables, GameEncounters, GameItems, GameRecipes, GameTradeProfiles,
     GoalLine, GoalProgress, GoalRecord, Health, ImpactSparkMarker, ImpactSparkPlugin, ImpactSparks,
     IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType, Job,
-    JobField, JobId, JobMixType, JobPostings, JobType, Jobs, NeutralizedMarker, PlayerFleetMarker,
-    PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage, ProjectileOwner,
-    RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime, SavedOwner,
-    SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
+    JobField, JobId, JobMixType, JobPostings, JobSpawns, JobType, Jobs, NeutralizedMarker,
+    PlayerFleetMarker, PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage,
+    ProjectileOwner, RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime,
+    SavedOwner, SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
     SpaceshipRootMarker, StanceType, StationServiceType, StationSummary, StationVisits, TempEntity,
     TorpedoProjectileMarker, TradeProfileDesign, TraderMarket, TurretBulletProjectileMarker,
 };
@@ -104,6 +104,20 @@ fn catalog(digest: u64) -> LoadedSectionPacks {
 /// The item catalog every opened world is checked against.
 fn items() -> GameItems {
     nova_gameplay::test_support::test_items()
+}
+
+/// The hold of a recovery's own wreck in these tests: two hull plates.
+fn own_wreck_hold(_: &JobId) -> Vec<(ItemDesignId, u32)> {
+    vec![(ItemRoleType::HullPlate.id().into(), 2)]
+}
+
+/// What a poster of these tests spawns for a job with no field target.
+fn job_spawns() -> JobSpawns<'static> {
+    JobSpawns {
+        wreck_name: "Vell derelict".to_string(),
+        wreck_hold: &own_wreck_hold,
+        raider_name: "Vell raider".to_string(),
+    }
 }
 
 /// The scenario registry every opened world is checked against: the
@@ -1715,10 +1729,10 @@ fn a_save_header_carries_the_play_time_hull_fleet_open_objectives_and_chart() {
         chart.find_station(&station, false, true, None, 45.0);
     }
     world.insert_resource(GoalProgress {
-        title: "A station network".to_string(),
+        title: "Cargo runs".to_string(),
         lines: vec![
+            GoalLine::new("Cargo runs", 1, 3),
             GoalLine::new("Stations owned", 1, 1),
-            GoalLine::new("Stations served", 1, 4),
         ],
     });
     frame(&mut world);
@@ -1759,11 +1773,11 @@ fn a_save_header_carries_the_play_time_hull_fleet_open_objectives_and_chart() {
         header.objectives,
         vec![SavedObjective {
             kind: SavedObjectiveType::Goal,
-            title: "A station network".to_string(),
+            title: "Cargo runs".to_string(),
             lines: vec![SavedObjectiveLine {
-                label: "Stations served".to_string(),
+                label: "Cargo runs".to_string(),
                 have: 1,
-                need: 4,
+                need: 3,
             }],
         }]
     );
@@ -1798,10 +1812,10 @@ fn a_met_goal_is_not_listed_among_a_save_header_s_open_objectives() {
     let (mut world, _player) = armed_session(root.path());
     world.resource_mut::<WorldClock>().play_seconds = 90.0;
     world.insert_resource(GoalProgress {
-        title: "A station network".to_string(),
+        title: "Cargo runs".to_string(),
         lines: vec![
+            GoalLine::new("Cargo runs", 3, 3),
             GoalLine::new("Stations owned", 1, 1),
-            GoalLine::new("Stations served", 4, 4),
         ],
     });
     world.resource_mut::<GoalRecord>().met_at = Some(60.0);
@@ -2425,6 +2439,114 @@ fn a_save_in_a_fight_keeps_the_raider_that_stands_and_not_the_one_destroyed() {
     );
 }
 
+/// A recovery and a neutralize that put their own target in the world keep
+/// it through a save: the ledger holds the wreck and the raider under the
+/// ids the jobs name, and the Load restores both held jobs.
+#[test]
+fn a_job_s_own_wreck_and_raider_ride_the_save_and_load_with_their_jobs() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, _) = armed_session(root.path());
+    let poster = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+    // The first recovery and the first neutralize a board of the raid mix
+    // posts with nothing in its field: each names its own target.
+    let offers: Vec<Job> = (0..40)
+        .flat_map(|posting| {
+            let ids: Vec<JobId> = (0..3)
+                .map(|slot| JobId::slot(poster.clone(), slot, posting))
+                .collect();
+            station_job_offers(
+                7,
+                &ids,
+                &[],
+                0.5,
+                &items(),
+                JobMixType::Raid,
+                &JobField::default(),
+                &job_spawns(),
+                &[],
+                None,
+            )
+        })
+        .collect();
+    let recover = offers
+        .iter()
+        .find(|job| matches!(job.kind, JobType::Recover { .. }))
+        .expect("the raid mix posts a recovery")
+        .clone();
+    let neutralize = offers
+        .iter()
+        .find(|job| matches!(job.kind, JobType::Neutralize { .. }))
+        .expect("the raid mix posts a neutralize")
+        .clone();
+    let cell = world.spawn(SectorRoot(SectorCoord::ORIGIN)).id();
+    let mut targets = Vec::new();
+    for (job, at) in [(&recover, 900.0), (&neutralize, -1_100.0)] {
+        assert!(job.spawns_target(), "'{}' names its own target", job.id);
+        let id = job.spawned_bodies()[0].clone();
+        world.spawn((
+            spaceship_scenario_object(SpaceshipConfig::default()),
+            ShipInventory::default(),
+            DamageMarks::default(),
+            RcsBudget::default(),
+            id.clone(),
+            EntityId(id.to_string()),
+            Rotation::default(),
+            Transform::from_xyz(at, 0.0, -120.0),
+            ChildOf(cell),
+        ));
+        targets.push(id.to_string());
+        world.resource_mut::<Jobs>().accept(job.clone());
+    }
+    let held = world.resource::<Jobs>().clone();
+
+    let digest = leave_and_save(&mut world);
+    world.remove_resource::<WorldSaveSession>();
+    drop(world);
+    let (opened, lock, header_, state_) = open_world(
+        root.path(),
+        "session",
+        &catalog(digest),
+        &roles(),
+        &items(),
+        &scenarios(),
+        &designs(),
+        &profiles(),
+        &recipes(),
+        &GameConsumables::default(),
+        &GameEncounters::default(),
+    )
+    .unwrap();
+    assert_eq!(state_.jobs, held, "the save holds both jobs");
+    let frozen: Vec<String> = state_
+        .sectors
+        .iter()
+        .flat_map(|(_, sector)| sector.bodies())
+        .filter_map(|body| body.id().map(str::to_string))
+        .filter(|id| targets.contains(id))
+        .collect();
+    assert_eq!(
+        frozen.iter().collect::<BTreeSet<_>>(),
+        targets.iter().collect::<BTreeSet<_>>(),
+        "the ledger holds the wreck and the raider under the ids the jobs name"
+    );
+
+    let mut app = App::new();
+    app.add_plugins(crate::test_support::WorldSaveTestPlugin);
+    let mut world = std::mem::take(app.world_mut());
+    crate::test_support::arm_save_fixture(&mut world);
+    let config = world
+        .remove_resource::<WorldConfig<NovaLayeredWorld>>()
+        .unwrap();
+    resume_world(&mut world, opened, lock, &header_, state_);
+    world.insert_resource(config);
+    restore_resumed_world(&mut world);
+    assert_eq!(
+        *world.resource::<Jobs>(),
+        held,
+        "the Load restored the jobs that name the frozen targets"
+    );
+}
+
 /// A held hail job needs its live encounter: with no record, or a record
 /// that does not name the job's caller, the save fails and writes nothing,
 /// and a world written that way is refused on open.
@@ -2499,7 +2621,10 @@ fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
     world.insert_resource(WorldClock {
         play_seconds: 200.0,
     });
-    world.resource_mut::<GoalRecord>().met_at = Some(150.0);
+    *world.resource_mut::<GoalRecord>() = GoalRecord {
+        met_at: Some(150.0),
+        hulls_taken: 2,
+    };
     world.resource_mut::<WorldSaveSession>().request_leave();
     run_until_idle(&mut world);
     assert_eq!(
@@ -2525,7 +2650,8 @@ fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
     assert_eq!(
         state.goal,
         GoalRecord {
-            met_at: Some(150.0)
+            met_at: Some(150.0),
+            hulls_taken: 2,
         },
         "the leave save wrote the record"
     );
@@ -2535,11 +2661,36 @@ fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
     assert_eq!(
         *resumed.resource::<GoalRecord>(),
         GoalRecord {
-            met_at: Some(150.0)
+            met_at: Some(150.0),
+            hulls_taken: 2,
         },
         "the Load restored the record on the arming frame"
     );
     drop(resumed);
+
+    // A record of the shape that kept the stamp alone is refused, not
+    // migrated.
+    let text = ron::to_string(&state).unwrap();
+    let old_shape = text.replace(",hulls_taken:2", "");
+    assert_ne!(old_shape, text, "the state names the count: {text}");
+    std::fs::write(root.path().join("session/state.2.ron"), old_shape).unwrap();
+    let refused = open_world(
+        root.path(),
+        "session",
+        &catalog(digest),
+        &roles(),
+        &items(),
+        &scenarios(),
+        &designs(),
+        &profiles(),
+        &recipes(),
+        &GameConsumables::default(),
+        &GameEncounters::default(),
+    );
+    assert!(
+        matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("hulls_taken")),
+        "a goal record with no hull count refuses the save: {refused:?}"
+    );
 
     // A record stamped after the saved clock is one no session wrote.
     let mut state = state;
@@ -2591,12 +2742,18 @@ fn a_saved_posting_record_resumes_with_its_offers_and_a_held_job_outlives_its_sl
             &items(),
             JobMixType::Trade,
             &JobField::default(),
+            &job_spawns(),
             standing,
             None,
         )
     };
     let offers = draw(0, &[0, 1, 2], &[]);
-    let held = offers[1].clone();
+    // A procurement: it is held with no body or leg of its own in the world.
+    let held_slot = offers
+        .iter()
+        .position(|job| matches!(job.kind, JobType::Procure { .. }))
+        .expect("the trade mix posts a procurement on this board");
+    let held = offers[held_slot].clone();
     world.insert_resource(WorldClock {
         play_seconds: 200.0,
     });
@@ -2676,8 +2833,14 @@ fn a_saved_posting_record_resumes_with_its_offers_and_a_held_job_outlives_its_sl
     };
     let mut state = state;
     let board = state.postings.clone();
-    let standing = [offers[0].clone(), offers[2].clone()];
-    state.postings.post(draw(1, &[1], &standing), 100.0);
+    let standing: Vec<Job> = offers
+        .iter()
+        .filter(|job| job.id != held.id)
+        .cloned()
+        .collect();
+    state
+        .postings
+        .post(draw(1, &[held_slot as u32], &standing), 100.0);
     let (_, lock, _, opened) = write(&state).unwrap_or_else(|refusal| {
         panic!("a held job behind its slot's posting opens: {refusal:?}")
     });
@@ -2837,6 +3000,7 @@ fn a_dropped_job_id_is_saved_and_load_restores_it() {
             &items(),
             JobMixType::Trade,
             &JobField::default(),
+            &job_spawns(),
             standing,
             None,
         )

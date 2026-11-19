@@ -1692,8 +1692,8 @@
         ),
         jobs: Trade,
         goal: (
-            title: "A survey network",
-            kind: StationNetwork(stations: 2),
+            title: "Survey runs",
+            kind: CargoRuns(jobs: 2),
         ),
         lore: "Survey crews map the rock fields and sell the data cores to any station that pays.",
     )),

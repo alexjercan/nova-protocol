@@ -264,6 +264,7 @@ impl Plugin for NovaWorldBasePlugin {
         // civilization the moment its marker lands; a provocation is stamped
         // the moment the tally crosses.
         app.add_observer(stance::record_offence);
+        app.add_observer(goal::count_hull_taken);
         app.add_observer(stance::record_provocation);
         // A scenario's `SetStance` asks; the seed's draw lives here.
         app.add_observer(stance::apply_stance_request);

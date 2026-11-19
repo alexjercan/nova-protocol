@@ -219,24 +219,23 @@ pub struct StartRole {
 }
 
 /// One finite milestone: the heading the New Game role step, the Jobs pane
-/// and the Load screen show, and its flavour predicate. Every role's
-/// progress opens with the shared first line, one owned station, before
-/// the flavour line; met, it stamps the save and changes nothing else; play
-/// goes on.
+/// and the Load screen show, and its predicate. Every role's progress opens
+/// with the role's own line and closes with the shared one, one owned
+/// station; met, it stamps the save and changes nothing else; play goes on.
 #[derive(Clone, Debug, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct RoleGoal {
     /// The heading, for a reader.
     pub title: String,
-    /// What the save must show after the shared station line.
+    /// What the save must show before the shared station line.
     pub kind: RoleGoalType,
 }
 
-/// The flavour predicates a goal may be. Closed: a role picks one and sets
-/// its count. Every predicate reads facts the world save already carries:
-/// the jobs the player handed in and the player's civilization stances. The
-/// shared first line, one owned station, is a rule in code, not content.
+/// The predicates a goal may be. Closed: a role picks one and sets its
+/// count. Every predicate reads facts the world save carries: the jobs the
+/// player handed in and the trading hulls the player took out. The shared
+/// last line, one owned station, is a rule in code, not content.
 #[derive(Clone, Debug, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
@@ -252,10 +251,10 @@ pub enum RoleGoalType {
         /// How many recoveries to hand in, above zero.
         jobs: u32,
     },
-    /// Hand in Procure or Escort jobs posted by `stations` distinct stations.
-    StationNetwork {
-        /// How many distinct posting stations to serve, above zero.
-        stations: u32,
+    /// Hand in `jobs` Procure, Supply or Escort jobs.
+    CargoRuns {
+        /// How many cargo runs to hand in, above zero.
+        jobs: u32,
     },
     /// Hand in Neutralize jobs naming `hulls` distinct hulls.
     KillList {
@@ -267,12 +266,9 @@ pub enum RoleGoalType {
         /// How many patrols to hand in, above zero.
         jobs: u32,
     },
-    /// Turn a civilization Enemy by the player's own deeds (a civilization
-    /// the seed drew Enemy does not count) and neutralize `hulls` intact
-    /// hulls of it while it stands Enemy.
+    /// Neutralize `hulls` trading hulls, of any civilization on any stance.
     Outlaw {
-        /// How many intact hulls to neutralize while the civilization is
-        /// Enemy, above zero.
+        /// How many trading hulls to neutralize, above zero.
         hulls: u32,
     },
 }

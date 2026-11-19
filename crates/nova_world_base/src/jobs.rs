@@ -68,15 +68,14 @@ use nova_events::prelude::{
     OnShipOrderCompleteEvent, OnShipOrderFailedEvent, OnUndockedEvent, SectorCoord,
 };
 use nova_gameplay::prelude::{
-    escort_raider_size, plan_job_hull_fit, plan_job_supply, station_job_offers, station_offers,
-    unit_sphere_point, Allegiance, DerelictShipMarker, Encounters, Fnv32, GameItems,
-    GamePriceTable, Job, JobAccepted, JobBoard, JobDone, JobDropped, JobField, JobHull, JobHullFit,
-    JobId, JobMixType, JobOfferRule, JobPostings, JobType, JobWreck, Jobs, NeutralizedMarker,
-    ObjectiveMarkerTarget, PlayerSpaceshipMarker, RailgunSectionMarker, SectionInactiveMarker,
-    SectionMarker, SeedStream, ShipInventory, ShipInventoryStock, ShipRoleType, ShipSizeType,
-    SlotPosting, SpaceshipRootMarker, StarterBoardMarker, StationMarker, StationServiceType,
-    StationServices, SupplyRefused, TorpedoSectionMarker, TraderMarket, TurretSectionMarker,
-    JOBS_PER_BOARD,
+    escort_raider_size, plan_job_supply, station_job_offers, station_offers, unit_sphere_point,
+    Allegiance, DerelictShipMarker, Encounters, Fnv32, GameItems, GamePriceTable, Job, JobAccepted,
+    JobBoard, JobDone, JobDropped, JobField, JobHull, JobHullFit, JobId, JobMixType, JobOfferRule,
+    JobPostings, JobSpawns, JobType, JobWreck, Jobs, NeutralizedMarker, ObjectiveMarkerTarget,
+    PlayerSpaceshipMarker, RailgunSectionMarker, SectionInactiveMarker, SectionMarker, SeedStream,
+    ShipInventory, ShipInventoryStock, ShipRoleType, ShipSizeType, SlotPosting,
+    SpaceshipRootMarker, StarterBoardMarker, StationMarker, StationServiceType, StationServices,
+    SupplyRefused, TorpedoSectionMarker, TraderMarket, TurretSectionMarker, JOBS_PER_BOARD,
 };
 use nova_scenario::prelude::{
     base_scenario_object, spaceship_scenario_object, AIControllerConfig, BaseScenarioObjectConfig,
@@ -95,7 +94,7 @@ use nova_world::prelude::{
 use crate::{
     civilizations::{Civilization, CivilizationField},
     sector_ships::ship_stock,
-    ship_layout::{generate_ship, ShipLayoutRequest, ShipSpareDriveType},
+    ship_layout::{generate_ship, generate_wreck, ShipLayoutRequest, ShipSpareDriveType},
     ship_parts::ShipPartSnapshot,
     NovaLayeredWorld,
 };
@@ -135,8 +134,9 @@ const STATION_SPAWN_CLEARANCE: Meters = Meters(500.0);
 const JOB_SPAWN_TRIES: u32 = 8;
 /// The tether a raider chases its prey within, from where it lay in wait.
 /// Shorter than the way from every wait point to the poster and to the
-/// hauler's start on the shortest escort leg, so a chase ends short of the
-/// station and of a hauler that has not left.
+/// hauler's start on the shortest escort leg, and than the shortest leg a
+/// neutralize's own raider waits out (`NEUTRALIZE_LEG_M`), so a chase ends
+/// short of the station and of a hauler that has not left.
 const RAIDER_LEASH: Meters = Meters(6_000.0);
 
 /// The civilization of the station `poster` that trades by `market`: the one
@@ -159,8 +159,9 @@ fn poster_civilization(
 }
 
 /// The player's hull as the jobs read it: its live sections, its hold,
-/// where it stands and what it is docked with. The starter board's draw and the Jobs pane's gate share
-/// this one read, so the offer a draw assures is the one the pane lists.
+/// where it stands and what it is docked with. The starter board's draw and
+/// the Jobs pane's gate share this one read, so an offer the draw fits to
+/// the hull is one the pane lets it accept.
 #[derive(SystemParam)]
 pub struct PlayerHull<'w, 's> {
     player: Query<
@@ -260,11 +261,16 @@ impl PlayerHull<'_, '_> {
 /// carries its saved offers as its [`JobBoard`]. A dead
 /// station posts nothing. The mix is the session's start role's; a generated
 /// scenario that runs with no session, a fixed-seed world no New Game
-/// opened, posts the trade mix. The session's starting station carries the
-/// [`StarterBoardMarker`] beside its board; no other station does. Its draw
-/// alone reads the player's hull: when no offer that stands open fits the
-/// hull ([`offer_stands_open`]), the renewing slots must post one that does
-/// ([`station_job_offers`]). A slot that does not renew stays as it is, so a
+/// opened, posts the trade mix. A recovery or a neutralize drawn with no
+/// wreck or no hostile hull left in the field names a target of its own,
+/// which the accept puts in the world ([`spawn_job_bodies`]): the board
+/// reads the wreck's hold off the same seed the accept builds it from
+/// ([`job_wreck`]). The session's starting station carries the
+/// [`StarterBoardMarker`] beside its board, for every posting of the
+/// session; no other station does. Its draw alone reads the player's hull:
+/// every slot that renews there posts a job that hull can do
+/// ([`station_job_offers`]), so the board waits for the player's ship to
+/// stand before it draws. A slot that does not renew stays as it is, so a
 /// board of held jobs posts nothing until one renews.
 #[expect(
     clippy::too_many_arguments,
@@ -442,36 +448,47 @@ pub fn post_station_boards(
             .as_deref()
             .is_some_and(|session| session.is_starting_station(id));
         if !renewing.is_empty() {
-            let assured = starter.then(|| hull.fit()).filter(|fit| {
-                !standing
-                    .iter()
-                    .any(|offer| offer_stands_open(offer, *fit, &items, &jobs, &field_bodies))
-            });
+            // The starter board draws for the player's hull; a draw before
+            // the ship stands would fit nothing and post what it cannot do.
+            if starter && hull.entity().is_none() {
+                continue;
+            }
+            let fitted = starter.then(|| hull.fit());
             let mut excluded = postings.named_bodies(rule, now, &jobs);
             excluded.extend(retired.iter().cloned());
             let field = field_bodies.field(entity, &around, &excluded);
-            let advancement = poster_civilization(id, market, "post_station_boards").advancement;
+            let civilization = poster_civilization(id, market, "post_station_boards");
+            let wreck_hold = |job: &JobId| {
+                let (_, stock) = job_wreck(
+                    config.generator.parts(),
+                    &items,
+                    &civilization,
+                    config.seed,
+                    job,
+                );
+                stock
+                    .stacks()
+                    .map(|(item, count)| (item.clone(), count))
+                    .collect()
+            };
             let offers = station_job_offers(
                 config.seed,
                 &renewing,
                 &clusters.0,
-                advancement,
+                civilization.advancement,
                 &items,
                 mix,
                 &field,
+                &JobSpawns {
+                    wreck_name: derelict_name(&civilization),
+                    wreck_hold: &wreck_hold,
+                    raider_name: raider_name(&civilization),
+                },
                 &standing,
-                assured,
+                fitted,
             );
-            if let Some(fit) = assured {
-                if !offers
-                    .iter()
-                    .any(|offer| plan_job_hull_fit(offer, &items, fit).is_ok())
-                {
-                    info!(
-                        "nova_world_base: the starter board '{id}' has no offer for the hull \
-                         {fit:?}"
-                    );
-                }
+            if let Some(fit) = fitted {
+                info!("nova_world_base: the starter board '{id}' draws for the hull {fit:?}");
             }
             info!(
                 "nova_world_base: the station '{id}' posts {} offer(s) over {} wreck(s) and {} \
@@ -511,9 +528,6 @@ pub fn post_station_boards(
         if posted.is_some_and(|posted| posted.0 == board) {
             continue;
         }
-        // The board posts every job; the Jobs pane reads the marker and
-        // hides, on this one board, the jobs the current hull cannot do
-        // (`plan_job_hull_fit`), so the gate follows a refit with no timer.
         let mut station = commands.entity(entity);
         station.insert(JobBoard(board));
         if starter {
@@ -537,37 +551,6 @@ fn slot_renews(jobs: &Jobs, posting: &SlotPosting, rule: JobOfferRule, now: f64)
         return false;
     }
     jobs.is_completed(id) || posting.paid_refresh_requested || posting.is_expired(rule, now)
-}
-
-/// Whether the player can take the standing `offer` with a hull of `fit`:
-/// not held, not dropped, the hull fits it, and a recovery's wreck still
-/// carries its stack or a neutralize's hull still stands.
-fn offer_stands_open(
-    offer: &Job,
-    fit: JobHullFit,
-    items: &GameItems,
-    jobs: &Jobs,
-    bodies: &FieldBodies,
-) -> bool {
-    if jobs.holds(&offer.id)
-        || jobs.is_dropped(&offer.id)
-        || plan_job_hull_fit(offer, items, fit).is_err()
-    {
-        return false;
-    }
-    match &offer.kind {
-        JobType::Recover {
-            wreck, item, count, ..
-        } => bodies
-            .wrecks
-            .iter()
-            .any(|(_, id, _, hold, _)| id == wreck && hold.count(item) >= *count),
-        JobType::Neutralize { hull, .. } => bodies.hulls.iter().any(|(_, id, ..)| id == hull),
-        JobType::Procure { .. }
-        | JobType::Escort { .. }
-        | JobType::Distress { .. }
-        | JobType::Supply { .. } => true,
-    }
 }
 
 /// The cell `centre` and the 26 cells around it.
@@ -744,14 +727,18 @@ impl FieldBodies<'_, '_> {
 /// hostile comes inside their engage range; a distress call's or a supply
 /// job's caller at the mark, a neutral derelict civilian hull, lootable, its
 /// hold stripped of the item a supply job asks for, so the player cannot
-/// take the goods off the caller and hand them back. The leg's direction is
-/// seeded by
-/// the job and chosen so every body stands [`JOB_SPAWN_CLEARANCE`] from
+/// take the goods off the caller and hand them back; a recovery's own wreck
+/// at the mark, the derelict civilian hull the board read the stack off
+/// ([`job_wreck`]), adrift as a caller is; a neutralize's own raider at the
+/// mark, one hull of the escort raiders' band, hostile, lying in wait on
+/// their engage range and tether ([`raider_bundle`]) with no prey named, so
+/// it stays out there until a hostile of its own comes to it. The leg's
+/// direction is seeded by the job and chosen so every body stands [`JOB_SPAWN_CLEARANCE`] from
 /// other generated bodies, with only the hauler allowed
 /// [`STATION_SPAWN_CLEARANCE`] from its poster; the mark stays in the
 /// poster's cell. When none of [`JOB_SPAWN_TRIES`] draws fits, the clearest
-/// is taken and logged. A procurement, a recovery and a neutralize put
-/// nothing there. Every hull is the poster's civilization's
+/// is taken and logged. A procurement, and a recovery or a neutralize of a
+/// body of the field ([`Job::spawns_target`]), put nothing there. Every hull is the poster's civilization's
 /// ([`poster_civilization`]), laid out at its advancement.
 ///
 /// # Panics
@@ -854,8 +841,7 @@ pub(crate) fn spawn_job_bodies(
         )
         .unwrap_or_else(|fault| panic!("spawn_job_bodies: '{id}': {fault}"))
     };
-    let raider = |index: u32, at: Meters3| {
-        let id = &job.raider_ids()[index as usize];
+    let raider = |id: &GeneratedBodyId, index: u32, at: Meters3| {
         let (design, stock) = hull(
             id,
             format!("job_raider_{index}").as_bytes(),
@@ -923,14 +909,15 @@ pub(crate) fn spawn_job_bodies(
                 ))
                 .id();
             jobs.lay_leg(&job.id, mark);
-            let raiders = job.raider_ids().len();
+            let ids = job.raider_ids();
+            let raiders = ids.len();
             for (index, at) in raider_wait_points(station_at, direction, leg, raiders)
                 .into_iter()
                 .enumerate()
             {
                 // The raiders hunt the hauler: an escort that shoots one
                 // draws that one, not every raider that finds it nearest.
-                commands.spawn((raider(index as u32, at), AIPrey(hauler_root)));
+                commands.spawn((raider(&ids[index], index as u32, at), AIPrey(hauler_root)));
             }
             info!(
                 "nova_world_base: '{}' puts the hauler '{hauler}' ({cargo_cr} cr) on a {} m leg \
@@ -965,10 +952,98 @@ pub(crate) fn spawn_job_bodies(
                 leg.get()
             );
         }
-        JobType::Procure { .. } | JobType::Recover { .. } | JobType::Neutralize { .. } => {
-            unreachable!("a job with spawned bodies is an escort, a distress call or a supply job")
+        JobType::Recover { wreck, .. } => {
+            let (design, stock) = job_wreck(parts, &items, &civilization, config.seed, &job.id);
+            commands.spawn(caller_bundle(
+                wreck,
+                derelict_name(&civilization),
+                mark,
+                facing,
+                design,
+                stock,
+                0,
+                root,
+            ));
+            info!(
+                "nova_world_base: '{}' puts the wreck '{wreck}' {} m out",
+                job.id,
+                leg.get()
+            );
+        }
+        JobType::Neutralize { hull, .. } => {
+            commands.spawn(raider(hull, 0, mark));
+            info!(
+                "nova_world_base: '{}' puts the raider '{hull}' in wait {} m out",
+                job.id,
+                leg.get()
+            );
+        }
+        JobType::Procure { .. } => {
+            unreachable!("a procurement puts no body in the world")
         }
     }
+}
+
+/// The wreck the slot job `job` of a world of `seed` names as its own, and
+/// its hold: a derelict civilian hull of the poster's `civilization`
+/// ([`derelict_hull`]), the same for the board that reads a recovery's
+/// stack off it and for the accept that puts it in the world.
+///
+/// # Panics
+///
+/// When the layout or the stock fails: an assembly fault, as for every job
+/// hull.
+pub(crate) fn job_wreck(
+    parts: &ShipPartSnapshot,
+    items: &GameItems,
+    civilization: &Civilization,
+    seed: u32,
+    job: &JobId,
+) -> (ShipDesign, ShipInventoryStock) {
+    let key = Fnv32::new()
+        .write(&seed.to_le_bytes())
+        .write(b"job_wreck")
+        .write(job.to_string().as_bytes())
+        .finish();
+    derelict_hull(parts, items, civilization, key)
+        .unwrap_or_else(|fault| panic!("job_wreck: the wreck of '{job}': {fault}"))
+}
+
+/// The wreck of a civilian hull of `civilization` and its hold, as a
+/// sector's derelict is built: the layout ruined off `seed`, the stock drawn
+/// off the next seed.
+pub(crate) fn derelict_hull(
+    parts: &ShipPartSnapshot,
+    items: &GameItems,
+    civilization: &Civilization,
+    seed: u32,
+) -> Result<(ShipDesign, ShipInventoryStock), String> {
+    let role = ShipRoleType::Civilian;
+    let request = ShipLayoutRequest {
+        seed,
+        civilization: civilization.id,
+        role,
+        advancement: civilization.advancement,
+        size: ShipSizeType::Advancement,
+        spare_drive: ShipSpareDriveType::Without,
+    };
+    let layout = generate_wreck(parts, request).map_err(|failure| failure.to_string())?;
+    let stock = ship_stock(
+        parts,
+        items,
+        &layout.design,
+        role,
+        SectorShipConditionType::Derelict,
+        civilization.advancement,
+        seed.wrapping_add(1),
+    )
+    .ok_or_else(|| "the hold cannot fit one unit of its lightest item".to_string())?;
+    Ok((layout.design, stock))
+}
+
+/// What a derelict civilian hull of `civilization` is called.
+pub(crate) fn derelict_name(civilization: &Civilization) -> String {
+    format!("{} derelict", civilization.id.name())
 }
 
 /// A hull of `civilization` for a job or an encounter, laid out off `seed`
@@ -1017,7 +1092,7 @@ pub(crate) fn caller_name(civilization: &Civilization) -> String {
 }
 
 /// A hull adrift under the cell `root`, as a distress caller, a supply
-/// caller and a derelict find spawn: neutral, with no controller, lootable,
+/// caller, a recovery's own wreck and a derelict find spawn: neutral, with no controller, lootable,
 /// a derelict, with `credits` aboard.
 #[expect(
     clippy::too_many_arguments,
@@ -1788,10 +1863,11 @@ mod tests {
     use nova_gameplay::{
         prelude::{
             ItemDesignId, ItemRoleType, JobReward, SupplyRefusalType, ESCORT_LEG_M,
-            ESCORT_RAIDERS_MAX,
+            ESCORT_RAIDERS_MAX, NEUTRALIZE_LEG_M,
         },
         test_support::test_items,
     };
+    use nova_scenario::prelude::SpaceshipSpawnPolicy;
     use nova_ship::prelude::DockedHelmType;
     use nova_world::prelude::SECTOR_SHIP_CLEARANCE_MAX;
 
@@ -1839,20 +1915,48 @@ mod tests {
     }
 
     fn job(slot: u32, kind: JobType) -> Job {
-        // A kind that puts bodies in the world lays them on a leg.
-        let leg_m = match kind {
-            JobType::Escort { .. } | JobType::Distress { .. } | JobType::Supply { .. } => 10_000,
-            JobType::Procure { .. } | JobType::Recover { .. } | JobType::Neutralize { .. } => 0,
-        };
-        let job = Job {
+        let mut job = Job {
             id: job_id(slot),
             kind,
             target: poster(),
-            leg_m,
+            leg_m: 0,
             threat: 0,
             reward: JobReward::flat(100),
         };
+        // A job that puts bodies in the world lays them on a leg.
+        if !job.spawned_bodies().is_empty() {
+            job.leg_m = 10_000;
+        }
         job.validate().expect("the test names the job's own bodies");
+        job
+    }
+
+    /// A recovery whose wreck is its own: none stood in the field.
+    fn own_recover(slot: u32) -> Job {
+        let id = job_id(slot);
+        job(
+            slot,
+            JobType::Recover {
+                wreck: spawned(&id, "wreck", 0),
+                wreck_name: "Vell derelict".to_string(),
+                item: item(),
+                count: 2,
+            },
+        )
+    }
+
+    /// A neutralize whose raider is its own, on the shortest leg a board
+    /// draws for one.
+    fn own_neutralize(slot: u32) -> Job {
+        let id = job_id(slot);
+        let mut job = job(
+            slot,
+            JobType::Neutralize {
+                hull: spawned(&id, "raider", 0),
+                hull_name: "Vell raider".to_string(),
+            },
+        );
+        job.leg_m = NEUTRALIZE_LEG_M.0;
         job
     }
 
@@ -2849,6 +2953,174 @@ mod tests {
         assert_eq!(wreck_ids(&posted.wrecks), vec![wreck_id()]);
     }
 
+    /// The home cell root of a [`board_app`].
+    fn home_root(app: &mut App) -> Entity {
+        app.world_mut()
+            .query::<(Entity, &nova_world::prelude::SectorRoot)>()
+            .iter(app.world())
+            .find(|(_, root)| root.0 == SectorCoord::ORIGIN)
+            .map(|(entity, _)| entity)
+            .expect("the board app has a home cell")
+    }
+
+    /// The accept of a recovery with no wreck in the field puts a derelict
+    /// under the poster's cell at the job's leg, with the hold the board
+    /// read its stack off; the accept of a neutralize with no hostile in
+    /// the field puts one raider there, Enemy, idle and leashed, farther
+    /// from the poster than its leash even on the shortest leg.
+    #[test]
+    fn the_accept_of_a_job_with_its_own_target_puts_that_body_at_its_leg() {
+        let mut app = board_app();
+        app.add_observer(spawn_job_bodies);
+        let home = home_root(&mut app);
+        let accept = |app: &mut App, job: &Job| -> Entity {
+            app.world_mut().resource_mut::<Jobs>().accept(job.clone());
+            app.world_mut().trigger(JobAccepted { job: job.clone() });
+            app.world_mut().flush();
+            let target = job.spawned_bodies();
+            assert_eq!(target.len(), 1, "'{}' puts one body in the world", job.id);
+            let entity = app
+                .world_mut()
+                .query::<(Entity, &GeneratedBodyId)>()
+                .iter(app.world())
+                .find(|(_, id)| **id == target[0])
+                .map(|(entity, _)| entity)
+                .unwrap_or_else(|| panic!("'{}' stands after the accept", target[0]));
+            let world = app.world();
+            assert_eq!(
+                world.get::<ChildOf>(entity).map(ChildOf::parent),
+                Some(home),
+                "'{}' stands under the poster's cell",
+                target[0]
+            );
+            assert_eq!(
+                world.get::<EntityId>(entity).map(|id| id.0.clone()),
+                Some(target[0].to_string()),
+            );
+            let out = Meters3::from_engine(world.get::<Transform>(entity).unwrap().translation);
+            assert!(
+                (out.get().length() - job.leg_m as f32).abs() < 1.0,
+                "'{}' stands {} m from the poster on a {} m leg",
+                target[0],
+                out.get().length(),
+                job.leg_m
+            );
+            entity
+        };
+
+        let recover = own_recover(0);
+        let wreck = accept(&mut app, &recover);
+        let world = app.world();
+        let policy = world.get::<SpaceshipSpawnPolicy>(wreck).unwrap();
+        assert_eq!(policy.allegiance, Some(Allegiance::Neutral));
+        assert!(policy.lootable, "the player lifts the stack off the wreck");
+        assert!(world.get::<DerelictShipMarker>(wreck).is_some());
+        assert!(matches!(
+            world.get::<SpaceshipController>(wreck),
+            Some(SpaceshipController::None)
+        ));
+        let config = world.resource::<WorldConfig<NovaLayeredWorld>>();
+        let civilization = CivilizationField::new(42).civilization([0, 0, 0]);
+        let (_, hold) = job_wreck(
+            config.generator.parts(),
+            world.resource::<GameItems>(),
+            &civilization,
+            config.seed,
+            &recover.id,
+        );
+        assert!(hold.stacks().next().is_some(), "the wreck has a hold");
+        assert_eq!(
+            world.get::<ShipInventoryStock>(wreck),
+            Some(&hold),
+            "the wreck spawns with the hold the board read"
+        );
+
+        let neutralize = own_neutralize(1);
+        let raider = accept(&mut app, &neutralize);
+        let world = app.world();
+        let policy = world.get::<SpaceshipSpawnPolicy>(raider).unwrap();
+        assert_eq!(policy.allegiance, Some(Allegiance::Enemy));
+        assert!(!policy.lootable);
+        assert_eq!(
+            world.get::<AIBehaviorState>(raider),
+            Some(&AIBehaviorState::Idle),
+            "the raider lies in wait"
+        );
+        assert!(
+            world.get::<AIPrey>(raider).is_none(),
+            "a bounty's raider hunts no hauler"
+        );
+        let Some(SpaceshipController::AI(ai)) = world.get::<SpaceshipController>(raider) else {
+            panic!("the raider flies under the AI");
+        };
+        assert_eq!(ai.leash, Some(RAIDER_LEASH));
+        assert_eq!(ai.engage_range, Some(RAIDER_ENGAGE_RANGE));
+        assert!(
+            Meters(NEUTRALIZE_LEG_M.0 as f32) > RAIDER_LEASH,
+            "on the shortest leg the raider's leash ends short of the poster"
+        );
+        assert_eq!(
+            world.get::<Name>(raider).map(Name::as_str),
+            Some(raider_name(&civilization).as_str())
+        );
+    }
+
+    /// A job's own target leaves the world the way every job body does: a
+    /// loss takes it out with the drop, and the slot's renewal after the
+    /// hand-in takes out what the job left standing.
+    #[test]
+    fn a_job_s_own_target_leaves_with_the_drop_or_with_the_renewal_after_the_hand_in() {
+        let recover = own_recover(0);
+        let neutralize = own_neutralize(1);
+        let mut app = held_app([recover.clone(), neutralize.clone()]);
+        let wreck = stand(&mut app, &recover.spawned_bodies());
+        let raider = stand(&mut app, &neutralize.spawned_bodies());
+        fire(&mut app, taken_out(&recover.spawned_bodies()[0]));
+        assert!(
+            jobs(&app).is_dropped(&recover.id),
+            "a recovery whose own wreck is destroyed before the lift is lost"
+        );
+        assert_eq!(standing(&app, &wreck), 0);
+        fire(&mut app, neutralized(&neutralize.spawned_bodies()[0]));
+        assert!(
+            jobs(&app).is_done(&neutralize.id),
+            "the kill of the job's own raider does the job"
+        );
+        assert_eq!(
+            standing(&app, &raider),
+            1,
+            "the hull stands for the hand-in"
+        );
+
+        let mut app = board_app();
+        set_clock(&mut app, 0.0);
+        let posted: Vec<Job> = app
+            .world()
+            .resource::<JobPostings>()
+            .board(&poster())
+            .expect("the board posted")
+            .iter()
+            .map(|slot| slot.offer.clone())
+            .collect();
+        let held = posted[0].clone();
+        let left = stand(
+            &mut app,
+            &[
+                spawned(&held.id, "wreck", 0),
+                spawned(&held.id, "raider", 0),
+            ],
+        );
+        let mut jobs = app.world_mut().resource_mut::<Jobs>();
+        jobs.accept(held.clone());
+        jobs.complete(&held.id);
+        set_clock(&mut app, 1.0);
+        assert_eq!(
+            standing(&app, &left),
+            0,
+            "the hand-in renews the slot, which takes the job's bodies out"
+        );
+    }
+
     /// A derelict hull `id` with four units aboard, under `root`.
     fn stand_wreck(app: &mut App, root: Entity, id: &GeneratedBodyId) {
         app.world_mut().spawn((
@@ -2949,12 +3221,15 @@ mod tests {
             .unwrap();
         // Only the encounter's two bodies stand in reach.
         let (found, _) = live_encounter(&mut app, home);
+        // The field bodies the board names: a slot with none in reach names
+        // its own target, which is no body of the field.
         let names = |app: &App| -> Vec<GeneratedBodyId> {
             app.world()
                 .resource::<JobPostings>()
                 .board(&poster())
                 .expect("the board posted")
                 .iter()
+                .filter(|slot| !slot.offer.spawns_target())
                 .filter_map(|slot| match &slot.offer.kind {
                     JobType::Recover { wreck, .. } => Some(wreck.clone()),
                     JobType::Neutralize { hull, .. } => Some(hull.clone()),

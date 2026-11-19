@@ -220,8 +220,8 @@ fifteen item kinds:
         kit: (credits: 2000, stock: {"Rations": 50}),
         jobs: Trade,
         goal: (
-            title: "A courier network",
-            kind: StationNetwork(stations: 4),
+            title: "Courier runs",
+            kind: CargoRuns(jobs: 3),
         ),
         lore: "Couriers carry what stations cannot make.",
     )),

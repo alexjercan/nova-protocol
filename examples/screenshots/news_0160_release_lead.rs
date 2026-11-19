@@ -252,8 +252,8 @@ fn accept_the_escort(world: &mut World, seed: u32) {
     let items = world.resource::<GameItems>();
     if let Err(refusal) = plan_job_hull_fit(escort, items, fit) {
         panic!(
-            "release lead: the {ROLE} hull ({fit:?}) fails the Escort '{}': {refusal:?}, so the \
-             starter board hides it",
+            "release lead: the {ROLE} hull ({fit:?}) fails the Escort '{}': {refusal:?}, so its \
+             Accept is disabled",
             escort.id
         );
     }

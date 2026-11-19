@@ -3,10 +3,10 @@
 //! Boots the shipped app and starts New Game on a pinned seed as the picked
 //! start role, as the Create World modal does after the role page, but
 //! without a save folder: nothing this run does is saved. The role comes from
-//! `--role <id>`, else the `NOVA_ROLE` variable, else `industrial`; an id no
-//! loaded mod authors stops the run and names the known ones. The base roles
-//! are `industrial`, `scavenger`, `transport`, `bounty_hunter`, `military`
-//! and `pirate`.
+//! `NOVA_SANDBOX_ROLE=<start role id>`, as in `job_board_sandbox` and
+//! `encounter_sandbox`, else `industrial`; an id no loaded mod authors stops
+//! the run and names the known ones. The base roles are `industrial`,
+//! `scavenger`, `transport`, `bounty_hunter`, `military` and `pirate`.
 //!
 //! `--start-km <km>` (or `NOVA_START_KM`) jumps the player that far out
 //! along +X once the spawn's window is in, to fly where the advancement curve
@@ -33,7 +33,7 @@
 //!    canister: the box in front of the door is the pickup area.
 //!
 //! ```text
-//! nix develop --command cargo run --example start_role_sandbox --features debug -- --role pirate
+//! env NOVA_SANDBOX_ROLE=pirate nix develop --command cargo run --example start_role_sandbox --features debug
 //! ```
 //!
 //! The diagnostics panel (`F3`) shows the role, the hull, the live balance
@@ -77,9 +77,6 @@ use open_world_stage::{body_by_id, cell_of, the_player, window_settled, OpenWorl
     long_about = None
 )]
 struct Cli {
-    /// The start role id; else `NOVA_ROLE`, else `industrial`.
-    #[arg(long)]
-    role: Option<String>,
     /// The world seed.
     #[arg(long, default_value_t = SANDBOX_SEED)]
     seed: u32,
@@ -92,15 +89,17 @@ struct Cli {
 /// The default world seed: the one the station sandboxes and
 /// `system_start_roles` use.
 const SANDBOX_SEED: u32 = 10;
-/// The role a run with no `--role` and no `NOVA_ROLE` starts as.
-const DEFAULT_ROLE: &str = "industrial";
+/// The start role the player spawns as when `NOVA_SANDBOX_ROLE` is unset.
+const SANDBOX_ROLE: &str = "industrial";
+
+/// The start role this run plays: `NOVA_SANDBOX_ROLE`, else [`SANDBOX_ROLE`].
+fn sandbox_role() -> String {
+    std::env::var("NOVA_SANDBOX_ROLE").unwrap_or_else(|_| SANDBOX_ROLE.to_string())
+}
 
 fn main() -> bevy::app::AppExit {
     let cli = Cli::parse();
-    let role = cli
-        .role
-        .or_else(|| std::env::var("NOVA_ROLE").ok())
-        .unwrap_or_else(|| DEFAULT_ROLE.to_string());
+    let role = sandbox_role();
     let start_km = cli.start_km.or_else(|| {
         std::env::var("NOVA_START_KM").ok().map(|km| {
             km.parse()

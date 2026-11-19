@@ -7,7 +7,7 @@
 //! seed the way the Create World modal does, and lets the window stream in
 //! around the start's cell: the start must dock the player at the session's
 //! starting station, an Ally one. The Station pane is opened on the dock and
-//! shot. The walk accepts the starting station's first procurement on the
+//! shot. The walk accepts the starting station's first job on the
 //! Jobs pane and opens the Map's chart view: its OBJECTIVES block must list
 //! the held job with its `have / need` and the starting station's code, and
 //! only the role's next unmet milestone; it is shot and the chart view
@@ -40,7 +40,7 @@
 //! | 5 | `outcome: the discovery log lists the station` | with nothing selected, the panel's log has an icon row reading `STN-n`, its cell and how long ago, and a row for the start's cell |
 //! | 6 | `outcome: the leave save holds the chart and the start` | the leave save, read with [`open_world`], holds the three cells, the station's summary and the starting station's id |
 //! | 7 | `outcome: a loaded world restores the chart` | after Load the live chart holds the same three cells and the same station summary, and the session names the same starting station |
-//! | 8 | `outcome: the chart's objectives list what the player has to do` | at the start, with a procurement held, the OBJECTIVES block displays `JOB-1` beside the job's title, `have / need` and the hand-in `STN-n`, plus the role goal's heading and first unmet milestone; no EMPTY, later goal line or `Goal reached at` row shows |
+//! | 8 | `outcome: the chart's objectives list what the player has to do` | at the start, with a job held, the OBJECTIVES block displays `JOB-1` beside the job's title, `have / need` and the hand-in `STN-n`, plus the role goal's heading and first unmet milestone; no EMPTY, later goal line or `Goal reached at` row shows |
 //! | 9 | `outcome: the Jobs pane shows the next unmet milestone in flight` | after the undock, in flight, the interface's Jobs pane shows the `JobsMilestone` row reading the goal's title and first unmet line with its `have / need`, and the held row `JobRowHeld-0` with the job's title |
 //!
 //! ONE SUBJECT: the chart a streamed world keeps. The save's refusal of an
@@ -773,9 +773,10 @@ mod walk {
         watch.start_cell = Some(cell);
     }
 
-    /// The starting station's board row of its first procurement: the
-    /// posted row whose title is that job's, as the Jobs pane lists it.
-    fn starter_procurement_row(world: &mut World) -> usize {
+    /// The starting station's board row of its first job: the posted row
+    /// whose title is that job's, as the Jobs pane lists it. The starting
+    /// station posts only jobs the start hull can do, so its Accept is live.
+    fn starter_job_row(world: &mut World) -> usize {
         let start = world
             .resource::<ChartWatch>()
             .start
@@ -785,9 +786,9 @@ mod walk {
             .query::<(&GeneratedBodyId, &JobBoard)>()
             .iter(world)
             .find(|(id, _)| **id == start)
-            .and_then(|(_, board)| board.0.iter().find(|job| job.kind.is_procurement()))
+            .and_then(|(_, board)| board.0.first())
             .cloned()
-            .expect("world chart: the starting station posts a procurement");
+            .expect("world chart: the starting station posts a job");
         let title = job.title(world.resource::<GameItems>());
         (0..)
             .map(|index| (index, named_row(world, &format!("JobRowPosted-{index}"))))
@@ -833,7 +834,7 @@ mod walk {
             .is_some_and(|(have, need)| have.parse::<u64>().is_ok() && need.parse::<u64>().is_ok())
     }
 
-    /// Claim 8: at the start, with the procurement held, the OBJECTIVES
+    /// Claim 8: at the start, with the job held, the OBJECTIVES
     /// block lists the job with `have / need` and its hand-in station's
     /// code, and only the next unmet milestone.
     fn assert_the_objectives(world: &mut World) {
@@ -1321,9 +1322,9 @@ mod walk {
         )
         // The rows can sit below the panel's fold: the Accept is activated
         // by name.
-        .step("world chart: accept the starting station's procurement")
+        .step("world chart: accept the starting station's first job")
         .on_enter(|world: &mut World| {
-            let row = starter_procurement_row(world);
+            let row = starter_job_row(world);
             activate_named(world, &format!("JobAccept-{row}"));
         })
         .until(and(held_count(1), frames(SETTLE_FRAMES)))

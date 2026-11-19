@@ -1,7 +1,7 @@
 //! system_job_supply: Bring a stranded caller the medkits it asks for, from the board to the hand-in.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
-//! seed as the `bounty_hunter` start role, whose boards lean to this kind, and
+//! seed as the `military` start role, whose boards post this kind, and
 //! walks the shared located-job range in [`located_jobs`]: find a living
 //! station posting a supply job framed as a medkit rescue, dock, accept it
 //! off the Jobs tab, read the hand-in refused as not done, undock, do the

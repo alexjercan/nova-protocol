@@ -159,10 +159,10 @@ pub(super) fn save_fixture_world(app: &mut App, root: &Path, name: &str) {
         chart.find_station(&start, false, false, None, 45.0);
     }
     app.world_mut().insert_resource(GoalProgress {
-        title: "A station network".to_string(),
+        title: "Cargo runs".to_string(),
         lines: vec![
-            GoalLine::new("Trade jobs", 3, 3),
-            GoalLine::new("Stations served", 1, 3),
+            GoalLine::new("Cargo runs", 3, 3),
+            GoalLine::new("Stations owned", 0, 1),
         ],
     });
     let (folder, lock) = create_world(root, name).expect("the root takes a new world");
@@ -563,11 +563,11 @@ fn a_load_row_reads_play_time_save_age_and_open_count_and_its_details_the_fleet_
     ));
     assert_eq!(
         text_of(&mut app, "Load World Details Objective Title"),
-        "A station network"
+        "Cargo runs"
     );
     assert_eq!(
         text_of(&mut app, "Load World Details Objective Counts"),
-        "Stations served 1 / 3"
+        "Stations owned 0 / 1"
     );
     assert!(!has_named(&mut app, "Load World Details No Objectives"));
 

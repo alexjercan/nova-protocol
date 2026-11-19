@@ -1184,7 +1184,6 @@ const OWNED: &[(&str, FieldSpec)] = &[
     ("VisitJobType", whole("count", "items", 1.0)),
     ("VisitJobType", whole("reward_cr", "cr", 1.0)),
     ("RoleGoalType", whole("jobs", "jobs", 1.0)),
-    ("RoleGoalType", whole("stations", "stations", 1.0)),
     ("RoleGoalType", whole("hulls", "hulls", 1.0)),
 ];
 

@@ -25,14 +25,24 @@
 //! the jobs held and completed, and the balance.
 //!
 //! `NOVA_SANDBOX_ROLE=<start role id>` picks the start role, whose job mix
-//! the boards lean to: the default `transport` posts procurements and
-//! escorts, `scavenger` recoveries, `bounty_hunter` distress calls and
-//! neutralizations.
+//! the boards lean to: the default `industrial` posts procurements and
+//! supply runs, `scavenger` recoveries, `bounty_hunter` neutralizations.
+//! Your jobs opens with the role goal's own line; the Map's chart view
+//! (`M`, then `C`) lists it under OBJECTIVES. On the pinned seed the
+//! `scavenger` board posts a recovery and a neutralize that name their own
+//! target, the `bounty_hunter` board two neutralizes and the `pirate` board
+//! a recovery and two neutralizes: Accept puts the wreck or the raider in
+//! the world 6 to 16 km out, Show on Map opens the chart on its mark, and
+//! undocked the HUD chip `JOB-n` points at it.
 //!
 //! With `NOVA_AUTOPILOT=1` a smoke walk first holds the start docked at its
-//! starting station and reads its starter board on the Jobs tab: it lists
-//! exactly the jobs the hull can do (the transport has no weapon, so its
-//! escorts stay off). Then it moves to the chosen station, checks that every
+//! starting station and reads its starter board on the Jobs tab: every slot
+//! posts a job the hull can do, so every row lists. It opens the chart view
+//! and reads the role goal's own line as the next milestone. As a role other
+//! than the default it then accepts the board's recovery and neutralize that
+//! name their own target, waits for each body to stand wearing its marker,
+//! opens the chart on each mark, shuts the interface, reads the HUD chips
+//! and ends there. As the default role it moves to the chosen station, checks that every
 //! board row is one line with its Accept inside the board, selects each row
 //! and reads the reward terms the inspector lists for it, reads and accepts
 //! the first procurement and a second job at another reward, undocks,
@@ -44,7 +54,9 @@
 //! shows the reward and the open world's first-delivery bonus as one
 //! `+<gain>` and counts the balance up by it to the true figure, then the
 //! gain goes; with the interface shut the HUD notice reads what the job paid. `NOVA_CAPTURE=1` shoots
-//! `sandbox-jobs-starter.png`, `sandbox-jobs-board.png`,
+//! `sandbox-jobs-starter.png`, `sandbox-jobs-goal.png`, as another role
+//! `sandbox-jobs-spawned-recover.png`, `sandbox-jobs-spawned-neutralize.png`
+//! and `sandbox-jobs-spawned-hud.png`, and as the default `sandbox-jobs-board.png`,
 //! `sandbox-jobs-terms-<row>.png` for each row the board lists,
 //! `sandbox-jobs-held.png`, `sandbox-jobs-map.png`,
 //! `sandbox-jobs-map-dropped.png`, `sandbox-jobs-dropped.png`,
@@ -74,12 +86,13 @@ use nova_world::prelude::{desired_sectors, SectorRoot, WorldConfig};
 )]
 struct Cli;
 
-/// The world seed: `system_station_jobs`'s, whose window around the spawn
-/// holds a living Neutral station.
+/// The world seed. The window around its start holds no second station, so
+/// the run plays the starting station's own board.
 const SANDBOX_SEED: u32 = 10;
 /// The start role the player spawns as when `NOVA_SANDBOX_ROLE` is unset:
-/// the transport's boards lean to procurements, which the smoke walk needs.
-const SANDBOX_ROLE: &str = "transport";
+/// the industrial start's board on [`SANDBOX_SEED`] posts a procurement,
+/// which the smoke walk needs.
+const SANDBOX_ROLE: &str = "industrial";
 
 /// The start role this run plays: `NOVA_SANDBOX_ROLE`, else [`SANDBOX_ROLE`].
 fn sandbox_role() -> String {
@@ -645,6 +658,12 @@ mod smoke {
     /// row, its border and layout rounding. A row that wrapped is two.
     const ROW_LINE_PX: f32 = 32.0;
     const STARTER_SHOT: &str = "sandbox-jobs-starter.png";
+    const GOAL_SHOT: &str = "sandbox-jobs-goal.png";
+    const RECOVER_SHOT: &str = "sandbox-jobs-spawned-recover.png";
+    const NEUTRALIZE_SHOT: &str = "sandbox-jobs-spawned-neutralize.png";
+    const MARKERS_SHOT: &str = "sandbox-jobs-spawned-hud.png";
+    /// Seconds an accepted job's own target gets to stand in the world.
+    const SPAWN_SECS: f32 = 240.0;
     const BOARD_SHOT: &str = "sandbox-jobs-board.png";
     const HELD_SHOT: &str = "sandbox-jobs-held.png";
     const MAP_SHOT: &str = "sandbox-jobs-map.png";
@@ -794,15 +813,12 @@ mod smoke {
         Some((fits, board.0.len() - fits))
     }
 
-    /// The starter board lists exactly the jobs the hull can do and leaves
-    /// at least one off: the transport's board leans to escorts and the
-    /// transport carries no weapon.
-    fn starter_board_gated() -> Arc<Predicate> {
+    /// The starter board posts a job the hull can do in every slot, and the
+    /// pane lists every one.
+    fn starter_board_fits() -> Arc<Predicate> {
         when(|world| {
-            let Some((fits, unfit)) = starter_split(world) else {
-                return false;
-            };
-            named_count(world, "JobRowPosted-") == fits && unfit > 0
+            let slots = JOBS_PER_BOARD as usize;
+            starter_split(world) == Some((slots, 0)) && named_count(world, "JobRowPosted-") == slots
         })
     }
 
@@ -825,6 +841,201 @@ mod smoke {
         })
     }
 
+    /// The Map's chart view lists the role goal's own line as the next
+    /// milestone: the first line of [`GoalProgress`], which a new game has
+    /// not met.
+    fn the_chart_lists_the_own_goal_line() -> Arc<Predicate> {
+        when(|world| {
+            let Some(line) = world
+                .get_resource::<GoalProgress>()
+                .and_then(|progress| progress.lines.first().cloned())
+            else {
+                return false;
+            };
+            let reads = |wanted: String| {
+                world
+                    .try_query::<&Text>()
+                    .is_some_and(|mut query| query.iter(world).any(|text| text.0 == wanted))
+            };
+            line.have < line.need
+                && named_count(world, "MapChartObjectiveMilestone") == 1
+                && reads(line.label.clone())
+                && reads(format!("{} / {}", line.have, line.need))
+        })
+    }
+
+    /// The starter board's job that names its own target, a wreck when
+    /// `recover` and a raider otherwise: the held one once it is accepted,
+    /// else the first one posted.
+    fn own_target_job(world: &World, recover: bool) -> Option<Job> {
+        let wanted = |job: &Job| {
+            job.spawns_target() && matches!(job.kind, JobType::Recover { .. }) == recover
+        };
+        let held = world
+            .get_resource::<Jobs>()?
+            .held()
+            .iter()
+            .find(|job| wanted(job));
+        held.cloned()
+            .or_else(|| starter_board(world)?.0.into_iter().find(wanted))
+    }
+
+    /// The entity wearing `id`, if one stands.
+    fn body_wearing(world: &World, id: &GeneratedBodyId) -> Option<Entity> {
+        let mut bodies = world.try_query::<(Entity, &GeneratedBodyId)>()?;
+        bodies
+            .iter(world)
+            .find(|(_, worn)| *worn == id)
+            .map(|(entity, _)| entity)
+    }
+
+    /// The own-target job of this kind is held and every body it spawned
+    /// stands wearing its objective marker; `true` too when the board posts
+    /// no such job, so the walk passes a role whose board has none.
+    fn the_own_target_stands(recover: bool) -> Arc<Predicate> {
+        when(move |world| {
+            let Some(job) = own_target_job(world, recover) else {
+                return true;
+            };
+            world.resource::<Jobs>().holds(&job.id)
+                && job.spawned_bodies().iter().all(|id| {
+                    body_wearing(world, id)
+                        .is_some_and(|body| world.get::<ObjectiveMarkerTarget>(body).is_some())
+                })
+        })
+    }
+
+    /// `check` holds, or the board posts no own-target job of this kind.
+    fn or_no_own_target(recover: bool, check: Arc<Predicate>) -> Arc<Predicate> {
+        when(move |world| own_target_job(world, recover).is_none() || check(world))
+    }
+
+    /// A text reads the chart code of the held own-target job of this kind.
+    fn the_chart_names_the_own_target(recover: bool) -> Arc<Predicate> {
+        when(move |world| {
+            let Some(code) = own_target_job(world, recover)
+                .and_then(|job| world.resource::<Jobs>().mark_code(&job.id))
+            else {
+                return false;
+            };
+            world
+                .try_query::<&Text>()
+                .is_some_and(|mut query| query.iter(world).any(|text| text.0 == code))
+        })
+    }
+
+    /// The HUD has grown one marker chip on every body the held own-target
+    /// jobs spawned.
+    fn a_chip_targets_every_own_target() -> Arc<Predicate> {
+        when(|world| {
+            let bodies: Vec<Entity> = [true, false]
+                .into_iter()
+                .filter_map(|recover| own_target_job(world, recover))
+                .flat_map(|job| job.spawned_bodies())
+                .filter_map(|id| body_wearing(world, &id))
+                .collect();
+            let Some(mut chips) = world
+                .try_query_filtered::<&AnchoredChipTarget, With<ObjectiveMarkerChipHudMarker>>()
+            else {
+                return bodies.is_empty();
+            };
+            bodies
+                .iter()
+                .all(|body| chips.iter(world).any(|target| **target == *body))
+        })
+    }
+
+    /// Accept the starter board's own-target job of one kind, open the chart
+    /// on its mark and shoot it; every step passes at once when the board
+    /// posts no such job.
+    fn own_target_steps(
+        script: AutopilotPlugin<GameStates>,
+        tag: &'static str,
+        recover: bool,
+        shot: &'static str,
+    ) -> AutopilotPlugin<GameStates> {
+        script
+            .step(format!(
+                "job sandbox: accept the {tag} that names its own target"
+            ))
+            .on_enter(
+                move |world: &mut World| match own_target_job(world, recover) {
+                    Some(job) => {
+                        info!(
+                            "job sandbox: accepting '{}', which spawns {:?}",
+                            job.id,
+                            job.spawned_bodies()
+                        );
+                        world.write_message(JobAcceptCommand { id: job.id });
+                    }
+                    None => {
+                        info!("job sandbox: the starter board posts no {tag} with its own target")
+                    }
+                },
+            )
+            .until(and(the_own_target_stands(recover), frames(SETTLE_FRAMES)))
+            .diagnose(move |world| format!("{:?}", own_target_job(world, recover)))
+            .deadline(SPAWN_SECS)
+            .add()
+            .step(format!("job sandbox: select the held {tag}"))
+            .on_enter(move |world: &mut World| {
+                let Some(job) = own_target_job(world, recover) else {
+                    return;
+                };
+                let row = world
+                    .resource::<Jobs>()
+                    .held()
+                    .iter()
+                    .position(|held| held.id == job.id)
+                    .expect("job sandbox: the own-target job is held");
+                activate_named(world, &format!("JobRowHeld-{row}"));
+            })
+            .until(or_no_own_target(
+                recover,
+                and(ui_node_present(JOB_SHOW_ON_MAP), frames(SETTLE_FRAMES)),
+            ))
+            .deadline(BEAT_SECS)
+            .add()
+            .step(format!(
+                "job sandbox: Show on Map opens the chart on the {tag}"
+            ))
+            .on_enter(move |world: &mut World| {
+                if own_target_job(world, recover).is_some() {
+                    activate_named(world, JOB_SHOW_ON_MAP);
+                }
+            })
+            .until(or_no_own_target(
+                recover,
+                and(
+                    and(
+                        the_interface_shows(Some(InterfacePaneType::Map)),
+                        the_chart_names_the_own_target(recover),
+                    ),
+                    frames(SETTLE_FRAMES),
+                ),
+            ))
+            .deadline(BEAT_SECS)
+            .add()
+            .step(format!("job sandbox: shoot the chart on the {tag}"))
+            .on_enter(move |world: &mut World| {
+                if own_target_job(world, recover).is_some() {
+                    shoot(world, shot);
+                }
+            })
+            .until(or_no_own_target(recover, shot_written(shot)))
+            .deadline(SHOT_SECS)
+            .add()
+            .click_named(
+                &format!("job sandbox: back to the Jobs tab after the {tag}"),
+                "InterfaceTabJobs",
+                and(
+                    the_interface_shows(Some(InterfacePaneType::Jobs)),
+                    frames(SETTLE_FRAMES),
+                ),
+                BEAT_SECS,
+            )
+    }
+
     /// The board row of the first procurement the chosen station posts.
     fn procurement_row(world: &mut World) -> usize {
         let board = station_root(world)
@@ -838,7 +1049,7 @@ mod smoke {
     }
 
     /// The chosen station's board as the pane lists it while no job is
-    /// held: every job, or on the starter board only those the hull can do.
+    /// held: every job.
     fn listed_jobs(world: &World) -> Vec<Job> {
         let Some((id, ..)) = world
             .get_resource::<Sandbox>()
@@ -846,22 +1057,14 @@ mod smoke {
         else {
             return Vec::new();
         };
-        let Some(mut boards) =
-            world.try_query::<(&GeneratedBodyId, &JobBoard, Has<StarterBoardMarker>)>()
-        else {
+        let Some(mut boards) = world.try_query::<(&GeneratedBodyId, &JobBoard)>() else {
             return Vec::new();
         };
-        let Some((_, board, starter)) = boards.iter(world).find(|(worn, ..)| **worn == id) else {
-            return Vec::new();
-        };
-        let items = world.resource::<GameItems>();
-        let fit = player_fit(world);
-        board
-            .0
-            .iter()
-            .filter(|job| !starter || plan_job_hull_fit(job, items, fit).is_ok())
-            .cloned()
-            .collect()
+        boards
+            .iter(world)
+            .find(|(worn, _)| **worn == id)
+            .map(|(_, board)| board.0.clone())
+            .unwrap_or_default()
     }
 
     /// The inspector lists a row for each term of board job `row` that pays
@@ -874,10 +1077,8 @@ mod smoke {
             if listed.len() != named_count(world, "JobRowPosted-") {
                 return false;
             }
-            // A board lists fewer rows than slots when the hull cannot do
-            // a starter board's job.
             let Some(job) = listed.get(row) else {
-                return true;
+                return false;
             };
             let goods = if matches!(job.kind, JobType::Escort { .. }) {
                 ("Cargo", "Goods")
@@ -1086,8 +1287,8 @@ mod smoke {
             .diagnose(|world| format!("{:?}", world.get_resource::<Sandbox>()))
             .deadline(SETUP_SECS)
             .add()
-            .step("job sandbox: the starter board lists only what the hull can do")
-            .until(and(starter_board_gated(), frames(SETTLE_FRAMES)))
+            .step("job sandbox: the starter board lists a job the hull can do in every slot")
+            .until(and(starter_board_fits(), frames(SETTLE_FRAMES)))
             .diagnose(|world| {
                 format!(
                     "starter split (fit, unfit) {:?}, rows {}, hull {:?}",
@@ -1102,7 +1303,52 @@ mod smoke {
             .on_enter(|world: &mut World| shoot(world, STARTER_SHOT))
             .until(shot_written(STARTER_SHOT))
             .deadline(SHOT_SECS)
-            .add();
+            .add()
+            .click_named(
+                "job sandbox: open the Map pane",
+                "InterfaceTabMap",
+                the_interface_shows(Some(InterfacePaneType::Map)),
+                BEAT_SECS,
+            );
+        let script = tap(
+            script,
+            "the chart key",
+            "map_chart",
+            and(the_chart_lists_the_own_goal_line(), frames(SETTLE_FRAMES)),
+        )
+        .step("job sandbox: shoot the role goal in the chart view")
+        .on_enter(|world: &mut World| shoot(world, GOAL_SHOT))
+        .until(shot_written(GOAL_SHOT))
+        .deadline(SHOT_SECS)
+        .add()
+        .click_named(
+            "job sandbox: back to the Jobs tab",
+            "InterfaceTabJobs",
+            and(
+                in_phase_on_the_jobs_tab(SandboxPhaseType::Starter),
+                frames(SETTLE_FRAMES),
+            ),
+            BEAT_SECS,
+        );
+        if sandbox_role() != SANDBOX_ROLE {
+            // Another role's board need not post a procurement: its walk
+            // ends on the jobs that name their own target.
+            let script = own_target_steps(script, "recovery", true, RECOVER_SHOT);
+            let script = own_target_steps(script, "neutralize", false, NEUTRALIZE_SHOT);
+            return tap(script, "the interface key", "interface_toggle", unpaused())
+                .step("job sandbox: the HUD marks every own target")
+                .until(and(
+                    a_chip_targets_every_own_target(),
+                    frames(SETTLE_FRAMES),
+                ))
+                .deadline(BEAT_SECS)
+                .add()
+                .step("job sandbox: shoot the HUD markers")
+                .on_enter(|world: &mut World| shoot(world, MARKERS_SHOT))
+                .until(shot_written(MARKERS_SHOT))
+                .deadline(SHOT_SECS)
+                .add();
+        }
         let script = tap(script, "the interface key", "interface_toggle", unpaused())
             .step("job sandbox: leave the start for the chosen station")
             .on_enter(leave_the_start)
