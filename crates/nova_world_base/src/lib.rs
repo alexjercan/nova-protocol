@@ -110,7 +110,8 @@ pub use crate::{
     clusters::{sector_clusters, ClusterSummary, SectorClusters},
     encounters::{EncounterPlugin, EncounterSystems, HAIL_CHIP, SIGNAL_CHIP},
     environment::{Environment, EnvironmentFieldType, EnvironmentFields},
-    jobs::PlayerHull,
+    goal::{goal_progress, GoalFacts},
+    jobs::{post_station_boards, FieldBodies, PlayerHull, HAULER_CRUISE},
     layered::{NovaLayeredWorld, CLEARANCE_MARGIN},
     rescue::{find_rescue_station, RescueStation},
     sector_ships::{plan_ship, ship_stock, HullLineageType, HullSlot, PlannedShip},
@@ -142,21 +143,24 @@ pub use crate::{
 pub mod prelude {
     pub use super::{
         apply_offence, enemy_neighbours, find_rescue_station, fine_cr, generate_ship,
-        generate_station, generate_wreck, generated_station, plan_ship, record_merit,
-        role_style_id, sector_clusters, seeded_lawful, seeded_stance, settle, ship_stock, standing,
-        start_preview, start_session, starting_station, station_archetype, station_ceiling,
-        Civilization, CivilizationField, CivilizationReach, CivilizationStatusType, ClusterSummary,
-        EncounterPlugin, EncounterSystems, Environment, EnvironmentFieldType, EnvironmentFields,
-        HullLineageType, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin, NovaWorldBaseSystems,
-        PlannedShip, PlayerHull, RescueStation, SectorClusters, ShipDriveLayoutType, ShipLayout,
-        ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipPart,
-        ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack, ShipPartSnapshot,
-        ShipSpareDriveType, StanceStanding, StartPreview, StationArchetypeType, StationLayout,
-        StationLayoutConstraintType, StationLayoutFailure, StationLayoutRequest, ARMOURED_STYLE_ID,
-        BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, CRAFT_ADVANCEMENT,
-        FINE_CR, HAIL_CHIP, INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS, OPEN_WORLD_BOUNDS_RADIUS_MAX,
-        OPEN_WORLD_SCENARIO_ID, SALVAGE_STYLE_ID, SIGNAL_CHIP, STANCE_ALLY_SHARE,
-        STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS, START_PREVIEW_REACH, STATION_STYLE_ID,
+        generate_station, generate_wreck, generated_station, goal_progress, plan_ship,
+        post_station_boards, record_merit, role_style_id, sector_clusters, seeded_lawful,
+        seeded_stance, settle, ship_stock, standing, start_preview, start_session,
+        starting_station, station_archetype, station_ceiling, Civilization, CivilizationField,
+        CivilizationReach, CivilizationStatusType, ClusterSummary, EncounterPlugin,
+        EncounterSystems, Environment, EnvironmentFieldType, EnvironmentFields, FieldBodies,
+        GoalFacts, HullLineageType, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin,
+        NovaWorldBaseSystems, PlannedShip, PlayerHull, RescueStation, SectorClusters,
+        ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType, ShipLayoutFailure,
+        ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault,
+        ShipPartPack, ShipPartSnapshot, ShipSpareDriveType, StanceStanding, StartPreview,
+        StationArchetypeType, StationLayout, StationLayoutConstraintType, StationLayoutFailure,
+        StationLayoutRequest, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID,
+        CLEARANCE_MARGIN, CRAFT_ADVANCEMENT, FINE_CR, HAIL_CHIP, HAULER_CRUISE,
+        INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS, OPEN_WORLD_ACTIVE_RADIUS,
+        OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, OPEN_WORLD_SECTOR_EDGE,
+        SALVAGE_STYLE_ID, SIGNAL_CHIP, STANCE_ALLY_SHARE, STANCE_ENEMY_SHARE,
+        STANCE_NEIGHBOUR_RADIUS, START_PREVIEW_REACH, STATION_STYLE_ID,
     };
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::{
@@ -199,13 +203,13 @@ pub const STATION_STYLE_ID: &str = "station";
 ///
 /// A travel-scale cell: a boundary is reached under way, not by drifting over
 /// a line 30 s out. The same edge the world examples stream at.
-const OPEN_WORLD_SECTOR_EDGE: Meters = Meters(32_000.0);
+pub const OPEN_WORLD_SECTOR_EDGE: Meters = Meters(32_000.0);
 
 /// How many cells out from the player's the open world keeps live.
 ///
 /// Radius 2 keeps 125 sectors live across a 160 km cube, so at least 64 km of
 /// world stands ahead of the player on every axis.
-const OPEN_WORLD_ACTIVE_RADIUS: i32 = 2;
+pub const OPEN_WORLD_ACTIVE_RADIUS: i32 = 2;
 
 /// The largest `bounds` radius a generated scenario may author: the active
 /// window's half edge, so the whole bounded sphere stands in streamed cells

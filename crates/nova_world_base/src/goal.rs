@@ -36,8 +36,9 @@ pub(crate) const STATIONS_OWNED_LABEL: &str = "Stations owned";
 /// How many stations the shared first line asks for.
 pub(crate) const STATIONS_OWNED_NEED: u64 = 1;
 
-/// The saved facts one evaluation of a goal reads.
-pub(crate) struct GoalFacts<'a> {
+/// The saved facts one evaluation of a goal reads. Public so a start-role
+/// census counts a hand-in toward a goal by this rule, not by a copy of it.
+pub struct GoalFacts<'a> {
     /// The jobs the player handed in, in hand-in order.
     pub completed: &'a [Job],
     /// How many stations the player owns, live or frozen.
@@ -58,7 +59,7 @@ pub(crate) struct GoalFacts<'a> {
 /// or an Escort; a bounty is a distinct hull named by a Neutralize; a patrol
 /// is a Distress, a Supply or an Escort. A Procure for an item the catalog lacks
 /// counts no delivery: the save check refuses such a job before a Load.
-pub(crate) fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgress {
+pub fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgress {
     let completed =
         |kept: fn(&JobType) -> bool| facts.completed.iter().filter(move |job| kept(&job.kind));
     let mut lines = vec![GoalLine::new(

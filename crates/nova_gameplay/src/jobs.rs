@@ -90,13 +90,13 @@ pub mod prelude {
         plan_job_offer_refresh, plan_job_supply, station_job_offers, EscortLeg,
         HailAcceptRefusalType, HailPayPlan, Job, JobAcceptRefusalType, JobAccepted, JobBoard,
         JobDone, JobDropped, JobField, JobHandInPartner, JobHandInPlan, JobHandInRefusalType,
-        JobHandedIn, JobHull, JobHullFit, JobHullRefusalType, JobId, JobMixType,
+        JobHandedIn, JobHull, JobHullFit, JobHullRefusalType, JobId, JobKindType, JobMixType,
         JobOfferRefreshPlan, JobOfferRefreshRefusalType, JobPostings, JobReward, JobSourceType,
-        JobType, JobWreck, Jobs, ScenarioPosting, ShipSizeType, SlotPosting, StarterBoardMarker,
-        SupplyFramingType, SupplyRefusalType, SupplyRefused, VisitPosting, ESCORT_LEG_M,
-        ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, JOB_LEG_M, JOB_LEG_STEP_M, JOB_OFFER_REFRESH_FEE_CR,
-        JOB_RANGE_CR_PER_KM, JOB_THREAT_CR_PER_WEAPON, RECOVER_GOODS_CAP_CR, SUPPLY_MASS_CAP_G,
-        VISIT_EXTRAS_MAX, VISIT_EXTRA_OFFER_SECONDS,
+        JobType, JobWreck, Jobs, ScenarioPosting, ShipSizeType, SlotDraw, SlotPosting,
+        StarterBoardMarker, SupplyFramingType, SupplyRefusalType, SupplyRefused, VisitPosting,
+        ESCORT_LEG_M, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, JOB_LEG_M, JOB_LEG_STEP_M,
+        JOB_OFFER_REFRESH_FEE_CR, JOB_RANGE_CR_PER_KM, JOB_THREAT_CR_PER_WEAPON,
+        RECOVER_GOODS_CAP_CR, SUPPLY_MASS_CAP_G, VISIT_EXTRAS_MAX, VISIT_EXTRA_OFFER_SECONDS,
     };
 }
 
@@ -1008,14 +1008,22 @@ pub enum JobMixType {
     Combat,
 }
 
-/// The six kinds, for the weighted draw.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum JobKindType {
+/// The six kinds, for the weighted draw. Public so a board census can name
+/// the kind a slot drew before any fallback to a procurement
+/// ([`SlotDraw::kind`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum JobKindType {
+    /// A procurement.
     Procure,
+    /// A recovery off a wreck of the field.
     Recover,
+    /// An escort of a hauler.
     Escort,
+    /// A distress call.
     Distress,
+    /// A neutralize of a hostile hull of the field.
     Neutralize,
+    /// A supply job.
     Supply,
 }
 
@@ -2477,9 +2485,13 @@ impl Posting {
 
 /// One slot's draws: a fixed number off the slot's own `WyRand`, whatever
 /// the kind decides, so the same slot reads the same numbers every time.
+///
+/// Public with its kind alone, so a board census can read what a slot drew
+/// before [`station_job_offers`] posts a procurement in its place.
 #[derive(Clone, Copy, Debug)]
-struct SlotDraw {
-    kind: JobKindType,
+pub struct SlotDraw {
+    /// The kind the mix drew, before any fallback.
+    pub kind: JobKindType,
     fee: u32,
     pick: u32,
     count: u32,
@@ -2494,7 +2506,11 @@ impl SlotDraw {
     /// The draws of the slot job `id` on a world of `seed` under `mix`, at a
     /// station whose civilization has `advancement`. A new draw goes last,
     /// so the draws before it keep their numbers.
-    fn of(seed: u32, id: &JobId, mix: JobMixType, advancement: f32) -> Self {
+    ///
+    /// # Panics
+    ///
+    /// When `id` is not a slot id.
+    pub fn of(seed: u32, id: &JobId, mix: JobMixType, advancement: f32) -> Self {
         let (slot, posting) = id.slot_posting().expect("checked by the caller: a slot id");
         let key = Fnv64::new()
             .write(&seed.to_le_bytes())

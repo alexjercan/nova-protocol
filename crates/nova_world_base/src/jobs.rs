@@ -109,7 +109,7 @@ const HAULER_STANDOFF: Meters = Meters(1_000.0);
 const ESCORT_RENDEZVOUS: Meters = Meters(1_000.0);
 /// The hauler's cruise on its leg, so an escort can hold formation with
 /// GOTO; the start hulls reach it in under 4 s.
-const HAULER_CRUISE: MetersPerSecond = MetersPerSecond(100.0);
+pub const HAULER_CRUISE: MetersPerSecond = MetersPerSecond(100.0);
 /// Where along the leg the raiders lie in wait, as a share of it.
 const RAIDER_AMBUSH_SHARE: f32 = 0.75;
 /// How far apart the raiders stand along the leg.
@@ -274,7 +274,7 @@ impl PlayerHull<'_, '_> {
     clippy::type_complexity,
     reason = "the station query reads seven facts off a station root"
 )]
-pub(crate) fn post_station_boards(
+pub fn post_station_boards(
     mut commands: Commands,
     config: Res<WorldConfig<NovaLayeredWorld>>,
     items: Res<GameItems>,
@@ -590,8 +590,11 @@ pub(crate) const FIELD_LEG_STEP: Meters = Meters(100.0);
 /// The bodies a board's located jobs may name, as the poster reads them:
 /// the derelicts, the intact hulls, their live weapon sections and where
 /// each stands.
+///
+/// Public with [`post_station_boards`], which takes it, so a board census
+/// runs the board pass and reads the field by this rule.
 #[derive(SystemParam)]
-pub(crate) struct FieldBodies<'w, 's> {
+pub struct FieldBodies<'w, 's> {
     wrecks: Query<
         'w,
         's,
@@ -668,7 +671,7 @@ impl FieldBodies<'_, '_> {
     ///
     /// When the poster or a listed body has no transform up to its root:
     /// every generated body spawns with one, so that is an assembly fault.
-    fn field(
+    pub fn field(
         &self,
         poster: Entity,
         around: &[Entity],
