@@ -95,8 +95,9 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
   - Mod-visible id changes (changelog, breaking): civilian drive ids,
     raider `pdc_port`, `pdc_starboard`, `drive_port_dorsal`; `plate_N`
     names new cells on all six.
-- Rules not met (agent calls): length 2.5 times the width holds for the
-  tug only; the others were shortened for turn rate and for joins. The
+- Rules not met (agent calls): on overall width, length 2.5 times the
+  width holds for the tug only (hauler 1.8, freighter 1.8, picket 1.8,
+  raider 1.3, interceptor 1.1). The
   freighter cab step does not show in profile. The interceptor is a
   stubby arrowhead with stepped edges.
 - Review (independent, read-only): 0 high, 5 medium, 9 low. Fixed:
