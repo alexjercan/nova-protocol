@@ -26,24 +26,50 @@ use crate::{
 const BATTERY_POS: Meters3 = Meters3::new(-9_500.0, 0.0, 0.0);
 /// Off-screen entrances, one per side, with a little vertical split so the
 /// approach lines cross instead of meeting head-on.
-const VICTOR_SPAWN: Meters3 = Meters3::new(-4_200.0, 250.0, 1_000.0);
-const RIVAL_SPAWN: Meters3 = Meters3::new(4_200.0, -150.0, -1_000.0);
+///
+/// The victor flies the LOWER line, here and on its patrol. Both hulls carry
+/// their PDC mounts on the dorsal face only and a mount depresses 10 degrees
+/// at most, so inside about 1 km the lower ship's guns bear and the upper
+/// ship's are masked by its own hull. With the split the other way the victor
+/// is silent through the whole merge while the rival shoots it.
+///
+/// Both tracks sit 150 m left of the arena center. The ships cross right of
+/// their loops' middle, and that offset puts the crossing in the gap between
+/// the menu's panels instead of at the edge of the right one.
+const VICTOR_SPAWN: Meters3 = Meters3::new(-4_350.0, 50.0, 1_000.0);
+const RIVAL_SPAWN: Meters3 = Meters3::new(4_050.0, 450.0, -1_000.0);
 /// Mirrored center loops, shared by each ship's passive routine and its
 /// scenario helm order. The order owns translation during combat while the AI
 /// keeps acquiring, aiming and firing, so target-relative combat motion cannot
 /// carry the pair out of the camera shot.
 const VICTOR_PATROL: [Meters3; 3] = [
-    Meters3::new(-700.0, 100.0, 500.0),
-    Meters3::new(700.0, 150.0, -500.0),
-    Meters3::new(0.0, 50.0, 700.0),
+    Meters3::new(-850.0, 150.0, 500.0),
+    Meters3::new(550.0, 100.0, -500.0),
+    Meters3::new(-150.0, 50.0, 700.0),
 ];
 const RIVAL_PATROL: [Meters3; 3] = [
-    Meters3::new(700.0, -50.0, -500.0),
-    Meters3::new(-700.0, -100.0, 500.0),
-    Meters3::new(0.0, -150.0, -700.0),
+    Meters3::new(550.0, 300.0, -500.0),
+    Meters3::new(-850.0, 350.0, 500.0),
+    Meters3::new(-150.0, 250.0, -700.0),
 ];
 const VICTOR_PATROL_ORDER: &str = "duel_victor_patrol";
 const RIVAL_PATROL_ORDER: &str = "duel_rival_patrol";
+
+/// The backdrop camera, aimed at the arena center.
+const CAMERA_POS: Meters3 = Meters3::new(0.0, 570.0, 1_920.0);
+/// Where the victor waits for the siege torpedo, whenever the rival fell.
+///
+/// The menu covers the right 30% of the frame and can cover the left 45%
+/// below mid height. Seen from [`CAMERA_POS`] through the default 45 degree
+/// vertical field of view, this mark sits just right of center and about a
+/// third of the way down at any aspect from 4:3 to 16:9: above the left
+/// panels, left of the right one. The torpedo flies in from the battery at
+/// this height, so its last 1.1 km at 4:3 and 1.5 km at 16:9 cross the upper
+/// left of the frame.
+const FINALE_MARK: Meters3 = Meters3::new(50.0, 300.0, 0.0);
+/// The victor's two finale orders: fly to the mark, then hold it.
+const VICTOR_HOLD_ORDER: &str = "duel_victor_hold";
+const VICTOR_FACE_ORDER: &str = "duel_victor_face";
 
 /// The two duelists, by the ids every spawn, order, filter and forfeit names.
 const VICTOR_ID: &str = "duel_victor";
@@ -229,19 +255,35 @@ const DUELIST_BRIDGE_HEALTH: f32 = 500.0;
 /// act's first half ends on the first good pass instead of a long chase of a
 /// hull at half health.
 const RIVAL_COLLAPSE_THRESHOLD: f32 = 0.8;
-/// What each side's guns hit for. The catalog PDC round is 4: the victor's
-/// mounts land twice the round and the rival's half of it, so the rival
-/// cannot strip the victor's mounts or computer before it dies and the
-/// finisher still has a whole ship to kill.
-const VICTOR_PDC_DAMAGE: f32 = 8.0;
-const RIVAL_PDC_DAMAGE: f32 = 2.0;
+/// What each side's guns hit for; the catalog PDC round is 4.
+///
+/// The rival is 2960 health of 60-health plates, so a fifth of it is 592. Two
+/// mounts put 200 rounds a second on it from 1.8 km: a round of 8 takes the
+/// fifth in half a second and the fight is over before the ships meet. This
+/// value takes most of it on the closing run and the rest at the merge: the
+/// rival comes apart as the two ships cross or in the 3 s after.
+const VICTOR_PDC_DAMAGE: f32 = 1.0;
+/// Low enough that the rounds the rival lands before its own hull masks its
+/// guns cannot break a 60-health plate. Both of the victor's mounts stand on
+/// one outboard plate each, and a victor with no gun is neutralized: the
+/// finisher needs a whole, armed ship to kill.
+const RIVAL_PDC_DAMAGE: f32 = 0.25;
+/// The victor's magazine per mount. The catalog 500 holds 100 back for point
+/// defense, so a mount fires 4 s at a ship and then reloads for 3 s: the
+/// opening burst from 1.8 km would leave the victor dry at the merge.
+const VICTOR_PDC_MAGAZINE: u32 = 1_000;
 
-/// A spawn patch that sets one PDC mount's per-hit damage and nothing else.
-fn turret_damage(bullet_damage: f32) -> SpaceshipSectionConfigPatch {
+/// A spawn patch for one PDC mount: its per-hit damage, and its magazine
+/// where the duel changes it.
+fn turret_patch(
+    bullet_damage: f32,
+    ammunition: Option<AmmoCapacity>,
+) -> SpaceshipSectionConfigPatch {
     SpaceshipSectionConfigPatch {
         config: SectionConfigPatch {
             kind: Some(SectionKindPatch::Turret(TurretSectionConfigPatch {
                 bullet_damage: Some(bullet_damage),
+                ammunition,
                 ..Default::default()
             })),
             ..Default::default()
@@ -422,9 +464,15 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         min_separation: None,
     });
 
+    let victor_mount = turret_patch(
+        VICTOR_PDC_DAMAGE,
+        Some(AmmoCapacity::Limited(VICTOR_PDC_MAGAZINE)),
+    );
+    let rival_mount = turret_patch(RIVAL_PDC_DAMAGE, None);
+
     // The victor's TIGHT center loop is both its fallback routine and its
-    // ordered route. The order keeps the live fight and the victory lap where
-    // the finisher's torpedo will land - mid-shot, not at the frame edge.
+    // ordered route. The order keeps the live fight mid-shot; the finale has
+    // its own mark.
     let spawn_victor = EventActionConfig::SpawnScenarioObject(duelist(
         VICTOR_ID,
         "Duel Victor",
@@ -433,8 +481,8 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         retuned(
             ships::design(ships::INTERCEPTOR_SHIP_ID),
             [
-                ("pdc_port", turret_damage(VICTOR_PDC_DAMAGE)),
-                ("pdc_starboard", turret_damage(VICTOR_PDC_DAMAGE)),
+                ("pdc_port", victor_mount.clone()),
+                ("pdc_starboard", victor_mount),
             ],
         ),
         // The relation model only makes Player<->Enemy hostile: one duelist
@@ -457,13 +505,22 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         retuned(
             ships::inline_raider(assets, RIVAL_COLLAPSE_THRESHOLD),
             [
-                ("pdc_port", turret_damage(RIVAL_PDC_DAMAGE)),
-                ("pdc_starboard", turret_damage(RIVAL_PDC_DAMAGE)),
+                ("pdc_port", rival_mount.clone()),
+                ("pdc_starboard", rival_mount),
             ],
         ),
         None,
     ));
     let victor_patrol = ordered_patrol(VICTOR_PATROL_ORDER, VICTOR_ID, VICTOR_PATROL);
+    // The winner leaves its loop for the finale mark. On the loop the torpedo
+    // met it wherever the lap had reached, which depends on when the rival
+    // fell and was behind a menu panel on most runs.
+    let victor_hold = EventActionConfig::MoveShipTo(MoveShipToActionConfig {
+        order: VICTOR_HOLD_ORDER.to_string(),
+        ship: VICTOR_ID.to_string(),
+        position: FINALE_MARK,
+        arrival_standoff: Some(Meters(0.0)),
+    });
     let rival_patrol = ordered_patrol(RIVAL_PATROL_ORDER, RIVAL_ID, RIVAL_PATROL);
 
     let timer = |key: &str, seconds: f64| {
@@ -492,7 +549,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
                 // The scene poses its own camera: the reference backdrop
                 // shot, dead on the arena center the duel fights over.
                 .chain([
-                    backdrop_camera(Meters3::new(0.0, 570.0, 1_920.0)),
+                    backdrop_camera(CAMERA_POS),
                     rock_scatter,
                     EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
                         id: ARENA_ID.to_string(),
@@ -533,18 +590,45 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             ],
         },
         // A patrol order is one lap. Reissue each named order on completion so
-        // scenario-owned movement holds for the whole duel and finale.
+        // scenario-owned movement holds through the fight. The winner's loop
+        // ends at the decision, when the finale order replaces it.
+        ScenarioEventConfig {
+            label: None,
+            position: None,
+            name: EventConfig::OnShipOrderComplete,
+            once: false,
+            filters: vec![
+                EventFilterConfig::ShipOrder(ShipOrderFilterConfig {
+                    order: Some(VICTOR_PATROL_ORDER.to_string()),
+                    ship: Some(VICTOR_ID.to_string()),
+                    kind: Some(ShipOrderKind::Patrol),
+                }),
+                // A lap that completes on the deciding frame must not put
+                // the winner back on its loop over the finale order.
+                number_equals(VAR_DECIDED, 0.0),
+            ],
+            actions: vec![victor_patrol],
+        },
+        // A completed move hands the helm back, and the AI would fly its own
+        // patrol route out of the clear frame. An alignment keeps the helm
+        // and burns no drive: the winner sits on the mark, bow to the
+        // battery, broadside to the camera.
         ScenarioEventConfig {
             label: None,
             position: None,
             name: EventConfig::OnShipOrderComplete,
             once: false,
             filters: vec![EventFilterConfig::ShipOrder(ShipOrderFilterConfig {
-                order: Some(VICTOR_PATROL_ORDER.to_string()),
+                order: Some(VICTOR_HOLD_ORDER.to_string()),
                 ship: Some(VICTOR_ID.to_string()),
-                kind: Some(ShipOrderKind::Patrol),
+                kind: Some(ShipOrderKind::Move),
             })],
-            actions: vec![victor_patrol],
+            actions: vec![EventActionConfig::ForceAlign(ForceAlignActionConfig {
+                order: VICTOR_FACE_ORDER.to_string(),
+                ship: VICTOR_ID.to_string(),
+                look_at: BATTERY_POS,
+                tolerance_degrees: 5.0,
+            })],
         },
         ScenarioEventConfig {
             label: None,
@@ -570,6 +654,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
             actions: vec![
                 set_number(VAR_DECIDED, 1.0),
                 timer(TIMER_FINISHER_BEAT, 4.0),
+                victor_hold.clone(),
             ],
         },
         // The forfeit rule, both ways: a duelist that crosses the arena wall
@@ -599,6 +684,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
                 // The rival is out, so the interceptor has won: the same beat its
                 // defeat would have armed, and the finale plays unchanged.
                 timer(TIMER_FINISHER_BEAT, 4.0),
+                victor_hold,
             ],
         },
         // The mirror branch. There is no victor left in frame for the siege
@@ -649,12 +735,27 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
                 timer(TIMER_FINISHER_BEAT, 20.0),
             ],
         },
-        // Act three: stop the finisher clock and let the aftermath drift for
-        // a beat - the wrecks stay in shot - then the menu turns.
+        // The victor loses the duel itself: there is no winner for the siege
+        // torpedo to erase, so act two is skipped as in the forfeit above.
+        // Without the latch this handler also runs when the victor loses its
+        // last gun AFTER the rival fell, and the act ends with no torpedo.
         ScenarioEventConfig {
             label: None,
             position: None,
             name: EventConfig::OnDefeated,
+            once: false,
+            filters: vec![entity(VICTOR_ID), number_equals(VAR_DECIDED, 0.0)],
+            actions: vec![set_number(VAR_DECIDED, 1.0), timer(TIMER_RESET, 8.0)],
+        },
+        // Act three: the victor is ERASED, by the torpedo or by anything
+        // else. Stop the finisher clock and let the aftermath drift for a
+        // beat - the wrecks stay in shot - then the menu turns. Destruction
+        // keys it, not defeat: a winner neutralized by stray fire is still
+        // in frame and the torpedo still has a ship to kill.
+        ScenarioEventConfig {
+            label: None,
+            position: None,
+            name: EventConfig::OnDestroyed,
             once: false,
             filters: vec![entity(VICTOR_ID)],
             actions: vec![
@@ -732,6 +833,138 @@ mod tests {
             design.integrity.collapse_threshold,
             Some(RIVAL_COLLAPSE_THRESHOLD),
             "the set-piece rival must collapse early"
+        );
+    }
+
+    #[test]
+    fn the_victor_flies_below_the_rival() {
+        let highest_victor = VICTOR_PATROL
+            .iter()
+            .chain([&VICTOR_SPAWN])
+            .map(|point| point.0.y)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let lowest_rival = RIVAL_PATROL
+            .iter()
+            .chain([&RIVAL_SPAWN])
+            .map(|point| point.0.y)
+            .fold(f32::INFINITY, f32::min);
+        assert!(
+            highest_victor < lowest_rival,
+            "dorsal-only mounts bear upward: a victor above the rival is masked through the merge"
+        );
+    }
+
+    /// Where a world point lands in the backdrop frame, as fractions of its
+    /// width and height from the top left corner.
+    fn frame_fraction(point: Meters3, aspect: f32) -> Vec2 {
+        let forward = (-CAMERA_POS.0).normalize();
+        let right = forward.cross(Vec3::Y).normalize();
+        let up = right.cross(forward);
+        let ray = point.0 - CAMERA_POS.0;
+        let depth = ray.dot(forward);
+        let half_height = depth * (std::f32::consts::FRAC_PI_4 * 0.5).tan();
+        Vec2::new(
+            0.5 + 0.5 * ray.dot(right) / (half_height * aspect),
+            0.5 - 0.5 * ray.dot(up) / half_height,
+        )
+    }
+
+    #[test]
+    fn the_finale_mark_is_clear_of_the_menu_panels() {
+        for aspect in [4.0 / 3.0, 16.0 / 9.0] {
+            let mark = frame_fraction(FINALE_MARK, aspect);
+            assert!(
+                (0.45..0.60).contains(&mark.x) && (0.20..0.40).contains(&mark.y),
+                "at aspect {aspect} the torpedo hit lands at {mark}: the menu covers the right \
+                 30% of the frame and the left 45% below mid height"
+            );
+        }
+    }
+
+    #[test]
+    fn the_winner_leaves_its_loop_for_the_finale_mark() {
+        let assets = BaseContentAssets::from_paths();
+        let scenario = menu_duel(&assets);
+        let decisions = scenario
+            .events
+            .iter()
+            .filter(|event| {
+                event.actions.iter().any(|action| {
+                    matches!(
+                        action,
+                        EventActionConfig::TimerStart(config) if config.key == TIMER_FINISHER_BEAT
+                    )
+                }) && !matches!(event.name, EventConfig::OnTimerEnd)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            decisions.len(),
+            2,
+            "a defeat and a forfeit arm the finisher"
+        );
+        for event in decisions {
+            assert!(
+                event.actions.iter().any(|action| {
+                    matches!(
+                        action,
+                        EventActionConfig::MoveShipTo(config)
+                            if config.ship == VICTOR_ID && config.position == FINALE_MARK
+                    )
+                }),
+                "every decision that arms the finisher must send the winner to the finale mark"
+            );
+        }
+    }
+
+    #[test]
+    fn only_the_victors_destruction_stops_the_finisher() {
+        let assets = BaseContentAssets::from_paths();
+        let scenario = menu_duel(&assets);
+        let names_victor = |event: &ScenarioEventConfig| {
+            event.filters.iter().any(|filter| {
+                matches!(
+                    filter,
+                    EventFilterConfig::Entity(config)
+                        if config.id.as_deref() == Some(VICTOR_ID) && config.other_id.is_none()
+                )
+            })
+        };
+
+        let stops: Vec<&ScenarioEventConfig> = scenario
+            .events
+            .iter()
+            .filter(|event| {
+                event.actions.iter().any(|action| {
+                    matches!(
+                        action,
+                        EventActionConfig::TimerCancel(config) if config.key == TIMER_FINISHER_BEAT
+                    )
+                })
+            })
+            .collect();
+        assert_eq!(stops.len(), 1, "one handler stops the finisher clock");
+        assert!(
+            matches!(stops[0].name, EventConfig::OnDestroyed) && names_victor(stops[0]),
+            "a victor that loses its guns after the rival fell must still take the torpedo"
+        );
+
+        let latch = format!("{:?}", number_equals(VAR_DECIDED, 0.0));
+        let defeats: Vec<&ScenarioEventConfig> = scenario
+            .events
+            .iter()
+            .filter(|event| matches!(event.name, EventConfig::OnDefeated) && names_victor(event))
+            .collect();
+        assert_eq!(
+            defeats.len(),
+            1,
+            "one handler ends the act on a victor defeat"
+        );
+        assert!(
+            defeats[0]
+                .filters
+                .iter()
+                .any(|filter| format!("{filter:?}") == latch),
+            "a victor defeat ends the act only while the duel is undecided"
         );
     }
 
