@@ -276,3 +276,21 @@ Measurement plan:
 - Per run: tracked canister born -> taken (sim s), canisters taken, ore sold, cr, sim s to the
   Sell, cr per sim minute. Compare medians of the two sets. Done when the after median of born ->
   taken is lower. No timing assert.
+
+## Delivery record (2026-11-21)
+- Landed 9018c4a8f with the recommended choices: every intake pulls
+  (player and AI); velocity set each tick; own `pull_range`; jettison
+  marker saved (`FrozenCanister.jettisoned`).
+- Measured on `mine_and_sell`, 3 matched runs each, sim s, medians:
+  tracked canister birth to take 70.02 -> 51.82; the second (1 ore)
+  canister now also comes in (46.40); 12.15 -> 15.64 cr per sim min.
+  No timing assert.
+- Proof: 3 ECS tests on the real-physics rig (pull and take, shut door
+  no move, full hold no pull), jettison test extended through freeze and
+  thaw, lint bound tests; content gen and lint clean.
+- Not verified: hand play; the pull ring gizmo on screen; walks where an
+  AI ship's open intake passes loose canisters.
+- Stale media: `assets/loops/loop-section-cargo-intake.webm`,
+  `wiki-section-cargo-intake.png`, `mine-sell-taken.png`, the
+  `flight_cargo_pickup` lesson loop and its caption.
+- Open until the owner plays it.
