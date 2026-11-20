@@ -83,3 +83,23 @@ editor shares it). Fix how it opens, returns and closes:
    inside the catalogue; the Craft view keys.
 - Proof: ECS asserted example for TAB and Esc with the catalogue open,
   closed and with a part in hand; before/after flow frames.
+
+## Delivery record (2026-11-20)
+- Landed 2d0bbd800: one TAB decision in `toggle_interface`
+  (`crates/nova_interface/src/pane.rs`), ordered before the gallery input;
+  `GalleryState::resumed()` keeps category, filter, Available chip and
+  page in game (the editor keeps a fresh unfiltered browse); wheel pages
+  the grid (game and editor); Catalogue key chip; Close chip names Esc at
+  a refit dock. The Catalogue button click also puts a held part away.
+  Esc chain needed no code change; now proven.
+- Proof: 6 ECS tests (`terminal/tests/catalogue_keys.rs`), button chip,
+  wheel and resume tests; asserted walk `system_catalogue_keys` at
+  1280x720 and 1024x768; `system_station_{add,swap,swap_intake,rebuild,
+  round_trip}` and `news_0160_refit_catalogue` pass. After frames:
+  `~/Pictures/nova-catalogue-after/` (not in the repo).
+- `news_0160_refit_catalogue` failed before this change: the start kit
+  now holds section panels the PDC recipe takes; the capture stages an
+  empty hold (separate commit).
+- Not verified: hand play; `station_docked_sandbox` live (stalls under
+  lavapipe, compile only). Stale picture: `wiki-interface-ship.png`.
+- Open until the owner hand-checks the flow.
