@@ -189,6 +189,36 @@ Boundary policy, from most game-agnostic to most game-specific:
    `NovaHudSystems`.
 5. `nova_core` - wiring only.
 
+### The UI layout kit
+
+The layout kit (`crates/nova_ui/src/widget/layout.rs`, re-exported from
+`nova_ui::widget`) owns every size, padding and gap a screen uses, in
+`widget::metrics`; the border width is `nova_ui::theme::BORDER_W`. The theme owns paint and corners only, so
+two themes lay a screen out to the same rects. Every gap and padding is one
+step of the spacing scale:
+
+| Token | px | Use |
+|---|---|---|
+| `GAP_S` | 4 | inside a control (icon to label), tab to tab, chip to chip, list row to list row |
+| `GAP` | 8 | button to button in a stack and in a row, row to row in a block, a heading to its content |
+| `GAP_L` | 12 | group to group, panel to panel, card and side-panel padding, an actions row to the content over it |
+| `GAP_XL` | 16 | a list pane to its details pane, the interface root padding, the HUD's inset from the screen edge |
+| `PANEL_PAD_MENU` | 20 | menu window and dialog padding |
+
+The gap between two siblings belongs to their container. A control carries no
+margin. `button_stack` (a column `GAP` apart), `action_row` (a wrapping row
+`GAP` apart) and `group_stack` (a column `GAP_L` apart) are the containers
+with the gap built in. A HUD chip (`nova_ui::hud::chip_node`) pads `PAD_X` (8)
+at the sides and `GAP_S` (4) above and below.
+
+Corners are not on this scale. A corner is the theme's `UiMetrics` (phosphor
+0, hardware 2). A hand-built box takes it with `ThemedRadius::control()` (a
+frame, a chip, a well, a tag) or `ThemedRadius::panel()` (a card, a window, a
+modal); a system that writes a whole `Node` reads
+`theme.metric(UiMetric::Radius)` itself. No screen writes a radius literal on
+a box. A shape that is round by nature (a dot, a pip, a ring) keeps its own
+radius, and so does the CRT casing of the `;` command monitor.
+
 ## Units and scale
 
 **Nova reasons in meters; the engine underneath does not.** Authored metric

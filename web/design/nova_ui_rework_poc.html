@@ -35,8 +35,13 @@
       --drop: 0 2px 4px rgba(0, 0, 0, 0.55), 0 6px 16px -6px rgba(0, 0, 0, 0.7);
       --well: inset 0 2px 5px rgba(0, 0, 0, 0.85), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
 
-      --panel-radius: 10px;
+      /* Box corners are a theme property, as in the game's UiMetrics: the
+         default phosphor skin draws them square, hardware one 2px corner on
+         every box. Round-by-nature shapes (a dial, a ring, a knob) keep 50%. */
+      --radius: 0;
+      --panel-radius: 0;
     }
+    body[data-skin="hardware"] { --radius: 2px; --panel-radius: 2px; }
 
     * { box-sizing: border-box; }
 
@@ -166,7 +171,7 @@
     .panel-head h2 { margin: 0; font-size: 13px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: #d7e6dc; }
     body[data-skin="phosphor"] .panel-head h2 { color: var(--phosphor); text-shadow: 0 0 8px rgba(54,255,121,0.5); }
     .panel-head .rule { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.12), transparent); }
-    .panel-head .tag { font-size: 10px; letter-spacing: 0.14em; color: var(--phosphor-muted); border: 1px solid rgba(54,255,121,0.28); padding: 2px 7px; border-radius: 4px; }
+    .panel-head .tag { font-size: 10px; letter-spacing: 0.14em; color: var(--phosphor-muted); border: 1px solid rgba(54,255,121,0.28); padding: 2px 7px; border-radius: var(--radius); }
     .panel-body { padding: 15px; }
     .section-head { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--phosphor-muted); margin: 4px 0 10px; display: flex; align-items: center; gap: 8px; }
     .section-head::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(54,255,121,0.25), transparent); }
@@ -176,7 +181,7 @@
     /* ============================== BUTTONS =============================== */
 
     .btn { font: inherit; font-size: 13px; letter-spacing: 0.04em; color: #dcefe0; cursor: pointer;
-      padding: 9px 16px; border: 0; border-radius: 7px; background: var(--face);
+      padding: 9px 16px; border: 0; border-radius: var(--radius); background: var(--face);
       box-shadow: var(--rim), var(--undercut), var(--drop); transition: transform 0.04s ease, box-shadow 0.08s ease, background 0.08s ease; }
     .btn:hover { background: var(--face-hot); color: #fff; }
     .btn:active, .btn.is-pressed { transform: translateY(1px); background: linear-gradient(180deg, var(--case-0), var(--case-1)); box-shadow: var(--well); }
@@ -189,43 +194,43 @@
     .btn.ghost:hover { background: rgba(255,255,255,0.04); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.22); }
     .btn.block { display: block; width: 100%; text-align: left; }
     .btn.wide { min-width: 150px; text-align: center; }
-    .btn .key { display: inline-block; margin-left: 8px; padding: 0 5px; font-size: 11px; color: var(--amber); border: 1px solid rgba(255,184,74,0.42); border-radius: 3px; background: rgba(0,0,0,0.25); }
+    .btn .key { display: inline-block; margin-left: 8px; padding: 0 5px; font-size: 11px; color: var(--amber); border: 1px solid rgba(255,184,74,0.42); border-radius: var(--radius); background: rgba(0,0,0,0.25); }
 
     /* segmented / toggle / slider (hardware) */
-    .segmented { display: inline-flex; border-radius: 7px; box-shadow: var(--well); padding: 3px; background: rgba(0,0,0,0.4); }
-    .segmented button { font: inherit; font-size: 12px; color: #93a39a; cursor: pointer; padding: 6px 13px; border: 0; border-radius: 5px; background: transparent; }
+    .segmented { display: inline-flex; border-radius: var(--radius); box-shadow: var(--well); padding: 3px; background: rgba(0,0,0,0.4); }
+    .segmented button { font: inherit; font-size: 12px; color: #93a39a; cursor: pointer; padding: 6px 13px; border: 0; border-radius: var(--radius); background: transparent; }
     .segmented button:hover { color: #d7e6dc; }
     .segmented button.on { color: #06110a; background: linear-gradient(180deg, #ffd07a, var(--amber) 60%, #e6952f); box-shadow: var(--rim), var(--drop); }
 
     .field { display: grid; grid-template-columns: 120px 1fr auto; align-items: center; gap: 14px; margin-bottom: 12px; }
     .field > label { font-size: 12px; color: #a9bcb0; }
     .field .val { font-size: 12px; color: var(--phosphor); min-width: 44px; text-align: right; }
-    .slider { position: relative; height: 10px; border-radius: 6px; cursor: pointer; background: linear-gradient(90deg, var(--phosphor-muted), var(--phosphor-dim)); box-shadow: var(--well); }
-    .slider .track-off { position: absolute; inset: 0; border-radius: 6px; background: rgba(0,0,0,0.55); }
-    .slider .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: linear-gradient(90deg, var(--phosphor-muted), var(--phosphor)); box-shadow: 0 0 10px rgba(54,255,121,0.5); }
+    .slider { position: relative; height: 10px; border-radius: var(--radius); cursor: pointer; background: linear-gradient(90deg, var(--phosphor-muted), var(--phosphor-dim)); box-shadow: var(--well); }
+    .slider .track-off { position: absolute; inset: 0; border-radius: var(--radius); background: rgba(0,0,0,0.55); }
+    .slider .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: var(--radius); background: linear-gradient(90deg, var(--phosphor-muted), var(--phosphor)); box-shadow: 0 0 10px rgba(54,255,121,0.5); }
     .slider .knob { position: absolute; top: 50%; width: 18px; height: 18px; border-radius: 50%; transform: translate(-50%,-50%);
       background: radial-gradient(circle at 34% 28%, #4a555d, #232a30 58%, #0d1114); box-shadow: var(--rim), 0 2px 4px rgba(0,0,0,0.6); }
-    .toggle { position: relative; width: 44px; height: 22px; border-radius: 12px; cursor: pointer; background: rgba(0,0,0,0.5); box-shadow: var(--well); }
-    .toggle .dot { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
+    .toggle { position: relative; width: 44px; height: 22px; border-radius: var(--radius); cursor: pointer; background: rgba(0,0,0,0.5); box-shadow: var(--well); }
+    .toggle .dot { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: var(--radius);
       background: radial-gradient(circle at 34% 28%, #55636c, #232a30 60%, #0d1114); box-shadow: 0 1px 3px rgba(0,0,0,0.6); transition: left 0.12s ease; }
     .toggle.on { background: linear-gradient(90deg, var(--phosphor-muted), var(--phosphor-dim)); }
     .toggle.on .dot { left: 24px; background: radial-gradient(circle at 34% 28%, #d6ffe4, var(--phosphor) 60%, #12b552); }
 
     /* rows / badges / cards */
     .rows { display: grid; gap: 6px; }
-    .row { display: flex; align-items: center; gap: 12px; padding: 10px 13px; border-radius: 7px; cursor: pointer;
+    .row { display: flex; align-items: center; gap: 12px; padding: 10px 13px; border-radius: var(--radius); cursor: pointer;
       background: linear-gradient(180deg, rgba(255,255,255,0.028), transparent); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05), var(--rim); }
     .row:hover { background: linear-gradient(180deg, rgba(255,255,255,0.06), transparent); }
     .row.sel { box-shadow: inset 0 0 0 1px rgba(255,184,74,0.5), 0 0 14px rgba(255,184,74,0.15); }
-    .row .ico { width: 28px; height: 28px; border-radius: 6px; flex: 0 0 auto; background: var(--face); box-shadow: var(--rim), var(--drop); display: grid; place-items: center; color: var(--phosphor); font-size: 13px; }
+    .row .ico { width: 28px; height: 28px; border-radius: var(--radius); flex: 0 0 auto; background: var(--face); box-shadow: var(--rim), var(--drop); display: grid; place-items: center; color: var(--phosphor); font-size: 13px; }
     .row .rtext { flex: 1; display: grid; gap: 2px; min-width: 0; }
     .row .rtext b { font-weight: 500; font-size: 13px; color: #dcefe0; }
     .row .rtext span { font-size: 11px; color: #83978c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .check { width: 22px; height: 22px; border-radius: 5px; flex: 0 0 auto; display: grid; place-items: center; font-size: 13px; color: var(--phosphor);
+    .check { width: 22px; height: 22px; border-radius: var(--radius); flex: 0 0 auto; display: grid; place-items: center; font-size: 13px; color: var(--phosphor);
       background: rgba(0,0,0,0.4); box-shadow: var(--well); }
     .check.on { color: #04140a; background: linear-gradient(180deg, #7dffab, var(--phosphor)); box-shadow: 0 0 10px rgba(54,255,121,0.5); }
 
-    .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px;
+    .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 8px; border-radius: var(--radius);
       border: 1px solid rgba(54,255,121,0.3); color: var(--phosphor); background: rgba(54,255,121,0.06); }
     .badge.amber { border-color: rgba(255,184,74,0.4); color: var(--amber); background: rgba(255,184,74,0.06); }
     .badge.blue { border-color: rgba(54,163,255,0.4); color: var(--blue); background: rgba(54,163,255,0.06); }
@@ -277,7 +282,7 @@
     .camp:hover { color: #7ec2ff; }
     .indent { margin-left: 14px; }
 
-    .thumb16 { aspect-ratio: 16/9; width: 100%; max-width: 320px; border-radius: 6px; margin-bottom: 14px;
+    .thumb16 { aspect-ratio: 16/9; width: 100%; max-width: 320px; border-radius: var(--radius); margin-bottom: 14px;
       background: radial-gradient(circle at 30% 30%, rgba(54,255,121,0.18), transparent 60%), radial-gradient(circle at 75% 70%, rgba(54,163,255,0.16), transparent 55%), linear-gradient(160deg, #0b1a12, #050d0a);
       display: grid; place-items: center; color: var(--phosphor-dim); font-size: 30px; box-shadow: inset 0 0 0 1px rgba(54,255,121,0.16); }
 
@@ -295,7 +300,7 @@
        terminal drew: bevels/gradients/gloss stripped, each widget re-rendered as
        a bordered/inverted CLI element, matching nova_os_terminal_poc.html. */
 
-    body[data-skin="phosphor"] .btn { background: rgba(54,255,121,0.05); color: var(--phosphor); border: 1px solid rgba(54,255,121,0.4); border-radius: 2px; box-shadow: none; text-shadow: 0 0 6px rgba(54,255,121,0.35); transition: none; }
+    body[data-skin="phosphor"] .btn { background: rgba(54,255,121,0.05); color: var(--phosphor); border: 1px solid rgba(54,255,121,0.4); box-shadow: none; text-shadow: 0 0 6px rgba(54,255,121,0.35); transition: none; }
     body[data-skin="phosphor"] .btn.block::before { content: "> "; opacity: 0; }
     body[data-skin="phosphor"] .btn.block:hover::before, body[data-skin="phosphor"] .btn.block.is-selected::before { opacity: 1; }
     body[data-skin="phosphor"] .btn:hover { background: rgba(54,255,121,0.12); color: #d6ffe4; border-color: var(--phosphor); }
@@ -307,27 +312,27 @@
     body[data-skin="phosphor"] .btn.is-disabled { opacity: 0.3; box-shadow: none; }
     body[data-skin="phosphor"] .btn .key { color: var(--amber); border-color: rgba(255,184,74,0.5); background: rgba(0,0,0,0.3); }
 
-    body[data-skin="phosphor"] .segmented { background: rgba(0,0,0,0.35); box-shadow: inset 0 0 0 1px rgba(54,255,121,0.25); border-radius: 2px; }
-    body[data-skin="phosphor"] .segmented button { color: var(--phosphor-dim); border-radius: 2px; }
+    body[data-skin="phosphor"] .segmented { background: rgba(0,0,0,0.35); box-shadow: inset 0 0 0 1px rgba(54,255,121,0.25); }
+    body[data-skin="phosphor"] .segmented button { color: var(--phosphor-dim); }
     body[data-skin="phosphor"] .segmented button:hover { color: var(--phosphor); }
     body[data-skin="phosphor"] .segmented button.on { background: var(--phosphor); color: #04140a; box-shadow: 0 0 10px rgba(54,255,121,0.4); }
 
-    body[data-skin="phosphor"] .toggle { background: rgba(0,0,0,0.4); border: 1px solid rgba(54,255,121,0.35); box-shadow: none; border-radius: 2px; }
-    body[data-skin="phosphor"] .toggle .dot { background: #0d6e35; border-radius: 1px; box-shadow: none; }
+    body[data-skin="phosphor"] .toggle { background: rgba(0,0,0,0.4); border: 1px solid rgba(54,255,121,0.35); box-shadow: none; }
+    body[data-skin="phosphor"] .toggle .dot { background: #0d6e35; box-shadow: none; }
     body[data-skin="phosphor"] .toggle.on { background: rgba(54,255,121,0.14); border-color: var(--phosphor); }
     body[data-skin="phosphor"] .toggle.on .dot { background: var(--phosphor); box-shadow: 0 0 8px rgba(54,255,121,0.6); }
 
-    body[data-skin="phosphor"] .slider { height: 12px; background: rgba(0,0,0,0.5); border: 1px solid rgba(54,255,121,0.32); box-shadow: none; border-radius: 2px; }
+    body[data-skin="phosphor"] .slider { height: 12px; background: rgba(0,0,0,0.5); border: 1px solid rgba(54,255,121,0.32); box-shadow: none; }
     body[data-skin="phosphor"] .slider .track-off { background: transparent; }
-    body[data-skin="phosphor"] .slider .fill { border-radius: 0; box-shadow: 0 0 10px rgba(54,255,121,0.4); background: repeating-linear-gradient(90deg, var(--phosphor) 0 6px, rgba(54,255,121,0.3) 6px 8px); }
+    body[data-skin="phosphor"] .slider .fill { box-shadow: 0 0 10px rgba(54,255,121,0.4); background: repeating-linear-gradient(90deg, var(--phosphor) 0 6px, rgba(54,255,121,0.3) 6px 8px); }
     body[data-skin="phosphor"] .slider .knob { display: none; }
 
-    body[data-skin="phosphor"] .row { background: transparent; box-shadow: inset 0 0 0 1px rgba(54,255,121,0.14); border-radius: 2px; color: var(--phosphor-dim); }
+    body[data-skin="phosphor"] .row { background: transparent; box-shadow: inset 0 0 0 1px rgba(54,255,121,0.14); color: var(--phosphor-dim); }
     body[data-skin="phosphor"] .row:hover { background: rgba(54,255,121,0.06); }
     body[data-skin="phosphor"] .row.sel { background: rgba(54,255,121,0.14); box-shadow: inset 0 0 0 1px var(--phosphor); }
-    body[data-skin="phosphor"] .row .ico { background: transparent; border: 1px solid rgba(54,255,121,0.3); box-shadow: none; color: var(--phosphor); border-radius: 2px; }
+    body[data-skin="phosphor"] .row .ico { background: transparent; border: 1px solid rgba(54,255,121,0.3); box-shadow: none; color: var(--phosphor); }
     body[data-skin="phosphor"] .row .rtext b { color: var(--phosphor); }
-    body[data-skin="phosphor"] .check { background: transparent; border: 1px solid rgba(54,255,121,0.4); box-shadow: none; border-radius: 2px; color: var(--phosphor); }
+    body[data-skin="phosphor"] .check { background: transparent; border: 1px solid rgba(54,255,121,0.4); box-shadow: none; color: var(--phosphor); }
     body[data-skin="phosphor"] .check.on { background: var(--phosphor); color: #04140a; box-shadow: 0 0 8px rgba(54,255,121,0.5); }
 
     body[data-skin="phosphor"] .badge { border-color: transparent; background: transparent; padding: 3px 2px; }
@@ -562,7 +567,7 @@
           </div>
           <div class="panel zoo-cell">
             <h3 class="sub">Panel header</h3>
-            <div style="border-radius:7px;overflow:hidden;box-shadow:var(--well)"><div class="panel-head" style="padding:10px 13px"><h2>Header</h2><span class="rule"></span><span class="tag">TAG</span></div></div>
+            <div style="border-radius:var(--radius);overflow:hidden;box-shadow:var(--well)"><div class="panel-head" style="padding:10px 13px"><h2>Header</h2><span class="rule"></span><span class="tag">TAG</span></div></div>
             <h3 class="sub">Badges</h3>
             <div class="flow"><span class="badge">ONLINE</span><span class="badge amber">WARN</span><span class="badge blue">INFO</span><span class="badge red">FAULT</span><span class="badge mute">IDLE</span></div>
           </div>

@@ -14,14 +14,14 @@
 
    The `:root` block below is carried VERBATIM from the `:root` of
    `web/design/nova_ui_rework_poc.html`, which is also what
-   `crates/nova_ui/src/theme.rs` mirrors. That file is the single source for
+   `crates/nova_ui/src/theme/base.rs` mirrors. That file is the single source for
    both surfaces; `web/tests/theme.test.ts` parses it and fails if this block
    drifts. Change the PoC first, then both consumers.
 
    The PoC ships TWO skins. The site wears the PHOSPHOR one only: a panel is a
    CRT surface, so every control on it is text the terminal drew. Structure
    comes from a HAIRLINE and a GLOW, never from a bevel - flat translucent green
-   fills, 1px `--edge` borders, 2px corners on controls, and a solid `--phosphor`
+   fills, 1px `--edge` borders, square corners, and a solid `--phosphor`
    inversion for the primary/selected state. The light-3D HARDWARE vocabulary
    (`--face`, `--rim`, `--undercut`, `--well`) is mirrored here for parity but
    is deliberately CONSUMED NOWHERE; check (f) of the parity test enforces that.
@@ -67,7 +67,10 @@
         inset 0 2px 5px rgba(0, 0, 0, 0.85),
         inset 0 -1px 0 rgba(255, 255, 255, 0.05);
 
-    --panel-radius: 10px;
+    /* Box corners, the PoC's phosphor values: the game's phosphor theme draws
+       every box square (hardware's 2px lives on the PoC's hardware skin). */
+    --radius: 0;
+    --panel-radius: 0;
 
     /* -- phosphor skin vocabulary --
        Named here, but every value is lifted from the PoC's
@@ -130,9 +133,6 @@
     /* The lit step above `--phosphor` (PoC hover). Used both as a glyph
        colour and as the fill of an inverted control on hover. */
     --phosphor-hot: #d6ffe4;
-    /* Small controls (chips, keycaps, tags, inputs) stay near-square; only
-       panels get the 10px corner. */
-    --radius: 2px;
     /* The phosphor screen surface, as a fill. */
     --screen: linear-gradient(180deg, var(--screen-1) 0%, var(--screen-0) 100%);
     /* One site field behind landing, news, wiki and creator documentation. It
@@ -2807,7 +2807,7 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
 .widget__cap {
     padding: 1px 5px;
     border: 1px solid currentColor;
-    border-radius: 3px;
+    border-radius: var(--radius);
     font-family: var(--font-mono);
     font-size: 0.66rem;
     letter-spacing: 0;

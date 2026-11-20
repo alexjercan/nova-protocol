@@ -178,6 +178,23 @@ function rustNumber(rel: string, pattern: RegExp): number {
     return Number(rustSays(rel, pattern));
 }
 
+/** The UI kit's spacing scale: `nova_ui::widget::metrics`. */
+const UI_METRICS = "crates/nova_ui/src/widget/layout.rs";
+
+/**
+ * The px value of `const <name>: f32 = ...;` at `rel`: a number literal, or a
+ * token of the UI kit's spacing scale (`metrics::GAP`) read from its source.
+ */
+function rustPx(rel: string, name: string): number {
+    const value = rustSays(rel, new RegExp(`const ${name}: f32 = ([\\w.:]+);`));
+    const token = /^metrics::(\w+)$/.exec(value);
+    if (token === null) return Number(value);
+    return rustNumber(
+        UI_METRICS,
+        new RegExp(`pub const ${token[1]}: f32 = ([\\d.]+);`)
+    );
+}
+
 // ---- units ----------------------------------------------------------------
 
 // The plain formatters take SI, because the catalog is authored in SI. They
@@ -1563,8 +1580,8 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     assert.deepEqual(KEY_ROW_LAYOUT, {
         justify: rustSays(DOCK, /justify_content: JustifyContent::(\w+),/),
         wrap: rustSays(DOCK, /flex_wrap: FlexWrap::(\w+),/),
-        gapPx: rustNumber(DOCK, /const DOCK_CHIP_GAP_PX: f32 = ([\d.]+);/),
-        sidePx: rustNumber(DOCK, /const DOCK_SIDE_PX: f32 = ([\d.]+);/),
+        gapPx: rustPx(DOCK, "DOCK_CHIP_GAP_PX"),
+        sidePx: rustPx(DOCK, "DOCK_SIDE_PX"),
     });
     for (const gap of ["column_gap", "row_gap"]) {
         rustSays(DOCK, new RegExp(`(${gap}): Val::Px\\(DOCK_CHIP_GAP_PX\\)`));

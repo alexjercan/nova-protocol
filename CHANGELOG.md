@@ -67,6 +67,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A job hailed in space fires no job events: `OnJobAccepted`, `OnJobDone`, `OnJobHandedIn` and `OnJobDropped` follow station board and `PostJob` jobs only.
 - **(breaking)** A start role's `jobs` is `Mining`, `Salvage`, `Trade`, `Bounty`, `Patrol` or `Raid`. `Combat` is gone and `Trade` has new weights.
 - **(breaking)** Goal kind `StationNetwork` is gone. `CargoRuns(jobs: n)` counts Procure, Supply and Escort hand-ins; `Outlaw(hulls: n)` counts each trading hull you neutralize, at any stance.
+- A UiTheme's `segmented` border colour is no longer painted: the options draw the control's only line. A box takes its corner from the theme's `radius` or `panel_radius`.
 
 ### Interface & HUD
 
@@ -88,6 +89,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Jobs board gains Range and Threat columns, and the job inspector lists each part of the reward that pays: Base, Goods or Cargo, Range with the km, Threat with the weapon count.
 - The Jobs pane always shows two lists, Available over Your jobs. Available holds the docked station's jobs and a standing hail offer; empty, it keeps its column heads.
 - A job hand-in plays its own payout sound, counts the pane head balance up with `+1,460` beside it, and posts a silent `JOB-1 PAID 1,460 CR` HUD notice.
+- Phosphor draws every box square: buttons, fields, panels, windows, HUD chips and toggles. Hardware draws one 2 px corner on every box, down from 5 to 11 px, and its toggle is no longer a pill.
+- One spacing scale of 4, 8, 12, 16 and 20 px runs through menus, Tab panes, HUD and editor: buttons 8 px apart, groups 12 px, windows pad 20 px, HUD blocks sit 16 px from the screen edge.
+- A menu window (Settings, Lessons, Load, Scenarios, Mods, New Game) hides the menu card and the corner cards, so no window lies half over them. Subtitles that only explained a screen are gone.
+- HUD text draws in the same UI face as the menus and panes. Before, it drew in the engine default font.
+- Tab panes line up: the legend starts on the content edge, the footer's last button ends on the inspector edge with its whole border, and the head rule runs to the balance.
+- Mod editor: top bar buttons stand 4 px apart, list and inspector rows 4 px apart, and modals pad 12 px with their answers 8 px apart and 12 px under the content.
 - **(breaking)** UiTheme drops `metrics.border_width`, the slider `height` and the badge `bracketed`, `padding_x` and `border_width`. Lint refuses a disabled button state that looks live.
 
 ### Fixes

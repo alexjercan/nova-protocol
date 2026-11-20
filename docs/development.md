@@ -829,16 +829,22 @@ consumers. The builders are content: `content gen` writes them to
 
 The PoC ships two skins and the site wears only one. Everything the site draws
 comes from the PHOSPHOR skin (the PoC's `body[data-skin="phosphor"]` widget
-zoo): flat translucent green fills, 1px phosphor hairlines, 2px corners on
-controls, glow instead of bevel, and a solid `--phosphor` inversion for the
+zoo): flat translucent green fills, 1px phosphor hairlines, square corners,
+glow instead of bevel, and a solid `--phosphor` inversion for the
 primary state. The light-3D HARDWARE vocabulary (`--face`, `--rim`,
 `--undercut`, `--well`) stays in `:root` only to keep the mirror exact - it must
 be consumed nowhere.
 
+Corners are the one token pair that differs by skin. The PoC's `:root` holds
+the phosphor `--radius` and `--panel-radius` (0), and its
+`body[data-skin="hardware"]` rule sets them to 2px, the same values as the
+game themes' `radius` and `panel_radius`.
+
 `web/tests/theme.test.ts` (part of `npm test`, and so of `npm run ci`) parses
 the PoC and `style.css` and fails if the site's tokens go missing or drift in
-value, if the phosphor vocabulary stops being consumed, or if any hardware
-material token is read outside `:root`.
+value, if the phosphor vocabulary stops being consumed, if any hardware
+material token is read outside `:root`, or if a skin's corner tokens drift from
+its game theme in `assets/base/ui_themes/base.content.ron`.
 
 ## Run verification (probe)
 

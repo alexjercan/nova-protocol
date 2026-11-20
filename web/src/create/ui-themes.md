@@ -145,11 +145,18 @@ metrics: Some((
 
 | field | meaning |
 |---|---|
-| `radius` | Control corner radius. Phosphor is 2.0 and square-ish, hardware 7.0 and moulded. |
-| `panel_radius` | Panel corner radius. Phosphor is 2.0, the same hard corner as its controls; hardware 10.0, a moulded case. |
+| `radius` | Control corner radius. Phosphor is 0.0, a square corner; hardware is 2.0, one small corner. |
+| `panel_radius` | Panel corner radius. Both base themes use their control radius, so a panel and its controls share one corner: 0.0 on phosphor, 2.0 on hardware. |
 
 `metrics: None` takes the nearest ancestor's two whole. A root theme must
 carry them.
+
+Corners are a theme property. No screen writes its own corner: every box the
+interface draws - a button, a field, a chip, a tag, a well, a HUD box, a card,
+a window, a modal - takes `radius` or `panel_radius` from the active theme.
+Only a shape that is round by nature, such as a dot, a pip or a ring, keeps its
+own radius. The `;` command monitor is a CRT casing, not a box, and keeps its
+own look in every theme.
 
 ## Colours
 
@@ -238,11 +245,11 @@ every one.
 | `panel` | A bordered panel surface. | one surface |
 | `panel_head` | A panel's header band: `border`, `title`, `rule`, `tag`. | one band |
 | `list_row` | A list row. | `normal`, `hovered`, `selected` |
-| `segmented` | A segmented control's recessed container. | one surface |
+| `segmented` | A segmented control's recessed container: its fill and its corner. Its `border` is not painted; the options carry the control's only line. | one surface |
 | `slider_track` | A slider track - see [Shape](#shape). | one track |
 | `text_field` | A text field. | `normal`, `hovered`, `focused`, `error` |
 | `checkbox` | A checkbox, plus its own `radius`. | `off`, `on` |
-| `toggle` | A pill toggle, plus `radius` and `knob_radius`. | `off`, `on` |
+| `toggle` | A toggle track and its knob, plus `radius` and `knob_radius`. | `off`, `on` |
 | `badge` | A status tag - see [Shape](#shape). | two alphas |
 | `scroll_bar` | A scrollbar: `track` and `thumb`. | two colours |
 | `key_chip` | A keycap chip. | one state |
@@ -264,7 +271,14 @@ out and inherit it from another state, because a button that painted five of
 its six states would carry a dead state nobody noticed.
 
 A `panel`, a `segmented` and a slider's well carry `radius: Option<f32>` -
-`None` takes the metric, and a number overrides it for that surface alone.
+`None` takes the metric, and a number overrides it for that surface alone. A
+panel's `None` takes `panel_radius`; every other surface takes `radius`. The
+`checkbox` and the `toggle` track carry the same `radius: Option<f32>`.
+
+Both base themes leave every one of these `None`, so each control takes the
+theme's control corner. A toggle is a square box with a square knob on
+phosphor (`knob_radius: 0.0`) and a box with a 2 px corner and a 2 px knob on
+hardware (`knob_radius: 2.0`).
 
 A list row carries no text colour. What a row holds is arbitrary - icons,
 badges, several spans - and each of those is already themed.

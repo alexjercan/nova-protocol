@@ -1,6 +1,6 @@
 // Theme parity: the site's `:root` must carry the SAME NOVA OS tokens the game
 // does. Both sides mirror one origin - the `:root` block of
-// `web/design/nova_ui_rework_poc.html` (which `crates/nova_ui/src/theme.rs`
+// `web/design/nova_ui_rework_poc.html` (which `crates/nova_ui/src/theme/base.rs`
 // also mirrors) - so this test parses that file as an INDEPENDENT source rather
 // than comparing against a constant copied in here. Run with `npm test`.
 //
@@ -9,7 +9,8 @@
 // vocabulary is actually CONSUMED by the main surfaces, and the light-3D
 // HARDWARE vocabulary is consumed NOWHERE. The site wears one skin of the two
 // the PoC ships; the hardware tokens stay in `:root` only to keep the mirror in
-// check (a) exact.
+// check (a) exact. Check (g) pins the PoC's corner tokens to the game's two
+// base themes, read from their generated content file.
 import { strict as assert } from "node:assert";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -20,7 +21,15 @@ import { join } from "node:path";
 const WEB = process.cwd();
 const CSS_PATH = join(WEB, "src", "style.css");
 const POC_PATH = join(WEB, "design", "nova_ui_rework_poc.html");
-for (const p of [CSS_PATH, POC_PATH])
+const GAME_THEMES_PATH = join(
+    WEB,
+    "..",
+    "assets",
+    "base",
+    "ui_themes",
+    "base.content.ron"
+);
+for (const p of [CSS_PATH, POC_PATH, GAME_THEMES_PATH])
     assert.ok(existsSync(p), `expected to read ${p} - run this from web/`);
 
 const css = readFileSync(CSS_PATH, "utf8");
@@ -287,6 +296,64 @@ const readOf = (token: string): RegExp =>
         [],
         `:root aliases hardware material into a consumed token:\n  ${aliases.join("\n  ")}`
     );
+}
+
+// ---------------------------------------------------------------------------
+// (g) Box corners match the game. The PoC's `:root` is its default PHOSPHOR
+//     skin and `body[data-skin="hardware"]` overrides the corners, so each
+//     skin's `--radius` / `--panel-radius` must equal that theme's
+//     `radius` / `panel_radius` in the generated base theme content.
+// ---------------------------------------------------------------------------
+{
+    const ron = readFileSync(GAME_THEMES_PATH, "utf8");
+    /** The `metrics` radii of one theme, by its content id. */
+    const gameCorners = (id: string): [number, number] => {
+        const at = ron.indexOf(`id: "${id}"`);
+        assert.notEqual(at, -1, `${GAME_THEMES_PATH}: no theme ${id}`);
+        const m = ron
+            .slice(at)
+            .match(/radius:\s*([\d.]+),\s*panel_radius:\s*([\d.]+)/);
+        assert.ok(m, `${id}: no metrics radii after its id`);
+        return [Number(m[1]), Number(m[2])];
+    };
+    const px = (value: string | undefined, label: string): number => {
+        assert.ok(value !== undefined, `${label} is not defined`);
+        const m = value.match(/^([\d.]+)(px)?$/);
+        assert.ok(m, `${label} must be a px length, got: ${value}`);
+        return Number(m[1]);
+    };
+
+    const hardwareRule = stripComments(poc).match(
+        /body\[data-skin="hardware"\]\s*\{([^{}]*)\}/
+    );
+    assert.ok(hardwareRule, 'PoC: no body[data-skin="hardware"] token rule');
+    const hardwareTokens = new Map<string, string>();
+    for (const decl of hardwareRule[1].split(";")) {
+        const at = decl.indexOf(":");
+        if (at !== -1)
+            hardwareTokens.set(
+                norm(decl.slice(0, at)),
+                norm(decl.slice(at + 1))
+            );
+    }
+
+    const skins: [string, Map<string, string>, string][] = [
+        ["phosphor", pocTokens, "base/phosphor"],
+        ["hardware", hardwareTokens, "base/hardware"],
+    ];
+    for (const [skin, tokens, id] of skins) {
+        const [radius, panelRadius] = gameCorners(id);
+        assert.equal(
+            px(tokens.get("--radius"), `PoC ${skin} --radius`),
+            radius,
+            `PoC ${skin} --radius drifted from ${id} radius`
+        );
+        assert.equal(
+            px(tokens.get("--panel-radius"), `PoC ${skin} --panel-radius`),
+            panelRadius,
+            `PoC ${skin} --panel-radius drifted from ${id} panel_radius`
+        );
+    }
 }
 
 // eslint-disable-next-line no-console

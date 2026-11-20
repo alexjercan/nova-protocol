@@ -10,6 +10,8 @@ The card is a one-time offer, not the entrance: the menu's **Lessons** row alway
 
 Under it sits a **field note** - one short fact taken from the handbook, with **Open lesson** to read the page it came from and **Don't show again** to stop the notes appearing on the menu. It changes each time you come back to the menu, and the same notes fill the slot at the bottom of every loading screen, which that switch does not touch. While a practice range loads, the note is about what that range teaches. **Settings > Interface > Field notes** switches the menu card back on.
 
+While a menu window is open - Settings, Lessons, Load, Scenarios, Mods, the New Game setup or the MODS DISABLED report - the menu buttons and both corner cards hide, and the window stands alone over the backdrop. Close the window and they come back.
+
 <details class="explain">
 <summary>Show the full menu rundown</summary>
 

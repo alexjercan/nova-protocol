@@ -189,8 +189,8 @@ same id RESTYLES. Both are root themes, so either is a complete parent.
 
 | id | display name | what it is |
 |---|---|---|
-| `base/phosphor` | Phosphor | the shipped default: the CLI-drawn terminal - flat phosphor-on-black fills, square-ish corners, a block-meter slider and bare tags |
-| `base/hardware` | Hardware | the moulded casing: case-gradient faces, drop-shadow bevels, amber selection, round corners, a solid slider fill and chip tags |
+| `base/phosphor` | Phosphor | the shipped default: the CLI-drawn terminal - flat phosphor-on-black fills, square corners on every box, a block-meter slider and bare tags |
+| `base/hardware` | Hardware | the moulded casing: case-gradient faces, drop-shadow bevels, amber selection, one small 2 px corner on every box, a solid slider fill and chip tags |
 
 A player whose selected theme stops resolving - they disabled the mod that
 declared it - falls back to `base/phosphor`, so a mod must never leave that id

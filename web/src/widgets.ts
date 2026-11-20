@@ -14135,16 +14135,17 @@ const KEY_ROW_CAPS: Record<string, string> = {
 
 /**
  * How the game lays the row out, in Rust spelling: the dock node of
- * keybind_dock.rs `keybind_dock_hud` :409, with DOCK_CHIP_GAP_PX :133 between
- * chips and between wrapped lines, and DOCK_SIDE_PX :130 at each side. One
- * centred row; a row too wide wraps its last chips onto lines above it, and
- * each line is centred.
+ * keybind_dock.rs `keybind_dock_hud` :417, with DOCK_CHIP_GAP_PX :137 between
+ * chips and between wrapped lines, and DOCK_SIDE_PX :133 at each side. Both
+ * are UI kit spacing tokens (crates/nova_ui/src/widget/layout.rs `metrics`):
+ * GAP 8 and GAP_XL 16. One centred row; a row too wide wraps its last chips
+ * onto lines above it, and each line is centred.
  */
 export const KEY_ROW_LAYOUT = {
     justify: "Center",
     wrap: "WrapReverse",
-    gapPx: 7,
-    sidePx: 12,
+    gapPx: 8,
+    sidePx: 16,
 };
 
 /** The CSS keyword for a Bevy layout variant: `WrapReverse`, `wrap-reverse`. */
