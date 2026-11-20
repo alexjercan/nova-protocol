@@ -47,3 +47,40 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
 ## Done when
 - The owner can open the catalogue, place or swap several parts and get back
   to the ship view without leaving the interface by accident.
+
+## Map (2026-11-20; `MAP.md`, frames `before/flow-sheet-{1,2,3}.png`)
+- Correction to the finding above: TAB does nothing while the catalogue
+  is open. TAB closes the interface when the catalogue is closed, and a
+  part in hand is lost with no cue (frames 22-23).
+- Every Place or Swap closes the catalogue; a second part needs the footer
+  button again, and the filter is reset (frames 10, 14, 20).
+- The catalogue has no close of its own; the top bar Close shuts the whole
+  interface (frame 24).
+- The editor opens and closes the same gallery with TAB
+  (`crates/nova_editor/src/gallery.rs:26-31,193-207`); in game TAB closes
+  the interface. Likely owner path: Place, then TAB to get back to the
+  catalogue, and the interface closes.
+
+## Design proposal (agent, NOT approved)
+Keep the full-cover catalogue (owner: the elements look decent; the
+editor shares it). Fix how it opens, returns and closes:
+1. TAB, Ship pane at a refit station: opens and closes the catalogue, as
+   in the editor. With a part in hand, TAB puts it away and opens the
+   catalogue. Every other pane: TAB closes the interface, as now.
+   (Option B instead: TAB always closes the interface, but the open
+   catalogue and the part in hand come back on reopen; the catalogue
+   gets key C.)
+2. Place and Swap: the catalogue hides and the part is in hand, as now.
+   After an add the part stays in hand. TAB returns to the catalogue on
+   the same category, filter and scroll.
+3. Esc steps back one layer: filter caret, card, catalogue, part in hand,
+   then the interface. No layer is skipped.
+4. The footer Catalogue button carries its key chip. The top bar Close
+   chip names the key that closes the interface in the current state.
+5. The wheel over the grid scrolls it.
+6. No refit: the Catalogue button stays hidden (owner rule: a verb that
+   cannot work is hidden).
+7. Out of scope: a side drawer beside the ship view; Swap target change
+   inside the catalogue; the Craft view keys.
+- Proof: ECS asserted example for TAB and Esc with the catalogue open,
+  closed and with a part in hand; before/after flow frames.
