@@ -17,8 +17,9 @@ use nova_ui::{
     theme,
     theme::UiColorType,
     widget::{
-        button, checkbox, list_row, separator, tag, ButtonCueType, ButtonSpec, Selected,
-        ThemedBorder, ThemedCheckbox, ThemedFill, ThemedRadius, ThemedText, UiText,
+        action_row, button, button_stack, checkbox, divider, group_stack, list_row, metrics::GAP,
+        tag, ButtonCueType, ButtonSpec, Selected, ThemedBorder, ThemedCheckbox, ThemedFill,
+        ThemedRadius, ThemedText, UiText,
     },
 };
 
@@ -29,7 +30,7 @@ use crate::{
         spawn_uninstall_button, spawn_uninstall_prompt, uninstall_prompt, UninstallStep,
         UpdateRequested,
     },
-    widgets::close_screen,
+    widgets::{button_slot, close_screen, row_group, LABEL_LINE_GAP, MAIN_SLOT_W, SIDE_SLOT_W},
 };
 
 /// Marker for the Mods panel root, toggled by the Mods button.
@@ -146,6 +147,7 @@ pub(crate) fn spawn_mod_row(
             Node {
                 flex_direction: FlexDirection::Column,
                 flex_grow: 1.0,
+                row_gap: px(LABEL_LINE_GAP),
                 ..default()
             },
         ))
@@ -408,9 +410,9 @@ pub(crate) fn refresh_mods_list(
                             Node {
                                 flex_direction: FlexDirection::Column,
                                 align_self: AlignSelf::Stretch,
-                                row_gap: px(8),
-                                padding: UiRect::all(px(8)),
-                                margin: UiRect::bottom(px(4)),
+                                row_gap: px(GAP),
+                                padding: UiRect::all(px(GAP)),
+                                flex_shrink: 0.0,
                                 border: UiRect::all(px(theme::BORDER_W)),
                                 ..default()
                             },
@@ -423,6 +425,7 @@ pub(crate) fn refresh_mods_list(
                         .with_children(|row| {
                             row.spawn((
                                 Name::new("Portal Error Text"),
+                                UiText,
                                 Text::new(error.clone()),
                                 TextFont {
                                     font_size: FontSize::Px(13.0),
@@ -431,20 +434,14 @@ pub(crate) fn refresh_mods_list(
                                 TextColor(Color::NONE),
                                 ThemedText::new(UiColorType::Accent),
                             ));
-                            row.spawn((
-                                Name::new("Portal Retry Slot"),
-                                Node {
-                                    width: px(140),
-                                    ..default()
-                                },
-                            ))
-                            .with_children(|slot| {
-                                slot.spawn((
-                                    Name::new("Portal Retry Button"),
-                                    button(ButtonSpec::control("Retry").fill()),
-                                    observe(on_catalog_retry),
-                                ));
-                            });
+                            row.spawn(button_slot("Portal Retry Slot", SIDE_SLOT_W))
+                                .with_children(|slot| {
+                                    slot.spawn((
+                                        Name::new("Portal Retry Button"),
+                                        button(ButtonSpec::control("Retry").fill()),
+                                        observe(on_catalog_retry),
+                                    ));
+                                });
                         });
                         if !entries.is_empty() {
                             spawn_explore_note(
@@ -471,6 +468,7 @@ pub(crate) fn refresh_mods_list(
 pub(crate) fn spawn_details_empty(details: &mut ChildSpawnerCommands) {
     details.spawn((
         Name::new("Mod Details Empty"),
+        UiText,
         Text::new("Select a mod to see its details."),
         TextFont {
             font_size: FontSize::Px(14.0),
@@ -482,8 +480,20 @@ pub(crate) fn spawn_details_empty(details: &mut ChildSpawnerCommands) {
     details.spawn((
         Name::new("Mod Details Actions"),
         ModDetailsActions,
-        Node::default(),
+        action_row(JustifyContent::FlexStart),
     ));
+}
+
+/// The one child of the details pane: the mod's words over its actions, a
+/// group gap apart. Every state of the pane is built into it.
+fn spawn_details_stack(commands: &mut Commands, panel: Entity) -> Entity {
+    commands
+        .spawn((
+            Name::new("Mod Details Stack"),
+            group_stack(),
+            ChildOf(panel),
+        ))
+        .id()
 }
 
 /// A declared dependency's status for the details panel.
@@ -514,94 +524,117 @@ pub(crate) fn dep_status(
 }
 
 pub(crate) fn spawn_details_meta(
-    details: &mut ChildSpawnerCommands,
+    stack: &mut ChildSpawnerCommands,
     name: &str,
     line: &str,
     meta: &ModMeta,
     catalog: Option<&ModCatalog>,
     enabled: Option<&EnabledMods>,
 ) {
-    details.spawn((
-        Name::new("Mod Details Name"),
-        Text::new(name.to_string()),
-        TextFont {
-            font_size: FontSize::Px(20.0),
-            ..default()
-        },
-        TextColor(Color::NONE),
-        ThemedText::new(UiColorType::TextBody),
-    ));
-    if !line.is_empty() {
-        details.spawn((
-            Name::new("Mod Details Version Author"),
-            Text::new(line.to_string()),
-            TextFont {
-                font_size: FontSize::Px(13.0),
-                ..default()
-            },
-            TextColor(Color::NONE),
-            ThemedText::new(UiColorType::TextMuted),
-        ));
-    }
-    details.spawn((Name::new("Mod Details Separator"), separator()));
-    if !meta.description.is_empty() {
-        details.spawn((
-            Name::new("Mod Details Description"),
-            Text::new(meta.description.clone()),
-            TextFont {
-                font_size: FontSize::Px(14.0),
-                ..default()
-            },
-            TextColor(Color::NONE),
-            ThemedText::new(UiColorType::TextBody),
-            Node {
-                margin: UiRect::bottom(px(8)),
-                ..default()
-            },
-        ));
-    }
-    details.spawn((
-        Name::new("Mod Details Dependencies"),
-        Text::new("Dependencies:"),
-        TextFont {
-            font_size: FontSize::Px(13.0),
-            ..default()
-        },
-        TextColor(Color::NONE),
-        ThemedText::new(UiColorType::TextMuted),
-    ));
-    if meta.dependencies.is_empty() {
-        details.spawn((
-            Name::new("Mod Details Dependency: none"),
-            Text::new("  none"),
-            TextFont {
-                font_size: FontSize::Px(13.0),
-                ..default()
-            },
-            TextColor(Color::NONE),
-            ThemedText::new(UiColorType::TextMuted),
-        ));
-    } else {
-        // One line per dep, coloured by whether it is enabled / installed / missing
-        // so the player sees what enabling this mod will pull in.
-        for dep in &meta.dependencies {
-            let (suffix, color) = match dep_status(dep, catalog, enabled) {
-                DepStatus::Enabled => ("enabled", UiColorType::Nominal),
-                DepStatus::InstalledDisabled => ("installed, disabled", UiColorType::TextMuted),
-                DepStatus::Missing => ("missing", UiColorType::Accent),
-            };
-            details.spawn((
-                Name::new(format!("Mod Details Dependency: {dep}")),
-                Text::new(format!("  {dep} - {suffix}")),
-                TextFont {
-                    font_size: FontSize::Px(13.0),
-                    ..default()
-                },
-                TextColor(Color::NONE),
-                ThemedText::new(color),
-            ));
-        }
-    }
+    stack
+        .spawn((Name::new("Mod Details Text"), button_stack()))
+        .with_children(|details| {
+            details
+                .spawn((
+                    Name::new("Mod Details Head"),
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        row_gap: px(LABEL_LINE_GAP),
+                        ..default()
+                    },
+                ))
+                .with_children(|head| {
+                    head.spawn((
+                        Name::new("Mod Details Name"),
+                        UiText,
+                        Text::new(name.to_string()),
+                        TextFont {
+                            font_size: FontSize::Px(20.0),
+                            ..default()
+                        },
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColorType::TextBody),
+                    ));
+                    if !line.is_empty() {
+                        head.spawn((
+                            Name::new("Mod Details Version Author"),
+                            UiText,
+                            Text::new(line.to_string()),
+                            TextFont {
+                                font_size: FontSize::Px(13.0),
+                                ..default()
+                            },
+                            TextColor(Color::NONE),
+                            ThemedText::new(UiColorType::TextMuted),
+                        ));
+                    }
+                });
+            details.spawn((Name::new("Mod Details Separator"), divider()));
+            if !meta.description.is_empty() {
+                details.spawn((
+                    Name::new("Mod Details Description"),
+                    UiText,
+                    Text::new(meta.description.clone()),
+                    TextFont {
+                        font_size: FontSize::Px(14.0),
+                        ..default()
+                    },
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColorType::TextBody),
+                ));
+            }
+            details
+                .spawn(row_group("Mod Details Dependency Lines"))
+                .with_children(|deps| {
+                    deps.spawn((
+                        Name::new("Mod Details Dependencies"),
+                        UiText,
+                        Text::new("Dependencies:"),
+                        TextFont {
+                            font_size: FontSize::Px(13.0),
+                            ..default()
+                        },
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColorType::TextMuted),
+                    ));
+                    if meta.dependencies.is_empty() {
+                        deps.spawn((
+                            Name::new("Mod Details Dependency: none"),
+                            UiText,
+                            Text::new("  none"),
+                            TextFont {
+                                font_size: FontSize::Px(13.0),
+                                ..default()
+                            },
+                            TextColor(Color::NONE),
+                            ThemedText::new(UiColorType::TextMuted),
+                        ));
+                    } else {
+                        // One line per dep, coloured by whether it is enabled / installed / missing
+                        // so the player sees what enabling this mod will pull in.
+                        for dep in &meta.dependencies {
+                            let (suffix, color) = match dep_status(dep, catalog, enabled) {
+                                DepStatus::Enabled => ("enabled", UiColorType::Nominal),
+                                DepStatus::InstalledDisabled => {
+                                    ("installed, disabled", UiColorType::TextMuted)
+                                }
+                                DepStatus::Missing => ("missing", UiColorType::Accent),
+                            };
+                            deps.spawn((
+                                Name::new(format!("Mod Details Dependency: {dep}")),
+                                UiText,
+                                Text::new(format!("  {dep} - {suffix}")),
+                                TextFont {
+                                    font_size: FontSize::Px(13.0),
+                                    ..default()
+                                },
+                                TextColor(Color::NONE),
+                                ThemedText::new(color),
+                            ));
+                        }
+                    }
+                });
+        });
 }
 
 /// Rebuild the details pane for the selected mod: name header, version/author
@@ -646,7 +679,8 @@ pub(crate) fn refresh_mod_details(
             let is_enabled = info
                 .as_ref()
                 .is_some_and(|m| enabled.as_ref().is_some_and(|e| e.0.contains(&m.id)));
-            commands.entity(panel).with_children(|details| {
+            let stack = spawn_details_stack(&mut commands, panel);
+            commands.entity(stack).with_children(|details| {
                 let Some(m) = info else {
                     spawn_details_empty(details);
                     return;
@@ -664,21 +698,15 @@ pub(crate) fn refresh_mod_details(
                     .spawn((
                         Name::new("Mod Details Actions"),
                         ModDetailsActions,
-                        Node {
-                            flex_direction: FlexDirection::Row,
-                            // A narrow pane wraps the last slot under the
-                            // row; the slots keep their width and place.
-                            flex_wrap: FlexWrap::Wrap,
-                            column_gap: px(8),
-                            row_gap: px(8),
-                            margin: UiRect::top(px(12)),
-                            ..default()
-                        },
+                        // A narrow pane wraps the last slot under the row;
+                        // the slots keep their width and place.
+                        action_row(JustifyContent::FlexStart),
                     ))
                     .with_children(|actions| {
                         if m.base {
                             actions.spawn((
                                 Name::new("Mod Details Locked"),
+                                UiText,
                                 Text::new("Enabled (base)"),
                                 TextFont {
                                     font_size: FontSize::Px(14.0),
@@ -691,14 +719,7 @@ pub(crate) fn refresh_mod_details(
                             // Fixed-width slot: the percent-width themed
                             // button must not span the whole details pane.
                             actions
-                                .spawn((
-                                    Name::new("Mod Details Toggle Slot"),
-                                    Node {
-                                        width: px(180),
-                                        flex_shrink: 0.0,
-                                        ..default()
-                                    },
-                                ))
+                                .spawn(button_slot("Mod Details Toggle Slot", MAIN_SLOT_W))
                                 .with_children(|slot| {
                                     slot.spawn((
                                         Name::new("Mod Details Toggle Button"),
@@ -739,7 +760,8 @@ pub(crate) fn refresh_mod_details(
                     .and_then(|entries| entries.iter().find(|e| &e.id == id))
                     .cloned()
             });
-            commands.entity(panel).with_children(|details| {
+            let stack = spawn_details_stack(&mut commands, panel);
+            commands.entity(stack).with_children(|details| {
                 let Some(entry) = entry else {
                     spawn_details_empty(details);
                     return;
@@ -764,12 +786,7 @@ pub(crate) fn refresh_mod_details(
                     .spawn((
                         Name::new("Mod Details Actions"),
                         ModDetailsActions,
-                        Node {
-                            flex_direction: FlexDirection::Column,
-                            row_gap: px(8),
-                            margin: UiRect::top(px(12)),
-                            ..default()
-                        },
+                        button_stack(),
                     ))
                     .with_children(|actions| {
                         spawn_portal_actions(

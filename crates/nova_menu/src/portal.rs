@@ -19,12 +19,17 @@ use nova_ui::{
     theme,
     theme::UiColorType,
     widget::{
-        button, ButtonCueType, ButtonSpec, Selected, ThemedBorder, ThemedButton, ThemedFill,
-        ThemedRadius, ThemedText, UiText,
+        action_row, button,
+        metrics::{GAP, MENU_H},
+        ButtonCueType, ButtonSpec, Selected, ThemedBorder, ThemedButton, ThemedFill, ThemedRadius,
+        ThemedText, UiText,
     },
 };
 
-use crate::mods::{on_mod_row_select, version_author_line, ModRow};
+use crate::{
+    mods::{on_mod_row_select, version_author_line, ModRow},
+    widgets::{LABEL_LINE_GAP, LIST_ROW_INSET_X, SIDE_SLOT_W},
+};
 
 /// A details-pane portal action button: which command to fire for which mod
 /// id. One observer (`on_portal_action`) serves every button.
@@ -341,9 +346,9 @@ pub(crate) fn spawn_explore_note(list: &mut ChildSpawnerCommands, name: &'static
         Name::new(name),
         Node {
             align_self: AlignSelf::Stretch,
-            min_height: px(40),
-            margin: UiRect::bottom(px(4)),
-            padding: UiRect::all(px(8)),
+            min_height: px(MENU_H),
+            flex_shrink: 0.0,
+            padding: UiRect::all(px(GAP)),
             justify_content: JustifyContent::Center,
             align_items: AlignItems::Center,
             border: UiRect::all(px(theme::BORDER_W)),
@@ -355,6 +360,7 @@ pub(crate) fn spawn_explore_note(list: &mut ChildSpawnerCommands, name: &'static
         BackgroundColor(Color::NONE),
         ThemedFill::new(UiColorType::Background),
         children![(
+            UiText,
             Text::new(text.to_string()),
             TextFont {
                 font_size: FontSize::Px(13.0),
@@ -386,9 +392,11 @@ pub(crate) fn spawn_explore_row(
             align_self: AlignSelf::Stretch,
             align_items: AlignItems::Center,
             justify_content: JustifyContent::SpaceBetween,
-            column_gap: px(8),
-            padding: UiRect::all(px(8)),
-            margin: UiRect::bottom(px(4)),
+            column_gap: px(GAP),
+            // The side inset of the Installed tab's rows, so a mod's name
+            // starts on one edge in both tabs.
+            padding: UiRect::axes(px(LIST_ROW_INSET_X - theme::BORDER_W), px(GAP)),
+            flex_shrink: 0.0,
             border: UiRect::all(px(theme::BORDER_W)),
             ..default()
         },
@@ -411,12 +419,14 @@ pub(crate) fn spawn_explore_row(
             Node {
                 flex_direction: FlexDirection::Column,
                 flex_grow: 1.0,
+                row_gap: px(LABEL_LINE_GAP),
                 ..default()
             },
         ))
         .with_children(|info| {
             info.spawn((
                 Name::new("Mod Name"),
+                UiText,
                 Text::new(portal_display_name(entry)),
                 TextFont {
                     font_size: FontSize::Px(15.0),
@@ -429,6 +439,7 @@ pub(crate) fn spawn_explore_row(
             if !line.is_empty() {
                 info.spawn((
                     Name::new("Mod Version Author"),
+                    UiText,
                     Text::new(line),
                     TextFont {
                         font_size: FontSize::Px(12.0),
@@ -442,6 +453,7 @@ pub(crate) fn spawn_explore_row(
         if let Some(tag) = tag {
             row.spawn((
                 Name::new("Portal Status Tag"),
+                UiText,
                 Text::new(tag),
                 TextFont {
                     font_size: FontSize::Px(12.0),
@@ -487,7 +499,7 @@ fn spawn_portal_slot(
     row.spawn((
         Name::new(format!("{name} Slot")),
         Node {
-            width: px(140),
+            width: px(SIDE_SLOT_W),
             // A slot that shrank would move the next one under the pointer.
             flex_shrink: 0.0,
             ..default()
@@ -518,7 +530,7 @@ pub(crate) fn spawn_uninstall_button(row: &mut ChildSpawnerCommands, id: &str, a
         row.spawn((
             Name::new("Mod Details Uninstall Cancel Slot"),
             Node {
-                width: px(140),
+                width: px(SIDE_SLOT_W),
                 flex_shrink: 0.0,
                 ..default()
             },
@@ -578,6 +590,7 @@ pub(crate) fn spawn_action_text(
 ) {
     actions.spawn((
         Name::new(name),
+        UiText,
         Text::new(text),
         TextFont {
             font_size: FontSize::Px(14.0),
@@ -619,11 +632,7 @@ pub(crate) fn spawn_portal_actions(
             actions
                 .spawn((
                     Name::new("Mod Details Action Buttons"),
-                    Node {
-                        flex_direction: FlexDirection::Row,
-                        column_gap: px(8),
-                        ..default()
-                    },
+                    action_row(JustifyContent::FlexStart),
                 ))
                 .with_children(|row| {
                     spawn_portal_button(
@@ -670,15 +679,9 @@ pub(crate) fn spawn_portal_actions(
                 actions
                     .spawn((
                         Name::new("Mod Details Action Buttons"),
-                        Node {
-                            flex_direction: FlexDirection::Row,
-                            // A narrow pane wraps the last slot under the
-                            // row; the slots keep their width and place.
-                            flex_wrap: FlexWrap::Wrap,
-                            column_gap: px(8),
-                            row_gap: px(8),
-                            ..default()
-                        },
+                        // A narrow pane wraps the last slot under the row;
+                        // the slots keep their width and place.
+                        action_row(JustifyContent::FlexStart),
                     ))
                     .with_children(|row| match installed_version {
                         Some(installed) => {

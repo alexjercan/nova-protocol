@@ -47,18 +47,20 @@ use nova_ui::{
     theme,
     theme::UiColorType,
     widget::{
-        list_row, panel, panel_header, tag, ButtonSpec, Selected, ThemedBorder, ThemedFill,
-        ThemedRadius, ThemedText, UiText,
+        action_row, button_stack, group_stack, list_row,
+        metrics::{GAP, GAP_L, GAP_S, PANEL_PAD_MENU, TEXT_LABEL},
+        panel, panel_head, tag, text, ButtonSpec, PanelHeadType, Selected, TextRole, ThemedBorder,
+        ThemedFill, ThemedRadius, ThemedText, UiText,
     },
 };
 
-#[cfg(not(target_arch = "wasm32"))]
-use crate::load_screen::LoadPanel;
 use crate::{
-    mods::ModsPanel,
-    scenarios::{NewGameScenario, ScenariosPanel},
-    settings::{spawn_binding_chips, FieldNoteSetting, SettingsPanel, TrainingPromptSetting},
-    widgets::{back_button, button, button_variant, close_screen, MenuScreen},
+    menu_ui::{MenuCardFrame, MENU_CARD_MARGIN},
+    safe_mode::ModReportOverlay,
+    scenarios::NewGameScenario,
+    settings::{spawn_binding_chips, FieldNoteSetting, TrainingPromptSetting},
+    widgets::{back_button, close_screen, row_group, MenuScreen},
+    world_setup::WorldSetupOverlay,
 };
 
 /// Marker for the Training modal root, toggled by the Training button.
@@ -188,7 +190,7 @@ pub(crate) fn spawn_training_panel(commands: &mut Commands) {
                         flex_direction: FlexDirection::Column,
                         width: percent(PANEL_PCT),
                         height: percent(PANEL_PCT),
-                        padding: UiRect::all(px(20)),
+                        padding: UiRect::all(px(PANEL_PAD_MENU)),
                         border: UiRect::all(px(theme::BORDER_W)),
                         ..default()
                     },
@@ -196,63 +198,33 @@ pub(crate) fn spawn_training_panel(commands: &mut Commands) {
                     panel(),
                 ))
                 .with_children(|parent| {
-                    // Title, then subtitle, exactly as the Mods and Scenarios
-                    // screens open - a modal that announced itself differently
-                    // from its siblings would read as a different product.
-                    // The progress summary rides the title row rather than
-                    // taking a third line of its own: it is a readout, not a
-                    // heading, and the header is competing with the lesson list
-                    // for the top of a 600px window.
-                    parent.spawn((
-                        Name::new("Training Head"),
-                        Node {
-                            width: percent(100),
-                            flex_direction: FlexDirection::Row,
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::SpaceBetween,
-                            column_gap: px(16),
-                            ..default()
-                        },
-                        children![
-                            (
-                                Name::new("Training Title"),
-                                UiText,
-                                Text::new("Training"),
-                                TextFont {
-                                    font_size: FontSize::Px(24.0),
-                                    ..default()
-                                },
-                                TextColor(Color::NONE),
-                                ThemedText::new(UiColorType::TextBody),
-                            ),
-                            (
-                                Name::new("Training Progress"),
-                                TrainingProgressLabel,
-                                UiText,
-                                Text::new(String::new()),
-                                TextFont {
-                                    font_size: FontSize::Px(13.0),
-                                    ..default()
-                                },
-                                TextColor(Color::NONE),
-                                ThemedText::new(UiColorType::Text),
-                            ),
-                        ],
-                    ));
-                    parent.spawn((
-                        Name::new("Training Subtitle"),
-                        UiText,
-                        Text::new(
-                            "Short lessons on how to fly, build and fight. The \
-                             complete manual is on the wiki.",
-                        ),
-                        TextFont {
-                            font_size: FontSize::Px(13.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColorType::TextMuted),
-                    ));
+                    // The head every menu window opens with. The progress
+                    // summary rides the head row rather than taking a line of
+                    // its own: it is a readout, not a heading, and the head is
+                    // competing with the lesson list for the top of a 600px
+                    // window.
+                    parent
+                        .spawn((
+                            Name::new("Training Head"),
+                            panel_head("Lessons", PanelHeadType::Inset, &[]),
+                        ))
+                        .with_child((
+                            Name::new("Training Progress"),
+                            TrainingProgressLabel,
+                            UiText,
+                            Text::new(String::new()),
+                            TextFont {
+                                font_size: FontSize::Px(TEXT_LABEL),
+                                ..default()
+                            },
+                            TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                            TextColor(Color::NONE),
+                            ThemedText::new(UiColorType::TextSecondary),
+                            Node {
+                                flex_shrink: 0.0,
+                                ..default()
+                            },
+                        ));
 
                     parent.spawn((
                         Name::new("Training Content"),
@@ -267,7 +239,13 @@ pub(crate) fn spawn_training_panel(commands: &mut Commands) {
                                         (
                                             Name::new("Training List"),
                                             TrainingList,
-                                            scroll_column(),
+                                            // Basic Training, then one group
+                                            // per category: the group gap
+                                            // takes the place of the row gap.
+                                            Node {
+                                                row_gap: group_stack().row_gap,
+                                                ..scroll_column()
+                                            },
                                             scroll_viewport(),
                                         ),
                                         (Name::new("Training List Scroll Bar"), scroll_bar(),),
@@ -316,8 +294,8 @@ pub(crate) fn spawn_menu_aside(commands: &mut Commands, note: Option<&FieldNote>
             MenuAside,
             Node {
                 position_type: PositionType::Absolute,
-                left: px(40),
-                bottom: px(40),
+                left: px(MENU_CARD_MARGIN),
+                bottom: px(MENU_CARD_MARGIN),
                 width: px(ASIDE_W),
                 // 40 percent, not a rounder number: the menu card is 280px wide at
                 // right:40, so at the 640px floor the corner has
@@ -325,26 +303,18 @@ pub(crate) fn spawn_menu_aside(commands: &mut Commands, note: Option<&FieldNote>
                 // percent (256px there) leaves a gap, and on a desk monitor the
                 // fixed width wins long before the percentage does.
                 max_width: percent(40),
-                flex_direction: FlexDirection::Column,
-                row_gap: px(12),
-                ..default()
+                ..group_stack()
             },
             children![(
                 Name::new("Training Prompt"),
                 TrainingPromptCard,
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(px(14)),
-                    row_gap: px(4),
-                    border: UiRect::all(px(theme::BORDER_W)),
-                    ..default()
-                },
-                ThemedRadius::control(),
+                notice_card(),
+                ThemedRadius::panel(),
                 panel(),
                 children![
                     (
                         Name::new("Training Prompt Header"),
-                        panel_header("New pilot")
+                        text("New pilot", TextRole::Heading)
                     ),
                     (
                         Name::new("Training Prompt Blurb"),
@@ -362,28 +332,18 @@ pub(crate) fn spawn_menu_aside(commands: &mut Commands, note: Option<&FieldNote>
                     ),
                     (
                         Name::new("Training Prompt Actions"),
-                        Node {
-                            flex_direction: FlexDirection::Row,
-                            flex_wrap: FlexWrap::Wrap,
-                            align_items: AlignItems::Center,
-                            column_gap: px(8),
-                            row_gap: px(6),
-                            margin: UiRect::top(px(8)),
-                            ..default()
-                        },
+                        action_row(JustifyContent::FlexStart),
                         children![
                             (
                                 Name::new("Training Prompt Start"),
-                                button_variant(
-                                    "Start Basic Training",
-                                    nova_ui::widget::ButtonVariant::Primary,
-                                    None,
+                                nova_ui::widget::button(
+                                    ButtonSpec::control("Start Basic Training").primary()
                                 ),
                                 observe(on_first_pilot_start),
                             ),
                             (
                                 Name::new("Training Prompt Lessons"),
-                                button("Open lessons"),
+                                nova_ui::widget::button(ButtonSpec::control("Open lessons")),
                                 observe(on_open_handbook),
                             ),
                             (
@@ -403,6 +363,18 @@ pub(crate) fn spawn_menu_aside(commands: &mut Commands, note: Option<&FieldNote>
     }
 }
 
+/// The box of one notice in the corner: the kit card's padding and row gap,
+/// so the head, the words and the action row stand one gap apart.
+fn notice_card() -> Node {
+    Node {
+        flex_direction: FlexDirection::Column,
+        padding: UiRect::all(px(GAP_L)),
+        row_gap: px(GAP),
+        border: UiRect::all(px(theme::BORDER_W)),
+        ..default()
+    }
+}
+
 /// The field-note notice: the same two lines the loading screens draw, plus the
 /// way into the lesson that owns the claim.
 ///
@@ -417,45 +389,36 @@ fn spawn_field_note_card(commands: &mut Commands, aside: Entity, note: &FieldNot
             .spawn((
                 Name::new("Menu Field Note"),
                 MenuFieldNoteCard,
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(px(14)),
-                    row_gap: px(4),
-                    border: UiRect::all(px(theme::BORDER_W)),
-                    ..default()
-                },
-                ThemedRadius::control(),
+                notice_card(),
+                ThemedRadius::panel(),
                 panel(),
             ))
             .with_children(|card| {
                 card.spawn((
                     Name::new("Menu Field Note Header"),
-                    panel_header("Field note"),
+                    text("Field note", TextRole::Heading),
                 ));
-                for line in &note.lines {
-                    card.spawn((
-                        Name::new("Menu Field Note Line"),
-                        UiText,
-                        Text::new(line.clone()),
-                        TextFont {
-                            font_size: FontSize::Px(13.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColorType::TextBody),
-                    ));
-                }
+                // The lines of one note read as one paragraph, so they stand
+                // closer than the head and the action row do.
+                card.spawn(row_group("Menu Field Note Lines"))
+                    .with_children(|lines| {
+                        for line in &note.lines {
+                            lines.spawn((
+                                Name::new("Menu Field Note Line"),
+                                UiText,
+                                Text::new(line.clone()),
+                                TextFont {
+                                    font_size: FontSize::Px(13.0),
+                                    ..default()
+                                },
+                                TextColor(Color::NONE),
+                                ThemedText::new(UiColorType::TextBody),
+                            ));
+                        }
+                    });
                 card.spawn((
                     Name::new("Menu Field Note Actions"),
-                    Node {
-                        flex_direction: FlexDirection::Row,
-                        flex_wrap: FlexWrap::Wrap,
-                        align_items: AlignItems::Center,
-                        column_gap: px(8),
-                        row_gap: px(6),
-                        margin: UiRect::top(px(8)),
-                        ..default()
-                    },
+                    action_row(JustifyContent::FlexStart),
                 ))
                 .with_children(|actions| {
                     if let Some(lesson) = &note.lesson {
@@ -793,22 +756,28 @@ pub(crate) fn refresh_training_list(
             list.spawn((
                 Name::new(format!("Training Category: {}", category.title())),
                 Node {
-                    margin: UiRect::top(px(10)),
-                    ..default()
+                    flex_shrink: 0.0,
+                    ..button_stack()
                 },
-                children![(
+            ))
+            .with_children(|group| {
+                group.spawn((
                     Name::new("Training Category Label"),
-                    panel_header(category.title())
-                )],
-            ));
-            for lesson in lessons {
-                spawn_lesson_row(
-                    list,
-                    lesson,
-                    progress.status(&lesson.id),
-                    selected.0.as_deref() == Some(lesson.id.as_str()),
-                );
-            }
+                    text(category.title(), TextRole::Heading),
+                ));
+                group
+                    .spawn(row_group("Training Category Rows"))
+                    .with_children(|rows| {
+                        for lesson in lessons {
+                            spawn_lesson_row(
+                                rows,
+                                lesson,
+                                progress.status(&lesson.id),
+                                selected.0.as_deref() == Some(lesson.id.as_str()),
+                            );
+                        }
+                    });
+            });
         }
     });
 }
@@ -932,7 +901,19 @@ pub(crate) fn refresh_training_details(
         )
     });
 
-    commands.entity(pane).with_children(|details| {
+    // The demonstration over the text box, a group gap apart.
+    let stack = commands
+        .spawn((
+            Name::new("Training Details Stack"),
+            Node {
+                flex_grow: 1.0,
+                min_height: px(0),
+                ..group_stack()
+            },
+            ChildOf(pane),
+        ))
+        .id();
+    commands.entity(stack).with_children(|details| {
         let Some(lesson) = lesson else {
             details.spawn((
                 Name::new("Training Details Empty"),
@@ -963,9 +944,8 @@ pub(crate) fn refresh_training_details(
                     flex_basis: px(0),
                     min_height: px(0),
                     flex_direction: FlexDirection::Column,
-                    row_gap: px(6),
-                    padding: UiRect::all(px(12)),
-                    margin: UiRect::top(px(10)),
+                    row_gap: px(GAP),
+                    padding: UiRect::all(px(GAP_L)),
                     border: UiRect::all(px(theme::BORDER_W)),
                     ..default()
                 },
@@ -981,7 +961,7 @@ pub(crate) fn refresh_training_details(
                     Node {
                         flex_direction: FlexDirection::Row,
                         align_items: AlignItems::Center,
-                        column_gap: px(10),
+                        column_gap: px(GAP),
                         ..default()
                     },
                 ))
@@ -1012,35 +992,37 @@ pub(crate) fn refresh_training_details(
                 // the box it was measured for.
                 box_.spawn((Name::new("Lesson Body Row"), scroll_row()))
                     .with_children(|row| {
-                        row.spawn((Name::new("Lesson Body"), scroll_column(), scroll_viewport()))
-                            .with_children(|body| {
-                                body.spawn((
-                                    Name::new("Lesson Body Text"),
-                                    UiText,
-                                    Text::new(lesson.body.clone()),
-                                    TextFont {
-                                        font_size: FontSize::Px(14.0),
-                                        ..default()
-                                    },
-                                    TextColor(Color::NONE),
-                                    ThemedText::new(UiColorType::TextBody),
-                                ));
-                                if !lesson.actions.is_empty() {
-                                    body.spawn((
-                                        Name::new("Lesson Bindings"),
-                                        Node {
-                                            flex_direction: FlexDirection::Column,
-                                            margin: UiRect::top(px(8)),
-                                            ..default()
-                                        },
-                                    ))
+                        row.spawn((
+                            Name::new("Lesson Body"),
+                            // The words, then the keys: two parts, so the
+                            // control gap takes the place of the row gap.
+                            Node {
+                                row_gap: px(GAP),
+                                ..scroll_column()
+                            },
+                            scroll_viewport(),
+                        ))
+                        .with_children(|body| {
+                            body.spawn((
+                                Name::new("Lesson Body Text"),
+                                UiText,
+                                Text::new(lesson.body.clone()),
+                                TextFont {
+                                    font_size: FontSize::Px(14.0),
+                                    ..default()
+                                },
+                                TextColor(Color::NONE),
+                                ThemedText::new(UiColorType::TextBody),
+                            ));
+                            if !lesson.actions.is_empty() {
+                                body.spawn(row_group("Lesson Bindings"))
                                     .with_children(|list| {
                                         for action in &lesson.actions {
                                             spawn_binding_row(list, action, bindings, glyphs);
                                         }
                                     });
-                                }
-                            });
+                            }
+                        });
                         row.spawn((Name::new("Lesson Body Scroll Bar"), scroll_bar()));
                     });
 
@@ -1155,8 +1137,8 @@ fn spawn_media_frame(
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
-            padding: UiRect::all(px(12)),
-            row_gap: px(8),
+            padding: UiRect::all(px(GAP_L)),
+            row_gap: px(GAP),
             border: UiRect::all(px(theme::BORDER_W)),
             overflow: Overflow::clip(),
             ..default()
@@ -1292,8 +1274,7 @@ fn spawn_binding_row(
         Node {
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: px(8),
-            margin: UiRect::bottom(px(6)),
+            column_gap: px(GAP),
             ..default()
         },
     ))
@@ -1319,7 +1300,7 @@ fn spawn_binding_row(
             Node {
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: px(4),
+                column_gap: px(GAP_S),
                 ..default()
             },
         ))
@@ -1338,24 +1319,15 @@ fn spawn_binding_row(
 fn spawn_lesson_actions(box_: &mut ChildSpawnerCommands, lesson: &Lesson) {
     box_.spawn((
         Name::new("Lesson Actions"),
-        Node {
-            flex_direction: FlexDirection::Row,
-            flex_wrap: FlexWrap::Wrap,
-            align_items: AlignItems::Center,
-            // The wiki link is anchored to the RIGHT edge either way. With
-            // `SpaceBetween` alone a lesson without a Practice button would be
-            // the only child and slide to the left, so the link would move
-            // across the box as the player walks the list.
-            justify_content: if lesson.practice.is_some() {
-                JustifyContent::SpaceBetween
-            } else {
-                JustifyContent::FlexEnd
-            },
-            column_gap: px(8),
-            row_gap: px(6),
-            margin: UiRect::top(px(6)),
-            ..default()
-        },
+        // The wiki link is anchored to the RIGHT edge either way. With
+        // `SpaceBetween` alone a lesson without a Practice button would be the
+        // only child and slide to the left, so the link would move across the
+        // box as the player walks the list.
+        action_row(if lesson.practice.is_some() {
+            JustifyContent::SpaceBetween
+        } else {
+            JustifyContent::FlexEnd
+        }),
     ))
     .with_children(|actions| {
         if let Some(scenario) = &lesson.practice {
@@ -1391,14 +1363,15 @@ fn spawn_lesson_actions(box_: &mut ChildSpawnerCommands, lesson: &Lesson) {
     });
 }
 
-/// Keep the notice corner out of the way of whatever modal is open, and take
-/// each notice off it once the player has switched that notice off.
+/// Keep the menu card and the notice corner out of the way of whatever window
+/// is open, and take each notice off the corner once the player has switched
+/// that notice off.
 ///
-/// THREE decisions, because the corner holds three different kinds of thing.
-/// The CORNER is about containment, not decoration: the modals are 85 percent
-/// of the window, so a card at the screen edge would otherwise still be visible
-/// and CLICKABLE beside a screen the player thinks owns the input. The PROMPT
-/// is about the offer: answering it is permanent, and the setting is what
+/// The CARD and the CORNER are about containment: a window is narrower than
+/// the screen, so a panel at the screen edge would otherwise show half under
+/// it. Both hide while a menu screen, the New Game window or the safe-mode
+/// report is up, and the window stands alone over the backdrop. The PROMPT is
+/// about the offer: answering it is permanent, and the setting is what
 /// remembers. The NOTE is not an offer - it outlives the answer to the offer -
 /// but it has a switch of its own, so it reads its own setting.
 ///
@@ -1410,34 +1383,22 @@ pub(crate) fn sync_menu_aside(
     field_note: Res<FieldNoteSetting>,
     // The `Without`s are what make the queries provably disjoint: all of them
     // read `Visibility`, and three of them write it.
-    panels: Query<
+    screens: Query<
         &Visibility,
         (
-            Or<(
-                With<TrainingPanel>,
-                With<SettingsPanel>,
-                With<ModsPanel>,
-                With<ScenariosPanel>,
-            )>,
+            With<MenuScreen>,
             Without<MenuAside>,
+            Without<MenuCardFrame>,
             Without<TrainingPromptCard>,
             Without<MenuFieldNoteCard>,
         ),
     >,
-    // Apart from `panels` because the web build has no Load screen to list.
-    #[cfg(not(target_arch = "wasm32"))] loads: Query<
-        &Visibility,
-        (
-            With<LoadPanel>,
-            Without<MenuAside>,
-            Without<TrainingPromptCard>,
-            Without<MenuFieldNoteCard>,
-        ),
-    >,
-    mut aside: Query<
+    // Spawned on demand and despawned on close, so being there is being open.
+    overlays: Query<(), Or<(With<WorldSetupOverlay>, With<ModReportOverlay>)>>,
+    mut behind: Query<
         &mut Visibility,
         (
-            With<MenuAside>,
+            Or<(With<MenuAside>, With<MenuCardFrame>)>,
             Without<TrainingPromptCard>,
             Without<MenuFieldNoteCard>,
         ),
@@ -1445,17 +1406,13 @@ pub(crate) fn sync_menu_aside(
     mut offer: Query<&mut Visibility, (With<TrainingPromptCard>, Without<MenuFieldNoteCard>)>,
     mut note: Query<&mut Visibility, With<MenuFieldNoteCard>>,
 ) {
-    let modal_open = panels
-        .iter()
-        .any(|visibility| *visibility == Visibility::Visible);
-    #[cfg(not(target_arch = "wasm32"))]
-    let modal_open = modal_open
-        || loads
+    let window_open = !overlays.is_empty()
+        || screens
             .iter()
             .any(|visibility| *visibility == Visibility::Visible);
     set_all(
-        &mut aside,
-        if modal_open {
+        &mut behind,
+        if window_open {
             Visibility::Hidden
         } else {
             Visibility::Visible

@@ -32,15 +32,17 @@ use nova_scenario::prelude::{
 };
 use nova_ui::{
     prelude::{window_root, PAUSE_Z},
-    theme,
     theme::UiColorType,
-    widget::{panel, ButtonVariant, ThemedRadius, ThemedText, UiText},
+    widget::{panel, ButtonVariant, ThemedRadius, ThemedText},
 };
 use nova_world_base::prelude::{
     open_world, resume_world, RegisteredScenarios, WorldSaveSession, WorldSaveStatus,
 };
 
-use crate::{widgets::button_variant, world_setup::WorldsRoot};
+use crate::{
+    widgets::{button_variant, dialog_buttons, dialog_node, dialog_span, dialog_text},
+    world_setup::WorldsRoot,
+};
 
 /// Where a leave goes once the world is saved.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -275,56 +277,50 @@ pub(crate) fn sync_leave_overlay(
             parent
                 .spawn((
                     Name::new("Leave Panel"),
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        width: px(360),
-                        padding: UiRect::all(px(20)),
-                        row_gap: px(8),
-                        border: UiRect::all(px(theme::BORDER_W)),
-                        ..default()
-                    },
-                    ThemedRadius::control(),
+                    dialog_node(360.0),
+                    ThemedRadius::panel(),
                     panel(),
                 ))
                 .with_children(|parent| {
-                    parent.spawn((
-                        Name::new("Leave Title"),
-                        UiText,
-                        Text::new(title),
-                        TextFont {
-                            font_size: FontSize::Px(24.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(if failed {
-                            UiColorType::Danger
-                        } else {
-                            UiColorType::TextBody
-                        }),
-                    ));
-                    parent.spawn((
-                        Name::new("Leave Detail"),
-                        UiText,
-                        Text::new(body),
-                        TextFont {
-                            font_size: FontSize::Px(13.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColorType::TextMuted),
-                    ));
+                    parent
+                        .spawn(dialog_text("Leave Text"))
+                        .with_children(|parent| {
+                            parent.spawn((
+                                Name::new("Leave Title"),
+                                dialog_span(title, 24.0),
+                                TextColor(Color::NONE),
+                                ThemedText::new(if failed {
+                                    UiColorType::Danger
+                                } else {
+                                    UiColorType::TextBody
+                                }),
+                            ));
+                            parent.spawn((
+                                Name::new("Leave Detail"),
+                                dialog_span(body, 13.0),
+                                TextColor(Color::NONE),
+                                ThemedText::new(UiColorType::TextMuted),
+                            ));
+                        });
                     if failed {
-                        parent.spawn((
-                            Name::new("Leave Try Again Button"),
-                            button_variant("Try again", ButtonVariant::Primary, None),
-                            observe(on_leave_try_again),
-                        ));
-                        parent.spawn((
-                            Name::new("Leave Without Saving Button"),
-                            button_variant("Leave without saving", ButtonVariant::Danger, None),
-                            observe(on_leave_without_saving),
-                        ));
+                        parent
+                            .spawn(dialog_buttons("Leave Buttons"))
+                            .with_children(|parent| {
+                                parent.spawn((
+                                    Name::new("Leave Try Again Button"),
+                                    button_variant("Try again", ButtonVariant::Primary, None),
+                                    observe(on_leave_try_again),
+                                ));
+                                parent.spawn((
+                                    Name::new("Leave Without Saving Button"),
+                                    button_variant(
+                                        "Leave without saving",
+                                        ButtonVariant::Danger,
+                                        None,
+                                    ),
+                                    observe(on_leave_without_saving),
+                                ));
+                            });
                     }
                 });
         });

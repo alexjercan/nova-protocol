@@ -40,9 +40,11 @@ use nova_ui::{
     theme,
     theme::UiColorType,
     widget::{
-        list_row, panel, panel_head, separator, text_field, ButtonCueType, ButtonVariant,
-        PanelHeadTag, PanelHeadTitle, PanelHeadType, Selected, TextFieldError, TextFieldSpec,
-        TextFieldValue, ThemedBorder, ThemedRadius, ThemedText, Tooltip, UiText,
+        action_row, button_stack, control_row, divider, group_stack, list_row,
+        metrics::{GAP_S, GAP_XL, PANEL_PAD_MENU},
+        panel, panel_head, text_field, ButtonCueType, ButtonVariant, PanelHeadTag, PanelHeadTitle,
+        PanelHeadType, Selected, TextFieldError, TextFieldSpec, TextFieldValue, ThemedBorder,
+        ThemedRadius, ThemedText, Tooltip, UiText,
     },
 };
 #[cfg(not(target_arch = "wasm32"))]
@@ -56,8 +58,7 @@ use crate::{
     preview::{preview_node, MenuChartPreview, MenuHullPreview},
     scenarios::NewGameScenario,
     widgets::{
-        actions_row, back_button, button, button_slot, button_variant, detail_row, MAIN_SLOT_W,
-        SIDE_SLOT_W,
+        back_button, button, button_slot, button_variant, detail_row, MAIN_SLOT_W, SIDE_SLOT_W,
     },
 };
 
@@ -103,9 +104,6 @@ const DEFAULT_WORLD_NAME: &str = "New World";
 
 /// The Randomize slot beside the seed field.
 const RANDOMIZE_SLOT_W: f32 = 130.0;
-
-/// The one line over the fields: what a world is, in brief.
-const PROFILE_TEXT: &str = "A seeded open world of asteroid clusters, planetoids and derelicts.";
 
 /// The height of the seed's chart preview on the world step, where the
 /// window has room for it.
@@ -210,6 +208,7 @@ pub(crate) fn parse_world_seed(text: &str) -> Option<u32> {
 fn label(name: &'static str, text: &str) -> impl Bundle {
     (
         Name::new(name),
+        UiText,
         Text::new(text.to_string()),
         TextFont {
             font_size: FontSize::Px(13.0),
@@ -299,8 +298,7 @@ pub(crate) fn on_new_game(
                         // steps: the previews give up height, so the head
                         // and the button row stay in view.
                         max_height: percent(100),
-                        padding: UiRect::all(px(20)),
-                        row_gap: px(8),
+                        padding: UiRect::all(px(PANEL_PAD_MENU)),
                         border: UiRect::all(px(theme::BORDER_W)),
                         ..default()
                     },
@@ -323,18 +321,44 @@ pub(crate) fn on_new_game(
         });
 }
 
-/// One step's column, shown or hidden by `display`.
+/// One step's column, shown or hidden by `display`: its fields over its
+/// button row, a group gap apart.
 fn step_node(display: Display) -> Node {
     Node {
         display,
-        flex_direction: FlexDirection::Column,
         align_items: AlignItems::Stretch,
-        row_gap: px(8),
         // Lets the step go under its content height, so its preview shrinks
         // inside a height-capped panel.
         min_height: px(0),
-        ..default()
+        ..group_stack()
     }
+}
+
+/// A column of a step's field groups, a group gap apart. It goes under its
+/// content height with the step.
+fn field_groups(name: &'static str) -> impl Bundle {
+    (
+        Name::new(name),
+        Node {
+            align_items: AlignItems::Stretch,
+            min_height: px(0),
+            ..group_stack()
+        },
+    )
+}
+
+/// One field group: a label and the control under it, [`GAP_S`] apart.
+fn field_group(name: &'static str) -> impl Bundle {
+    (
+        Name::new(name),
+        Node {
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Stretch,
+            row_gap: px(GAP_S),
+            min_height: px(0),
+            ..default()
+        },
+    )
 }
 
 /// The first free name in the series `base`, `base 2`, `base 3`, ...: the
@@ -354,79 +378,92 @@ fn unique_world_name(base: &str, taken: impl Fn(&str) -> bool) -> String {
     candidate
 }
 
-/// The world step: one line on what a world is, the name (desktop) or the
-/// web note, the seed with Randomize beside it, then Cancel and Next.
+/// The world step: the name (desktop) or the web note, the seed with
+/// Randomize beside it, the seed's chart, then Cancel and Next.
 fn spawn_world_step(seed: String, name: String) -> impl FnOnce(&mut ChildSpawnerCommands) {
     #[cfg(target_arch = "wasm32")]
     let _ = name;
     move |parent| {
-        parent.spawn(label("New Game Profile", PROFILE_TEXT));
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            parent.spawn(label("World Name Label", "World name"));
-            parent.spawn((
-                Name::new("World Name Field"),
-                WorldNameField,
-                text_field(TextFieldSpec::new(name).max_chars(NAME_CHARS)),
-            ));
-        }
-        #[cfg(target_arch = "wasm32")]
-        parent.spawn(label(
-            "Web Saves Note",
-            "Saved worlds need the desktop build.",
-        ));
-        parent.spawn(label("World Seed Label", "World seed"));
+        parent
+            .spawn(field_groups("World Step Fields"))
+            .with_children(|fields| {
+                #[cfg(not(target_arch = "wasm32"))]
+                fields
+                    .spawn(field_group("World Name Group"))
+                    .with_children(|group| {
+                        group.spawn(label("World Name Label", "World name"));
+                        group.spawn((
+                            Name::new("World Name Field"),
+                            WorldNameField,
+                            text_field(TextFieldSpec::new(name).max_chars(NAME_CHARS)),
+                        ));
+                    });
+                #[cfg(target_arch = "wasm32")]
+                fields.spawn(label(
+                    "Web Saves Note",
+                    "Saved worlds need the desktop build.",
+                ));
+                fields
+                    .spawn(field_group("World Seed Group"))
+                    .with_children(|group| {
+                        group.spawn(label("World Seed Label", "World seed"));
+                        group
+                            .spawn((
+                                Name::new("World Seed Row"),
+                                control_row(JustifyContent::FlexStart),
+                            ))
+                            .with_children(|row| {
+                                row.spawn((
+                                    Name::new("World Seed Field Slot"),
+                                    Node {
+                                        flex_grow: 1.0,
+                                        min_width: px(0),
+                                        ..default()
+                                    },
+                                ))
+                                .with_child((
+                                    Name::new("World Seed Field"),
+                                    WorldSeedField,
+                                    text_field(TextFieldSpec::new(seed).max_chars(SEED_DIGITS)),
+                                ));
+                                row.spawn(button_slot(
+                                    "Randomize Seed Button Slot",
+                                    RANDOMIZE_SLOT_W,
+                                ))
+                                .with_child((
+                                    Name::new("Randomize Seed Button"),
+                                    button("Randomize"),
+                                    observe(on_randomize_seed),
+                                ));
+                            });
+                    });
+                // The seed's chart: `refresh_seed_preview` draws it from the
+                // typed seed and writes the caption.
+                fields
+                    .spawn(field_group("Seed Preview Group"))
+                    .with_children(|group| {
+                        group.spawn((
+                            SeedPreview,
+                            preview_node(
+                                "Seed Preview",
+                                Node {
+                                    height: px(SEED_PREVIEW_H),
+                                    min_height: px(PREVIEW_MIN_H),
+                                    border: UiRect::all(px(theme::BORDER_W)),
+                                    ..default()
+                                },
+                            ),
+                            ThemedBorder::new(UiColorType::TextMuted),
+                            ThemedRadius::control(),
+                        ));
+                        group.spawn((SeedPreviewCaption, label("Seed Preview Caption", "")));
+                    });
+            });
         parent
             .spawn((
-                Name::new("World Seed Row"),
-                Node {
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Center,
-                    column_gap: px(8),
-                    ..default()
-                },
+                Name::new("World Step Actions"),
+                action_row(JustifyContent::FlexEnd),
             ))
-            .with_children(|row| {
-                row.spawn((
-                    Name::new("World Seed Field Slot"),
-                    Node {
-                        flex_grow: 1.0,
-                        min_width: px(0),
-                        ..default()
-                    },
-                ))
-                .with_child((
-                    Name::new("World Seed Field"),
-                    WorldSeedField,
-                    text_field(TextFieldSpec::new(seed).max_chars(SEED_DIGITS)),
-                ));
-                row.spawn(button_slot("Randomize Seed Button Slot", RANDOMIZE_SLOT_W))
-                    .with_child((
-                        Name::new("Randomize Seed Button"),
-                        button("Randomize"),
-                        observe(on_randomize_seed),
-                    ));
-            });
-        // The seed's chart: `refresh_seed_preview` draws it from the typed
-        // seed and writes the caption.
-        parent.spawn((
-            SeedPreview,
-            preview_node(
-                "Seed Preview",
-                Node {
-                    height: px(SEED_PREVIEW_H),
-                    min_height: px(PREVIEW_MIN_H),
-                    margin: UiRect::top(px(4)),
-                    border: UiRect::all(px(theme::BORDER_W)),
-                    ..default()
-                },
-            ),
-            ThemedBorder::new(UiColorType::TextMuted),
-            ThemedRadius::control(),
-        ));
-        parent.spawn((SeedPreviewCaption, label("Seed Preview Caption", "")));
-        parent
-            .spawn(actions_row("World Step Actions", JustifyContent::FlexEnd))
             .with_children(|actions| {
                 actions
                     .spawn(button_slot("Cancel New Game Button Slot", SIDE_SLOT_W))
@@ -466,7 +503,7 @@ fn spawn_role_step(
                 Name::new("Start Role Body"),
                 Node {
                     flex_direction: FlexDirection::Row,
-                    column_gap: px(16),
+                    column_gap: px(GAP_XL),
                     // Goes under its content height in a short window; the
                     // role lines scroll, so the button row stays in view.
                     min_height: px(0),
@@ -480,7 +517,7 @@ fn spawn_role_step(
                         flex_direction: FlexDirection::Column,
                         width: px(ROLE_LIST_W),
                         flex_shrink: 0.0,
-                        row_gap: px(4),
+                        row_gap: px(GAP_S),
                         ..default()
                     },
                 ))
@@ -528,13 +565,15 @@ fn spawn_role_step(
                         // widening the modal.
                         min_width: px(0),
                         min_height: px(0),
-                        row_gap: px(6),
-                        ..default()
+                        ..button_stack()
                     },
                 ));
             });
         parent
-            .spawn(actions_row("Role Step Actions", JustifyContent::FlexEnd))
+            .spawn((
+                Name::new("Role Step Actions"),
+                action_row(JustifyContent::FlexEnd),
+            ))
             .with_children(|actions| {
                 actions
                     .spawn(button_slot("World Back Button Slot", SIDE_SLOT_W))
@@ -880,7 +919,7 @@ pub(crate) fn refresh_start_role_details(
                 ThemedRadius::control(),
             ));
         }
-        details.spawn((Name::new("Start Role Details Separator"), separator()));
+        details.spawn((Name::new("Start Role Details Separator"), divider()));
         // Only the lines scroll: the role's name, text and hull view stay
         // in view over them in a short window.
         details
@@ -888,41 +927,55 @@ pub(crate) fn refresh_start_role_details(
             .with_children(|row| {
                 row.spawn((
                     Name::new("Start Role Details Lines"),
+                    // The rows, then the lore under them: two parts, so the
+                    // control gap takes the place of the list-row gap.
                     Node {
-                        row_gap: px(6),
+                        row_gap: button_stack().row_gap,
                         ..scroll_column()
                     },
                     scroll_viewport(),
                 ))
                 .with_children(|lines| {
-                    for (label, value) in card {
-                        lines.spawn(detail_row(
-                            "Start Role Details Hull Line",
-                            label,
-                            value,
-                            UiColorType::TextBody,
-                        ));
-                    }
-                    lines.spawn(detail_row(
-                        "Start Role Details Credits",
-                        "Credits",
-                        cr_text(role.kit.credits),
-                        UiColorType::TextBody,
-                    ));
-                    lines.spawn(detail_row(
-                        "Start Role Details Kit",
-                        "Cargo",
-                        cargo,
-                        UiColorType::TextBody,
-                    ));
-                    for (index, step) in steps.into_iter().enumerate() {
-                        lines.spawn(detail_row(
-                            "Start Role Details Milestone",
-                            if index == 0 { "Milestones" } else { "" },
-                            step,
-                            UiColorType::TextBody,
-                        ));
-                    }
+                    lines
+                        .spawn((
+                            Name::new("Start Role Details Rows"),
+                            Node {
+                                flex_direction: FlexDirection::Column,
+                                row_gap: px(GAP_S),
+                                flex_shrink: 0.0,
+                                ..default()
+                            },
+                        ))
+                        .with_children(|lines| {
+                            for (label, value) in card {
+                                lines.spawn(detail_row(
+                                    "Start Role Details Hull Line",
+                                    label,
+                                    value,
+                                    UiColorType::TextBody,
+                                ));
+                            }
+                            lines.spawn(detail_row(
+                                "Start Role Details Credits",
+                                "Credits",
+                                cr_text(role.kit.credits),
+                                UiColorType::TextBody,
+                            ));
+                            lines.spawn(detail_row(
+                                "Start Role Details Kit",
+                                "Cargo",
+                                cargo,
+                                UiColorType::TextBody,
+                            ));
+                            for (index, step) in steps.into_iter().enumerate() {
+                                lines.spawn(detail_row(
+                                    "Start Role Details Milestone",
+                                    if index == 0 { "Milestones" } else { "" },
+                                    step,
+                                    UiColorType::TextBody,
+                                ));
+                            }
+                        });
                     lines.spawn((
                         Name::new("Start Role Details Lore"),
                         UiText,
@@ -933,10 +986,6 @@ pub(crate) fn refresh_start_role_details(
                         },
                         TextColor(Color::NONE),
                         ThemedText::new(UiColorType::TextMuted),
-                        Node {
-                            margin: UiRect::top(px(8)),
-                            ..default()
-                        },
                     ));
                 });
                 row.spawn((Name::new("Start Role Details Scroll Bar"), scroll_bar()));

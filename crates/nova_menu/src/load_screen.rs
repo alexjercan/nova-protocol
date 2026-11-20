@@ -35,12 +35,14 @@ use nova_hud::prelude::{ChartSceneCell, ChartSceneMark, ChartSceneMarkType, Char
 use nova_interface::prelude::{icon_node, InterfaceIcons};
 use nova_scenario::prelude::{GameScenarios, GameShipDesigns, GameStartRoles};
 use nova_ui::{
-    screen::{scroll_column, scroll_viewport, EllipsisText},
+    screen::{scroll_bar, scroll_column, scroll_row, scroll_viewport, EllipsisText},
     theme,
     theme::UiColorType,
     widget::{
-        button, list_row, separator, tag, ButtonCueType, ButtonSpec, ButtonVariant, Selected,
-        ThemedBorder, ThemedRadius, ThemedText, UiText,
+        button, button_stack, divider, group_stack, list_row,
+        metrics::{CONTROL_H, GAP, GAP_L, GAP_S},
+        tag, ButtonCueType, ButtonSpec, ButtonVariant, Selected, ThemedBorder, ThemedRadius,
+        ThemedText, UiText,
     },
 };
 use nova_world_base::prelude::{
@@ -53,8 +55,8 @@ use crate::{
     preview::{preview_node, MenuChartPreview},
     scenarios::NewGameScenario,
     widgets::{
-        actions_row, button_slot, button_variant, close_screen, danger_button, detail_row,
-        MAIN_SLOT_W, SIDE_SLOT_W,
+        button_variant, close_screen, danger_button, detail_row, fitted_action_row,
+        fitted_button_slot, row_group, LABEL_LINE_GAP, LIST_ROW_INSET_X, MAIN_SLOT_W, SIDE_SLOT_W,
     },
     world_setup::{new_game_button, WorldsRoot, ROLE_ICON_PX},
 };
@@ -505,31 +507,44 @@ pub(crate) fn spawn_primary_actions(
     let latest = latest_world(listings)
         .and_then(|latest| latest.header.as_ref().ok().map(|header| (latest, header)));
     if let Some((latest, header)) = latest {
+        // The caption belongs to Continue, so the pair stands closer than
+        // two buttons do.
         slot.spawn((
-            Name::new("Continue Button"),
-            ContinueWorld(latest.folder.slug.clone()),
-            button_variant("Continue", ButtonVariant::Primary, None),
-            observe(on_continue_world),
-        ));
-        slot.spawn((
-            Name::new("Continue Caption"),
-            UiText,
-            Text::new(format!(
-                "{}, saved {}",
-                header.name,
-                saved_ago_text(now, header.saved_at_unix)
-            )),
-            TextFont {
-                font_size: FontSize::Px(12.0),
-                ..default()
-            },
-            TextColor(Color::NONE),
-            ThemedText::new(UiColorType::TextSecondary),
+            Name::new("Continue Group"),
             Node {
-                margin: UiRect::bottom(px(6)),
+                flex_direction: FlexDirection::Column,
+                row_gap: px(GAP_S),
+                flex_shrink: 0.0,
                 ..default()
             },
-        ));
+        ))
+        .with_children(|group| {
+            group.spawn((
+                Name::new("Continue Button"),
+                ContinueWorld(latest.folder.slug.clone()),
+                button_variant("Continue", ButtonVariant::Primary, None),
+                observe(on_continue_world),
+            ));
+            group.spawn((
+                Name::new("Continue Caption"),
+                UiText,
+                Text::new(format!(
+                    "{}, saved {}",
+                    header.name,
+                    saved_ago_text(now, header.saved_at_unix)
+                )),
+                TextFont {
+                    font_size: FontSize::Px(12.0),
+                    ..default()
+                },
+                TextColor(Color::NONE),
+                ThemedText::new(UiColorType::TextSecondary),
+                Node {
+                    align_self: AlignSelf::Center,
+                    ..default()
+                },
+            ));
+        });
     }
     slot.spawn(new_game_button(latest.is_none()));
 }
@@ -815,8 +830,8 @@ fn spawn_load_head(list: &mut ChildSpawnerCommands) {
         Node {
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: px(12),
-            padding: UiRect::axes(px(13), px(4)),
+            column_gap: px(GAP_L),
+            padding: UiRect::axes(px(LIST_ROW_INSET_X), px(GAP_S)),
             ..default()
         },
     ))
@@ -887,6 +902,7 @@ fn spawn_load_note(commands: &mut Commands, list: Entity, text: &str) {
     commands.entity(list).with_children(|list| {
         list.spawn((
             Name::new("Load Worlds Note"),
+            UiText,
             Text::new(text.to_string()),
             TextFont {
                 font_size: FontSize::Px(13.0),
@@ -895,7 +911,7 @@ fn spawn_load_note(commands: &mut Commands, list: Entity, text: &str) {
             TextColor(Color::NONE),
             ThemedText::new(UiColorType::TextMuted),
             Node {
-                padding: UiRect::axes(px(13), px(10)),
+                padding: UiRect::axes(px(LIST_ROW_INSET_X), px(GAP)),
                 ..default()
             },
         ));
@@ -988,7 +1004,7 @@ fn spawn_load_row(
                 flex_direction: FlexDirection::Column,
                 flex_grow: 1.0,
                 min_width: px(0),
-                row_gap: px(2),
+                row_gap: px(LABEL_LINE_GAP),
                 overflow: Overflow::clip(),
                 ..default()
             },
@@ -1127,10 +1143,6 @@ fn details_heading(name: &'static str, text: &str) -> impl Bundle {
         },
         TextColor(Color::NONE),
         ThemedText::new(UiColorType::TextMuted),
-        Node {
-            margin: UiRect::top(px(4)),
-            ..default()
-        },
     )
 }
 
@@ -1142,8 +1154,9 @@ fn objective_row(details: &mut ChildSpawnerCommands, title: &str, counts: &str) 
             Node {
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: px(12),
-                min_height: px(24),
+                column_gap: px(GAP_L),
+                min_height: px(CONTROL_H),
+                flex_shrink: 0.0,
                 ..default()
             },
         ))
@@ -1218,10 +1231,6 @@ fn details_note(name: &'static str, text: String, color: UiColorType) -> impl Bu
         },
         TextColor(Color::NONE),
         ThemedText::new(color),
-        Node {
-            margin: UiRect::vertical(px(4)),
-            ..default()
-        },
     )
 }
 
@@ -1278,19 +1287,57 @@ pub(crate) fn refresh_load_details(
             .and_then(|rows| rows.iter().find(|row| row.folder.slug == slug))
     });
 
-    commands.entity(panel).with_children(|details| {
+    // The pane's parts - the scrolling body, the button row, the delete
+    // prompt and its confirm row - stand a group gap apart in one stack.
+    let stack = commands
+        .spawn((
+            Name::new("Load World Details Stack"),
+            Node {
+                flex_grow: 1.0,
+                min_height: px(0),
+                ..group_stack()
+            },
+            ChildOf(panel),
+        ))
+        .id();
+    commands.entity(stack).with_children(|details| {
         // Only the information scrolls: the Load, Delete and delete-confirm
         // rows below stay in the pane, so a short window clips the rows
         // rather than pushing the buttons out of the panel.
-        let mut body = details.spawn((
-            Name::new("Load World Details Body"),
-            Node {
-                // Short content keeps the buttons right under it.
-                flex_grow: 0.0,
-                ..scroll_column()
-            },
-            scroll_viewport(),
-        ));
+        let mut body = None;
+        details
+            .spawn((
+                Name::new("Load World Details Body Row"),
+                Node {
+                    // Short content keeps the buttons right under it.
+                    flex_grow: 0.0,
+                    ..scroll_row()
+                },
+            ))
+            .with_children(|row| {
+                body = Some(
+                    row.spawn((
+                        Name::new("Load World Details Body"),
+                        Node {
+                            // Headings, rules and row groups, not a list of
+                            // rows: the heading gap takes the place of the
+                            // list-row gap.
+                            row_gap: button_stack().row_gap,
+                            ..scroll_column()
+                        },
+                        scroll_viewport(),
+                    ))
+                    .id(),
+                );
+                // The bar says the rows go on under the pane's edge: at
+                // 1280x720 the fleet and the objectives start below it.
+                row.spawn((Name::new("Load World Details Scroll Bar"), scroll_bar()));
+            });
+        let Some(body) = body else {
+            return;
+        };
+        let mut body_commands = details.commands();
+        let mut body = body_commands.entity(body);
         if let WorldDeleteStep::Refused { slug, reason } = &*step {
             body.with_child(details_note(
                 "Load World Delete Refusal",
@@ -1321,110 +1368,125 @@ pub(crate) fn refresh_load_details(
                 TextColor(Color::NONE),
                 ThemedText::new(UiColorType::Text),
             ));
-            body.spawn((Name::new("Load World Details Separator"), separator()));
+            body.spawn((Name::new("Load World Details Separator"), divider()));
 
             match &listing.header {
                 Ok(header) => {
-                    body.spawn((
-                        MenuChartPreview(saved_chart_view(header)),
-                        preview_node(
-                            "Load World Details Preview",
-                            Node {
-                                height: px(LOAD_PREVIEW_H),
-                                flex_shrink: 0.0,
-                                margin: UiRect::vertical(px(4)),
-                                border: UiRect::all(px(theme::BORDER_W)),
-                                ..default()
-                            },
-                        ),
-                        ThemedBorder::new(UiColorType::TextMuted),
-                        ThemedRadius::control(),
-                    ));
-                    body.spawn(details_note(
-                        "Load World Details Preview Hint",
-                        "Right-drag turns, wheel zooms.".to_string(),
-                        UiColorType::TextMuted,
-                    ));
+                    body.spawn(row_group("Load World Details Preview Group"))
+                        .with_children(|group| {
+                            group.spawn((
+                                MenuChartPreview(saved_chart_view(header)),
+                                preview_node(
+                                    "Load World Details Preview",
+                                    Node {
+                                        height: px(LOAD_PREVIEW_H),
+                                        flex_shrink: 0.0,
+                                        border: UiRect::all(px(theme::BORDER_W)),
+                                        ..default()
+                                    },
+                                ),
+                                ThemedBorder::new(UiColorType::TextMuted),
+                                ThemedRadius::control(),
+                            ));
+                            group.spawn(details_note(
+                                "Load World Details Preview Hint",
+                                "Right-drag turns, wheel zooms.".to_string(),
+                                UiColorType::TextMuted,
+                            ));
+                        });
                     let now = now_unix();
-                    for (label, value) in [
-                        ("Seed", header.seed.to_string()),
-                        ("Sector", header.player_sector.to_string()),
-                        ("Credits", cr_text(header.credits)),
-                        ("Play time", play_time_text(header.play_seconds)),
-                        (
-                            "Saved",
-                            format!(
-                                "{} ({})",
-                                utc_stamp(header.saved_at_unix),
-                                saved_ago_text(now, header.saved_at_unix)
-                            ),
-                        ),
-                        ("Version", header.game_version.to_string()),
-                    ] {
-                        body.spawn(detail_row(
-                            "Load World Details Line",
-                            label,
-                            value,
-                            UiColorType::TextBody,
-                        ));
-                    }
-                    body.spawn((Name::new("Load World Details Fleet Rule"), separator()));
+                    body.spawn(row_group("Load World Details Lines"))
+                        .with_children(|lines| {
+                            for (label, value) in [
+                                ("Seed", header.seed.to_string()),
+                                ("Sector", header.player_sector.to_string()),
+                                ("Credits", cr_text(header.credits)),
+                                ("Play time", play_time_text(header.play_seconds)),
+                                (
+                                    "Saved",
+                                    format!(
+                                        "{} ({})",
+                                        utc_stamp(header.saved_at_unix),
+                                        saved_ago_text(now, header.saved_at_unix)
+                                    ),
+                                ),
+                                ("Version", header.game_version.to_string()),
+                            ] {
+                                lines.spawn(detail_row(
+                                    "Load World Details Line",
+                                    label,
+                                    value,
+                                    UiColorType::TextBody,
+                                ));
+                            }
+                        });
+                    body.spawn((Name::new("Load World Details Fleet Rule"), divider()));
                     body.spawn(details_heading("Load World Details Fleet", "Fleet"));
-                    body.spawn(detail_row(
-                        "Load World Details Fleet Ship",
-                        "Ship",
-                        header.hull.clone(),
-                        UiColorType::Text,
-                    ));
-                    for (name, label, count) in [
-                        (
-                            "Load World Details Fleet Owned Ships",
-                            "Owned ships",
-                            header.fleet.owned_ships,
-                        ),
-                        (
-                            "Load World Details Fleet Escorts",
-                            "Escorts",
-                            header.fleet.escorts,
-                        ),
-                        (
-                            "Load World Details Fleet Owned Stations",
-                            "Owned stations",
-                            header.fleet.owned_stations,
-                        ),
-                    ] {
-                        if count > 0 {
-                            body.spawn(detail_row(
-                                name,
-                                label,
-                                count.to_string(),
+                    body.spawn(row_group("Load World Details Fleet Lines"))
+                        .with_children(|lines| {
+                            lines.spawn(detail_row(
+                                "Load World Details Fleet Ship",
+                                "Ship",
+                                header.hull.clone(),
                                 UiColorType::Text,
                             ));
-                        }
-                    }
-                    body.spawn((Name::new("Load World Details Objectives Rule"), separator()));
+                            for (name, label, count) in [
+                                (
+                                    "Load World Details Fleet Owned Ships",
+                                    "Owned ships",
+                                    header.fleet.owned_ships,
+                                ),
+                                (
+                                    "Load World Details Fleet Escorts",
+                                    "Escorts",
+                                    header.fleet.escorts,
+                                ),
+                                (
+                                    "Load World Details Fleet Owned Stations",
+                                    "Owned stations",
+                                    header.fleet.owned_stations,
+                                ),
+                            ] {
+                                if count > 0 {
+                                    lines.spawn(detail_row(
+                                        name,
+                                        label,
+                                        count.to_string(),
+                                        UiColorType::Text,
+                                    ));
+                                }
+                            }
+                        });
+                    body.spawn((Name::new("Load World Details Objectives Rule"), divider()));
                     body.spawn(details_heading(
                         "Load World Details Objectives",
                         "Open objectives",
                     ));
-                    if header.objectives.is_empty() {
-                        body.spawn(details_note(
-                            "Load World Details No Objectives",
-                            "No open objectives".to_string(),
-                            UiColorType::TextMuted,
-                        ));
-                    }
-                    for objective in &header.objectives {
-                        objective_row(body, &objective.title, &objective_counts(&objective.lines));
-                    }
-                    if checking {
-                        body.spawn(detail_row(
-                            "Load World Details Checking",
-                            "State",
-                            CHECKING_TEXT.to_string(),
-                            UiColorType::TextMuted,
-                        ));
-                    }
+                    body.spawn(row_group("Load World Details Objective Lines"))
+                        .with_children(|lines| {
+                            if header.objectives.is_empty() {
+                                lines.spawn(details_note(
+                                    "Load World Details No Objectives",
+                                    "No open objectives".to_string(),
+                                    UiColorType::TextMuted,
+                                ));
+                            }
+                            for objective in &header.objectives {
+                                objective_row(
+                                    lines,
+                                    &objective.title,
+                                    &objective_counts(&objective.lines),
+                                );
+                            }
+                            if checking {
+                                lines.spawn(detail_row(
+                                    "Load World Details Checking",
+                                    "State",
+                                    CHECKING_TEXT.to_string(),
+                                    UiColorType::TextMuted,
+                                ));
+                            }
+                        });
                 }
                 Err(refusal) => {
                     body.spawn(details_note(
@@ -1441,10 +1503,10 @@ pub(crate) fn refresh_load_details(
         let loadable = listing.header.is_ok() && !checking;
 
         details
-            .spawn(actions_row("Load World Actions", JustifyContent::FlexStart))
+            .spawn((Name::new("Load World Actions"), fitted_action_row()))
             .with_children(|actions| {
                 actions
-                    .spawn(button_slot("Load World Button Slot", MAIN_SLOT_W))
+                    .spawn(fitted_button_slot("Load World Button Slot", MAIN_SLOT_W))
                     .with_children(|slot| {
                         let mut load = slot.spawn((
                             Name::new("Load World Button"),
@@ -1458,7 +1520,10 @@ pub(crate) fn refresh_load_details(
                     });
                 if !confirming {
                     actions
-                        .spawn(button_slot("Load World Delete Button Slot", SIDE_SLOT_W))
+                        .spawn(fitted_button_slot(
+                            "Load World Delete Button Slot",
+                            SIDE_SLOT_W,
+                        ))
                         .with_children(|slot| {
                             slot.spawn((
                                 Name::new("Load World Delete Button"),
@@ -1476,13 +1541,13 @@ pub(crate) fn refresh_load_details(
                 UiColorType::TextBody,
             ));
             details
-                .spawn(actions_row(
-                    "Load World Delete Confirm Actions",
-                    JustifyContent::FlexStart,
+                .spawn((
+                    Name::new("Load World Delete Confirm Actions"),
+                    fitted_action_row(),
                 ))
                 .with_children(|actions| {
                     actions
-                        .spawn(button_slot(
+                        .spawn(fitted_button_slot(
                             "Load World Delete Confirm Button Slot",
                             SIDE_SLOT_W,
                         ))
@@ -1494,7 +1559,7 @@ pub(crate) fn refresh_load_details(
                             ));
                         });
                     actions
-                        .spawn(button_slot(
+                        .spawn(fitted_button_slot(
                             "Load World Delete Cancel Button Slot",
                             SIDE_SLOT_W,
                         ))

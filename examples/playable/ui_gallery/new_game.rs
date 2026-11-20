@@ -50,8 +50,9 @@ const RANDOMIZE_SLOT_W: f32 = 130.0;
 const MENU_W: f32 = 280.0;
 /// The label column of a details line, as the game's `DETAIL_LABEL_W`.
 const DETAIL_LABEL_W: f32 = 110.0;
-/// The line over the fields, as the game's `PROFILE_TEXT`.
-const PROFILE_TEXT: &str = "A seeded open world of asteroid clusters, planetoids and derelicts.";
+/// The gap from the menu card to the window edge, as the game's
+/// `MENU_CARD_MARGIN`.
+const MENU_CARD_MARGIN: f32 = 40.0;
 
 pub fn new_game_page(
     body: &mut ChildSpawnerCommands,
@@ -72,27 +73,32 @@ pub fn new_game_page(
     ))
     .with_children(|screen| {
         spawn_backdrop_scene(screen, assets);
-        menu_column(screen);
-        if new_game.step != NewGameStep::Closed {
+        // The game hides the menu card while a window is open, so the window
+        // stands alone over the backdrop.
+        if new_game.step == NewGameStep::Closed {
+            menu_column(screen);
+        } else {
             modal(screen, icons, assets, new_game);
         }
     });
 }
 
-/// The main menu column at the bottom right, as `setup_menu_ui` spawns it.
-/// Only New Game acts: it reopens the modal on the world step.
+/// The main menu column at the bottom right, as `setup_menu_ui` spawns it:
+/// the button groups stand a group gap apart, the buttons of one group a
+/// button gap apart. Only New Game acts: it opens the modal on the world step.
 fn menu_column(screen: &mut ChildSpawnerCommands) {
     screen
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
-                right: px(40),
-                bottom: px(40),
+                right: px(MENU_CARD_MARGIN),
+                bottom: px(MENU_CARD_MARGIN),
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
                 width: px(MENU_W),
-                padding: UiRect::all(px(20)),
-                border: UiRect::all(px(1)),
+                row_gap: px(metrics::GAP_L),
+                padding: UiRect::all(px(metrics::PANEL_PAD_MENU)),
+                border: UiRect::all(px(theme::BORDER_W)),
                 ..default()
             },
             ThemedRadius::control(),
@@ -111,34 +117,43 @@ fn menu_column(screen: &mut ChildSpawnerCommands) {
                 Node {
                     width: percent(80),
                     height: px(2),
-                    margin: UiRect::all(px(10)),
                     ..default()
                 },
                 BackgroundColor(Color::NONE),
                 ThemedFill::new(UiColorType::TextMuted),
             ));
-            menu.spawn((
-                Name::new(MENU_NEW_GAME),
-                acts(
-                    button(ButtonSpec::menu("New Game").primary().fill()),
-                    Click::NewGameStep(NewGameStep::World),
-                ),
-            ));
-            for label in [
-                "Load",
-                "Sandbox",
-                "Scenarios",
-                "Lessons",
-                "Mods",
-                "Settings",
-            ] {
-                menu.spawn(button(ButtonSpec::menu(label).fill()));
-            }
-            menu.spawn(button(ButtonSpec::menu("Exit").danger().fill()));
+            menu.spawn(Node {
+                align_self: AlignSelf::Stretch,
+                ..group_stack()
+            })
+            .with_children(|groups| {
+                groups.spawn(button_stack()).with_children(|group| {
+                    group.spawn((
+                        Name::new(MENU_NEW_GAME),
+                        acts(
+                            button(ButtonSpec::menu("New Game").primary().fill()),
+                            Click::NewGameStep(NewGameStep::World),
+                        ),
+                    ));
+                    group.spawn(button(ButtonSpec::menu("Load").fill()));
+                });
+                for labels in [
+                    &["Lessons", "Scenarios", "Sandbox"][..],
+                    &["Mods", "Settings"],
+                ] {
+                    groups.spawn(button_stack()).with_children(|group| {
+                        for label in labels {
+                            group.spawn(button(ButtonSpec::menu(*label).fill()));
+                        }
+                    });
+                }
+                groups
+                    .spawn(button_stack())
+                    .with_child(button(ButtonSpec::menu("Exit").danger().fill()));
+            });
             menu.spawn(Node {
                 width: percent(100),
                 justify_content: JustifyContent::SpaceBetween,
-                margin: UiRect::top(px(10)),
                 ..default()
             })
             .with_children(|foot| {
@@ -148,7 +163,7 @@ fn menu_column(screen: &mut ChildSpawnerCommands) {
         });
 }
 
-/// The modal: the blocker over the menu and the centred panel with the
+/// The modal: the scrim over the backdrop and the centred panel with the
 /// current step.
 fn modal(
     screen: &mut ChildSpawnerCommands,
@@ -180,109 +195,136 @@ fn modal(
                         align_items: AlignItems::Stretch,
                         width: percent(WORLD_SETUP_WIDTH_PCT),
                         max_width: px(WORLD_SETUP_MAX_W),
-                        padding: UiRect::all(px(20)),
-                        row_gap: px(8),
-                        border: UiRect::all(px(1)),
+                        padding: UiRect::all(px(metrics::PANEL_PAD_MENU)),
+                        border: UiRect::all(px(theme::BORDER_W)),
                         ..default()
                     },
                     ThemedRadius::control(),
                     panel(),
                 ))
                 .with_children(|panel| {
-                    panel.spawn(text("New Game", 24.0, UiColorType::TextBody));
-                    match new_game.step {
-                        NewGameStep::Role => role_step(panel, icons, assets, new_game),
-                        NewGameStep::World | NewGameStep::Closed => {
-                            world_step(panel, assets, new_game)
-                        }
-                    }
+                    let tag = if new_game.step == NewGameStep::Role {
+                        "2 / 2 Role"
+                    } else {
+                        "1 / 2 World"
+                    };
+                    panel.spawn(panel_head("New Game", PanelHeadType::Inset, &[tag]));
+                    // The step: its content over its actions row, a group gap
+                    // apart, as the game's `step_node`.
+                    panel
+                        .spawn(group_stack())
+                        .with_children(|step| match new_game.step {
+                            NewGameStep::Role => role_step(step, icons, assets, new_game),
+                            NewGameStep::World | NewGameStep::Closed => {
+                                world_step(step, assets, new_game)
+                            }
+                        });
                 });
         });
 }
 
-/// The world step: the profile line, the name, the seed with Randomize, the
-/// seed's preview, then Cancel and Next.
+/// One label over its control, as the game's `field_group`.
+fn field_group() -> Node {
+    Node {
+        flex_direction: FlexDirection::Column,
+        row_gap: px(metrics::GAP_S),
+        ..default()
+    }
+}
+
+/// The world step: the name, the seed with Randomize and the seed's preview,
+/// each a group, then Cancel and Next.
 fn world_step(panel: &mut ChildSpawnerCommands, assets: &mut SceneAssets, new_game: &NewGameState) {
-    panel.spawn(text(PROFILE_TEXT, 13.0, UiColorType::TextMuted));
-    panel.spawn(text("World name", 13.0, UiColorType::TextMuted));
-    panel.spawn((
-        Name::new(WORLD_NAME_FIELD),
-        WorldNameField,
-        text_field(
-            TextFieldSpec::new(new_game.world_name.clone())
-                .placeholder("New World")
-                .max_chars(32),
-        ),
-    ));
-    panel.spawn(text("World seed", 13.0, UiColorType::TextMuted));
-    panel
-        .spawn(Node {
-            column_gap: px(8),
-            ..control_row(JustifyContent::FlexStart)
-        })
-        .with_children(|row| {
-            row.spawn(Node {
-                flex_grow: 1.0,
-                min_width: px(0),
-                ..default()
-            })
-            .with_child((
-                Name::new(SEED_FIELD),
-                SeedField,
-                text_field(TextFieldSpec::new(new_game.seed.to_string()).max_chars(10)),
-            ));
-            row.spawn(Node {
-                width: px(RANDOMIZE_SLOT_W),
-                flex_shrink: 0.0,
-                ..default()
-            })
-            .with_child((
-                Name::new(RANDOMIZE),
-                acts(
-                    button(ButtonSpec::menu("Randomize").fill()),
-                    Click::Randomize,
+    panel.spawn(group_stack()).with_children(|fields| {
+        fields.spawn(field_group()).with_children(|group| {
+            group.spawn(text("World name", 13.0, UiColorType::TextMuted));
+            group.spawn((
+                Name::new(WORLD_NAME_FIELD),
+                WorldNameField,
+                text_field(
+                    TextFieldSpec::new(new_game.world_name.clone())
+                        .placeholder("New World")
+                        .max_chars(32),
                 ),
             ));
         });
-    spawn_chart_scene(
-        panel,
-        assets,
-        SceneKind::NewGamePreview,
-        &seeded_view(new_game.seed, 1, 9, 2, "START"),
-        Node {
-            height: px(200),
-            flex_shrink: 0.0,
-            margin: UiRect::top(px(4)),
-            border: UiRect::all(px(1)),
-            border_radius: BorderRadius::all(px(4)),
-            ..default()
-        },
-        SEED_PREVIEW,
-    );
-    panel.spawn(text(
-        &format!(
-            "The sectors around the start of seed {}. Right-drag turns, wheel zooms.",
-            new_game.seed
-        ),
-        11.0,
-        UiColorType::TextMuted,
-    ));
-    panel.spawn(actions_row()).with_children(|actions| {
-        actions.spawn(button_slot(SIDE_SLOT_W)).with_child((
-            Name::new(NEW_GAME_CANCEL),
-            acts(
-                button(ButtonSpec::menu("Cancel").fill()),
-                Click::NewGameStep(NewGameStep::Closed),
-            ),
-        ));
-        actions.spawn(button_slot(MAIN_SLOT_W)).with_child((
-            Name::new(NEW_GAME_NEXT),
-            acts(
-                button(ButtonSpec::menu("Next").primary().fill()),
-                Click::NewGameNext,
-            ),
-        ));
+        fields.spawn(field_group()).with_children(|group| {
+            group.spawn(text("World seed", 13.0, UiColorType::TextMuted));
+            group
+                .spawn(Node {
+                    column_gap: px(metrics::GAP),
+                    ..control_row(JustifyContent::FlexStart)
+                })
+                .with_children(|row| {
+                    row.spawn(Node {
+                        flex_grow: 1.0,
+                        min_width: px(0),
+                        ..default()
+                    })
+                    .with_child((
+                        Name::new(SEED_FIELD),
+                        SeedField,
+                        text_field(TextFieldSpec::new(new_game.seed.to_string()).max_chars(10)),
+                    ));
+                    row.spawn(Node {
+                        width: px(RANDOMIZE_SLOT_W),
+                        flex_shrink: 0.0,
+                        ..default()
+                    })
+                    .with_child((
+                        Name::new(RANDOMIZE),
+                        acts(
+                            button(ButtonSpec::menu("Randomize").fill()),
+                            Click::Randomize,
+                        ),
+                    ));
+                });
+        });
+        fields.spawn(field_group()).with_children(|group| {
+            // The control radius, as the game's `ThemedRadius::control()`.
+            let radius = assets.theme.metric(theme::UiMetric::Radius);
+            spawn_chart_scene(
+                group,
+                assets,
+                SceneKind::NewGamePreview,
+                &seeded_view(new_game.seed, 1, 9, 2, "START"),
+                Node {
+                    height: px(200),
+                    flex_shrink: 0.0,
+                    border: UiRect::all(px(theme::BORDER_W)),
+                    border_radius: BorderRadius::all(px(radius)),
+                    ..default()
+                },
+                SEED_PREVIEW,
+            );
+            group.spawn(text(
+                &format!(
+                    "The sectors around the start of seed {}. Right-drag turns, wheel zooms.",
+                    new_game.seed
+                ),
+                11.0,
+                UiColorType::TextMuted,
+            ));
+        });
     });
+    panel
+        .spawn(action_row(JustifyContent::FlexEnd))
+        .with_children(|actions| {
+            actions.spawn(button_slot(SIDE_SLOT_W)).with_child((
+                Name::new(NEW_GAME_CANCEL),
+                acts(
+                    button(ButtonSpec::menu("Cancel").fill()),
+                    Click::NewGameStep(NewGameStep::Closed),
+                ),
+            ));
+            actions.spawn(button_slot(MAIN_SLOT_W)).with_child((
+                Name::new(NEW_GAME_NEXT),
+                acts(
+                    button(ButtonSpec::menu("Next").primary().fill()),
+                    Click::NewGameNext,
+                ),
+            ));
+        });
 }
 
 /// The role step: the role list beside the selected role's details, then
@@ -296,7 +338,7 @@ fn role_step(
     panel
         .spawn(Node {
             flex_direction: FlexDirection::Row,
-            column_gap: px(16),
+            column_gap: px(metrics::GAP_XL),
             ..default()
         })
         .with_children(|body| {
@@ -304,7 +346,7 @@ fn role_step(
                 flex_direction: FlexDirection::Column,
                 width: px(ROLE_LIST_W),
                 flex_shrink: 0.0,
-                row_gap: px(4),
+                row_gap: px(metrics::GAP_S),
                 ..default()
             })
             .with_children(|list| {
@@ -331,36 +373,37 @@ fn role_step(
                 flex_grow: 1.0,
                 flex_basis: px(0),
                 min_width: px(0),
-                row_gap: px(6),
-                ..default()
+                ..button_stack()
             })
             .with_children(|details| {
                 role_details(details, assets, new_game.role, &ROLES[new_game.role]);
             });
         });
-    panel.spawn(actions_row()).with_children(|actions| {
-        actions.spawn(button_slot(SIDE_SLOT_W)).with_child((
-            Name::new(NEW_GAME_BACK),
-            acts(
-                button(ButtonSpec::menu("Back").fill()),
-                Click::NewGameStep(NewGameStep::World),
-            ),
-        ));
-        actions.spawn(button_slot(SIDE_SLOT_W)).with_child((
-            Name::new(NEW_GAME_CANCEL),
-            acts(
-                button(ButtonSpec::menu("Cancel").fill()),
-                Click::NewGameStep(NewGameStep::Closed),
-            ),
-        ));
-        actions.spawn(button_slot(MAIN_SLOT_W)).with_child((
-            Name::new(CREATE),
-            acts(
-                button(ButtonSpec::menu("Create").primary().fill()),
-                Click::Create,
-            ),
-        ));
-    });
+    panel
+        .spawn(action_row(JustifyContent::FlexEnd))
+        .with_children(|actions| {
+            actions.spawn(button_slot(SIDE_SLOT_W)).with_child((
+                Name::new(NEW_GAME_BACK),
+                acts(
+                    button(ButtonSpec::menu("Back").fill()),
+                    Click::NewGameStep(NewGameStep::World),
+                ),
+            ));
+            actions.spawn(button_slot(SIDE_SLOT_W)).with_child((
+                Name::new(NEW_GAME_CANCEL),
+                acts(
+                    button(ButtonSpec::menu("Cancel").fill()),
+                    Click::NewGameStep(NewGameStep::Closed),
+                ),
+            ));
+            actions.spawn(button_slot(MAIN_SLOT_W)).with_child((
+                Name::new(CREATE),
+                acts(
+                    button(ButtonSpec::menu("Create").primary().fill()),
+                    Click::Create,
+                ),
+            ));
+        });
 }
 
 /// The selected role's details: its name and line, the spinning hull, the
@@ -373,6 +416,7 @@ fn role_details(
 ) {
     details.spawn(text(role.name, 18.0, UiColorType::Text));
     details.spawn(text(role.line, 13.0, UiColorType::TextBody));
+    let radius = assets.theme.metric(theme::UiMetric::Radius);
     spawn_hull_scene(
         details,
         assets,
@@ -381,13 +425,24 @@ fn role_details(
         Node {
             height: px(150),
             flex_shrink: 0.0,
-            border: UiRect::all(px(1)),
-            border_radius: BorderRadius::all(px(4)),
+            border: UiRect::all(px(theme::BORDER_W)),
+            border_radius: BorderRadius::all(px(radius)),
             ..default()
         },
         HULL_VIEWPORT,
     );
-    details.spawn(separator());
+    details.spawn(nova_ui::widget::divider());
+    details
+        .spawn(Node {
+            flex_direction: FlexDirection::Column,
+            row_gap: px(metrics::GAP_S),
+            ..default()
+        })
+        .with_children(|rows| role_rows(rows, role));
+}
+
+/// The lines of the role details, a list-row gap apart.
+fn role_rows(details: &mut ChildSpawnerCommands, role: &RoleCard) {
     detail_row(
         details,
         "Hull",
@@ -407,8 +462,8 @@ fn role_details(
 fn detail_row(details: &mut ChildSpawnerCommands, label: &str, value: &str) {
     details
         .spawn(Node {
-            column_gap: px(12),
-            min_height: px(24),
+            column_gap: px(metrics::GAP_L),
+            min_height: px(metrics::CONTROL_H),
             ..control_row(JustifyContent::FlexStart)
         })
         .with_children(|r| {
@@ -421,17 +476,6 @@ fn detail_row(details: &mut ChildSpawnerCommands, label: &str, value: &str) {
             ));
             r.spawn(grow_cell(value, 13.0, UiColorType::TextBody));
         });
-}
-
-/// The modal's button row, as the game's `actions_row`.
-fn actions_row() -> Node {
-    Node {
-        flex_direction: FlexDirection::Row,
-        justify_content: JustifyContent::FlexEnd,
-        column_gap: px(8),
-        margin: UiRect::top(px(12)),
-        ..default()
-    }
 }
 
 /// A fixed-width slot for one button, as the game's `button_slot`.

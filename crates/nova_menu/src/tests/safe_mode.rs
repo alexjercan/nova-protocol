@@ -5,7 +5,10 @@ use bevy::{prelude::*, ui_widgets::Activate};
 use nova_assets::prelude::{DisabledMod, EnabledMods, ModQuarantine};
 use nova_gameplay::prelude::GameStates;
 
-use super::support::{all_texts, app, dummy_scenarios, entity_by_name};
+use super::support::{
+    add_ui_layout, all_texts, app, assert_inset, assert_stacked, dummy_scenarios, entity_by_name,
+    lay_out, InsetSide,
+};
 use crate::safe_mode::ModReportOverlay;
 
 const OVERLAY: &str = "Mods Disabled Overlay";
@@ -14,7 +17,13 @@ const OVERFLOW: &str = "Mods Disabled Overflow";
 
 /// A menu app on the front door with `count` mods in quarantine, reported.
 fn menu_reporting(count: usize) -> App {
+    menu_reporting_with(count, |_| {})
+}
+
+/// [`menu_reporting`], with `dress` run on the app before its first update.
+fn menu_reporting_with(count: usize, dress: impl FnOnce(&mut App)) -> App {
     let mut app = app();
+    dress(&mut app);
     app.insert_resource(dummy_scenarios());
     app.insert_resource(EnabledMods(["base".to_string()].into_iter().collect()));
     app.insert_resource(ModQuarantine {
@@ -129,5 +138,35 @@ fn acknowledging_the_report_dismisses_it_and_re_enables_nothing() {
     assert!(
         !enabled.contains("broken-0") && !enabled.contains("broken-1"),
         "acknowledging never switches a broken mod back on: {enabled:?}"
+    );
+}
+
+/// The report keeps its one button a group gap under the list of disabled
+/// mods and the menu padding inside its panel.
+#[test]
+fn the_report_keeps_its_button_off_its_rows() {
+    use nova_ui::{
+        theme::BORDER_W,
+        widget::metrics::{GAP_L, PANEL_PAD_MENU},
+    };
+
+    let mut app = menu_reporting_with(2, add_ui_layout);
+    lay_out(&mut app, 1280, 720);
+
+    let inset = PANEL_PAD_MENU + BORDER_W;
+    assert_inset(
+        &mut app,
+        "Mods Disabled Panel",
+        "Mods Disabled Text",
+        inset,
+        InsetSide::Top,
+    );
+    assert_stacked(&mut app, "Mods Disabled Text", ACKNOWLEDGE, GAP_L);
+    assert_inset(
+        &mut app,
+        "Mods Disabled Panel",
+        ACKNOWLEDGE,
+        inset,
+        InsetSide::Bottom,
     );
 }

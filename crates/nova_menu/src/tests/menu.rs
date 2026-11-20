@@ -15,10 +15,10 @@ use nova_ui::widget::ButtonVariant;
 #[cfg(not(target_arch = "wasm32"))]
 use super::load_screen::{menu, menu_with_a_save, press};
 use super::support::{
-    app, cue_app, dummy_scenario, dummy_scenarios, dummy_start, enter_playing, entity_by_name,
-    fixture_start, mods_app, observe_load_scenario, observe_unload_scenario, press_escape,
-    take_cues, LoadedScenario, PlayedCues, Unloaded, TEST_BACKDROP_ID, TEST_ROLE_IDS,
-    TEST_START_ID,
+    add_ui_layout, app, assert_stacked, cue_app, dummy_scenario, dummy_scenarios, dummy_start,
+    enter_playing, entity_by_name, fixture_start, laid_out, lay_out, mods_app,
+    observe_load_scenario, observe_unload_scenario, press_escape, take_cues, LoadedScenario,
+    PlayedCues, Unloaded, TEST_BACKDROP_ID, TEST_ROLE_IDS, TEST_START_ID,
 };
 use crate::{
     menu_ui::{on_sandbox, resolve_new_game_scenario, NewGameStartFault},
@@ -497,67 +497,27 @@ fn escape_cancels_the_delete_confirmation_before_closing_load() {
 /// and the card stays inside the window.
 #[test]
 fn the_main_menu_card_stays_inside_a_small_window() {
-    use bevy::{
-        camera::{ComputedCameraValues, RenderTargetInfo},
-        image::TextureAtlasLayout,
-        math::UVec2,
-        text::TextPlugin,
-        ui::{ComputedNode, UiGlobalTransform, UiPlugin},
-        window::PrimaryWindow,
-    };
+    use bevy::ui::ComputedNode;
 
-    const WIDTH: f32 = 853.0;
-    const HEIGHT: f32 = 480.0;
+    const WIDTH: u32 = 853;
+    const HEIGHT: u32 = 480;
 
     let mut app = app();
     app.insert_resource(dummy_scenarios());
-    app.init_asset::<TextureAtlasLayout>();
-    app.add_plugins((
-        TransformPlugin,
-        bevy::a11y::AccessibilityPlugin,
-        bevy::input::InputPlugin,
-        bevy::picking::PickingPlugin,
-        bevy::picking::InteractionPlugin,
-        TextPlugin,
-        UiPlugin,
-    ));
-    // The default UI camera is the one drawing to the primary window. The
-    // menu spawns its own; no render plugin sizes it here, so size it by hand.
-    app.world_mut().spawn((Window::default(), PrimaryWindow));
+    add_ui_layout(&mut app);
+    // The menu spawns the UI camera `lay_out` sizes.
     app.world_mut()
         .resource_mut::<NextState<GameStates>>()
         .set(GameStates::MainMenu);
     app.update();
-    let mut cameras = app.world_mut().query::<&mut Camera>();
-    for mut camera in cameras.iter_mut(app.world_mut()) {
-        camera.computed = ComputedCameraValues {
-            target_info: Some(RenderTargetInfo {
-                physical_size: UVec2::new(WIDTH as u32, HEIGHT as u32),
-                scale_factor: 1.0,
-            }),
-            ..default()
-        };
-    }
-    for _ in 0..6 {
-        app.update();
-    }
+    lay_out(&mut app, WIDTH, HEIGHT);
 
-    let card = entity_by_name(&mut app, "Menu Panel").expect("the card");
-    let size = app
-        .world()
-        .get::<ComputedNode>(card)
-        .expect("laid out")
-        .size;
-    let centre = app
-        .world()
-        .get::<UiGlobalTransform>(card)
-        .expect("positioned")
-        .translation;
-    let top = centre.y - size.y / 2.0;
-    let bottom = centre.y + size.y / 2.0;
-    assert!(size.y > 0.0, "the card was laid out: {size:?}");
-    assert!(top >= 0.0, "the card top is on screen: {top}");
-    assert!(bottom <= HEIGHT, "the card bottom is on screen: {bottom}");
+    let card = laid_out(&mut app, "Menu Panel");
+    assert!(card.min.y >= 0.0, "the card top is on screen: {card:?}");
+    assert!(
+        card.max.y <= HEIGHT as f32,
+        "the card bottom is on screen: {card:?}"
+    );
 
     // The window really is too short for the column: the buttons scroll.
     let list = entity_by_name(&mut app, "Menu Buttons").expect("the button list");
@@ -565,6 +525,42 @@ fn the_main_menu_card_stays_inside_a_small_window() {
     assert!(
         list.content_size.y > list.size.y,
         "the list overflows its viewport: content {:?} in {:?}",
+        list.content_size,
+        list.size
+    );
+}
+
+/// The buttons of one group stand a button gap apart and the groups a group
+/// gap apart, so no two button borders touch; at 1280x720 the whole column
+/// fits and nothing scrolls.
+#[test]
+fn the_main_menu_buttons_stand_apart_and_fit_a_720p_window() {
+    use bevy::ui::ComputedNode;
+    use nova_ui::widget::metrics::{GAP, GAP_L};
+
+    let mut app = app();
+    app.insert_resource(dummy_scenarios());
+    add_ui_layout(&mut app);
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::MainMenu);
+    app.update();
+    lay_out(&mut app, 1280, 720);
+
+    assert_stacked(&mut app, "Lessons Button", "Scenarios Button", GAP);
+    assert_stacked(&mut app, "Scenarios Button", "Sandbox Button", GAP);
+    assert_stacked(&mut app, "Mods Button", "Settings Button", GAP);
+    assert_stacked(&mut app, "Load Button", "Lessons Button", GAP_L);
+    assert_stacked(&mut app, "Sandbox Button", "Mods Button", GAP_L);
+    assert_stacked(&mut app, "Settings Button", "Exit Button", GAP_L);
+
+    let card = laid_out(&mut app, "Menu Panel");
+    assert!(card.min.y >= 0.0, "the card top is on screen: {card:?}");
+    let list = entity_by_name(&mut app, "Menu Buttons").expect("the button list");
+    let list = app.world().get::<ComputedNode>(list).expect("laid out");
+    assert!(
+        list.content_size.y <= list.size.y,
+        "the column fits its viewport: content {:?} in {:?}",
         list.content_size,
         list.size
     );

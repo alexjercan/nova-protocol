@@ -14,8 +14,9 @@ use nova_sound::prelude::*;
 use nova_ui::theme::ActiveUiTheme;
 
 use super::support::{
-    all_text, app, app_with_outcome, clocks_paused, dummy_scenario, dummy_scenarios, enter_playing,
-    find_named, pause_state, press_escape,
+    add_ui_layout, all_text, app, app_with_outcome, assert_inset, assert_stacked, clocks_paused,
+    dummy_scenario, dummy_scenarios, enter_playing, find_named, lay_out, pause_state, press_escape,
+    InsetSide,
 };
 use crate::{
     outcome::{StartFailureCamera, StartFailureOverlay},
@@ -907,4 +908,103 @@ fn a_timed_outcome_that_advances_unfocused_hands_its_pause_to_the_menu() {
         "delivery guard: a focused advance runs the next chapter"
     );
     assert_eq!(clocks_paused(&app), (false, false));
+}
+
+/// The outcome dialog is the stack every menu dialog is built from: the menu
+/// padding round it, the words a group gap over the buttons, the buttons a
+/// button gap apart. Fails when a button lays its border on its neighbour's.
+#[test]
+fn the_outcome_dialog_keeps_its_buttons_apart_and_off_its_words() {
+    use nova_ui::{
+        theme::BORDER_W,
+        widget::metrics::{GAP, GAP_L, PANEL_PAD_MENU},
+    };
+
+    let mut app = app_with_outcome();
+    add_ui_layout(&mut app);
+    enter_playing(&mut app);
+    // This rig has no flight camera, so the dialog gets one to lay out on.
+    app.world_mut().spawn(Camera2d);
+    app.world_mut()
+        .resource_mut::<NovaEventWorld>()
+        .next_scenario = Some(NextScenarioActionConfig {
+        scenario_id: "retry_me".to_string(),
+        linger: true,
+        delay: None,
+    });
+    app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig::new(
+        ScenarioOutcomeKind::Defeat,
+        "Your ship broke apart.",
+    ));
+    app.update();
+    lay_out(&mut app, 1280, 720);
+
+    let inset = PANEL_PAD_MENU + BORDER_W;
+    assert_inset(
+        &mut app,
+        "Outcome Panel",
+        "Outcome Text",
+        inset,
+        InsetSide::Top,
+    );
+    assert_stacked(&mut app, "Outcome Text", "Outcome Primary Button", GAP_L);
+    assert_stacked(
+        &mut app,
+        "Outcome Primary Button",
+        "Outcome Menu Button",
+        GAP,
+    );
+    for side in [InsetSide::Left, InsetSide::Right, InsetSide::Bottom] {
+        assert_inset(
+            &mut app,
+            "Outcome Panel",
+            "Outcome Menu Button",
+            inset,
+            side,
+        );
+    }
+}
+
+/// The refusal report keeps its one button a group gap under the issue list
+/// and the menu padding inside its panel.
+#[test]
+fn the_refusal_report_keeps_its_button_off_its_issues() {
+    use nova_ui::{
+        theme::BORDER_W,
+        widget::metrics::{GAP_L, PANEL_PAD_MENU},
+    };
+
+    let mut app = app();
+    app.insert_resource(dummy_scenarios());
+    add_ui_layout(&mut app);
+    app.update();
+    enter_playing(&mut app);
+    app.world_mut().resource_mut::<ScenarioStartFailure>().0 = Some(ScenarioStartFailureReport {
+        scenario_name: "Broken Chapter".to_string(),
+        messages: vec!["unknown section prototype 'ghost_hull'".to_string()],
+    });
+    app.update();
+    lay_out(&mut app, 1280, 720);
+
+    let inset = PANEL_PAD_MENU + BORDER_W;
+    assert_inset(
+        &mut app,
+        "Start Failure Panel",
+        "Start Failure Text",
+        inset,
+        InsetSide::Top,
+    );
+    assert_stacked(
+        &mut app,
+        "Start Failure Text",
+        "Start Failure Menu Button",
+        GAP_L,
+    );
+    assert_inset(
+        &mut app,
+        "Start Failure Panel",
+        "Start Failure Menu Button",
+        inset,
+        InsetSide::Bottom,
+    );
 }

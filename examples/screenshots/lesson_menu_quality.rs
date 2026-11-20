@@ -139,7 +139,7 @@ fn menu_quality_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<
         .step("the preset row is on the tab")
         .on_enter(|world: &mut World| {
             assert_named_visible("Graphics Row")(world);
-            assert_named_visible("Window Mode Row")(world);
+            assert_named_visible("Window Row")(world);
         })
         .add()
         .step("capture the graphics tab")

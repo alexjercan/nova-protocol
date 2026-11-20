@@ -90,19 +90,31 @@ fn status(app: &App, id: &str) -> LessonStatus {
     app.world().resource::<TrainingProgress>().status(id)
 }
 
+/// Every entity under the lesson list, in draw order: each parent before its
+/// children, siblings in `Children` order. The rows stand inside their
+/// category's group, so the list's own children are not the rows.
+fn drawn_under_the_list(app: &mut App) -> Vec<Entity> {
+    let list = entity_by_name(app, "Training List").expect("the list");
+    let mut drawn = Vec::new();
+    let mut pending = vec![list];
+    while let Some(entity) = pending.pop() {
+        if entity != list {
+            drawn.push(entity);
+        }
+        if let Some(children) = app.world().get::<Children>(entity) {
+            pending.extend(children.iter().rev());
+        }
+    }
+    drawn
+}
+
 /// Every lesson row, in the order the list DRAWS them.
 ///
 /// Read off `Children`, not off a query: query iteration is archetype order,
 /// and the selected row carries an extra `Selected` component, so a query would
 /// report the one row the player is looking at in the wrong place.
 fn rows(app: &mut App) -> Vec<String> {
-    let list = entity_by_name(app, "Training List").expect("the list");
-    let children: Vec<Entity> = app
-        .world()
-        .get::<Children>(list)
-        .map(|children| children.iter().collect())
-        .unwrap_or_default();
-    children
+    drawn_under_the_list(app)
         .into_iter()
         .filter_map(|child| {
             app.world()
@@ -114,13 +126,7 @@ fn rows(app: &mut App) -> Vec<String> {
 
 /// Every lesson row ENTITY, in draw order - the identity the rebuild tests read.
 fn row_entities(app: &mut App) -> Vec<Entity> {
-    let list = entity_by_name(app, "Training List").expect("the list");
-    let children: Vec<Entity> = app
-        .world()
-        .get::<Children>(list)
-        .map(|children| children.iter().collect())
-        .unwrap_or_default();
-    children
+    drawn_under_the_list(app)
         .into_iter()
         .filter(|child| app.world().get::<LessonRow>(*child).is_some())
         .collect()

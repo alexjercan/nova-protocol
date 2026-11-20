@@ -20,7 +20,7 @@ use nova_ui::{
     widget::{panel, ThemedRadius, ThemedText},
 };
 
-use crate::widgets::button;
+use crate::widgets::{button, dialog_buttons, dialog_list, dialog_node, dialog_span, dialog_text};
 
 /// How many disabled mods the modal names before it stops counting them out.
 const REPORT_ROWS: usize = 8;
@@ -83,85 +83,71 @@ pub(crate) fn sync_mod_report_overlay(
             parent
                 .spawn((
                     Name::new("Mods Disabled Panel"),
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        width: px(420),
-                        padding: UiRect::all(px(20)),
-                        border: UiRect::all(px(theme::BORDER_W)),
-                        ..default()
-                    },
-                    ThemedRadius::control(),
+                    dialog_node(420.0),
+                    ThemedRadius::panel(),
                     panel(),
                 ))
                 .with_children(|parent| {
-                    parent.spawn((
-                        Name::new("Mods Disabled Banner"),
-                        Text::new("MODS DISABLED"),
-                        TextFont {
-                            font_size: FontSize::Px(28.0),
-                            ..default()
-                        },
-                        TextColor(theme::semantic::THREAT),
-                    ));
-                    parent.spawn((
-                        Name::new("Mods Disabled Summary"),
-                        Text::new(
-                            "The game started without these mods, because their content failed to load. They stay installed - open Mods to update, remove or re-enable them.",
-                        ),
-                        TextFont {
-                            font_size: FontSize::Px(16.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE), ThemedText::new(UiColorType::TextBody),
-                        Node {
-                            margin: UiRect::top(px(8)),
-                            max_width: px(380),
-                            ..default()
-                        },
-                    ));
-                    for disabled in quarantine.disabled.iter().take(REPORT_ROWS) {
-                        parent.spawn((
-                            Name::new("Mods Disabled Row"),
-                            Text::new(format!("{} - {}", disabled.id, disabled.reason)),
-                            TextFont {
-                                font_size: FontSize::Px(13.0),
-                                ..default()
-                            },
-                            TextColor(Color::NONE), ThemedText::new(UiColorType::TextMuted),
-                            Node {
-                                margin: UiRect::top(px(4)),
-                                max_width: px(380),
-                                ..default()
-                            },
-                        ));
-                    }
-                    // A modal grows with its list, and a mod set can break in
-                    // bulk (a dependency every one of them names). The rest are
-                    // rows on the Mods screen, which is where the player acts
-                    // on them anyway.
-                    let rest = quarantine.disabled.len().saturating_sub(REPORT_ROWS);
-                    if rest > 0 {
-                        parent.spawn((
-                            Name::new("Mods Disabled Overflow"),
-                            Text::new(format!("...and {rest} more, listed under Mods.")),
-                            TextFont {
-                                font_size: FontSize::Px(13.0),
-                                ..default()
-                            },
-                            TextColor(Color::NONE), ThemedText::new(UiColorType::TextMuted),
-                            Node {
-                                margin: UiRect::top(px(4)),
-                                max_width: px(380),
-                                ..default()
-                            },
-                        ));
-                    }
-                    parent.spawn((
-                        Name::new("Mods Disabled Acknowledge Button"),
-                        button("OK, I understand"),
-                        observe(on_acknowledge_mod_report),
-                    ));
+                    parent
+                        .spawn(dialog_text("Mods Disabled Text"))
+                        .with_children(|parent| {
+                            parent.spawn((
+                                Name::new("Mods Disabled Banner"),
+                                dialog_span("MODS DISABLED", 28.0),
+                                TextColor(theme::semantic::THREAT),
+                            ));
+                            parent.spawn((
+                                Name::new("Mods Disabled Summary"),
+                                dialog_span(
+                                    "The game started without these mods, because their content failed to load. They stay installed - open Mods to update, remove or re-enable them.",
+                                    16.0,
+                                ),
+                                TextColor(Color::NONE),
+                                ThemedText::new(UiColorType::TextBody),
+                            ));
+                            parent
+                                .spawn(dialog_list("Mods Disabled Rows"))
+                                .with_children(|parent| {
+                                    for disabled in quarantine.disabled.iter().take(REPORT_ROWS) {
+                                        parent.spawn((
+                                            Name::new("Mods Disabled Row"),
+                                            dialog_span(
+                                                format!("{} - {}", disabled.id, disabled.reason),
+                                                13.0,
+                                            ),
+                                            TextColor(Color::NONE),
+                                            ThemedText::new(UiColorType::TextMuted),
+                                        ));
+                                    }
+                                    // A modal grows with its list, and a mod
+                                    // set can break in bulk (a dependency every
+                                    // one of them names). The rest are rows on
+                                    // the Mods screen, which is where the
+                                    // player acts on them anyway.
+                                    let rest =
+                                        quarantine.disabled.len().saturating_sub(REPORT_ROWS);
+                                    if rest > 0 {
+                                        parent.spawn((
+                                            Name::new("Mods Disabled Overflow"),
+                                            dialog_span(
+                                                format!("...and {rest} more, listed under Mods."),
+                                                13.0,
+                                            ),
+                                            TextColor(Color::NONE),
+                                            ThemedText::new(UiColorType::TextMuted),
+                                        ));
+                                    }
+                                });
+                        });
+                    parent
+                        .spawn(dialog_buttons("Mods Disabled Buttons"))
+                        .with_children(|parent| {
+                            parent.spawn((
+                                Name::new("Mods Disabled Acknowledge Button"),
+                                button("OK, I understand"),
+                                observe(on_acknowledge_mod_report),
+                            ));
+                        });
                 });
         });
 }

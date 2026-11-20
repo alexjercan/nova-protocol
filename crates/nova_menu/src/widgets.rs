@@ -6,7 +6,11 @@ use bevy::prelude::*;
 use nova_input::prelude::{gamepad_label, InputDeviceType};
 use nova_ui::{
     theme::UiColorType,
-    widget::{ButtonCueType, ButtonSpec, ButtonVariant, KeyChipLabel, ThemedText, UiText},
+    widget::{
+        action_row, button_stack,
+        metrics::{CONTROL_H, GAP, GAP_L, GAP_S, PANEL_PAD_MENU},
+        ButtonCueType, ButtonSpec, ButtonVariant, KeyChipLabel, ThemedText, UiText,
+    },
 };
 
 /// Marks a [`back_button`], whose key chip names the back-out input of the
@@ -96,20 +100,74 @@ pub(crate) fn back_button(text: &str) -> impl Bundle {
     )
 }
 
-/// A details pane's button row. `justify` puts the slots at the pane's start
-/// (a list's details) or its end (a modal's commit row). The row wraps, so a
-/// narrow pane drops a button to the next line instead of clipping it.
-pub(crate) fn actions_row(name: &'static str, justify: JustifyContent) -> impl Bundle {
+/// A dialog panel's node: `width` wide, the menu padding, its parts centred and
+/// [`GAP_L`] apart, so the title stands off the text and the text off the
+/// answers.
+pub(crate) fn dialog_node(width: f32) -> Node {
+    Node {
+        flex_direction: FlexDirection::Column,
+        align_items: AlignItems::Center,
+        width: px(width),
+        row_gap: px(GAP_L),
+        padding: UiRect::all(px(PANEL_PAD_MENU)),
+        border: UiRect::all(px(nova_ui::theme::BORDER_W)),
+        ..default()
+    }
+}
+
+/// A dialog's words: the title, the text under it and its list, centred and
+/// [`GAP`] apart, as wide as the dialog so a long line wraps inside it.
+pub(crate) fn dialog_text(name: &'static str) -> impl Bundle {
     (
         Name::new(name),
         Node {
-            flex_direction: FlexDirection::Row,
-            flex_wrap: FlexWrap::Wrap,
-            justify_content: justify,
-            column_gap: px(8),
-            row_gap: px(8),
-            margin: UiRect::top(px(12)),
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Center,
+            align_self: AlignSelf::Stretch,
+            row_gap: px(GAP),
             ..default()
+        },
+    )
+}
+
+/// The rows a dialog lists under its text, [`GAP_S`] apart.
+pub(crate) fn dialog_list(name: &'static str) -> impl Bundle {
+    (
+        Name::new(name),
+        Node {
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Center,
+            align_self: AlignSelf::Stretch,
+            row_gap: px(GAP_S),
+            ..default()
+        },
+    )
+}
+
+/// One span of a dialog's words: the UI face, `size` px, wrapped inside the
+/// dialog. The caller adds the colour.
+pub(crate) fn dialog_span(text: impl Into<String>, size: f32) -> impl Bundle {
+    (
+        UiText,
+        Text::new(text),
+        TextFont {
+            font_size: FontSize::Px(size),
+            ..default()
+        },
+        Node {
+            max_width: percent(100),
+            ..default()
+        },
+    )
+}
+
+/// A dialog's answers: a [`button_stack`] as wide as the dialog.
+pub(crate) fn dialog_buttons(name: &'static str) -> impl Bundle {
+    (
+        Name::new(name),
+        Node {
+            align_self: AlignSelf::Stretch,
+            ..button_stack()
         },
     )
 }
@@ -121,6 +179,55 @@ pub(crate) fn button_slot(name: &'static str, width: f32) -> impl Bundle {
         Name::new(name),
         Node {
             width: px(width),
+            flex_shrink: 0.0,
+            ..default()
+        },
+    )
+}
+
+/// An action row whose buttons stay on one line in a pane narrower than their
+/// slots: its [`fitted_button_slot`]s give up width together instead of
+/// wrapping one button under another of a different width.
+pub(crate) fn fitted_action_row() -> Node {
+    Node {
+        flex_wrap: FlexWrap::NoWrap,
+        ..action_row(JustifyContent::FlexStart)
+    }
+}
+
+/// A [`button_slot`] for a [`fitted_action_row`]: `width` wide where the row
+/// has the room, narrower where it does not.
+pub(crate) fn fitted_button_slot(name: &'static str, width: f32) -> impl Bundle {
+    (
+        Name::new(name),
+        Node {
+            width: px(width),
+            min_width: px(0),
+            flex_shrink: 1.0,
+            ..default()
+        },
+    )
+}
+
+/// The side inset of the kit's `list_row`: its 13 px padding inside its border.
+/// A column head or a note over a list takes it, so its text starts on the
+/// edge the row text starts on. Off the spacing scale because the row's own
+/// box is.
+pub(crate) const LIST_ROW_INSET_X: f32 = 13.0 + nova_ui::theme::BORDER_W;
+
+/// The gap between the two lines of one row label: a name over its status.
+/// Under [`GAP_S`] on purpose, so the pair reads as one label and a fixed-height
+/// row holds both lines.
+pub(crate) const LABEL_LINE_GAP: f32 = 2.0;
+
+/// A column of rows, [`GAP_S`] apart, that keeps its height in a scroll
+/// column: the detail rows of a pane, the rows of one group.
+pub(crate) fn row_group(name: &'static str) -> impl Bundle {
+    (
+        Name::new(name),
+        Node {
+            flex_direction: FlexDirection::Column,
+            row_gap: px(GAP_S),
             flex_shrink: 0.0,
             ..default()
         },
@@ -150,8 +257,12 @@ pub(crate) fn detail_row(
         Node {
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: px(12),
-            min_height: px(24),
+            column_gap: px(GAP_L),
+            min_height: px(CONTROL_H),
+            // The explicit minimum replaces the content minimum, so a full
+            // scroll column would squeeze a value of two lines into one row
+            // height without this.
+            flex_shrink: 0.0,
             ..default()
         },
         children![

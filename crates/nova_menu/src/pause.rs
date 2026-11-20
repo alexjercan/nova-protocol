@@ -23,10 +23,12 @@ use nova_sound::prelude::*;
 use nova_ui::{
     input_mode::prelude::InputMode,
     prelude::{window_root, PAUSE_SETTINGS_Z, PAUSE_Z},
-    screen::{footer_back_slot, scroll_bar, scroll_column, scroll_viewport},
     theme,
     theme::UiColorType,
-    widget::{panel, panel_head, ButtonVariant, PanelHeadType, ThemedRadius, ThemedText, UiText},
+    widget::{
+        metrics::PANEL_PAD_MENU, panel, panel_head, ButtonVariant, PanelHeadType, ThemedRadius,
+        ThemedText, UiText,
+    },
 };
 #[cfg(not(target_arch = "wasm32"))]
 use nova_world_base::prelude::WorldSaveSession;
@@ -38,11 +40,14 @@ use crate::{
 };
 use crate::{
     settings::{
-        build_settings_tabs, FocusPauseSetting, PauseSettingsPanel, ResetBindingsStep,
-        SettingsActiveTab, SettingsTabBody, SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT,
-        SETTINGS_PANEL_MAX_W, SETTINGS_PANEL_WIDTH_PCT,
+        build_settings_window, FocusPauseSetting, PauseSettingsPanel, ResetBindingsStep,
+        SettingsActiveTab, SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT, SETTINGS_PANEL_MAX_W,
+        SETTINGS_PANEL_WIDTH_PCT,
     },
-    widgets::{back_button, button, button_variant, close_screen, BACK_PAD_BUTTON},
+    widgets::{
+        back_button, button, button_variant, close_screen, dialog_buttons, dialog_node,
+        BACK_PAD_BUTTON,
+    },
 };
 
 /// ESC (or the gamepad Start button) toggles the pause overlay. Plain
@@ -472,15 +477,8 @@ pub(crate) fn reconcile_pause_overlay(
             parent
                 .spawn((
                     Name::new("Pause Panel"),
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        width: px(280),
-                        padding: UiRect::all(px(20)),
-                        border: UiRect::all(px(theme::BORDER_W)),
-                        ..default()
-                    },
-                    ThemedRadius::control(),
+                    dialog_node(280.0),
+                    ThemedRadius::panel(),
                     panel(),
                 ))
                 .with_children(|parent| {
@@ -495,36 +493,40 @@ pub(crate) fn reconcile_pause_overlay(
                         TextColor(Color::NONE),
                         ThemedText::new(UiColorType::TextBody),
                     ));
-                    parent.spawn((
-                        Name::new("Resume Button"),
-                        button_variant("Resume", ButtonVariant::Primary, Some("Esc")),
-                        observe(on_resume),
-                    ));
-                    if live {
-                        parent.spawn((
-                            Name::new("Pause Retry Button"),
-                            button(retry),
-                            observe(on_retry),
-                        ));
-                    }
-                    parent.spawn((
-                        Name::new("Pause Settings Button"),
-                        button("Settings"),
-                        observe(on_pause_settings),
-                    ));
-                    parent.spawn((
-                        Name::new("Back To Menu Button"),
-                        button("Back to Main Menu"),
-                        observe(on_back_to_menu),
-                    ));
-                    // No process to quit on wasm; the browser tab owns the
-                    // lifecycle (same rule as the main menu's Exit).
-                    #[cfg(not(target_arch = "wasm32"))]
-                    parent.spawn((
-                        Name::new("Pause Exit Button"),
-                        button_variant("Exit", ButtonVariant::Danger, None),
-                        observe(on_exit),
-                    ));
+                    parent
+                        .spawn(dialog_buttons("Pause Buttons"))
+                        .with_children(|parent| {
+                            parent.spawn((
+                                Name::new("Resume Button"),
+                                button_variant("Resume", ButtonVariant::Primary, Some("Esc")),
+                                observe(on_resume),
+                            ));
+                            if live {
+                                parent.spawn((
+                                    Name::new("Pause Retry Button"),
+                                    button(retry),
+                                    observe(on_retry),
+                                ));
+                            }
+                            parent.spawn((
+                                Name::new("Pause Settings Button"),
+                                button("Settings"),
+                                observe(on_pause_settings),
+                            ));
+                            parent.spawn((
+                                Name::new("Back To Menu Button"),
+                                button("Back to Main Menu"),
+                                observe(on_back_to_menu),
+                            ));
+                            // No process to quit on wasm; the browser tab owns
+                            // the lifecycle (same rule as the main menu's Exit).
+                            #[cfg(not(target_arch = "wasm32"))]
+                            parent.spawn((
+                                Name::new("Pause Exit Button"),
+                                button_variant("Exit", ButtonVariant::Danger, None),
+                                observe(on_exit),
+                            ));
+                        });
                 });
         });
 
@@ -566,7 +568,7 @@ pub(crate) fn reconcile_pause_overlay(
                         max_width: px(SETTINGS_PANEL_MAX_W),
                         height: px(SETTINGS_PANEL_H),
                         max_height: percent(SETTINGS_PANEL_MAX_H_PCT),
-                        padding: UiRect::all(px(20)),
+                        padding: UiRect::all(px(PANEL_PAD_MENU)),
                         border: UiRect::all(px(theme::BORDER_W)),
                         ..default()
                     },
@@ -578,43 +580,16 @@ pub(crate) fn reconcile_pause_overlay(
                         Name::new("Pause Settings Title"),
                         panel_head("Settings", PanelHeadType::Inset, &["SAVED ON CHANGE"]),
                     ));
-                    build_settings_tabs(parent, active_settings_tab.0);
-                    parent
-                        .spawn((
-                            Name::new("Pause Settings Body Row"),
-                            Node {
-                                flex_direction: FlexDirection::Row,
-                                align_items: AlignItems::Stretch,
-                                // Takes the panel's leftover height, so the
-                                // scroll viewport clips instead of the fixed
-                                // panel overflowing past the Back button.
-                                flex_grow: 1.0,
-                                min_height: px(0),
-                                ..default()
-                            },
-                        ))
-                        .with_children(|row| {
-                            // Empty, like the main menu's: `refresh_settings_tab`
-                            // is the one path that fills either.
-                            row.spawn((
-                                Name::new("Pause Settings Body"),
-                                SettingsTabBody,
-                                scroll_column(),
-                                scroll_viewport(),
-                            ));
-                            row.spawn((Name::new("Pause Settings Scroll Bar"), scroll_bar()));
-                        });
-                    parent
-                        .spawn((
-                            Name::new("Pause Settings Footer"),
-                            footer_back_slot((
-                                Name::new("Pause Settings Back Button"),
-                                back_button("Back"),
-                                observe(on_pause_settings_back),
-                            )),
-                        ))
-                        .entry::<Node>()
-                        .and_modify(|mut node| node.margin = UiRect::top(px(12)));
+                    build_settings_window(
+                        parent,
+                        "Pause Settings",
+                        active_settings_tab.0,
+                        (
+                            Name::new("Pause Settings Back Button"),
+                            back_button("Back"),
+                            observe(on_pause_settings_back),
+                        ),
+                    );
                 });
         });
 }

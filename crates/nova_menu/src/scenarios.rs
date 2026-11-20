@@ -13,12 +13,12 @@ use nova_ui::{
     theme,
     theme::UiColorType,
     widget::{
-        button, list_row, separator, ButtonSpec, Selected, ThemedBorder, ThemedButton, ThemedFill,
-        ThemedRadius, ThemedText, UiText,
+        action_row, button, button_stack, divider, group_stack, list_row, metrics::GAP, ButtonSpec,
+        Selected, ThemedBorder, ThemedButton, ThemedFill, ThemedRadius, ThemedText, UiText,
     },
 };
 
-use crate::widgets::close_screen;
+use crate::widgets::{button_slot, close_screen, LABEL_LINE_GAP, LIST_ROW_INSET_X, MAIN_SLOT_W};
 
 /// Marker for the Scenarios panel root, toggled by the Scenarios button.
 #[derive(Component)]
@@ -242,6 +242,7 @@ pub(crate) fn refresh_scenarios_list(
         if ordered.is_empty() && uncampaigned.is_empty() {
             list.spawn((
                 Name::new("Scenarios Empty Note"),
+                UiText,
                 Text::new("No scenarios available."),
                 TextFont {
                     font_size: FontSize::Px(13.0),
@@ -286,6 +287,10 @@ pub(crate) fn scenario_row_label(s: &ScenarioConfig) -> String {
     s.name.clone()
 }
 
+/// The widest the details pane draws a scenario's thumbnail: the authored
+/// cards are 320 px wide, and a wider box would scale one up and soften it.
+const THUMBNAIL_MAX_W: f32 = 320.0;
+
 /// How far a campaign member row is inset under its [`CampaignHeader`]. Sized
 /// against the header's `[-] ` marker: the member rows start roughly where the
 /// campaign NAME does, so the column of names reads as the nesting cue.
@@ -308,9 +313,11 @@ pub(crate) fn spawn_campaign_header(
         Node {
             align_self: AlignSelf::Stretch,
             align_items: AlignItems::Center,
-            column_gap: px(8),
-            padding: UiRect::all(px(8)),
-            margin: UiRect::bottom(px(4)),
+            column_gap: px(GAP),
+            // The side inset of the rows under it, so the header's label and
+            // an uncampaigned row's name start on one edge.
+            padding: UiRect::axes(px(LIST_ROW_INSET_X - theme::BORDER_W), px(GAP)),
+            flex_shrink: 0.0,
             border: UiRect::all(px(theme::BORDER_W)),
             ..default()
         },
@@ -327,6 +334,7 @@ pub(crate) fn spawn_campaign_header(
     .with_children(|header| {
         header.spawn((
             Name::new("Campaign Header Label"),
+            UiText,
             Text::new(format!("{marker} {}", campaign.name)),
             TextFont {
                 font_size: FontSize::Px(15.0),
@@ -384,7 +392,7 @@ pub(crate) fn spawn_scenario_row(
         row.spawn(Node {
             flex_direction: FlexDirection::Column,
             flex_grow: 1.0,
-            row_gap: px(2),
+            row_gap: px(LABEL_LINE_GAP),
             ..default()
         })
         .with_children(|col| {
@@ -441,10 +449,19 @@ pub(crate) fn refresh_scenario_details(
         .as_ref()
         .and_then(|id| scenarios.as_ref().and_then(|s| s.get(id)))
         .cloned();
-    commands.entity(panel).with_children(|details| {
+    // The words over the button row, a group gap apart.
+    let stack = commands
+        .spawn((
+            Name::new("Scenario Details Stack"),
+            group_stack(),
+            ChildOf(panel),
+        ))
+        .id();
+    commands.entity(stack).with_children(|stack| {
         let Some(scenario) = scenario else {
-            details.spawn((
+            stack.spawn((
                 Name::new("Scenario Details Empty"),
+                UiText,
                 Text::new("Select a scenario to see its details."),
                 TextFont {
                     font_size: FontSize::Px(14.0),
@@ -453,16 +470,19 @@ pub(crate) fn refresh_scenario_details(
                 TextColor(Color::NONE),
                 ThemedText::new(UiColorType::TextMuted),
             ));
-            details.spawn((
+            stack.spawn((
                 Name::new("Scenario Details Actions"),
                 ScenarioDetailsActions,
-                Node::default(),
+                action_row(JustifyContent::FlexStart),
             ));
             return;
         };
 
-        details.spawn((
+        let mut words = stack.spawn((Name::new("Scenario Details Text"), button_stack()));
+        let details = &mut words;
+        details.with_child((
             Name::new("Scenario Details Name"),
+            UiText,
             // Same label as the list row (the scenario's display name).
             Text::new(scenario_row_label(&scenario)),
             TextFont {
@@ -472,7 +492,7 @@ pub(crate) fn refresh_scenario_details(
             TextColor(Color::NONE),
             ThemedText::new(UiColorType::TextBody),
         ));
-        details.spawn((Name::new("Scenario Details Separator"), separator()));
+        details.with_child((Name::new("Scenario Details Separator"), divider()));
         // The thumbnail (authored + asset server present; headless test apps have
         // neither). It is only mounted once the image has LOADED and is a plain
         // 2D single-layer texture. Both guards matter: the UI pipeline binds a D2
@@ -492,19 +512,23 @@ pub(crate) fn refresh_scenario_details(
                     .and_then(|imgs| imgs.get(&handle))
                     .is_some_and(|img| img.texture_descriptor.size.depth_or_array_layers == 1);
                 if is_2d {
-                    details.spawn((
+                    details.with_child((
                         Name::new("Scenario Details Thumbnail"),
                         ImageNode::new(handle),
+                        // A px width, capped by the pane: a percent width
+                        // is unresolved while the stack around it is
+                        // measured, and the box then took the image's own
+                        // height and pushed Play down the pane.
                         Node {
-                            width: percent(100),
-                            max_width: px(320),
+                            width: px(THUMBNAIL_MAX_W),
+                            max_width: percent(100),
                             aspect_ratio: Some(16.0 / 9.0),
-                            margin: UiRect::bottom(px(8)),
                             border: UiRect::all(px(theme::BORDER_W)),
                             ..default()
                         },
                         BorderColor::all(Color::NONE),
                         ThemedBorder::new(UiColorType::TextMuted),
+                        ThemedRadius::control(),
                     ));
                 } else {
                     warn!(
@@ -519,8 +543,9 @@ pub(crate) fn refresh_scenario_details(
             }
         }
         if !scenario.description.is_empty() {
-            details.spawn((
+            details.with_child((
                 Name::new("Scenario Details Description"),
+                UiText,
                 Text::new(scenario.description.clone()),
                 TextFont {
                     font_size: FontSize::Px(14.0),
@@ -528,27 +553,17 @@ pub(crate) fn refresh_scenario_details(
                 },
                 TextColor(Color::NONE),
                 ThemedText::new(UiColorType::TextBody),
-                Node {
-                    margin: UiRect::bottom(px(8)),
-                    ..default()
-                },
             ));
         }
-        details
+        stack
             .spawn((
                 Name::new("Scenario Details Actions"),
                 ScenarioDetailsActions,
-                Node::default(),
+                action_row(JustifyContent::FlexStart),
             ))
             .with_children(|actions| {
                 actions
-                    .spawn((
-                        Name::new("Scenario Play Slot"),
-                        Node {
-                            width: px(140),
-                            ..default()
-                        },
-                    ))
+                    .spawn(button_slot("Scenario Play Slot", MAIN_SLOT_W))
                     .with_children(|slot| {
                         slot.spawn((
                             Name::new("Scenario Play Button"),

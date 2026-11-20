@@ -23,7 +23,9 @@ use nova_world_base::prelude::WorldSaveSession;
 use crate::pause::on_retry;
 use crate::{
     pause::{focus_lost, on_back_to_menu, FocusPause},
-    widgets::{button, button_variant},
+    widgets::{
+        button, button_variant, dialog_buttons, dialog_list, dialog_node, dialog_span, dialog_text,
+    },
 };
 
 /// Marker for the outcome overlay root (see `sync_outcome_overlay`). Carries
@@ -147,64 +149,52 @@ pub(crate) fn sync_outcome_overlay(
             parent
                 .spawn((
                     Name::new("Outcome Panel"),
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        width: px(320),
-                        padding: UiRect::all(px(20)),
-                        border: UiRect::all(px(theme::BORDER_W)),
-                        ..default()
-                    },
-                    ThemedRadius::control(),
+                    dialog_node(320.0),
+                    ThemedRadius::panel(),
                     panel(),
                 ))
                 .with_children(|parent| {
-                    parent.spawn((
-                        Name::new("Outcome Banner"),
-                        Text::new(banner),
-                        TextFont {
-                            font_size: FontSize::Px(32.0),
-                            ..default()
-                        },
-                        TextColor(accent),
-                    ));
-                    if let Some(message) = message {
-                        parent.spawn((
-                            Name::new("Outcome Message"),
-                            Text::new(message),
-                            TextFont {
-                                font_size: FontSize::Px(16.0),
-                                ..default()
-                            },
-                            TextColor(Color::NONE),
-                            ThemedText::new(UiColorType::TextBody),
-                            Node {
-                                margin: UiRect::top(px(8)),
-                                max_width: px(280),
-                                ..default()
-                            },
-                        ));
-                    }
-                    if let Some(primary) = primary {
-                        parent.spawn((
-                            Name::new("Outcome Primary Button"),
-                            button_variant(primary, ButtonVariant::Default, primary_key),
-                            observe(on_outcome_advance),
-                        ));
-                    }
-                    #[cfg(not(target_arch = "wasm32"))]
-                    if load_last_save {
-                        parent.spawn((
-                            Name::new("Outcome Primary Button"),
-                            button("Load last save"),
-                            observe(on_retry),
-                        ));
-                    }
-                    parent.spawn((
-                        Name::new("Outcome Menu Button"),
-                        button_variant("Main Menu", ButtonVariant::Default, menu_key),
-                        observe(on_back_to_menu),
-                    ));
+                    parent
+                        .spawn(dialog_text("Outcome Text"))
+                        .with_children(|parent| {
+                            parent.spawn((
+                                Name::new("Outcome Banner"),
+                                dialog_span(banner, 32.0),
+                                TextColor(accent),
+                            ));
+                            if let Some(message) = message {
+                                parent.spawn((
+                                    Name::new("Outcome Message"),
+                                    dialog_span(message, 16.0),
+                                    TextColor(Color::NONE),
+                                    ThemedText::new(UiColorType::TextBody),
+                                ));
+                            }
+                        });
+                    parent
+                        .spawn(dialog_buttons("Outcome Buttons"))
+                        .with_children(|parent| {
+                            if let Some(primary) = primary {
+                                parent.spawn((
+                                    Name::new("Outcome Primary Button"),
+                                    button_variant(primary, ButtonVariant::Default, primary_key),
+                                    observe(on_outcome_advance),
+                                ));
+                            }
+                            #[cfg(not(target_arch = "wasm32"))]
+                            if load_last_save {
+                                parent.spawn((
+                                    Name::new("Outcome Primary Button"),
+                                    button("Load last save"),
+                                    observe(on_retry),
+                                ));
+                            }
+                            parent.spawn((
+                                Name::new("Outcome Menu Button"),
+                                button_variant("Main Menu", ButtonVariant::Default, menu_key),
+                                observe(on_back_to_menu),
+                            ));
+                        });
                 });
         });
 }
@@ -365,64 +355,50 @@ pub(crate) fn sync_start_failure_overlay(
             parent
                 .spawn((
                     Name::new("Start Failure Panel"),
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        width: px(380),
-                        padding: UiRect::all(px(20)),
-                        border: UiRect::all(px(theme::BORDER_W)),
-                        ..default()
-                    },
-                    ThemedRadius::control(),
+                    dialog_node(380.0),
+                    ThemedRadius::panel(),
                     panel(),
                 ))
                 .with_children(|parent| {
-                    parent.spawn((
-                        Name::new("Start Failure Banner"),
-                        Text::new("FAILED TO START"),
-                        TextFont {
-                            font_size: FontSize::Px(28.0),
-                            ..default()
-                        },
-                        TextColor(theme::semantic::THREAT),
-                    ));
-                    parent.spawn((
-                        Name::new("Start Failure Scenario"),
-                        Text::new(format!("Failed to start '{}':", report.scenario_name)),
-                        TextFont {
-                            font_size: FontSize::Px(16.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColorType::TextBody),
-                        Node {
-                            margin: UiRect::top(px(8)),
-                            max_width: px(340),
-                            ..default()
-                        },
-                    ));
-                    for message in &report.messages {
-                        parent.spawn((
-                            Name::new("Start Failure Issue"),
-                            Text::new(message.clone()),
-                            TextFont {
-                                font_size: FontSize::Px(13.0),
-                                ..default()
-                            },
-                            TextColor(Color::NONE),
-                            ThemedText::new(UiColorType::TextMuted),
-                            Node {
-                                margin: UiRect::top(px(4)),
-                                max_width: px(340),
-                                ..default()
-                            },
-                        ));
-                    }
-                    parent.spawn((
-                        Name::new("Start Failure Menu Button"),
-                        button("Main Menu"),
-                        observe(on_back_to_menu),
-                    ));
+                    parent
+                        .spawn(dialog_text("Start Failure Text"))
+                        .with_children(|parent| {
+                            parent.spawn((
+                                Name::new("Start Failure Banner"),
+                                dialog_span("FAILED TO START", 28.0),
+                                TextColor(theme::semantic::THREAT),
+                            ));
+                            parent.spawn((
+                                Name::new("Start Failure Scenario"),
+                                dialog_span(
+                                    format!("Failed to start '{}':", report.scenario_name),
+                                    16.0,
+                                ),
+                                TextColor(Color::NONE),
+                                ThemedText::new(UiColorType::TextBody),
+                            ));
+                            parent
+                                .spawn(dialog_list("Start Failure Issues"))
+                                .with_children(|parent| {
+                                    for message in &report.messages {
+                                        parent.spawn((
+                                            Name::new("Start Failure Issue"),
+                                            dialog_span(message.clone(), 13.0),
+                                            TextColor(Color::NONE),
+                                            ThemedText::new(UiColorType::TextMuted),
+                                        ));
+                                    }
+                                });
+                        });
+                    parent
+                        .spawn(dialog_buttons("Start Failure Buttons"))
+                        .with_children(|parent| {
+                            parent.spawn((
+                                Name::new("Start Failure Menu Button"),
+                                button("Main Menu"),
+                                observe(on_back_to_menu),
+                            ));
+                        });
                 });
         });
 }

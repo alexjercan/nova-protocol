@@ -218,6 +218,101 @@ pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> Ap
     app
 }
 
+/// Add what lays a UI tree out without a renderer, and the primary window the
+/// default UI camera draws to. Call it before the app's first update.
+pub(crate) fn add_ui_layout(app: &mut App) {
+    use bevy::{image::TextureAtlasLayout, text::TextPlugin, ui::UiPlugin, window::PrimaryWindow};
+
+    app.init_asset::<TextureAtlasLayout>();
+    app.add_plugins((
+        TransformPlugin,
+        bevy::a11y::AccessibilityPlugin,
+        bevy::input::InputPlugin,
+        bevy::picking::PickingPlugin,
+        bevy::picking::InteractionPlugin,
+        TextPlugin,
+        UiPlugin,
+    ));
+    app.world_mut().spawn((Window::default(), PrimaryWindow));
+}
+
+/// Size every camera as a `width` x `height` window and run the layout. No
+/// render plugin sizes a camera in this rig, so the size is written by hand.
+pub(crate) fn lay_out(app: &mut App, width: u32, height: u32) {
+    use bevy::camera::{ComputedCameraValues, RenderTargetInfo};
+
+    let mut cameras = app.world_mut().query::<&mut Camera>();
+    for mut camera in cameras.iter_mut(app.world_mut()) {
+        camera.computed = ComputedCameraValues {
+            target_info: Some(RenderTargetInfo {
+                physical_size: UVec2::new(width, height),
+                scale_factor: 1.0,
+            }),
+            ..default()
+        };
+    }
+    for _ in 0..6 {
+        app.update();
+    }
+}
+
+/// The laid-out box of the node named `name`, in window px.
+pub(crate) fn laid_out(app: &mut App, name: &str) -> Rect {
+    use bevy::ui::{ComputedNode, UiGlobalTransform};
+
+    let entity = entity_by_name(app, name).unwrap_or_else(|| panic!("no node named {name}"));
+    let size = app
+        .world()
+        .get::<ComputedNode>(entity)
+        .unwrap_or_else(|| panic!("{name} is not laid out"))
+        .size;
+    let centre = app
+        .world()
+        .get::<UiGlobalTransform>(entity)
+        .unwrap_or_else(|| panic!("{name} is not positioned"))
+        .translation;
+    assert!(size.y > 0.0, "{name} was laid out: {size:?}");
+    Rect::from_center_size(centre, size)
+}
+
+/// Fail unless `lower` starts `gap` px under the bottom of `upper`. The layout
+/// rounds each edge to a whole pixel, so half a pixel is the tolerance.
+pub(crate) fn assert_stacked(app: &mut App, upper: &str, lower: &str, gap: f32) {
+    let above = laid_out(app, upper);
+    let below = laid_out(app, lower);
+    let found = below.min.y - above.max.y;
+    assert!(
+        (found - gap).abs() <= 0.5,
+        "{lower} stands {found} px under {upper}, not {gap}"
+    );
+}
+
+/// Fail unless the node named `inner` stands `inset` px inside `side` of the
+/// node named `outer`.
+pub(crate) fn assert_inset(app: &mut App, outer: &str, inner: &str, inset: f32, side: InsetSide) {
+    let frame = laid_out(app, outer);
+    let content = laid_out(app, inner);
+    let found = match side {
+        InsetSide::Top => content.min.y - frame.min.y,
+        InsetSide::Bottom => frame.max.y - content.max.y,
+        InsetSide::Left => content.min.x - frame.min.x,
+        InsetSide::Right => frame.max.x - content.max.x,
+    };
+    assert!(
+        (found - inset).abs() <= 0.5,
+        "{inner} stands {found} px inside the {side:?} side of {outer}, not {inset}"
+    );
+}
+
+/// The side of a frame an [`assert_inset`] measures from.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum InsetSide {
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
+
 pub(crate) fn enter_playing(app: &mut App) {
     app.world_mut()
         .resource_mut::<NextState<GameStates>>()

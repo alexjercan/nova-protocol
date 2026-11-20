@@ -35,8 +35,13 @@ use nova_ship::prelude::{
 };
 use nova_ui::{
     theme::{ActiveUiTheme, UiColorType},
-    widget::{ThemedFill, ThemedText, UiText},
+    widget::{metrics::GAP_S, ThemedFill, ThemedText, UiText},
 };
+
+/// The plate over and under a chart label's word. Off the spacing scale: it
+/// is the ink margin of the plate drawn behind the word, not a gap between
+/// two elements.
+const CHART_LABEL_PAD_Y: f32 = 1.0;
 
 /// The render layer of the first preview's scene; preview slot `n` draws on
 /// `MENU_PREVIEW_LAYER + n`, so no camera sees another preview's scene.
@@ -293,7 +298,7 @@ pub(crate) fn build_menu_previews(
                         MenuChartLabel { anchor },
                         Node {
                             position_type: PositionType::Absolute,
-                            padding: UiRect::axes(px(4), px(1)),
+                            padding: UiRect::axes(px(GAP_S), px(CHART_LABEL_PAD_Y)),
                             ..default()
                         },
                         Visibility::Hidden,

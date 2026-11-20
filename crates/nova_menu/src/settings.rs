@@ -22,16 +22,19 @@ use nova_ship::prelude::{
 };
 use nova_sound::prelude::*;
 use nova_ui::{
+    screen::{footer_back_slot, scroll_bar, scroll_column, scroll_viewport},
     theme::{GameUiThemes, SelectedUiTheme, UiColorType, UiThemeDiagnostic},
     widget::{
-        panel_header, segmented_container, segmented_container_wrapping, segmented_option,
-        segmented_option_fit, separator, slider_track, ButtonCueType, ButtonSpec, ButtonValue,
-        Selected, ThemedImageTint, ThemedText, UiText,
+        action_row, button_stack, divider, group_stack,
+        metrics::{GAP, GAP_L, GAP_S},
+        segmented_container, segmented_container_wrapping, segmented_option, segmented_option_fit,
+        slider_track, text, ButtonCueType, ButtonSpec, ButtonValue, Selected, TextRole,
+        ThemedImageTint, ThemedText, UiText,
     },
 };
 use serde::{Deserialize, Serialize};
 
-use crate::widgets::{button_slot, close_screen, MAIN_SLOT_W};
+use crate::widgets::{button_slot, close_screen, MAIN_SLOT_W, SIDE_SLOT_W};
 
 /// How wide the Settings panel grows, as a percentage of the window.
 ///
@@ -51,11 +54,12 @@ pub const SETTINGS_PANEL_WIDTH_PCT: f32 = 92.0;
 
 /// The widest the Settings panel is allowed to become, in logical pixels.
 ///
-/// Wide enough for the ten Controls groups to sit on one line of compact
-/// chips, and for a keybind label plus its two chip columns. A cap rather than
-/// a target: on a desk monitor [`SETTINGS_PANEL_WIDTH_PCT`] of the window
-/// would be a settings panel most of a screen wide.
-pub const SETTINGS_PANEL_MAX_W: f32 = 680.0;
+/// Wide enough for the Controls groups, [`MOUSE_GROUP`] among them, to sit on
+/// one line of compact chips, and for a keybind label plus its two chip
+/// columns. A cap rather than a target: on a desk monitor
+/// [`SETTINGS_PANEL_WIDTH_PCT`] of the window would be a settings panel most
+/// of a screen wide.
+pub const SETTINGS_PANEL_MAX_W: f32 = 720.0;
 
 /// The label column every row on every tab shares, so the controls down a tab
 /// start on one vertical line.
@@ -692,17 +696,84 @@ pub(crate) fn on_graphics_field(
     }
 }
 
-/// The tab bar: one segmented row above the scrolling body. Spawned by each
-/// entry point beside its own [`SettingsTabBody`], so a tab press reaches both.
-pub(crate) fn build_settings_tabs(parent: &mut ChildSpawnerCommands, active: SettingsTabKind) {
+/// A Settings window under its head: the tab bar and the Controls strip
+/// [`GAP`] over the scrolling body, and `back` in the footer [`GAP_L`] under
+/// them. Both entry points build theirs here, so the two windows keep one
+/// layout. `prefix` heads the `Name` of the body row, the body, the scroll bar
+/// and the footer: `Settings` on the main menu, `Pause Settings` in play.
+pub(crate) fn build_settings_window(
+    parent: &mut ChildSpawnerCommands,
+    prefix: &str,
+    active: SettingsTabKind,
+    back: impl Bundle,
+) {
     parent
         .spawn((
-            Name::new("Settings Tab Bar"),
+            Name::new(format!("{prefix} Content")),
             Node {
-                margin: UiRect::vertical(px(10)),
-                ..default()
+                // Takes the panel's leftover height, so the scroll viewport
+                // clips instead of the fixed panel overflowing past the Back
+                // button.
+                flex_grow: 1.0,
+                min_height: px(0),
+                ..group_stack()
             },
         ))
+        .with_children(|content| {
+            content
+                .spawn((
+                    Name::new(format!("{prefix} Pages")),
+                    Node {
+                        flex_grow: 1.0,
+                        min_height: px(0),
+                        ..button_stack()
+                    },
+                ))
+                .with_children(|pages| {
+                    build_settings_tabs(pages, active);
+                    pages
+                        .spawn((
+                            Name::new(format!("{prefix} Body Row")),
+                            Node {
+                                flex_direction: FlexDirection::Row,
+                                align_items: AlignItems::Stretch,
+                                flex_grow: 1.0,
+                                min_height: px(0),
+                                ..default()
+                            },
+                        ))
+                        .with_children(|row| {
+                            // Spawned EMPTY: `refresh_settings_tab` fills it on
+                            // the first Update after it exists, the same path a
+                            // tab press and a rebind take.
+                            row.spawn((
+                                Name::new(format!("{prefix} Body")),
+                                SettingsTabBody,
+                                // A column of setting rows and group heads,
+                                // not a list: the control gap takes the place
+                                // of the scroll column's row gap.
+                                Node {
+                                    row_gap: px(GAP),
+                                    ..scroll_column()
+                                },
+                                scroll_viewport(),
+                            ));
+                            row.spawn((Name::new(format!("{prefix} Scroll Bar")), scroll_bar()));
+                        });
+                });
+            content.spawn((
+                Name::new(format!("{prefix} Footer")),
+                footer_back_slot(back),
+            ));
+        });
+}
+
+/// The tab bar: one segmented row above the scrolling body, and under it the
+/// strip the Controls tab fills. Spawned beside each [`SettingsTabBody`], so a
+/// tab press reaches both windows.
+fn build_settings_tabs(parent: &mut ChildSpawnerCommands, active: SettingsTabKind) {
+    parent
+        .spawn((Name::new("Settings Tab Bar"), Node::default()))
         .with_children(|bar| {
             bar.spawn((Name::new("Settings Tabs"), segmented_container()))
                 .with_children(|row| {
@@ -723,9 +794,10 @@ pub(crate) fn build_settings_tabs(parent: &mut ChildSpawnerCommands, active: Set
         Name::new("Settings Controls Header"),
         SettingsControlsHeader,
         Node {
-            flex_direction: FlexDirection::Column,
-            margin: UiRect::bottom(px(6)),
-            ..default()
+            // Out of the layout until the Controls tab fills it: an empty
+            // strip would still take a gap of the column it stands in.
+            display: Display::None,
+            ..button_stack()
         },
     ));
 }
@@ -836,7 +908,7 @@ pub(crate) struct SettingsValues<'w> {
 pub(crate) fn refresh_settings_tab(
     mut commands: Commands,
     bodies: Query<Entity, With<SettingsTabBody>>,
-    headers: Query<Entity, With<SettingsControlsHeader>>,
+    mut headers: Query<(Entity, &mut Node), With<SettingsControlsHeader>>,
     active: Res<SettingsActiveTab>,
     group: Res<SettingsControlsGroup>,
     values: SettingsValues,
@@ -855,8 +927,16 @@ pub(crate) fn refresh_settings_tab(
     };
     // The fixed strip above the body. Emptied on every tab so a group bar left
     // over from Controls cannot sit above the Audio page.
-    for strip in &headers {
+    for (strip, mut node) in &mut headers {
         commands.entity(strip).despawn_related::<Children>();
+        let display = if active.0 == SettingsTabKind::Controls {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        if node.display != display {
+            node.display = display;
+        }
         if active.0 == SettingsTabKind::Controls {
             commands.entity(strip).with_children(|strip| {
                 build_controls_header(strip, &bindings, &rebind, group.0);
@@ -971,8 +1051,7 @@ fn build_slider_row(
             width: percent(100),
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: px(12),
-            margin: UiRect::vertical(px(4)),
+            column_gap: px(GAP_L),
             ..default()
         },
     ))
@@ -1065,8 +1144,7 @@ fn build_option_row(
             width: percent(100),
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: px(12),
-            margin: UiRect::vertical(px(3)),
+            column_gap: px(GAP_L),
             ..default()
         },
     ))
@@ -1099,6 +1177,15 @@ fn build_choice_row<T: Send + Sync + 'static>(
     });
 }
 
+/// The head of one group of settings rows: the kit's block-title style. The
+/// body column owns the gap under it.
+fn group_head(title: &'static str) -> impl Bundle {
+    (
+        Name::new(format!("Settings Group: {title}")),
+        text(title, TextRole::Heading),
+    )
+}
+
 /// GRAPHICS - the budget as a preset row over its four levers (a lever moved
 /// off a tier turns the preset row to Custom), on native the window mode and
 /// VSync, and whether losing the window pauses play.
@@ -1109,7 +1196,7 @@ fn build_graphics_tab(
     vsync: VsyncSetting,
     focus_pause: FocusPauseSetting,
 ) {
-    list.spawn(panel_header("Quality"));
+    list.spawn(group_head("Quality"));
     let preset = budget.preset();
     build_option_row(list, "Graphics", "Preset", segmented_container(), |row| {
         for tier in GraphicsQuality::ALL {
@@ -1172,8 +1259,8 @@ fn build_graphics_tab(
     // are absent there rather than present and inert.
     #[cfg(not(target_arch = "wasm32"))]
     {
-        list.spawn(separator());
-        list.spawn(panel_header("Window"));
+        list.spawn(divider());
+        list.spawn(group_head("Window"));
         build_choice_row(
             list,
             "Window",
@@ -1192,8 +1279,8 @@ fn build_graphics_tab(
 
     // Beside the window rows because it answers what alt-tab does to the
     // window. Not native-only: a browser tab losing focus is the same gesture.
-    list.spawn(separator());
-    list.spawn(panel_header("Focus"));
+    list.spawn(divider());
+    list.spawn(group_head("Focus"));
     build_choice_row(
         list,
         "Focus Pause",
@@ -1219,7 +1306,7 @@ fn build_interface_tab(
     prompt: TrainingPromptSetting,
     field_note: FieldNoteSetting,
 ) {
-    list.spawn(panel_header("Theme"));
+    list.spawn(group_head("Theme"));
     build_option_row(
         list,
         "UI Theme",
@@ -1253,15 +1340,11 @@ fn build_interface_tab(
             },
             TextColor(Color::NONE),
             ThemedText::new(UiColorType::Danger),
-            Node {
-                margin: UiRect::top(px(6)),
-                ..default()
-            },
         ));
     }
 
-    list.spawn(separator());
-    list.spawn(panel_header("Display"));
+    list.spawn(divider());
+    list.spawn(group_head("Display"));
     build_choice_row(
         list,
         "UI Scale",
@@ -1269,8 +1352,8 @@ fn build_interface_tab(
         UiScaleSetting::ALL.map(|choice| (choice, choice.label(), choice == ui_scale)),
     );
 
-    list.spawn(separator());
-    list.spawn(panel_header("Menu"));
+    list.spawn(divider());
+    list.spawn(group_head("Menu"));
     build_choice_row(
         list,
         "Training Prompt",
@@ -1329,10 +1412,6 @@ fn build_controls_header(
             },
             TextColor(Color::NONE),
             ThemedText::new(UiColorType::Accent),
-            Node {
-                margin: UiRect::top(px(6)),
-                ..default()
-            },
         ));
     }
 }
@@ -1397,7 +1476,7 @@ fn build_controls_tab(
         for path in MousePath::ALL {
             build_sensitivity_row(list, path, sensitivity.percent(path));
         }
-        list.spawn(separator());
+        list.spawn(divider());
         build_choice_row(
             list,
             "Invert Y",
@@ -1407,25 +1486,39 @@ fn build_controls_tab(
         return;
     }
 
-    for action in bindings.rows().filter(|action| action.group == open) {
-        spawn_rebind_row(list, action, rebind, glyphs);
-    }
-    for (_, label, keyboard, gamepad) in FIXED_ROWS.iter().filter(|(group, ..)| *group == open) {
-        spawn_keybind_row(list, label, keyboard, gamepad, glyphs);
-    }
+    // The rows are a list, so they stand the list-row gap apart, closer than
+    // the body's own rows.
+    list.spawn((
+        Name::new("Keybind Rows"),
+        Node {
+            flex_direction: FlexDirection::Column,
+            row_gap: px(GAP_S),
+            flex_shrink: 0.0,
+            ..default()
+        },
+    ))
+    .with_children(|rows| {
+        for action in bindings.rows().filter(|action| action.group == open) {
+            spawn_rebind_row(rows, action, rebind, glyphs);
+        }
+        for (_, label, keyboard, gamepad) in FIXED_ROWS.iter().filter(|(group, ..)| *group == open)
+        {
+            spawn_keybind_row(rows, label, keyboard, gamepad, glyphs);
+        }
+    });
 
-    list.spawn(separator());
+    list.spawn(divider());
     // One row in both states, so arming never grows the list: a Confirm on a
     // row of its own under the last row of a scrolled page was below the fold.
     list.spawn((
         Name::new("Reset Bindings Row"),
         Node {
-            flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::NoWrap,
             // A prompt that wraps grows the row downward; the buttons keep
             // the top line, where Reset Defaults was.
             align_items: AlignItems::FlexStart,
-            column_gap: px(12),
-            ..default()
+            flex_shrink: 0.0,
+            ..action_row(JustifyContent::FlexStart)
         },
     ))
     .with_children(|row| {
@@ -1452,12 +1545,15 @@ fn build_controls_tab(
                     ButtonCueType::Back,
                 ));
             });
-        row.spawn((
-            Name::new("Reset Bindings"),
-            nova_ui::widget::button(ButtonSpec::control("Confirm").danger()),
-            ResetBindings,
-            observe(on_reset_bindings),
-        ));
+        row.spawn(button_slot("Reset Bindings Confirm Slot", SIDE_SLOT_W))
+            .with_children(|slot| {
+                slot.spawn((
+                    Name::new("Reset Bindings"),
+                    nova_ui::widget::button(ButtonSpec::control("Confirm").danger().fill()),
+                    ResetBindings,
+                    observe(on_reset_bindings),
+                ));
+            });
         row.spawn((
             Name::new("Reset Bindings Prompt"),
             UiText,
@@ -1719,8 +1815,7 @@ fn spawn_rebind_row(
             width: percent(100),
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: px(12),
-            padding: UiRect::axes(px(2), px(3)),
+            column_gap: px(GAP_L),
             ..default()
         },
     ))
@@ -2062,8 +2157,7 @@ pub(crate) fn spawn_keybind_row(
             width: percent(100),
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: px(12),
-            padding: UiRect::axes(px(2), px(3)),
+            column_gap: px(GAP_L),
             ..default()
         },
     ))

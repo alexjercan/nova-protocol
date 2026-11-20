@@ -21,6 +21,8 @@ use nova_ui::{
     theme,
     theme::UiColorType,
     widget::{
+        button_stack, group_stack,
+        metrics::{GAP, GAP_L, PANEL_PAD_MENU},
         panel, panel_head, segmented_container, segmented_option_fit, PanelHeadType, Selected,
         ThemedFill, ThemedRadius, ThemedText, ThemedTextShadow, UiText,
     },
@@ -51,9 +53,8 @@ use crate::{
         ScenariosPanel, SelectedScenarioId,
     },
     settings::{
-        build_settings_tabs, on_settings, on_settings_back, SettingsActiveTab, SettingsPanel,
-        SettingsTabBody, SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT, SETTINGS_PANEL_MAX_W,
-        SETTINGS_PANEL_WIDTH_PCT,
+        build_settings_window, on_settings, on_settings_back, SettingsActiveTab, SettingsPanel,
+        SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT, SETTINGS_PANEL_MAX_W, SETTINGS_PANEL_WIDTH_PCT,
     },
     training::{on_training, spawn_menu_aside, spawn_training_panel},
     widgets::{back_button, button, MenuScreen},
@@ -125,7 +126,7 @@ pub(crate) fn setup_menu_ui(
                         max_width: px(SETTINGS_PANEL_MAX_W),
                         height: px(SETTINGS_PANEL_H),
                         max_height: percent(SETTINGS_PANEL_MAX_H_PCT),
-                        padding: UiRect::all(px(20)),
+                        padding: UiRect::all(px(PANEL_PAD_MENU)),
                         border: UiRect::all(px(theme::BORDER_W)),
                         ..default()
                     },
@@ -137,44 +138,16 @@ pub(crate) fn setup_menu_ui(
                         Name::new("Settings Title"),
                         panel_head("Settings", PanelHeadType::Inset, &["SAVED ON CHANGE"]),
                     ));
-                    build_settings_tabs(parent, active_settings_tab.0);
-                    parent
-                        .spawn((
-                            Name::new("Settings Body Row"),
-                            Node {
-                                flex_direction: FlexDirection::Row,
-                                align_items: AlignItems::Stretch,
-                                // Takes the panel's leftover height, so the
-                                // scroll viewport clips instead of the fixed
-                                // panel overflowing past the Back button.
-                                flex_grow: 1.0,
-                                min_height: px(0),
-                                ..default()
-                            },
-                        ))
-                        .with_children(|row| {
-                            // Spawned EMPTY: `refresh_settings_tab` fills it on
-                            // the first Update after entry, the same path a tab
-                            // press and a rebind take.
-                            row.spawn((
-                                Name::new("Settings Body"),
-                                SettingsTabBody,
-                                scroll_column(),
-                                scroll_viewport(),
-                            ));
-                            row.spawn((Name::new("Settings Scroll Bar"), scroll_bar()));
-                        });
-                    parent
-                        .spawn((
-                            Name::new("Settings Footer"),
-                            footer_back_slot((
-                                Name::new("Settings Back Button"),
-                                back_button("Back"),
-                                observe(on_settings_back),
-                            )),
-                        ))
-                        .entry::<Node>()
-                        .and_modify(|mut node| node.margin = UiRect::top(px(12)));
+                    build_settings_window(
+                        parent,
+                        "Settings",
+                        active_settings_tab.0,
+                        (
+                            Name::new("Settings Back Button"),
+                            back_button("Back"),
+                            observe(on_settings_back),
+                        ),
+                    );
                 });
         });
 
@@ -205,7 +178,7 @@ pub(crate) fn setup_menu_ui(
                         flex_direction: FlexDirection::Column,
                         width: percent(85),
                         height: percent(85),
-                        padding: UiRect::all(px(20)),
+                        padding: UiRect::all(px(PANEL_PAD_MENU)),
                         border: UiRect::all(px(theme::BORDER_W)),
                         ..default()
                     },
@@ -218,22 +191,17 @@ pub(crate) fn setup_menu_ui(
                         panel_head("Mods", PanelHeadType::Inset, &["DELTA-9"]),
                     ));
                     parent.spawn((
-                        Name::new("Mods Subtitle"),
-                        Text::new("Enable installed mods. Base is always on."),
-                        TextFont {
-                            font_size: FontSize::Px(13.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColorType::TextMuted),
-                    ));
-
-                    parent.spawn((
                         Name::new("Mods Content"),
                         list_detail_screen(
                             (
                                 Name::new("Mods Left Pane"),
-                                list_pane(),
+                                // The tabs over the list, not rows of one
+                                // list: the heading gap takes the place of
+                                // the pane's row gap.
+                                Node {
+                                    row_gap: px(GAP),
+                                    ..list_pane()
+                                },
                                 children![
                                     (
                                         Name::new("Mods Tab Row"),
@@ -264,10 +232,7 @@ pub(crate) fn setup_menu_ui(
                                     (
                                         Name::new("Mods List"),
                                         ModsList,
-                                        Node {
-                                            margin: UiRect::top(px(8)),
-                                            ..scroll_column()
-                                        },
+                                        scroll_column(),
                                         scroll_viewport(),
                                     ),
                                 ],
@@ -312,7 +277,7 @@ pub(crate) fn setup_menu_ui(
                         flex_direction: FlexDirection::Column,
                         width: percent(85),
                         height: percent(85),
-                        padding: UiRect::all(px(20)),
+                        padding: UiRect::all(px(PANEL_PAD_MENU)),
                         border: UiRect::all(px(theme::BORDER_W)),
                         ..default()
                     },
@@ -324,17 +289,6 @@ pub(crate) fn setup_menu_ui(
                         Name::new("Scenarios Title"),
                         panel_head("Scenarios", PanelHeadType::Inset, &["PICK ONE"]),
                     ));
-                    parent.spawn((
-                        Name::new("Scenarios Subtitle"),
-                        Text::new("Pick a scenario to play."),
-                        TextFont {
-                            font_size: FontSize::Px(13.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColorType::TextMuted),
-                    ));
-
                     parent.spawn((
                         Name::new("Scenarios Content"),
                         list_detail_screen(
@@ -387,7 +341,7 @@ pub(crate) fn setup_menu_ui(
                         flex_direction: FlexDirection::Column,
                         width: percent(85),
                         height: percent(85),
-                        padding: UiRect::all(px(20)),
+                        padding: UiRect::all(px(PANEL_PAD_MENU)),
                         border: UiRect::all(px(theme::BORDER_W)),
                         ..default()
                     },
@@ -448,24 +402,16 @@ pub(crate) fn setup_menu_ui(
 }
 
 /// The gap between the card and the window edge, on the right and the bottom.
-const MENU_CARD_MARGIN: f32 = 40.0;
+/// Off the spacing scale on purpose: it is the frame around the whole menu,
+/// not a gap between two controls, and the notice corner mirrors it on the
+/// left.
+pub(crate) const MENU_CARD_MARGIN: f32 = 40.0;
 
-/// The vertical gap that sets one group of main-menu buttons off from the next.
-/// The title separator stays the only rule on the card.
-const MENU_GROUP_GAP: f32 = 6.0;
-
-/// A blank gap between two button groups of the main column. It cannot shrink,
-/// or a short window would squeeze the groups together before it scrolled.
-fn group_gap() -> impl Bundle {
-    (
-        Name::new("Menu Group Gap"),
-        Node {
-            height: px(MENU_GROUP_GAP),
-            flex_shrink: 0.0,
-            ..default()
-        },
-    )
-}
+/// Marks the frame that holds the main-menu card.
+/// [`sync_menu_aside`](crate::training::sync_menu_aside) hides it while a menu
+/// window is open, so no window lies half over the card.
+#[derive(Component)]
+pub(crate) struct MenuCardFrame;
 
 /// The main-menu card: the title and the footer stay fixed, the button column
 /// between them scrolls when the window is too short for it.
@@ -483,6 +429,7 @@ pub(crate) fn spawn_menu_card(
         .spawn((
             DespawnOnExit(GameStates::MainMenu),
             Name::new("Menu Panel Frame"),
+            MenuCardFrame,
             Pickable::IGNORE,
             Node {
                 position_type: PositionType::Absolute,
@@ -507,11 +454,12 @@ pub(crate) fn spawn_menu_card(
                         justify_content: JustifyContent::FlexStart,
                         width: px(280),
                         max_height: percent(100),
-                        padding: UiRect::all(px(20)),
+                        row_gap: px(GAP_L),
+                        padding: UiRect::all(px(PANEL_PAD_MENU)),
                         border: UiRect::all(px(theme::BORDER_W)),
                         ..default()
                     },
-                    ThemedRadius::control(),
+                    ThemedRadius::panel(),
                     panel(),
                 ))
                 .with_children(|card| {
@@ -536,7 +484,6 @@ pub(crate) fn spawn_menu_card(
                         Node {
                             width: percent(80),
                             height: px(2),
-                            margin: UiRect::all(px(10)),
                             flex_shrink: 0.0,
                             ..default()
                         },
@@ -547,8 +494,11 @@ pub(crate) fn spawn_menu_card(
                         .with_children(|row| {
                             row.spawn((
                                 Name::new("Menu Buttons"),
+                                // The groups of the column, not a list of
+                                // rows: the group gap takes the place of the
+                                // scroll column's row gap.
                                 Node {
-                                    align_items: AlignItems::Center,
+                                    row_gap: group_stack().row_gap,
                                     ..scroll_column()
                                 },
                                 scroll_viewport(),
@@ -568,7 +518,7 @@ pub(crate) fn spawn_menu_card(
                                     node.position_type = PositionType::Absolute;
                                     node.top = px(0);
                                     node.bottom = px(0);
-                                    node.right = px(-12);
+                                    node.right = px(-GAP_L);
                                     node.margin = UiRect::ZERO;
                                 });
                         });
@@ -579,7 +529,6 @@ pub(crate) fn spawn_menu_card(
                             flex_direction: FlexDirection::Row,
                             justify_content: JustifyContent::SpaceBetween,
                             flex_shrink: 0.0,
-                            margin: UiRect::top(px(10)),
                             ..default()
                         },
                     ))
@@ -601,70 +550,88 @@ pub(crate) fn spawn_menu_card(
         });
 }
 
+/// One group of the main column: a [`button_stack`] that cannot shrink, or a
+/// short window would squeeze its buttons together before the column scrolled.
+fn button_group(name: &'static str) -> impl Bundle {
+    (
+        Name::new(name),
+        Node {
+            flex_shrink: 0.0,
+            ..button_stack()
+        },
+    )
+}
+
 /// The main column's buttons in their groups. On desktop the Continue slot
-/// heads the column and holds New Game too, so the one lit call-to-action
+/// heads the first group and holds New Game too, so the one lit call-to-action
 /// follows whether a save is there to continue.
 fn spawn_menu_buttons(
     list: &mut ChildSpawnerCommands,
     #[cfg(not(target_arch = "wasm32"))] saves: &[WorldListing],
 ) {
-    #[cfg(not(target_arch = "wasm32"))]
-    list.spawn((
-        Name::new("Continue Slot"),
-        ContinueSlot,
-        Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Center,
-            flex_shrink: 0.0,
-            ..default()
-        },
-    ))
-    .with_children(|slot| spawn_primary_actions(slot, saves, now_unix()));
-    // No saved worlds on the web build, so New Game is its only call-to-action.
-    #[cfg(target_arch = "wasm32")]
-    list.spawn(new_game_button(true));
-    // Saved worlds are a desktop-build concept; the web build never
-    // offers a folder to load from.
-    #[cfg(not(target_arch = "wasm32"))]
-    list.spawn((
-        Name::new("Load Button"),
-        button("Load"),
-        observe(on_load_screen),
-    ));
-    list.spawn(group_gap());
-    list.spawn((
-        Name::new("Lessons Button"),
-        button("Lessons"),
-        observe(on_training),
-    ));
-    list.spawn((
-        Name::new("Scenarios Button"),
-        button("Scenarios"),
-        observe(on_scenarios),
-    ));
-    list.spawn((
-        Name::new("Sandbox Button"),
-        button("Sandbox"),
-        observe(on_sandbox),
-    ));
-    list.spawn(group_gap());
-    list.spawn((Name::new("Mods Button"), button("Mods"), observe(on_mods)));
-    list.spawn((
-        Name::new("Settings Button"),
-        button("Settings"),
-        observe(on_settings),
-    ));
+    list.spawn(button_group("Menu Play Group"))
+        .with_children(|group| {
+            #[cfg(not(target_arch = "wasm32"))]
+            group
+                .spawn((
+                    Name::new("Continue Slot"),
+                    ContinueSlot,
+                    Node {
+                        flex_shrink: 0.0,
+                        ..button_stack()
+                    },
+                ))
+                .with_children(|slot| spawn_primary_actions(slot, saves, now_unix()));
+            // No saved worlds on the web build, so New Game is its only
+            // call-to-action.
+            #[cfg(target_arch = "wasm32")]
+            group.spawn(new_game_button(true));
+            // Saved worlds are a desktop-build concept; the web build never
+            // offers a folder to load from.
+            #[cfg(not(target_arch = "wasm32"))]
+            group.spawn((
+                Name::new("Load Button"),
+                button("Load"),
+                observe(on_load_screen),
+            ));
+        });
+    list.spawn(button_group("Menu Learn Group"))
+        .with_children(|group| {
+            group.spawn((
+                Name::new("Lessons Button"),
+                button("Lessons"),
+                observe(on_training),
+            ));
+            group.spawn((
+                Name::new("Scenarios Button"),
+                button("Scenarios"),
+                observe(on_scenarios),
+            ));
+            group.spawn((
+                Name::new("Sandbox Button"),
+                button("Sandbox"),
+                observe(on_sandbox),
+            ));
+        });
+    list.spawn(button_group("Menu Setup Group"))
+        .with_children(|group| {
+            group.spawn((Name::new("Mods Button"), button("Mods"), observe(on_mods)));
+            group.spawn((
+                Name::new("Settings Button"),
+                button("Settings"),
+                observe(on_settings),
+            ));
+        });
     // No process to quit on wasm; the browser tab owns the lifecycle.
     #[cfg(not(target_arch = "wasm32"))]
-    {
-        list.spawn(group_gap());
-        list.spawn((
-            Name::new("Exit Button"),
-            button_variant("Exit", ButtonVariant::Danger, None),
-            observe(on_exit),
-        ));
-    }
+    list.spawn(button_group("Menu Exit Group"))
+        .with_children(|group| {
+            group.spawn((
+                Name::new("Exit Button"),
+                button_variant("Exit", ButtonVariant::Danger, None),
+                observe(on_exit),
+            ));
+        });
 }
 
 pub(crate) fn on_sandbox(

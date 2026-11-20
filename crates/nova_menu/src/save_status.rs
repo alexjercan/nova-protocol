@@ -5,7 +5,11 @@ use std::time::Duration;
 use bevy::prelude::*;
 use nova_gameplay::prelude::GameStates;
 use nova_hud::prelude::HudTier;
-use nova_ui::{prelude::HUD_Z, theme::UiColorType, widget::ThemedText};
+use nova_ui::{
+    prelude::HUD_Z,
+    theme::UiColorType,
+    widget::{ThemedText, UiText},
+};
 use nova_world_base::prelude::{WorldSaveSession, WorldSaveStatus};
 
 /// Marker for the one notice [`sync_save_notice`] keeps.
@@ -95,6 +99,7 @@ pub(crate) fn sync_save_notice(
             ..default()
         },
         GlobalZIndex(HUD_Z),
+        UiText,
         Text::new(text),
         TextFont {
             font_size: FontSize::Px(12.0),
