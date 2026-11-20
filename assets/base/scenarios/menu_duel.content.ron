@@ -586,9 +586,9 @@
                                     (
                                         id: "plate_0",
                                         position: (
-                                            -1.0,
                                             0.0,
-                                            -2.0,
+                                            0.0,
+                                            -5.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -605,7 +605,7 @@
                                         position: (
                                             -1.0,
                                             0.0,
-                                            -1.0,
+                                            -4.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -620,9 +620,9 @@
                                     (
                                         id: "plate_2",
                                         position: (
-                                            -1.0,
                                             0.0,
                                             0.0,
+                                            -4.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -637,9 +637,9 @@
                                     (
                                         id: "plate_3",
                                         position: (
-                                            -1.0,
-                                            0.0,
                                             1.0,
+                                            0.0,
+                                            -4.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -654,9 +654,9 @@
                                     (
                                         id: "plate_4",
                                         position: (
-                                            -1.0,
+                                            -2.0,
                                             0.0,
-                                            2.0,
+                                            -3.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -671,7 +671,7 @@
                                     (
                                         id: "plate_5",
                                         position: (
-                                            0.0,
+                                            -2.0,
                                             0.0,
                                             -2.0,
                                         ),
@@ -688,9 +688,9 @@
                                     (
                                         id: "plate_6",
                                         position: (
-                                            0.0,
-                                            0.0,
                                             -1.0,
+                                            0.0,
+                                            -3.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -705,9 +705,9 @@
                                     (
                                         id: "plate_7",
                                         position: (
+                                            -1.0,
                                             0.0,
-                                            0.0,
-                                            0.0,
+                                            -2.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -724,7 +724,7 @@
                                         position: (
                                             0.0,
                                             0.0,
-                                            1.0,
+                                            -3.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -739,9 +739,9 @@
                                     (
                                         id: "plate_9",
                                         position: (
+                                            1.0,
                                             0.0,
-                                            0.0,
-                                            2.0,
+                                            -3.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -773,9 +773,9 @@
                                     (
                                         id: "plate_11",
                                         position: (
-                                            1.0,
+                                            2.0,
                                             0.0,
-                                            -1.0,
+                                            -3.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -790,9 +790,9 @@
                                     (
                                         id: "plate_12",
                                         position: (
-                                            1.0,
+                                            2.0,
                                             0.0,
-                                            0.0,
+                                            -2.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -807,9 +807,9 @@
                                     (
                                         id: "plate_13",
                                         position: (
+                                            -2.0,
                                             1.0,
-                                            0.0,
-                                            1.0,
+                                            -3.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -824,24 +824,7 @@
                                     (
                                         id: "plate_14",
                                         position: (
-                                            1.0,
-                                            0.0,
-                                            2.0,
-                                        ),
-                                        rotation: (
-                                            0.0,
-                                            0.0,
-                                            0.0,
-                                            1.0,
-                                        ),
-                                        source: Prototype(
-                                            id: "light_hull_section",
-                                        ),
-                                    ),
-                                    (
-                                        id: "plate_15",
-                                        position: (
-                                            -1.0,
+                                            -2.0,
                                             1.0,
                                             -2.0,
                                         ),
@@ -856,11 +839,28 @@
                                         ),
                                     ),
                                     (
+                                        id: "plate_15",
+                                        position: (
+                                            2.0,
+                                            1.0,
+                                            -3.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                    (
                                         id: "plate_16",
                                         position: (
-                                            -1.0,
+                                            2.0,
                                             1.0,
-                                            -1.0,
+                                            -2.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -875,9 +875,9 @@
                                     (
                                         id: "plate_17",
                                         position: (
-                                            -1.0,
-                                            1.0,
                                             0.0,
+                                            1.0,
+                                            -4.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -892,8 +892,8 @@
                                     (
                                         id: "plate_18",
                                         position: (
+                                            -1.0,
                                             0.0,
-                                            1.0,
                                             -1.0,
                                         ),
                                         rotation: (
@@ -910,8 +910,8 @@
                                         id: "plate_19",
                                         position: (
                                             0.0,
-                                            1.0,
                                             0.0,
+                                            -1.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -927,8 +927,8 @@
                                         id: "plate_20",
                                         position: (
                                             1.0,
-                                            1.0,
-                                            -2.0,
+                                            0.0,
+                                            -1.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -943,9 +943,9 @@
                                     (
                                         id: "plate_21",
                                         position: (
-                                            1.0,
-                                            1.0,
-                                            -1.0,
+                                            0.0,
+                                            0.0,
+                                            0.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -960,9 +960,9 @@
                                     (
                                         id: "plate_22",
                                         position: (
-                                            1.0,
-                                            1.0,
                                             0.0,
+                                            0.0,
+                                            1.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -977,9 +977,9 @@
                                     (
                                         id: "plate_23",
                                         position: (
-                                            2.0,
                                             0.0,
-                                            -1.0,
+                                            0.0,
+                                            2.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -994,9 +994,9 @@
                                     (
                                         id: "plate_24",
                                         position: (
+                                            -1.0,
+                                            0.0,
                                             2.0,
-                                            0.0,
-                                            0.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -1011,9 +1011,9 @@
                                     (
                                         id: "plate_25",
                                         position: (
-                                            2.0,
-                                            0.0,
+                                            -1.0,
                                             1.0,
+                                            2.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -1028,9 +1028,9 @@
                                     (
                                         id: "plate_26",
                                         position: (
-                                            2.0,
                                             1.0,
-                                            -1.0,
+                                            0.0,
+                                            2.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -1046,8 +1046,8 @@
                                         id: "plate_27",
                                         position: (
                                             2.0,
-                                            1.0,
                                             0.0,
+                                            1.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -1062,9 +1062,9 @@
                                     (
                                         id: "plate_28",
                                         position: (
+                                            2.0,
                                             0.0,
-                                            0.0,
-                                            -3.0,
+                                            2.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -1080,7 +1080,7 @@
                                         id: "bridge",
                                         position: (
                                             0.0,
-                                            1.0,
+                                            0.0,
                                             -2.0,
                                         ),
                                         rotation: (
@@ -1097,11 +1097,11 @@
                                         ),
                                     ),
                                     (
-                                        id: "pdc_dorsal",
+                                        id: "pdc_port",
                                         position: (
-                                            0.0,
+                                            -2.0,
                                             1.75,
-                                            -1.0,
+                                            -3.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -1119,11 +1119,11 @@
                                         ),
                                     ),
                                     (
-                                        id: "pdc_boom",
+                                        id: "pdc_starboard",
                                         position: (
                                             2.0,
                                             1.75,
-                                            0.0,
+                                            -3.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -1145,7 +1145,7 @@
                                         position: (
                                             0.0,
                                             1.0,
-                                            1.5,
+                                            -2.5,
                                         ),
                                         rotation: (
                                             0.70710677,
@@ -1162,6 +1162,23 @@
                                         position: (
                                             -1.0,
                                             0.0,
+                                            3.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "basic_thruster_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "drive_port_dorsal",
+                                        position: (
+                                            -1.0,
+                                            1.0,
                                             3.0,
                                         ),
                                         rotation: (
@@ -1192,9 +1209,9 @@
                                         ),
                                     ),
                                     (
-                                        id: "drive_starboard",
+                                        id: "drive_outrigger",
                                         position: (
-                                            1.0,
+                                            2.0,
                                             0.0,
                                             3.0,
                                         ),
@@ -1209,28 +1226,11 @@
                                         ),
                                     ),
                                     (
-                                        id: "drive_outrigger",
-                                        position: (
-                                            2.0,
-                                            0.0,
-                                            2.0,
-                                        ),
-                                        rotation: (
-                                            0.0,
-                                            0.0,
-                                            0.0,
-                                            1.0,
-                                        ),
-                                        source: Prototype(
-                                            id: "basic_thruster_section",
-                                        ),
-                                    ),
-                                    (
                                         id: "port_collar",
                                         position: (
-                                            -2.0,
+                                            -3.0,
                                             0.0,
-                                            0.0,
+                                            -3.0,
                                         ),
                                         rotation: (
                                             0.0,

@@ -48,13 +48,14 @@ does NOT get an entry. Another page that states a different rule is wrong.
 ### Ships & Sections
 
 - Undocked, a lost section rebuilds in the field from its recipe parts in the hold, with no credits, 5 s a part (20 s at least). A lost docking port no longer ends docking for good.
-- The Interceptor flies five drives, up from three: the fastest armed start. The Patrol Picket gains a third drive and six hull cells in two aft strakes, and stays the lightest armed start.
-- New look for three start hulls: the mining tug is a pusher with a bow boom, the salvage hauler has a forked bow and a tall aft block, the light freighter a neck, a box hold and two drive pods.
+- The Interceptor flies five drives, up from three: the fastest armed start. The Patrol Picket gains a third drive and six hull cells, and stays the lightest armed start.
+- New look for the six start hulls: a pusher tug with a bow boom, a fork-bowed hauler, a freighter with a neck and drive pods, a dart interceptor, a hammerhead raider and a picket with a bridge tower.
 
 ### Modding & Mod Portal
 
 - `OnRepaired` now fires when a repair job ends, with every plate it fitted. `OnRebuilt` also fires for a field rebuild, with `price_cr: 0` and no `OnCreditsChanged`.
 - `OnCreditsChanged` gains cause `Rescue`: an SOS rescue takes its charge in one change at the answer. Its `OnRebuilt` events carry hold parts and each section's share.
+- **(breaking)** Start hull section ids moved: `plate_N` names new cells on all six, the tug, hauler, freighter and raider renamed drives, and the raider's mounts are `pdc_port` and `pdc_starboard`.
 - **(breaking)** Recipes are content: `Recipe((id, inputs, output, duration_secs, site))`, with `site: Ship` or `Station(fee_cr: n, advancement: a)`. The item `refine` field is gone.
 - Consumables are content: `Consumable((item, effect))`, effect `Repair`. Lint refuses bad numbers, an unknown or engine item, and a duplicate item.
 - **(breaking)** Station designs need `advancement` in [0, 1]. A station runs a Station recipe only at or above its `advancement`; lint refuses ammo below the weapons that fire it.

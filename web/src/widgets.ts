@@ -198,7 +198,7 @@ const CONTROLLER_MAX_TORQUE = 9760; // controller.rs
 // The GOTO widget flies this hull. `hullState(INTERCEPTOR_CELLS)` re-derives it
 // from the ship's own cells and agrees, which is the check that the assembly
 // model below is the game's; `web/tests/widgets.test.ts` holds them together.
-export const INTERCEPTOR_ARM_U = 3.513;
+export const INTERCEPTOR_ARM_U = 4.607;
 
 // Thrust is authored as an IMPULSE PER FIXED TICK and handed to avian with no
 // `dt` factor, so a hull's acceleration is its summed magnitude times the tick
@@ -2715,60 +2715,63 @@ function cell(
 }
 
 // The Interceptor (`interceptor` in assets/base/ships/base.content.ron), the
-// small military boat and the hull the drydock figures pose. A two-deck
-// armoured body with two aft sponsons, two PDC mounts on the upper deck, a
-// cargo intake on the top deck aft, three bell drives in the stern row, one
-// more on each sponson tip and a docking collar off the port flank. Nothing here is a mesh: every cell is a
-// section on the same build grid a player builds on.
+// small military boat and the hull the drydock figures pose. A one-deck
+// armoured arrowhead: a one-cell tip, a body that steps out to seven cells
+// across the wings, a PDC mount on each wing tip, the bridge and a cargo
+// intake on the deck, a bell drive on each wing tip, a pair on the tail and
+// one raised behind the intake, and a docking collar on the port wing tip.
+// Nothing here is a mesh: every cell is a section on the same build grid a
+// player builds on.
 export const INTERCEPTOR_CELLS: ShipPart[] = [
-    cell("plate_0", -1, 0, -2, HULL_CELL, "hull"),
-    cell("plate_1", -1, 0, -1, HULL_CELL, "hull"),
-    cell("plate_2", -1, 0, 0, HULL_CELL, "hull"),
-    cell("plate_3", -1, 0, 1, HULL_CELL, "hull"),
-    cell("plate_4", -1, 1, -2, HULL_CELL, "hull"),
-    cell("plate_5", -1, 1, -1, HULL_CELL, "hull"),
-    cell("plate_6", -1, 1, 0, HULL_CELL, "hull"),
-    cell("plate_7", -1, 1, 1, HULL_CELL, "hull"),
-    cell("plate_8", -1, 1, 2, HULL_CELL, "hull"),
-    cell("plate_9", 0, 0, -2, HULL_CELL, "hull"),
-    cell("plate_10", 0, 0, -1, HULL_CELL, "hull"),
-    cell("plate_11", 0, 0, 0, HULL_CELL, "hull"),
-    cell("plate_12", 0, 0, 1, HULL_CELL, "hull"),
-    cell("plate_13", 0, 1, -2, HULL_CELL, "hull"),
-    cell("plate_14", 0, 1, 0, HULL_CELL, "hull"),
-    cell("plate_15", 0, 1, 1, HULL_CELL, "hull"),
-    cell("plate_16", 0, 1, 2, HULL_CELL, "hull"),
-    cell("plate_17", 1, 0, -2, HULL_CELL, "hull"),
-    cell("plate_18", 1, 0, -1, HULL_CELL, "hull"),
-    cell("plate_19", 1, 0, 0, HULL_CELL, "hull"),
-    cell("plate_20", 1, 0, 1, HULL_CELL, "hull"),
-    cell("plate_21", 1, 1, -2, HULL_CELL, "hull"),
-    cell("plate_22", 1, 1, -1, HULL_CELL, "hull"),
-    cell("plate_23", 1, 1, 0, HULL_CELL, "hull"),
-    cell("plate_24", 1, 1, 1, HULL_CELL, "hull"),
-    cell("plate_25", 1, 1, 2, HULL_CELL, "hull"),
-    cell("plate_26", -2, 0, 1, HULL_CELL, "sponsons"),
-    cell("plate_27", 2, 0, 1, HULL_CELL, "sponsons"),
-    // Each sponson ends in a bell drive, so losing one costs push too.
-    cell("drive_wing_port", -2, 0, 2, BASIC_DRIVE, "sponsons"),
-    cell("drive_wing_starboard", 2, 0, 2, BASIC_DRIVE, "sponsons"),
+    cell("plate_0", 0, 0, -4, HULL_CELL, "nose"),
+    cell("plate_1", 0, 0, -3, HULL_CELL, "nose"),
+    cell("plate_7", -1, 0, -3, HULL_CELL, "nose"),
+    cell("plate_13", 1, 0, -3, HULL_CELL, "nose"),
+    cell("plate_2", 0, 0, -2, HULL_CELL, "hull"),
+    cell("plate_3", 0, 0, -1, HULL_CELL, "hull"),
+    cell("plate_4", 0, 0, 0, HULL_CELL, "hull"),
+    cell("plate_5", 0, 0, 1, HULL_CELL, "hull"),
+    cell("plate_6", 0, 0, 2, HULL_CELL, "hull"),
+    cell("plate_8", -1, 0, -2, HULL_CELL, "hull"),
+    cell("plate_9", -1, 0, -1, HULL_CELL, "hull"),
+    cell("plate_10", -1, 0, 0, HULL_CELL, "hull"),
+    cell("plate_11", -1, 0, 1, HULL_CELL, "hull"),
+    cell("plate_12", -1, 0, 2, HULL_CELL, "hull"),
+    cell("plate_14", 1, 0, -2, HULL_CELL, "hull"),
+    cell("plate_15", 1, 0, -1, HULL_CELL, "hull"),
+    cell("plate_16", 1, 0, 0, HULL_CELL, "hull"),
+    cell("plate_17", 1, 0, 1, HULL_CELL, "hull"),
+    cell("plate_18", 1, 0, 2, HULL_CELL, "hull"),
+    // Each wing carries its tip mount and its tip drive: the mount stands on
+    // the tip plate and the drive bolts to it, so neither outlives the wing.
+    cell("plate_19", -2, 0, -1, HULL_CELL, "port wing"),
+    cell("plate_20", -2, 0, 0, HULL_CELL, "port wing"),
+    cell("plate_21", -2, 0, 1, HULL_CELL, "port wing"),
+    cell("plate_25", -3, 0, 1, HULL_CELL, "port wing"),
+    cell("pdc_port", -3, 0.75, 1, PDC_MOUNT, "port wing"),
+    cell("drive_wing_port", -3, 0, 2, BASIC_DRIVE, "port wing"),
+    cell("plate_22", 2, 0, -1, HULL_CELL, "starboard wing"),
+    cell("plate_23", 2, 0, 0, HULL_CELL, "starboard wing"),
+    cell("plate_24", 2, 0, 1, HULL_CELL, "starboard wing"),
+    cell("plate_26", 3, 0, 0, HULL_CELL, "starboard wing"),
+    cell("plate_27", 3, 0, 1, HULL_CELL, "starboard wing"),
+    cell("pdc_starboard", 3, 0.75, 1, PDC_MOUNT, "starboard wing"),
+    cell("drive_wing_starboard", 3, 0, 2, BASIC_DRIVE, "starboard wing"),
     cell("bridge", 0, 1, -1, CONTROLLER_CELL, "bridge"),
-    cell("pdc_port", -1, 1.75, -1, PDC_MOUNT, "guns"),
-    cell("pdc_starboard", 1, 1.75, -1, PDC_MOUNT, "guns"),
     // Door up: the 3x2x1 box turned a quarter about x, so it lies 3 wide,
-    // 1 tall and 2 long across the top deck over the two aft rows.
+    // 1 tall and 2 long on the deck behind the bridge.
     {
         id: "cargo_intake",
         label: CARGO_INTAKE.label,
         health: CARGO_INTAKE.health,
-        center: [0, 2, 1.5],
+        center: [0, 1, 0.5],
         size: [3, 1, 2],
         group: "intake",
     },
-    cell("drive_port", -1, 0, 2, BASIC_DRIVE, "drives"),
-    cell("drive_centre", 0, 0, 2, BASIC_DRIVE, "drives"),
-    cell("drive_starboard", 1, 0, 2, BASIC_DRIVE, "drives"),
-    cell("port_collar", -2, 0, 0, DOCK_PORT, "collar"),
+    cell("drive_port", -1, 0, 3, BASIC_DRIVE, "drives"),
+    cell("drive_centre", 0, 1, 2, BASIC_DRIVE, "drives"),
+    cell("drive_starboard", 1, 0, 3, BASIC_DRIVE, "drives"),
+    cell("port_collar", -3, 0, 0, DOCK_PORT, "collar"),
 ];
 
 // The one flight computer. A built hull carries its computers as cells like
@@ -3033,14 +3036,14 @@ function initControllerArm(host: HTMLElement): void {
     // every port/starboard label is on the wrong side.
     // Sized so the arm RING fits the panel: the interceptor's arm is over
     // four cells, so the circle it draws is what sets the scale, not the hull.
-    const SCALE = 22;
-    const AX = 140;
-    const AY = 145;
+    const SCALE = 20;
+    const AX = 150;
+    const AY = 148;
     const px = (z: number): number => AX + z * SCALE;
     const py = (x: number): number => AY - x * SCALE;
 
     // The 8 G curve beside it. Linear on both axes: the two ceilings are a
-    // factor of nearly forty apart on this hull, so drawing them as two lines
+    // factor of over twenty-five apart on this hull, so drawing them as two lines
     // would need a log scale that flattens the only curve worth seeing.
     const BX0 = 336;
     const BX1 = 548;
@@ -3234,9 +3237,8 @@ function initControllerArm(host: HTMLElement): void {
 
         hullGroup.replaceChildren();
         // Every live cell as a plate, then ONE label per named structure at
-        // its centroid. A built hull is dozens of identical cells and the
-        // spine stacks two decks deep, so labelling each rect would print the
-        // same word over itself six times.
+        // its centroid. A built hull is dozens of identical cells, so
+        // labelling each rect would print the same word across the whole plan.
         const labelled = new Map<
             string,
             { x: number; y: number; n: number; dead: boolean }
@@ -3266,13 +3268,40 @@ function initControllerArm(host: HTMLElement): void {
             seen.dead = seen.dead && gone;
             labelled.set(part.group, seen);
         }
+        // The structures along the centreline have centroids a cell or two
+        // apart, so a word that would land on one already placed steps one
+        // line below it, then one above. The balance dot counts as placed:
+        // it sits in the middle of the same structures and hides a word.
+        const placed: { x: number; y: number; half: number }[] = held.length
+            ? [
+                  {
+                      x: px(state.centerOfMass[2]),
+                      y: py(state.centerOfMass[0]) + 4,
+                      half: 6,
+                  },
+              ]
+            : [];
         for (const [group, seen] of labelled) {
+            const x = px(seen.x / seen.n);
+            const half = group.length * 2.75 + 2;
+            const base = py(seen.y / seen.n) + 4;
+            const y =
+                [0, 11, -11, 22, -22]
+                    .map((step) => base + step)
+                    .find((line) =>
+                        placed.every(
+                            (word) =>
+                                Math.abs(word.y - line) >= 11 ||
+                                Math.abs(word.x - x) >= word.half + half
+                        )
+                    ) ?? base;
+            placed.push({ x, y, half });
             hullGroup.appendChild(
                 svgEl(
                     "text",
                     {
-                        x: String(px(seen.x / seen.n)),
-                        y: String(py(seen.y / seen.n) + 4),
+                        x: String(x),
+                        y: String(y),
                         "text-anchor": "middle",
                         class: seen.dead
                             ? "widget-mark--word is-dead"
@@ -3447,8 +3476,8 @@ function initControllerArm(host: HTMLElement): void {
             "centre. Mass is not authored anywhere - a section weighs its " +
             "own authored box - so both the balance point and the arm are " +
             "read off the interceptor's own cells and nothing else. The " +
-            "sponsons set the arm, so that button moves the reading " +
-            "hardest. Cut the hull and the " +
+            "nose sets the arm, so that button shortens it and the rest " +
+            "stays one ship. Cut the hull and the " +
             "structures beyond it are no longer attached to a flight " +
             "computer, so they stop being this ship."
     );
@@ -8566,13 +8595,24 @@ function arrowPoints(x: number, y: number, dx: number, dy: number): string {
 // density 1), the impulse is mass x world units per second, and only the
 // readout converts.
 export const LANCE_RECOIL_IMPULSE = 45; // railgun.rs
-// Where the widget's lance stands on the interceptor: on the nose face at
-// z = -2.5, so the part runs z -5.5..-2.5.
-const LANCE_MOUNT_Z = -4;
-// The mount slides across the interceptor's BALANCE line, not its centreline:
-// the port collar pulls the balance point 0.5 m to port, and "on the axis"
-// has to mean a muzzle with no lever arm at all.
+// The mount slides across the interceptor's BALANCE line, which is read off
+// the cells and not assumed to be the centreline: "on the axis" has to mean
+// a muzzle with no lever arm at all.
 const LANCE_BALANCE_X = hullState(INTERCEPTOR_CELLS).centerOfMass[0];
+// Where the widget's lance stands on the interceptor: its centre, with the
+// part bolted to the forward face of the foremost deck cell in the column
+// `x` falls in. The hull is a dart, so that face steps aft as the mount
+// slides out along the leading edge; a fixed station would leave an off-axis
+// lance hanging in space beside the nose.
+function lanceMountZ(x: number): number {
+    let face = Infinity;
+    for (const part of INTERCEPTOR_CELLS) {
+        if (part.center[1] !== 0) continue;
+        if (Math.abs(part.center[0] - x) > part.size[0] / 2) continue;
+        face = Math.min(face, part.center[2] - part.size[2] / 2);
+    }
+    return face - RAILGUN_LANCE.cells[2] / 2;
+}
 
 export interface RecoilKick {
     /** Hull mass, engine units (box volume), lance included. */
@@ -8598,7 +8638,7 @@ export function railgunRecoil(offsetCells: number, massScale = 1): RecoilKick {
         "lance",
         LANCE_BALANCE_X + offsetCells,
         0,
-        LANCE_MOUNT_Z,
+        lanceMountZ(LANCE_BALANCE_X + offsetCells),
         RAILGUN_LANCE,
         "lance"
     );
@@ -8637,7 +8677,8 @@ function initRailgunRecoil(host: HTMLElement): void {
         `One shot is ${LANCE_RECOIL_IMPULSE} of impulse at the muzzle, aft ` +
             "along the bore. On the axis that is a straight kick; off it, " +
             "the lever arm from the balance point to the muzzle turns the " +
-            "hull as well. Slide the mount across the Interceptor's bow."
+            "hull as well. Slide the mount out along the Interceptor's " +
+            "leading edge."
     );
 
     const controls = el("div", "widget__controls");
@@ -8668,7 +8709,9 @@ function initRailgunRecoil(host: HTMLElement): void {
     // Top-down: x across, z down the screen with the bow up.
     const S = 20;
     const CX = 190;
-    const CY = 172;
+    // The on-axis lance reaches 7.5 cells ahead of the origin, so the origin
+    // sits low enough to keep its muzzle on the glass.
+    const CY = 204;
     const svg = svgEl("svg", {
         viewBox: "0 0 560 300",
         role: "img",
@@ -8774,12 +8817,9 @@ function initRailgunRecoil(host: HTMLElement): void {
         const comX = CX + kick.balance[0] * S;
         const comY = CY + kick.balance[2] * S;
         const muzzleX = CX + (LANCE_BALANCE_X + cells) * S;
-        const muzzleY = CY + (LANCE_MOUNT_Z - 1.5) * S;
+        const muzzleY = CY + (lanceMountZ(LANCE_BALANCE_X + cells) - 1.5) * S;
         lanceRect.setAttribute("x", String(muzzleX - 0.5 * S + 0.5));
-        lanceRect.setAttribute(
-            "y",
-            String(CY + (LANCE_MOUNT_Z - 1.5) * S + 0.5)
-        );
+        lanceRect.setAttribute("y", String(muzzleY + 0.5));
         comDot.setAttribute("cx", comX.toFixed(1));
         comDot.setAttribute("cy", comY.toFixed(1));
         // The kick: aft from the muzzle, 6 px per m/s, capped on the glass.

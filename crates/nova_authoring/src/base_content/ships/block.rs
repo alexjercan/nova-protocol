@@ -412,16 +412,31 @@ pub(super) fn freighter_derelict() -> BlockShip {
     }
 }
 
-/// The bounty hunter start: a compact two-deck body of light plate with stub
-/// wings, two point-defense mounts on the top deck, a cargo intake aft of
-/// them and five bell drives: three across the stern and one on each wing
-/// tip. It out-accelerates every other armed start.
+/// The bounty hunter start, an arrowhead: one low deck of light plate that
+/// steps out from a one-cell tip to seven cells across the wing tips, a
+/// point-defense mount on each tip, and a short dorsal block of the bridge,
+/// the cargo intake and `drive_centre`. Five bell drives: one on each wing
+/// tip, a pair on the three-cell tail and the raised one between them, a deck
+/// up. It out-accelerates every other armed start.
+///
+/// The raised bell lifts the thrust line to the height the intake lifts the
+/// centre of mass to; it hangs on the intake's aft face. The collar stands on
+/// the port wing tip: a hatch inboard of the tip would put the wing between
+/// it and the berth. The mounts stand on the tips, a clear cell outboard of
+/// the intake, which is taller than they are.
 pub(super) fn interceptor() -> BlockShip {
     BlockShip {
         cells: union(vec![
-            block(IVec3::new(-1, 0, -2), IVec3::new(3, 2, 5)),
-            block(IVec3::new(-2, 0, 1), IVec3::new(1, 1, 2)),
-            block(IVec3::new(2, 0, 1), IVec3::new(1, 1, 2)),
+            // The keel from the tip to the tail, the two columns beside it,
+            // then the wing roots and the tips.
+            block(IVec3::new(0, 0, -4), IVec3::new(1, 1, 7)),
+            block(IVec3::new(-1, 0, -3), IVec3::new(1, 1, 6)),
+            block(IVec3::new(1, 0, -3), IVec3::new(1, 1, 6)),
+            block(IVec3::new(-2, 0, -1), IVec3::new(1, 1, 3)),
+            block(IVec3::new(2, 0, -1), IVec3::new(1, 1, 3)),
+            vec![IVec3::new(-3, 0, 1)],
+            block(IVec3::new(3, 0, 0), IVec3::new(1, 1, 2)),
+            vec![IVec3::new(0, 1, -1)],
         ]),
         specials: vec![
             cell_part(
@@ -429,38 +444,38 @@ pub(super) fn interceptor() -> BlockShip {
                 BASIC_CONTROLLER_SECTION_ID,
                 IVec3::new(0, 1, -1),
             ),
-            turret("pdc_port", IVec3::new(-1, 2, -1)),
-            turret("pdc_starboard", IVec3::new(1, 2, -1)),
-            door_up_intake("cargo_intake", Vec3::new(0.0, 2.0, 1.5)),
+            turret("pdc_port", IVec3::new(-3, 1, 1)),
+            turret("pdc_starboard", IVec3::new(3, 1, 1)),
+            door_up_intake("cargo_intake", Vec3::new(0.0, 1.0, 0.5)),
             cell_part(
                 DRIVE_PORT_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(-1, 0, 2),
+                IVec3::new(-1, 0, 3),
             ),
             cell_part(
                 DRIVE_CENTRE_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(0, 0, 2),
+                IVec3::new(0, 1, 2),
             ),
             cell_part(
                 DRIVE_STARBOARD_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(1, 0, 2),
+                IVec3::new(1, 0, 3),
             ),
             cell_part(
                 "drive_wing_port",
                 BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(-2, 0, 2),
+                IVec3::new(-3, 0, 2),
             ),
             cell_part(
                 "drive_wing_starboard",
                 BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(2, 0, 2),
+                IVec3::new(3, 0, 2),
             ),
             flank_collar(
                 BLOCK_PORT_COLLAR_SECTION_ID,
                 FlankType::Port,
-                IVec3::new(-2, 0, 0),
+                IVec3::new(-3, 0, 0),
             ),
         ],
         plate: LIGHT_HULL_SECTION_ID,
@@ -469,32 +484,56 @@ pub(super) fn interceptor() -> BlockShip {
     }
 }
 
-/// The pirate start: a short hull of light plate with a nose stub, an
-/// outrigger and a gun boom on the starboard side, a dorsal mount, a cargo
-/// intake on the aft deck, and four bell drives. Its lopsided silhouette
-/// reads as a refit, not a yard design.
+/// The pirate start, a hammerhead: a five-wide head behind a stepped nose,
+/// with a raised end on each side carrying a point-defense mount and the
+/// cargo intake between them and a brow cell ahead of it, then a two-cell
+/// neck to a stern with a two-deck drive stack on its port side and one bell
+/// on an outrigger pod off the starboard quarter. Its lopsided stern reads as
+/// a refit, not a yard design.
+///
+/// The stack's two bells one cell to port and the tail's own bell, against
+/// the pod's one two cells to starboard, put the thrust line on the
+/// centreline, where the stack and the collar hold the centre of mass against
+/// the pod.
 pub(super) fn raider() -> BlockShip {
     BlockShip {
         cells: union(vec![
-            block(IVec3::new(-1, 0, -2), IVec3::new(3, 1, 6)),
-            block(IVec3::new(-1, 1, -2), IVec3::new(3, 1, 3)),
-            block(IVec3::new(2, 0, -1), IVec3::new(1, 1, 3)),
-            block(IVec3::new(2, 1, -1), IVec3::new(1, 1, 2)),
-            vec![IVec3::new(0, 0, -3)],
+            // The nose and its step, the head, then the raised ends the
+            // mounts stand on and the brow between them.
+            vec![IVec3::new(0, 0, -5)],
+            block(IVec3::new(-1, 0, -4), IVec3::new(3, 1, 1)),
+            block(IVec3::new(-2, 0, -3), IVec3::new(5, 1, 2)),
+            block(IVec3::new(-2, 1, -3), IVec3::new(1, 1, 2)),
+            block(IVec3::new(2, 1, -3), IVec3::new(1, 1, 2)),
+            vec![IVec3::new(0, 1, -4)],
+            // The fillet behind the head, the neck and tail, and the drive
+            // stack on the tail's port side.
+            block(IVec3::new(-1, 0, -1), IVec3::new(3, 1, 1)),
+            block(IVec3::new(0, 0, 0), IVec3::new(1, 1, 3)),
+            block(IVec3::new(-1, 0, 2), IVec3::new(1, 2, 1)),
+            // The strut joins the pod's aft cell, so the pod's forward cell
+            // stands clear of the neck.
+            vec![IVec3::new(1, 0, 2)],
+            block(IVec3::new(2, 0, 1), IVec3::new(1, 1, 2)),
         ]),
         specials: vec![
             cell_part(
                 BLOCK_BRIDGE_SECTION_ID,
                 BASIC_CONTROLLER_SECTION_ID,
-                IVec3::new(0, 1, -2),
+                IVec3::new(0, 0, -2),
             ),
-            turret("pdc_dorsal", IVec3::new(0, 2, -1)),
-            turret("pdc_boom", IVec3::new(2, 2, 0)),
-            door_up_intake("cargo_intake", Vec3::new(0.0, 1.0, 1.5)),
+            turret("pdc_port", IVec3::new(-2, 2, -3)),
+            turret("pdc_starboard", IVec3::new(2, 2, -3)),
+            door_up_intake("cargo_intake", Vec3::new(0.0, 1.0, -2.5)),
             cell_part(
                 DRIVE_PORT_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
                 IVec3::new(-1, 0, 3),
+            ),
+            cell_part(
+                DRIVE_PORT_DORSAL_SECTION_ID,
+                BASIC_THRUSTER_SECTION_ID,
+                IVec3::new(-1, 1, 3),
             ),
             cell_part(
                 DRIVE_CENTRE_SECTION_ID,
@@ -502,19 +541,14 @@ pub(super) fn raider() -> BlockShip {
                 IVec3::new(0, 0, 3),
             ),
             cell_part(
-                DRIVE_STARBOARD_SECTION_ID,
-                BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(1, 0, 3),
-            ),
-            cell_part(
                 "drive_outrigger",
                 BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(2, 0, 2),
+                IVec3::new(2, 0, 3),
             ),
             flank_collar(
                 BLOCK_PORT_COLLAR_SECTION_ID,
                 FlankType::Port,
-                IVec3::new(-2, 0, 0),
+                IVec3::new(-3, 0, -3),
             ),
         ],
         plate: LIGHT_HULL_SECTION_ID,
@@ -523,45 +557,50 @@ pub(super) fn raider() -> BlockShip {
     }
 }
 
-/// The military start: a slim dart of light plate with one
-/// point-defense mount on the nose face, where the hull cannot mask its
-/// forward arc, a second mount on the dorsal spine, a torpedo bay under the
-/// nose, a cargo intake on the aft deck, an aft strake of three cells on
-/// each flank and three bell drives. It stays the armed start with the
-/// least hull to lose.
+/// The military start: a plan of light plate that widens in two steps, from
+/// a one-cell nose to three-cell shoulders to a docking collar and a strake
+/// of two cells on each flank. One point-defense mount on the nose face,
+/// where the hull cannot mask its forward arc, a torpedo bay under the nose,
+/// the cargo intake on the fore deck, and a bridge tower aft with the second
+/// mount on its roof. Three bell drives in a triangle: one on each of the two
+/// stern tails and `drive_centre` behind the tower, a deck above the gap
+/// between them. It stays the armed start with the least hull to lose.
 pub(super) fn patrol_picket() -> BlockShip {
     BlockShip {
         cells: union(vec![
-            block(IVec3::new(-1, 0, -2), IVec3::new(3, 1, 6)),
-            block(IVec3::new(0, 1, -2), IVec3::new(1, 1, 2)),
-            block(IVec3::new(-2, 0, 1), IVec3::new(1, 1, 3)),
-            block(IVec3::new(2, 0, 1), IVec3::new(1, 1, 3)),
-            vec![IVec3::new(0, 0, -3)],
+            block(IVec3::new(0, 0, -4), IVec3::new(1, 1, 6)),
+            block(IVec3::new(-1, 0, -3), IVec3::new(1, 1, 6)),
+            block(IVec3::new(1, 0, -3), IVec3::new(1, 1, 6)),
+            block(IVec3::new(-2, 0, 0), IVec3::new(1, 1, 2)),
+            block(IVec3::new(2, 0, 0), IVec3::new(1, 1, 2)),
+            // The tower, a clear cell aft of the intake so no plate stands
+            // beside the door's lane.
+            block(IVec3::new(0, 1, 1), IVec3::new(1, 2, 1)),
         ]),
         specials: vec![
             cell_part(
                 BLOCK_BRIDGE_SECTION_ID,
                 BASIC_CONTROLLER_SECTION_ID,
-                IVec3::new(0, 1, -1),
+                IVec3::new(0, 2, 1),
             ),
             // Rotate the mount's -Y base onto the nose's -Z face. The
             // half-cell mount then centres just outside it.
             part(
                 PICKET_GUN_SECTION_ID,
                 PDC_KINETIC_TURRET_SECTION_ID,
-                Vec3::new(0.0, 0.0, -3.75),
+                Vec3::new(0.0, 0.0, -4.75),
                 Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
             ),
-            turret("pdc_dorsal", IVec3::new(0, 2, -2)),
+            turret("pdc_dorsal", IVec3::new(0, 3, 1)),
             // Hung under the nose by its top sockets: a bay beside the nose
             // would mask the nose mount's arc on that flank.
             part(
                 "torpedo_keel",
                 TORPEDO_SECTION_ID,
-                Vec3::new(0.0, -1.0, -2.5),
+                Vec3::new(0.0, -1.0, -3.5),
                 Quat::IDENTITY,
             ),
-            door_up_intake("cargo_intake", Vec3::new(0.0, 1.0, 1.5)),
+            door_up_intake("cargo_intake", Vec3::new(0.0, 1.0, -1.5)),
             cell_part(
                 DRIVE_PORT_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
@@ -570,7 +609,7 @@ pub(super) fn patrol_picket() -> BlockShip {
             cell_part(
                 DRIVE_CENTRE_SECTION_ID,
                 BASIC_THRUSTER_SECTION_ID,
-                IVec3::new(0, 0, 3),
+                IVec3::new(0, 1, 2),
             ),
             cell_part(
                 DRIVE_STARBOARD_SECTION_ID,
@@ -580,12 +619,12 @@ pub(super) fn patrol_picket() -> BlockShip {
             flank_collar(
                 BLOCK_PORT_COLLAR_SECTION_ID,
                 FlankType::Port,
-                IVec3::new(-2, 0, 0),
+                IVec3::new(-2, 0, -1),
             ),
             flank_collar(
                 BLOCK_STARBOARD_COLLAR_SECTION_ID,
                 FlankType::Starboard,
-                IVec3::new(2, 0, 0),
+                IVec3::new(2, 0, -1),
             ),
         ],
         plate: LIGHT_HULL_SECTION_ID,

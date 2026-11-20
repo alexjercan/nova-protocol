@@ -23,7 +23,7 @@
 //!
 //! The same walk also shoots the ships chapter's opening still,
 //! `wiki-ships-damage.png`, off the last beat - the hull cracked along the
-//! flank, its port turret dead, and the hole where its aft deck tore off. One
+//! flank, its port turret dead, and the hole where its port wing tip tore off. One
 //! scene answers both, and the still is taken AFTER the loop closes: a
 //! screenshot and a loop frame are the same window capture, and the second one
 //! asked for in a frame is dropped.
@@ -83,8 +83,8 @@ const SUBJECT_HULL: &str = "interceptor";
 #[cfg(feature = "debug")]
 const BROADSIDE_CELLS: [Vec3; 3] = [
     Vec3::new(-1.0, 0.0, -2.0),
-    Vec3::new(-1.0, 0.0, -1.0),
-    Vec3::new(-1.0, 0.0, 0.0),
+    Vec3::new(-2.0, 0.0, -1.0),
+    Vec3::new(-2.0, 0.0, 0.0),
 ];
 
 /// How much of a section's maximum the broadside takes off.
@@ -101,13 +101,14 @@ const BROADSIDE_FRACTION: f32 = 0.78;
 #[cfg(feature = "debug")]
 const DISABLED_TURRET: &str = "pdc_starboard";
 
-/// The cell the final hit goes through: the port top-deck plate.
+/// The cell the final hit goes through: the port wing-tip plate.
 ///
-/// It is the seat the port mount stands on, and the mount's only link, so
-/// cutting the plate frees the gun and the deck it rode on as an independent
-/// wreck. A plate with nothing hanging off it frees nothing.
+/// It is the seat the port mount stands on, and the only link of the mount
+/// and of the wing-tip drive behind it, so cutting the plate frees the gun
+/// and the drive as independent wrecks. A plate with nothing hanging off it
+/// frees nothing.
 #[cfg(feature = "debug")]
-const SEVERED_CELL: Vec3 = Vec3::new(-1.0, 1.0, -1.0);
+const SEVERED_CELL: Vec3 = Vec3::new(-3.0, 0.0, 1.0);
 
 /// Which way the still's lens faces, in the HULL's own frame - a direction
 /// only, so the tumble the sequence ends on cannot decide which face is shot.
@@ -116,7 +117,7 @@ const SEVERED_CELL: Vec3 = Vec3::new(-1.0, 1.0, -1.0);
 /// from the port QUARTER, which is a fine view of a hull coming apart in
 /// motion and the wrong one for a still, because everything the sequence
 /// touches is on the flank. Cracked plating runs bow to waist
-/// ([`BROADSIDE_CELLS`]), the dead gun is the starboard mount on the top deck,
+/// ([`BROADSIDE_CELLS`]), the dead gun is the mount on the starboard wing tip,
 /// and the hole is under the port mount at [`SEVERED_CELL`] - one flank-on
 /// frame carries all three, an aft quarter carries none of them.
 #[cfg(feature = "debug")]
@@ -124,17 +125,17 @@ const STILL_EYE: Vec3 = Vec3::new(-1.0, 0.3, -0.35);
 
 /// How far the still's lens stands off the hull, meters.
 ///
-/// The interceptor is about 65 m stem to stern and the lens is across its
-/// beam, so the whole length is in frame: the lens spans 1.47 times its
-/// distance, so at this range the frame is about 198 m wide and the hull is a
-/// third of it, which leaves the silhouette room without shrinking the cracks it is
-/// here to show. The pod freed by the last beat is
-/// 90 m clear by the time the loop closes and may fall outside; the framing
-/// keeps the SHIP, because the hole the pod left is the readable half of the
-/// story and a pod at that range is four pixels. The chapter's figure note
-/// says so.
+/// The interceptor is 80 m stem to stern and the lens is across its beam, so
+/// the whole length is in frame: the lens spans 1.47 times its distance, so
+/// at this range the frame is about 272 m wide and the hull is under a third
+/// of it, which leaves the silhouette room without shrinking the cracks it is
+/// here to show. The mount and the drive freed by the last beat are
+/// well clear by the time the loop closes and may fall outside; the framing
+/// keeps the SHIP, because the hole they left is the readable half of the
+/// story and a wreck that small at that range is four pixels. The chapter's
+/// figure note says so.
 #[cfg(feature = "debug")]
-const STILL_STANDOFF: f32 = 135.0;
+const STILL_STANDOFF: f32 = 185.0;
 
 /// Where the LOOP's lens sits, in the hull's own frame, as a direction.
 ///
@@ -146,15 +147,15 @@ const LOOP_EYE: Vec3 = Vec3::new(-0.68, 0.23, 0.70);
 
 /// How far the loop's lens stands off the hull, meters.
 ///
-/// The stand-off is the SHIP's, not the crack's. At 76 m this lens was inside
-/// its own subject: the loop showed a drive bell and a piece of plating, and
-/// the severed deck crossed close enough to fill the frame. The hull is shot
-/// from the port QUARTER, so it presents about 55 m rather than its 65 m
-/// length; held here that silhouette is a little over a third of the frame,
-/// which leaves the freed deck room to drift without leaving the shot, and a
-/// crack is still a crack.
+/// The stand-off is the SHIP's, not the crack's. A lens much closer is inside
+/// its own subject: the loop shows a drive bell and a piece of plating, and
+/// the freed wrecks cross close enough to fill the frame. The hull is shot
+/// from the port QUARTER, so it presents about 78 m, nose to starboard wing
+/// tip; held here that silhouette is a little under a third of the frame,
+/// which leaves the freed mount and drive room to drift without leaving the
+/// shot, and a crack is still a crack.
 #[cfg(feature = "debug")]
-const LOOP_STANDOFF: f32 = 115.0;
+const LOOP_STANDOFF: f32 = 170.0;
 
 /// The slow tumble the hull carries into the sequence, so the freed structure
 /// inherits real motion instead of hanging dead in frame.
@@ -295,7 +296,7 @@ fn damage_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         // The cut waits for the production sever - a wreck fragment with its
         // own body - to actually exist, not for a duration.
-        .step("cut the port aft deck")
+        .step("cut the port wing tip")
         .on_enter(sever_pod)
         .until(any_entity::<With<ShipWreckFragmentMarker>>())
         .deadline(5.0)
@@ -451,7 +452,8 @@ fn disable_turret(world: &mut World) {
     kill_section(world, DISABLED_TURRET);
 }
 
-/// Kill the port aft deck plate, which frees the mount standing on it.
+/// Kill the port wing-tip plate, which frees the mount standing on it and the
+/// drive behind it.
 #[cfg(feature = "debug")]
 fn sever_pod(world: &mut World) {
     let ships = world.resource::<GameShipDesigns>().clone();

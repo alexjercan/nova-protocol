@@ -1,12 +1,12 @@
-//! loop_spine_cut: the `spine-cut` webm loop - an interceptor's flank is cut
-//! through, and the freed gun mount severs and drifts away as an independent
-//! wreck.
+//! loop_spine_cut: the `spine-cut` webm loop - an interceptor's port wing tip
+//! is cut through, and the freed gun mount and drive sever and drift away as
+//! independent wrecks.
 //!
 //! The moving version of the section-severing invariant
 //! (`examples/systems/section_severing.rs`), staged on a real catalog hull:
-//! killing the interceptor's port top-deck plate turns it into a genuine hole, and
-//! the mount that was held on through it disconnects, gets its own rigid body
-//! and drifts free (`nova_ship::sections::integrity`). The loop opens on the
+//! killing the interceptor's port wing-tip plate turns it into a genuine hole, and
+//! the mount and the drive that were held on through it disconnect, get their
+//! own rigid bodies and drift free (`nova_ship::sections::integrity`). The loop opens on the
 //! intact hull turning slowly, holds through the cut, and rides the freed
 //! structure out to a calm drifting tail.
 //!
@@ -54,16 +54,16 @@ const SUBJECT_ID: &str = "loop_subject";
 /// The catalog hull the cut is made in.
 const SUBJECT_HULL: &str = "interceptor";
 
-/// The BUILD-GRID CELL the cut goes through: the port top-deck plate, which is
-/// the seat the port mount stands on and the mount's only link, so cutting
-/// it severs the gun as an independent wreck. A plate with nothing hanging off
-/// it frees nothing.
+/// The BUILD-GRID CELL the cut goes through: the port wing-tip plate, which is
+/// the seat the port mount stands on and the only link of the mount and of
+/// the wing-tip drive behind it, so cutting it severs the gun and the drive
+/// as independent wrecks. A plate with nothing hanging off it frees nothing.
 ///
 /// Named by cell rather than by id because a block hull's `plate_N` numbering
 /// is an artifact of the order its boxes were unioned (see
 /// [`kit::cell_section`]); the cell is the coordinate the hull is authored in.
 #[cfg(feature = "debug")]
-const CUT_CELL: Vec3 = Vec3::new(-1.0, 1.0, -1.0);
+const CUT_CELL: Vec3 = Vec3::new(-3.0, 0.0, 1.0);
 
 /// The slow tumble the hull carries into the cut, so the freed structure
 /// inherits real motion instead of hanging dead in frame.

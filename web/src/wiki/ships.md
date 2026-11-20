@@ -14,8 +14,8 @@ A ship in Nova Protocol is not a monolithic model - it is a root entity with a h
         <span class="figure__placeholder-note"
             >A gunship after a broadside walked up its port
             flank: plating stripped off three sections, the
-            port turret dead, and an open hole where the aft
-            deck tore away.</span
+            port turret dead, and an open hole where the port
+            wing tip tore away.</span
         >
     </div>
     <figcaption class="figure__caption">

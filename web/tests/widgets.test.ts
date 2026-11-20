@@ -197,24 +197,24 @@ function rustNumber(rel: string, pattern: RegExp): number {
 {
     assert.equal(METERS_PER_UNIT, 10);
     assert.equal(engineMeters(30), "300 m", "30 u is a 300 m blast radius");
-    assert.equal(engineMeters(3.513, 1), "35.1 m", "the interceptor's arm");
+    assert.equal(engineMeters(4.607, 1), "46.1 m", "the interceptor's arm");
     assert.equal(engineKilometers(328.6, 1), "3.3 km", "a planetoid SOI");
     assert.equal(engineMetersPerSec(100), "1,000 m/s", "the reference speed");
     assert.equal(engineMetersPerSec2(64, 0), "640 m/s^2", "one bare drive");
 }
 
 // The attitude model's one crossing: the arm arrives in world units off the
-// collider boxes and the 8 G limit is SI, so 3.513 u is 35.13 m and the ceiling
-// is 78.48 / 35.13 - the same rad/s^2 the game reads.
+// collider boxes and the 8 G limit is SI, so 4.607 u is 46.07 m and the ceiling
+// is 78.48 / 46.07 - the same rad/s^2 the game reads.
 {
     const ceiling = structuralCeiling(INTERCEPTOR_ARM_U);
     assert.ok(
-        Math.abs(ceiling - (8 * 9.81) / 35.13) < 1e-9,
+        Math.abs(ceiling - (8 * 9.81) / 46.07) < 1e-9,
         `the interceptor's structural ceiling, got ${ceiling}`
     );
     assert.ok(
-        Math.abs(ceiling - 2.23) < 5e-3,
-        `~2.23 rad/s^2 as the widget prints it, got ${ceiling}`
+        Math.abs(ceiling - 1.7) < 5e-3,
+        `~1.70 rad/s^2 as the widget prints it, got ${ceiling}`
     );
     assert.equal(structuralCeiling(0), Infinity, "a point mass has no arm");
 }
@@ -271,22 +271,21 @@ function rustNumber(rel: string, pattern: RegExp): number {
     assert.equal(none.adrift.length, 37, "all of it is adrift");
 }
 
-// Shooting the aft sponsons off shortens the arm and RAISES the turn ceiling,
+// Shooting the nose off shortens the arm and RAISES the turn ceiling,
 // which is the whole claim the controller-arm widget makes.
 {
-    const sponsons = INTERCEPTOR_CELLS.filter(
-        (part) => part.group === "sponsons"
-    );
+    const nose = INTERCEPTOR_CELLS.filter((part) => part.group === "nose");
+    assert.equal(nose.length, 4, "the nose is the tip and the step behind it");
     const cut = severedParts(
         INTERCEPTOR_CELLS,
         INTERCEPTOR_MATES,
-        new Set(sponsons.map((part) => part.id)),
+        new Set(nose.map((part) => part.id)),
         INTERCEPTOR_COMPUTERS
     );
-    assert.equal(cut.adrift.length, 0, "nothing hangs off the sponsons");
+    assert.equal(cut.adrift.length, 0, "nothing hangs off the nose");
     assert.ok(
         hullState(cut.held).arm < INTERCEPTOR_ARM_U,
-        "the arm shortens without the sponsons"
+        "the arm shortens without the nose"
     );
 }
 

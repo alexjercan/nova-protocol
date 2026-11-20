@@ -454,8 +454,8 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         retuned(
             ships::inline_raider(assets, RIVAL_COLLAPSE_THRESHOLD),
             [
-                ("pdc_dorsal", turret_damage(RIVAL_PDC_DAMAGE)),
-                ("pdc_boom", turret_damage(RIVAL_PDC_DAMAGE)),
+                ("pdc_port", turret_damage(RIVAL_PDC_DAMAGE)),
+                ("pdc_starboard", turret_damage(RIVAL_PDC_DAMAGE)),
             ],
         ),
         None,
