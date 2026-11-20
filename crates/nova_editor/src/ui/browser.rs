@@ -14,6 +14,7 @@ use bevy::{
 use nova_ui::{
     prelude::*,
     theme::{self, density, UiColorType},
+    widget::metrics::{GAP, GAP_XL},
 };
 
 use super::{
@@ -147,11 +148,11 @@ fn browser_line(mark: &str, label: &str, detail: &str, tint: UiColorType) -> imp
     (
         Node {
             width: percent(100),
-            min_height: px(20),
+            min_height: px(density::ROW_H),
             flex_shrink: 0.0,
             align_items: AlignItems::Center,
-            column_gap: px(8),
-            padding: UiRect::axes(px(6), px(1)),
+            column_gap: px(GAP),
+            padding: UiRect::axes(px(super::ROW_PAD_X), px(0)),
             border: UiRect::all(px(theme::BORDER_W)),
             overflow: Overflow::clip(),
             ..default()
@@ -215,7 +216,7 @@ fn pane(tab: BrowserTabType) -> impl Bundle {
             min_height: px(0),
             width: percent(100),
             flex_direction: FlexDirection::Column,
-            row_gap: px(4),
+            row_gap: px(density::GAP_S),
             ..default()
         },
     )
@@ -228,7 +229,7 @@ fn filter_row() -> Node {
         flex_shrink: 0.0,
         flex_direction: FlexDirection::Row,
         align_items: AlignItems::Center,
-        column_gap: px(8),
+        column_gap: px(GAP),
         ..default()
     }
 }
@@ -252,7 +253,7 @@ fn spawn_ship_pane(strip: &mut RelatedSpawnerCommands<ChildOf>, ship: &ShipPaneD
         min_width: px(0),
         min_height: px(0),
         flex_direction: FlexDirection::Column,
-        row_gap: px(3),
+        row_gap: px(density::GAP_S),
         ..default()
     };
     strip
@@ -262,7 +263,7 @@ fn spawn_ship_pane(strip: &mut RelatedSpawnerCommands<ChildOf>, ship: &ShipPaneD
             min_height: px(0),
             width: percent(100),
             flex_direction: FlexDirection::Row,
-            column_gap: px(16),
+            column_gap: px(GAP_XL),
             ..default()
         })
         .with_children(|pane| {
@@ -283,7 +284,7 @@ fn spawn_ship_pane(strip: &mut RelatedSpawnerCommands<ChildOf>, ship: &ShipPaneD
                         flex_direction: FlexDirection::Row,
                         flex_wrap: FlexWrap::Wrap,
                         align_content: AlignContent::FlexStart,
-                        column_gap: px(4),
+                        column_gap: px(density::GAP_S),
                         ..scroll_column()
                     };
                     spawn_scroll_body(skin, "Ship Style List", (StyleList, styles), |list| {
@@ -391,7 +392,7 @@ pub(crate) fn spawn_browser(root: &mut RelatedSpawnerCommands<ChildOf>, ship: &S
             flex_direction: FlexDirection::Column,
             row_gap: px(density::GAP_S),
             padding: UiRect {
-                bottom: px(2),
+                bottom: px(density::GAP_S),
                 ..UiRect::horizontal(px(density::PANEL_PAD))
             },
             border: UiRect::top(px(theme::BORDER_W)),

@@ -35,8 +35,10 @@ use nova_ui::{
     theme,
     theme::{density, ActiveUiTheme, GameUiThemes, UiColorType, UiPalette},
     widget::{
-        checkbox, icon_button, swatch, ButtonCueType, IconButtonType, ThemedBorder, ThemedCheckbox,
-        ThemedRadius, ThemedText, CLOSE_GLYPH,
+        checkbox, icon_button,
+        metrics::{GAP, PAD_X},
+        swatch, ButtonCueType, IconButtonType, ThemedBorder, ThemedCheckbox, ThemedRadius,
+        ThemedText, CLOSE_GLYPH,
     },
 };
 
@@ -960,7 +962,6 @@ fn row_shell() -> Node {
         flex_direction: FlexDirection::Row,
         align_items: AlignItems::Center,
         column_gap: px(density::GAP_S),
-        margin: UiRect::bottom(px(2)),
         ..default()
     }
 }
@@ -985,7 +986,12 @@ pub(crate) struct InspectorHint {
 pub(crate) struct InspectorTooltip;
 
 /// Gap between the row's left edge and the hint standing beside it.
-const HINT_GAP: f32 = 8.0;
+const HINT_GAP: f32 = GAP;
+
+/// The space a block row (a name line over its control) keeps under it. With
+/// the list's `GAP_S` it sets the block [`GAP`] off from the next row, wider
+/// than the block's own `GAP_S`, so its name reads with its control.
+pub(crate) const BLOCK_TAIL: f32 = GAP - density::GAP_S;
 
 /// How wide the hint is. FIXED rather than sized to its longest line, because
 /// the panel is anchored by its RIGHT edge and nothing knows how wide a line
@@ -1040,8 +1046,8 @@ pub(crate) fn inspector_tooltip() -> impl Bundle {
             width: px(HINT_W),
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::FlexStart,
-            row_gap: px(3),
-            padding: UiRect::axes(px(8), px(5)),
+            row_gap: px(density::GAP_S),
+            padding: super::hint_padding(),
             border: UiRect::all(px(theme::BORDER_W)),
             ..default()
         },
@@ -1329,11 +1335,12 @@ fn spawn_pick_row(
                     flex_grow: 1.0,
                     flex_basis: px(0),
                     min_width: px(0),
-                    padding: UiRect::axes(px(8), px(3)),
+                    min_height: px(density::CONTROL_H),
+                    padding: UiRect::axes(px(PAD_X), px(0)),
                     border: UiRect::all(px(theme::BORDER_W)),
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Center,
-                    column_gap: px(6),
+                    column_gap: px(density::GAP_S),
                     overflow: Overflow::clip(),
                     ..default()
                 },
@@ -1406,8 +1413,8 @@ fn spawn_choice_row(
             width: percent(100),
             flex_direction: FlexDirection::Column,
             padding: UiRect::left(px(step)),
-            margin: UiRect::bottom(px(6)),
-            row_gap: px(3),
+            margin: UiRect::bottom(px(BLOCK_TAIL)),
+            row_gap: px(density::GAP_S),
             ..default()
         },
     ))
@@ -1418,7 +1425,7 @@ fn spawn_choice_row(
             .spawn(Node {
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: px(4),
+                column_gap: px(density::GAP_S),
                 ..default()
             })
             .with_children(|line| {
@@ -1526,7 +1533,7 @@ fn spawn_operand_row(
                     flex_grow: 1.0,
                     flex_basis: px(0),
                     min_width: px(0),
-                    margin: UiRect::left(px(6)),
+                    margin: UiRect::left(px(density::GAP_S)),
                     ..default()
                 })
                 .with_children(|box_slot| {
@@ -1579,8 +1586,8 @@ fn spawn_driver_row(
             width: percent(100),
             flex_direction: FlexDirection::Column,
             padding: UiRect::left(px(step)),
-            margin: UiRect::bottom(px(6)),
-            row_gap: px(3),
+            margin: UiRect::bottom(px(BLOCK_TAIL)),
+            row_gap: px(density::GAP_S),
             ..default()
         },
     ))
@@ -1653,8 +1660,8 @@ fn spawn_well_target_row(
             width: percent(100),
             flex_direction: FlexDirection::Column,
             padding: UiRect::left(px(step)),
-            margin: UiRect::bottom(px(6)),
-            row_gap: px(3),
+            margin: UiRect::bottom(px(BLOCK_TAIL)),
+            row_gap: px(density::GAP_S),
             ..default()
         },
     ))
@@ -1663,7 +1670,7 @@ fn spawn_well_target_row(
             .spawn(Node {
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: px(4),
+                column_gap: px(density::GAP_S),
                 ..default()
             })
             .with_children(|line| {
@@ -1724,7 +1731,7 @@ fn spawn_well_target_row(
                 width: percent(100),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: px(4),
+                column_gap: px(density::GAP_S),
                 ..default()
             })
             .with_children(|line| {
@@ -1839,8 +1846,8 @@ fn spawn_palette_row(
             width: percent(100),
             flex_direction: FlexDirection::Column,
             padding: UiRect::left(px(step)),
-            margin: UiRect::bottom(px(6)),
-            row_gap: px(3),
+            margin: UiRect::bottom(px(BLOCK_TAIL)),
+            row_gap: px(density::GAP_S),
             ..default()
         },
     ))
@@ -1853,7 +1860,7 @@ fn spawn_palette_row(
                     width: percent(100),
                     flex_direction: FlexDirection::Row,
                     flex_wrap: FlexWrap::Wrap,
-                    row_gap: px(2),
+                    row_gap: px(density::GAP_S),
                     ..default()
                 },
             ))
@@ -1869,10 +1876,10 @@ fn spawn_palette_row(
                         Name::new(format!("Inspector Palette {}", entry.name)),
                         Node {
                             width: percent(50),
-                            height: px(24),
+                            height: px(density::CONTROL_H),
                             flex_direction: FlexDirection::Row,
                             align_items: AlignItems::Center,
-                            column_gap: px(6),
+                            column_gap: px(density::GAP_S),
                             overflow: Overflow::clip(),
                             ..default()
                         },
@@ -1937,8 +1944,8 @@ fn spawn_axes_row(
             width: percent(100),
             flex_direction: FlexDirection::Column,
             padding: UiRect::left(px(step)),
-            margin: UiRect::bottom(px(6)),
-            row_gap: px(3),
+            margin: UiRect::bottom(px(BLOCK_TAIL)),
+            row_gap: px(density::GAP_S),
             ..default()
         },
     ))
@@ -1949,7 +1956,7 @@ fn spawn_axes_row(
                 flex_direction: FlexDirection::Row,
                 justify_content: JustifyContent::SpaceBetween,
                 align_items: AlignItems::Center,
-                column_gap: px(6),
+                column_gap: px(density::GAP_S),
                 ..default()
             })
             .with_children(|line| {
@@ -1982,7 +1989,7 @@ fn spawn_axes_row(
                     width: percent(100),
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Center,
-                    column_gap: px(5),
+                    column_gap: px(density::GAP_S),
                     ..default()
                 })
                 .with_children(|line| {
@@ -2113,7 +2120,9 @@ fn build_rows(
                 // headings at all.
                 Node {
                     width: percent(100),
-                    margin: UiRect::top(px(8)),
+                    // With the list gap over it, a level opens GAP_L under
+                    // the group before.
+                    margin: UiRect::top(px(GAP)),
                     padding: UiRect::left(px(indent(depth))),
                     border: UiRect::bottom(px(theme::BORDER_W)),
                     ..default()
@@ -2373,7 +2382,8 @@ fn build_rows(
                             Button,
                             Hovered::default(),
                             Node {
-                                padding: UiRect::axes(px(8), px(3)),
+                                min_height: px(density::CONTROL_H),
+                                padding: UiRect::axes(px(PAD_X), px(0)),
                                 border: UiRect::all(px(theme::BORDER_W)),
                                 align_items: AlignItems::Center,
                                 ..default()
@@ -2502,7 +2512,7 @@ pub(crate) fn inspector_empty() -> impl Bundle {
         ThemedText::new(UiColorType::TextMuted),
         Node {
             display: Display::None,
-            margin: UiRect::all(px(10)),
+            margin: UiRect::all(px(density::PANEL_PAD)),
             ..default()
         },
     )
@@ -3586,8 +3596,8 @@ fn spawn_append_row(
             width: percent(100),
             flex_direction: FlexDirection::Column,
             padding: UiRect::left(px(step)),
-            margin: UiRect::bottom(px(6)),
-            row_gap: px(3),
+            margin: UiRect::bottom(px(BLOCK_TAIL)),
+            row_gap: px(density::GAP_S),
             ..default()
         },
     ))
@@ -3611,8 +3621,8 @@ fn spawn_append_row(
                 width: percent(100),
                 flex_direction: FlexDirection::Row,
                 flex_wrap: FlexWrap::Wrap,
-                column_gap: px(4),
-                row_gap: px(3),
+                column_gap: px(density::GAP_S),
+                row_gap: px(density::GAP_S),
                 ..default()
             })
             .with_children(|bar| {

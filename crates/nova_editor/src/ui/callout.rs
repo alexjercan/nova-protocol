@@ -8,7 +8,7 @@ use bevy::{picking::Pickable, prelude::*};
 use nova_ship::prelude::{GameSections, SectionConfig};
 use nova_ui::{
     prelude::{hang_at, panel, Hang, UiText},
-    theme::{self, UiColorType},
+    theme::{self, density, UiColorType},
     widget::{ThemedRadius, ThemedText},
 };
 
@@ -55,8 +55,8 @@ pub(crate) fn placement_callout() -> impl Bundle {
             max_width: px(240),
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::FlexStart,
-            row_gap: px(2),
-            padding: UiRect::axes(px(8), px(4)),
+            row_gap: px(density::GAP_S),
+            padding: super::hint_padding(),
             border: UiRect::all(px(theme::BORDER_W)),
             ..default()
         },

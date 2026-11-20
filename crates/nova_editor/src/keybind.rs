@@ -12,7 +12,7 @@ use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{clear_of, hang_at, take_keyboard_now, Hang, InputMode, UiText},
     theme::UiColorType,
-    widget::{ThemedFill, ThemedText},
+    widget::{ThemedFill, ThemedRadius, ThemedText},
 };
 
 use crate::{
@@ -159,14 +159,11 @@ pub(crate) fn sync_section_keybind_labels(
                 ThemedText::new(UiColorType::Accent),
                 Node {
                     position_type: PositionType::Absolute,
-                    // Pill padding + rounded corners so the background
-                    // reads as a chip (BorderRadius is a Node field, not a
-                    // component).
-                    padding: UiRect::axes(px(6), px(2)),
-                    border_radius: BorderRadius::all(px(4)),
+                    padding: crate::ui::stage_chip_padding(),
                     ..default()
                 },
-                // Dark semi-transparent pill so the amber text stays
+                ThemedRadius::control(),
+                // Dark semi-transparent chip so the amber text stays
                 // legible over the 3D scene.
                 BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.75)),
                 // Hidden until the positioner projects it this frame.

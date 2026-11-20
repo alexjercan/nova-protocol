@@ -43,7 +43,7 @@ pub(crate) fn skin_toggle_row(on: bool) -> impl Bundle {
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
             justify_content: JustifyContent::SpaceBetween,
-            column_gap: px(6),
+            column_gap: px(density::GAP_S),
             ..default()
         },
         ThemedRadius::control(),
@@ -94,12 +94,11 @@ pub(crate) fn style_row(id: &str, name: &str, colour: Color) -> impl Bundle {
             flex_basis: percent(48),
             flex_grow: 1.0,
             min_width: px(0),
-            min_height: px(22),
-            margin: UiRect::bottom(px(2)),
-            padding: UiRect::axes(px(6), px(2)),
+            min_height: px(density::ROW_H),
+            padding: UiRect::axes(px(super::ROW_PAD_X), px(0)),
             border: UiRect::all(px(theme::BORDER_W)),
             align_items: AlignItems::Center,
-            column_gap: px(6),
+            column_gap: px(density::GAP_S),
             ..default()
         },
         ThemedRadius::control(),
@@ -113,9 +112,9 @@ pub(crate) fn style_row(id: &str, name: &str, colour: Color) -> impl Bundle {
                     height: px(STYLE_SWATCH),
                     flex_shrink: 0.0,
                     border: UiRect::all(px(theme::BORDER_W)),
-                    border_radius: BorderRadius::all(px(2)),
                     ..default()
                 },
+                ThemedRadius::control(),
                 BorderColor::all(Color::NONE),
                 ThemedBorder::alpha(UiColorType::Text, 0.4),
                 BackgroundColor(colour),
@@ -158,12 +157,11 @@ pub(crate) fn part_row(
         Hovered::default(),
         Node {
             width: percent(100),
-            min_height: px(18),
-            margin: UiRect::bottom(px(1)),
-            padding: UiRect::axes(px(5), px(1)),
+            min_height: px(density::ROW_H),
+            padding: UiRect::axes(px(super::ROW_PAD_X), px(0)),
             border: UiRect::all(px(theme::BORDER_W)),
             align_items: AlignItems::Center,
-            column_gap: px(4),
+            column_gap: px(density::GAP_S),
             ..default()
         },
         ThemedRadius::control(),
@@ -228,7 +226,7 @@ pub(crate) fn zone_chip(zone: Option<WfcZone>, drawn: bool) -> impl Bundle {
         observe(crate::ui::on_part_zone),
         Node {
             display: if drawn { Display::Flex } else { Display::None },
-            padding: UiRect::axes(px(4), px(0)),
+            padding: UiRect::axes(px(density::GAP_S), px(0)),
             flex_shrink: 0.0,
             border: UiRect::all(px(theme::BORDER_W)),
             ..default()
@@ -336,7 +334,7 @@ pub(crate) struct SceneRowHint {
 pub(crate) struct SceneRowTooltip;
 
 /// Gap between the rail's right edge and the hint.
-const TOOLTIP_GAP: f32 = 8.0;
+const TOOLTIP_GAP: f32 = nova_ui::widget::metrics::GAP;
 
 /// The hint panel: two lines, the kind over the id, absolutely positioned by
 /// [`sync_scene_tooltip`].
@@ -358,7 +356,7 @@ pub(crate) fn scene_tooltip() -> impl Bundle {
             max_width: px(280),
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::FlexStart,
-            padding: UiRect::axes(px(8), px(5)),
+            padding: super::hint_padding(),
             border: UiRect::all(px(theme::BORDER_W)),
             ..default()
         },

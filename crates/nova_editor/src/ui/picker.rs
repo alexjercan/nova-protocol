@@ -25,7 +25,7 @@ use nova_ui::{
     prelude::{text_field, TextFieldFocused, TextFieldSpec, TextFieldValue},
     theme,
     theme::UiColorType,
-    widget::{ThemedBorder, ThemedRadius},
+    widget::{metrics::GAP, ThemedBorder, ThemedRadius},
 };
 
 use crate::{
@@ -233,7 +233,7 @@ fn spawn_picker(
             Node {
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: px(8),
+                column_gap: px(GAP),
                 ..default()
             },
         ))
@@ -359,6 +359,7 @@ fn spawn_area(
             border: UiRect::all(px(theme::BORDER_W)),
             ..default()
         },
+        ThemedRadius::control(),
         BorderColor::all(Color::NONE),
         ThemedBorder::alpha(UiColorType::Text, 0.4),
         paint,
@@ -368,11 +369,15 @@ fn spawn_area(
         observe(on_pick_release),
     ))
     .with_children(|area_node| {
-        let (width, height, radius) = match area {
-            PickAreaType::Square => (px(RING), px(RING), px(RING)),
-            PickAreaType::Hue | PickAreaType::Alpha => (px(BAR), percent(100), px(0)),
+        // The square's mark is a ring by nature; a bar mark is a box and
+        // takes the theme corner.
+        let (width, height, ring) = match area {
+            PickAreaType::Square => (px(RING), px(RING), BorderRadius::all(px(RING))),
+            PickAreaType::Hue | PickAreaType::Alpha => {
+                (px(BAR), percent(100), BorderRadius::default())
+            }
         };
-        area_node.spawn((
+        let mut mark = area_node.spawn((
             Name::new(format!("Colour Window {name} Mark")),
             PickMark { window, area },
             Node {
@@ -380,7 +385,7 @@ fn spawn_area(
                 width,
                 height,
                 border: UiRect::all(px(1)),
-                border_radius: BorderRadius::all(radius),
+                border_radius: ring,
                 ..default()
             },
             BorderColor::all(Color::WHITE),
@@ -388,6 +393,9 @@ fn spawn_area(
             // The press belongs to the area under the mark.
             Pickable::IGNORE,
         ));
+        if area != PickAreaType::Square {
+            mark.insert(ThemedRadius::control());
+        }
     });
 }
 

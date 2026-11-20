@@ -13,7 +13,10 @@ use bevy::{
     prelude::*,
     ui_widgets::{observe, Activate},
 };
-use nova_ui::{prelude::*, theme::UiColorType};
+use nova_ui::{
+    prelude::*,
+    theme::{density, UiColorType},
+};
 
 use super::{
     browser::{pane_text, BrowserTabType},
@@ -361,10 +364,10 @@ pub(crate) fn sync_log(
                 copy_row(CopyListType::Log, line.key),
                 Node {
                     width: percent(100),
-                    min_height: px(18),
+                    min_height: px(density::ROW_H),
                     flex_shrink: 0.0,
                     align_items: AlignItems::Center,
-                    padding: UiRect::axes(px(6), px(1)),
+                    padding: UiRect::axes(px(super::ROW_PAD_X), px(0)),
                     border: UiRect::all(px(theme::BORDER_W)),
                     overflow: Overflow::clip(),
                     ..default()

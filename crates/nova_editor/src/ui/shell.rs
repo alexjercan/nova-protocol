@@ -21,6 +21,7 @@ use nova_ship::prelude::{GalleryAction, HeldPart};
 use nova_ui::{
     prelude::*,
     theme::{self, density, ActiveUiTheme, UiColorType},
+    widget::metrics::{GAP, GAP_L, PAD_X, VERB_MIN_W},
 };
 
 use super::{
@@ -258,9 +259,8 @@ fn bar_rule() -> impl Bundle {
     (
         Node {
             width: px(theme::BORDER_W),
-            height: px(18),
+            height: px(density::ROW_H),
             flex_shrink: 0.0,
-            margin: UiRect::axes(px(2), px(0)),
             ..default()
         },
         BackgroundColor(Color::NONE),
@@ -283,7 +283,7 @@ pub(crate) fn spawn_top_bar(root: &mut RelatedSpawnerCommands<ChildOf>) {
             flex_shrink: 0.0,
             padding: UiRect::axes(px(density::PANEL_PAD), px(0)),
             border: UiRect::bottom(px(theme::BORDER_W)),
-            column_gap: px(8),
+            column_gap: px(GAP),
             ..default()
         },
         panel(),
@@ -406,7 +406,7 @@ fn spawn_tool_group(group: &mut RelatedSpawnerCommands<ChildOf>) {
                             Name::new(format!("Tool Button {tool:?}")),
                             ToolButton(tool),
                             Tooltip(hint.to_string()),
-                            button(bar_spec(label)),
+                            button(ButtonSpec::glyph(label).ghost()),
                             observe(on_tool_button),
                         ));
                     }
@@ -487,7 +487,7 @@ pub(crate) fn stage() -> impl Bundle {
             flex_grow: 1.0,
             flex_basis: px(0),
             min_width: px(0),
-            padding: UiRect::all(px(8)),
+            padding: UiRect::all(px(GAP)),
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::FlexStart,
             ..default()
@@ -498,7 +498,7 @@ pub(crate) fn stage() -> impl Bundle {
             Pickable::IGNORE,
             line("", 12.0, UiColorType::Text),
             Node {
-                padding: UiRect::axes(px(6), px(2)),
+                padding: super::stage_chip_padding(),
                 ..default()
             },
             BackgroundColor(Color::NONE),
@@ -554,8 +554,8 @@ pub(crate) fn spawn_foot(root: &mut RelatedSpawnerCommands<ChildOf>, legend: imp
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: px(14),
-            padding: UiRect::axes(px(density::PANEL_PAD + 3.0), px(0)),
+            column_gap: px(GAP_L),
+            padding: UiRect::axes(px(density::PANEL_PAD), px(0)),
             border: UiRect::top(px(theme::BORDER_W)),
             overflow: Overflow::clip(),
             ..default()
@@ -900,7 +900,7 @@ pub(crate) fn sync_toolbar(
     tools: Query<(Entity, &ToolButton, Has<Selected>)>,
     snaps: Query<(Entity, Has<Selected>), With<SnapButton>>,
     spaces: Query<&Children, With<SpaceButton>>,
-    words: Query<(&BarWord, &Children)>,
+    mut words: Query<(&BarWord, &Children, &mut Node)>,
     bars: Query<&ComputedNode, With<EditorTopBar>>,
     mut labels: Query<&mut Text, With<ButtonLabel>>,
 ) {
@@ -945,8 +945,21 @@ pub(crate) fn sync_toolbar(
             }
         }
     }
-    for (word, children) in &words {
+    for (word, children, mut node) in &mut words {
         let wanted = if narrow { word.narrow } else { word.wide };
+        // A one-glyph word stands in a square, as `ButtonSpec::glyph` draws
+        // one: at the narrow width a 56 px verb around `<` pushed Play off
+        // the middle of the bar.
+        let (width, min_width, side) = if wanted.chars().count() == 1 {
+            (px(density::CONTROL_H), px(density::CONTROL_H), px(0))
+        } else {
+            (Val::Auto, px(VERB_MIN_W), px(PAD_X))
+        };
+        if node.min_width != min_width {
+            node.width = width;
+            node.min_width = min_width;
+            node.padding = UiRect::axes(side, px(0));
+        }
         for child in children {
             if let Ok(mut text) = labels.get_mut(*child) {
                 if text.0 != wanted {

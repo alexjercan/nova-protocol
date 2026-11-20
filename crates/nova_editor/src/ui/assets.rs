@@ -73,6 +73,11 @@ const TILE_H: f32 = 92.0;
 /// A tile's picture.
 const THUMB_W: f32 = 54.0;
 
+/// A tile's padding and the gap under its picture. Half of `GAP_S`: the
+/// picture, two text lines and the border fill [`TILE_H`], and `GAP_S` would
+/// clip the kind line.
+const TILE_PAD: f32 = 2.0;
+
 /// The dot in a tile's corner that marks the item open in the editor.
 const OPEN_DOT: f32 = 7.0;
 
@@ -1157,8 +1162,8 @@ fn spawn_tile(
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Center,
-            row_gap: px(2),
-            padding: UiRect::all(px(2)),
+            row_gap: px(TILE_PAD),
+            padding: UiRect::all(px(TILE_PAD)),
             border: UiRect::all(px(theme::BORDER_W)),
             overflow: Overflow::clip(),
             ..default()

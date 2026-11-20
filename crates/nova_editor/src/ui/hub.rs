@@ -19,7 +19,10 @@ use nova_ui::{
         TextFieldFocused, TextFieldSpec, TextFieldValue, UiText,
     },
     theme::{self, density, ActiveUiTheme, UiColorType},
-    widget::{ButtonCueType, Selected, ThemedFill, ThemedRadius, ThemedText},
+    widget::{
+        metrics::{GAP, GAP_L, LIST_ROW_H},
+        ButtonCueType, Selected, ThemedFill, ThemedRadius, ThemedText,
+    },
 };
 
 use crate::{
@@ -33,21 +36,18 @@ use crate::{
     ui::{
         files::{id_line, PathPurposeType, NAME_CHARS},
         layer,
-        window::{window_layer, DestructiveVerb},
+        shell::TOP_BAR_H,
+        window::{modal_answers, modal_panel_node, window_layer, DestructiveVerb},
     },
     ExampleStates,
 };
 
-/// The header: one row of controls.
-const HEAD_H: f32 = 34.0;
-/// One mod in the list.
-const ROW_H: f32 = 26.0;
 /// The Version column.
 const VERSION_W: f32 = 90.0;
 /// The Last Opened column.
 const OPENED_W: f32 = 110.0;
-/// The side margin of the list.
-const HUB_GUTTER: f32 = 12.0;
+/// The side margin of the head and the list.
+const HUB_GUTTER: f32 = GAP_L;
 /// The New Mod modal.
 const MODAL_W: f32 = 500.0;
 
@@ -178,11 +178,12 @@ fn spawn_head(hub: &mut RelatedSpawnerCommands<ChildOf>, status: &str) {
     hub.spawn((
         Name::new("Hub Head"),
         Node {
-            height: px(HEAD_H),
+            // The editor's top bar height: the hub's head is the same bar.
+            height: px(TOP_BAR_H),
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: px(8),
+            column_gap: px(GAP),
             padding: UiRect::axes(px(HUB_GUTTER), px(0)),
             border: UiRect::bottom(px(theme::BORDER_W)),
             ..default()
@@ -235,9 +236,11 @@ fn spawn_list(hub: &mut RelatedSpawnerCommands<ChildOf>) {
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: px(8),
+            column_gap: px(GAP),
             min_height: px(density::ROW_H),
-            padding: UiRect::axes(px(HUB_GUTTER + 6.0), px(0)),
+            // On the x of the row text under each head: the gutter, the row's
+            // border and its side padding.
+            padding: UiRect::axes(px(HUB_GUTTER + theme::BORDER_W + super::ROW_PAD_X), px(0)),
             ..default()
         },
     ))
@@ -302,16 +305,8 @@ fn spawn_new_modal(commands: &mut Commands, template: ScenarioTemplate) {
             scrim
                 .spawn((
                     Name::new("Hub New Panel"),
-                    Node {
-                        width: px(MODAL_W),
-                        max_width: percent(94),
-                        flex_direction: FlexDirection::Column,
-                        row_gap: px(6),
-                        padding: UiRect::all(px(10)),
-                        border: UiRect::all(px(theme::BORDER_W)),
-                        ..default()
-                    },
-                    ThemedRadius::control(),
+                    modal_panel_node(MODAL_W),
+                    ThemedRadius::panel(),
                     panel(),
                 ))
                 .with_children(|modal| {
@@ -355,15 +350,7 @@ fn spawn_new_modal(commands: &mut Commands, template: ScenarioTemplate) {
                             }
                         });
                     modal
-                        .spawn((
-                            Name::new("Hub New Foot"),
-                            Node {
-                                flex_direction: FlexDirection::Row,
-                                justify_content: JustifyContent::FlexEnd,
-                                column_gap: px(density::GAP_S),
-                                ..default()
-                            },
-                        ))
+                        .spawn((Name::new("Hub New Foot"), modal_answers()))
                         .with_children(|foot| {
                             foot.spawn((
                                 Name::new("Hub Cancel Button"),
@@ -400,8 +387,8 @@ fn spawn_template_tile(
             flex_basis: px(0),
             min_width: px(0),
             flex_direction: FlexDirection::Column,
-            row_gap: px(2),
-            padding: UiRect::all(px(6)),
+            row_gap: px(density::GAP_S),
+            padding: UiRect::all(px(density::GAP_S)),
             border: UiRect::all(px(theme::BORDER_W)),
             ..default()
         },
@@ -496,7 +483,10 @@ pub(crate) fn sync_hub_rows(
             list.spawn((
                 Name::new("Hub Empty"),
                 Node {
-                    padding: UiRect::all(px(6)),
+                    padding: UiRect::axes(
+                        px(theme::BORDER_W + super::ROW_PAD_X),
+                        px(density::GAP_S),
+                    ),
                     ..default()
                 },
                 line(
@@ -526,12 +516,12 @@ fn spawn_row(list: &mut RelatedSpawnerCommands<ChildOf>, entry: &HubEntry) {
         Button,
         Hovered::default(),
         Node {
-            min_height: px(ROW_H),
+            min_height: px(LIST_ROW_H),
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: px(8),
-            padding: UiRect::axes(px(6), px(0)),
+            column_gap: px(GAP),
+            padding: UiRect::axes(px(super::ROW_PAD_X), px(0)),
             border: UiRect::all(px(theme::BORDER_W)),
             ..default()
         },
@@ -543,7 +533,7 @@ fn spawn_row(list: &mut RelatedSpawnerCommands<ChildOf>, entry: &HubEntry) {
     ))
     .with_children(|row| {
         row.spawn(Node {
-            column_gap: px(10),
+            column_gap: px(GAP),
             align_items: AlignItems::Baseline,
             ..column(None)
         })

@@ -19,7 +19,10 @@ use nova_ui::{
     theme::{self, density, UiColorType},
 };
 
-use super::layer;
+use super::{
+    layer,
+    window::{modal_answers, modal_panel_node},
+};
 use crate::{
     asset::{
         blank::{section_kinds, spaced},
@@ -108,16 +111,8 @@ pub(crate) fn open_section_kind_modal(commands: &mut Commands) {
             scrim
                 .spawn((
                     Name::new("Section Kind Panel"),
-                    Node {
-                        width: px(MODAL_W),
-                        max_width: percent(94),
-                        flex_direction: FlexDirection::Column,
-                        row_gap: px(6),
-                        padding: UiRect::all(px(10)),
-                        border: UiRect::all(px(theme::BORDER_W)),
-                        ..default()
-                    },
-                    ThemedRadius::control(),
+                    modal_panel_node(MODAL_W),
+                    ThemedRadius::panel(),
                     panel(),
                 ))
                 .with_children(|modal| {
@@ -150,15 +145,7 @@ pub(crate) fn open_section_kind_modal(commands: &mut Commands) {
                             }
                         });
                     modal
-                        .spawn((
-                            Name::new("Section Kind Foot"),
-                            Node {
-                                flex_direction: FlexDirection::Row,
-                                justify_content: JustifyContent::FlexEnd,
-                                column_gap: px(density::GAP_S),
-                                ..default()
-                            },
-                        ))
+                        .spawn((Name::new("Section Kind Foot"), modal_answers()))
                         .with_children(|foot| {
                             foot.spawn((
                                 Name::new("Section Kind Cancel"),
@@ -190,8 +177,8 @@ fn spawn_tile(tiles: &mut RelatedSpawnerCommands<ChildOf>, index: usize, kind: &
                 min_width: px(0),
                 height: px(TILE_H),
                 flex_direction: FlexDirection::Column,
-                row_gap: px(2),
-                padding: UiRect::all(px(6)),
+                row_gap: px(density::GAP_S),
+                padding: UiRect::all(px(density::GAP_S)),
                 border: UiRect::all(px(theme::BORDER_W)),
                 overflow: Overflow::clip(),
                 ..default()

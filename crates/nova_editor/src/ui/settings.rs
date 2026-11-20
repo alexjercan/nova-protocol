@@ -16,7 +16,7 @@ use nova_ui::{
         TextFieldFocused, TextFieldSpec, TextFieldSubmitted, TextFieldValue, UiText,
     },
     theme::UiColorType,
-    widget::ThemedText,
+    widget::{metrics::GAP, ThemedText},
 };
 
 use crate::{
@@ -175,8 +175,10 @@ fn heading(body: &mut RelatedSpawnerCommands<ChildOf>, name: &str, word: &str) {
     body.spawn((
         Name::new(name.to_string()),
         line(word, UiColorType::Accent),
+        // With the window's row gap over it, a list opens GAP_L under the
+        // fields before.
         Node {
-            margin: UiRect::top(px(6)),
+            margin: UiRect::top(px(GAP)),
             ..default()
         },
     ));

@@ -94,7 +94,7 @@ fn plate(label: &str, marked: bool, theme: &ActiveUiTheme) -> impl Bundle {
             position_type: PositionType::Absolute,
             left: px(0),
             top: px(0),
-            padding: UiRect::axes(px(5), px(1)),
+            padding: super::stage_chip_padding(),
             border: UiRect::all(px(theme::BORDER_W)),
             ..default()
         },

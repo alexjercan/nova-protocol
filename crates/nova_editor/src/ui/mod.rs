@@ -61,7 +61,11 @@ use nova_ui::{
     },
     theme,
     theme::{density, ActiveUiTheme, UiColorType},
-    widget::{checkbox_glyph, ButtonCueType, Selected, ThemedCheckbox, ThemedText},
+    widget::{
+        checkbox_glyph,
+        metrics::{GAP_L, PAD_X},
+        ButtonCueType, Selected, ThemedCheckbox, ThemedRadius, ThemedText,
+    },
 };
 use nova_wfc::prelude::{WfcPlan, WfcZone};
 
@@ -162,9 +166,12 @@ pub(crate) fn sync_editor_title(
 pub(super) fn spawn_menu_bar(left: &mut RelatedSpawnerCommands<ChildOf>) {
     left.spawn((
         Name::new("Editor Menu Bar"),
+        // The bar's own control gap: every button pair on the top bar stands
+        // GAP_S apart, and its groups split on a rule.
         Node {
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
+            column_gap: px(density::GAP_S),
             ..default()
         },
     ))
@@ -200,6 +207,7 @@ pub(super) fn spawn_menu_bar(left: &mut RelatedSpawnerCommands<ChildOf>) {
                         menu,
                         menu_z(),
                         menu_dropdown_node(),
+                        ThemedRadius::control(),
                         panel(),
                     ))
                     .with_children(|items| build_menu(items, menu));
@@ -517,6 +525,27 @@ const PLAY_BLOCKED: &str = "Play flies a scenario: go Back to one first.";
 /// inside the stage down to a 760px window.
 pub(crate) const RAIL_W: f32 = 240.0;
 
+/// The side padding of an editor list row: the kit's tool field side padding,
+/// so a row's text starts on the x of the filter field's text above it.
+pub(crate) const ROW_PAD_X: f32 = 6.0;
+
+/// The vertical padding of a hint panel beside a row or a part: the kit
+/// tooltip's, so every hint the editor raises reads as the same panel.
+pub(crate) const HINT_PAD_Y: f32 = 5.0;
+
+/// A hint panel's padding: [`PAD_X`] at the sides, [`HINT_PAD_Y`] over and
+/// under.
+pub(crate) fn hint_padding() -> UiRect {
+    UiRect::axes(px(PAD_X), px(HINT_PAD_Y))
+}
+
+/// The padding of a label chip hung on the stage (a node's name plate, a
+/// section's key, the tool line): a tag's, [`GAP_S`](density::GAP_S) at the
+/// sides and none over the text.
+pub(crate) fn stage_chip_padding() -> UiRect {
+    UiRect::axes(px(density::GAP_S), px(0))
+}
+
 /// How many digits the seed field takes: `u64::MAX` is twenty of them, and a
 /// field that stops one short would refuse a seed the generator accepts.
 pub(super) const SEED_DIGITS: usize = 20;
@@ -755,7 +784,7 @@ pub(crate) fn setup_editor_scene(
                                     TextColor(Color::NONE),
                                     ThemedText::new(UiColorType::Text),
                                     Node {
-                                        margin: UiRect::top(px(4)),
+                                        margin: UiRect::top(px(density::GAP_S)),
                                         ..default()
                                     },
                                 ));
@@ -1061,6 +1090,7 @@ fn rail_list_node() -> Node {
     Node {
         width: percent(100),
         flex_direction: FlexDirection::Column,
+        row_gap: px(density::GAP_S),
         // The rail SCROLLS. A child that may shrink hands the column a second
         // way to fit its content, and flexbox takes it: the draw list made the
         // whole rail overflow, and every block above it - the tree included -
@@ -2081,8 +2111,8 @@ const LEGEND_MAX_H: f32 = 22.0;
 /// instead of pushing the line off the window.
 const LEGEND_CELL_W: f32 = 100.0;
 
-/// The gap between legend cells.
-const LEGEND_GAP: f32 = 10.0;
+/// The gap between legend cells: each hint is a group of its own.
+const LEGEND_GAP: f32 = GAP_L;
 
 /// The legend's 12 px word advance. The UI font is monospace.
 const LEGEND_WORD_ADVANCE: f32 = 6.0;
@@ -2090,12 +2120,9 @@ const LEGEND_WORD_ADVANCE: f32 = 6.0;
 /// The advance of a key on its chip, which is 2 px smaller than the words.
 const LEGEND_KEY_ADVANCE: f32 = 5.0;
 
-/// What a hint spends besides its characters: the chip's margin, padding and
-/// border, and the gap to its words.
-const LEGEND_CHIP_W: f32 = 8.0 + 2.0 * (5.0 + theme::BORDER_W) + 6.0;
-
-/// What the mode word's own margin adds to its characters.
-const LEGEND_MODE_MARGIN: f32 = 4.0;
+/// What a hint spends besides its characters: the chip's padding and border,
+/// and the gap to its words.
+const LEGEND_CHIP_W: f32 = 2.0 * (density::GAP_S + theme::BORDER_W) + density::GAP_S;
 
 /// The legend's leading cell: which mode the keys below belong to.
 ///
@@ -2114,10 +2141,6 @@ fn legend_mode_cell() -> impl Bundle {
     (
         Name::new("Legend Mode"),
         LegendMode,
-        Node {
-            margin: UiRect::right(px(LEGEND_MODE_MARGIN)),
-            ..default()
-        },
         UiText,
         Text::new(""),
         TextFont {
@@ -2139,7 +2162,7 @@ fn legend_cell(index: usize) -> impl Bundle {
             min_width: px(LEGEND_CELL_W),
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: px(6),
+            column_gap: px(density::GAP_S),
             ..default()
         },
         children![
@@ -2185,8 +2208,7 @@ fn fit_hints(hints: &mut Vec<Hint>, escape: Hint, mode: &str, room: f32) {
     if room <= 0.0 {
         return;
     }
-    let mut used =
-        mode.chars().count() as f32 * LEGEND_WORD_ADVANCE + LEGEND_MODE_MARGIN + hint_width(escape);
+    let mut used = mode.chars().count() as f32 * LEGEND_WORD_ADVANCE + hint_width(escape);
     let kept = hints
         .iter()
         .take_while(|hint| {

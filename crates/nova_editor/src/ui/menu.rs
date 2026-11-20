@@ -21,8 +21,8 @@ use bevy::{
 use nova_gameplay::prelude::{GameStates, UnsavedWork};
 use nova_ui::{
     theme,
-    theme::{ActiveUiTheme, UiColorType},
-    widget::{checkbox_glyph, key_chip, ListRow, ThemedRadius, UiText},
+    theme::{density, ActiveUiTheme, UiColorType},
+    widget::{checkbox_glyph, key_chip, metrics::GAP, ListRow, ThemedRadius, UiText},
 };
 
 use super::shell::EditorPanels;
@@ -112,7 +112,8 @@ pub(crate) fn menu_dropdown_node() -> Node {
         min_width: px(180),
         flex_direction: FlexDirection::Column,
         align_items: AlignItems::Stretch,
-        padding: UiRect::all(px(4)),
+        row_gap: px(density::GAP_S),
+        padding: UiRect::all(px(density::GAP_S)),
         border: UiRect::all(px(theme::BORDER_W)),
         ..default()
     }
@@ -176,13 +177,12 @@ pub(crate) fn menu_item_row(label: &str, lead: MenuLead, tail: MenuTail) -> impl
         Hovered::default(),
         Node {
             width: percent(100),
-            min_height: px(24),
-            margin: UiRect::bottom(px(2)),
-            padding: UiRect::axes(px(10), px(3)),
+            min_height: px(density::ROW_H),
+            padding: UiRect::axes(px(super::ROW_PAD_X), px(0)),
             border: UiRect::all(px(theme::BORDER_W)),
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: px(8),
+            column_gap: px(GAP),
             ..default()
         },
         ThemedRadius::control(),

@@ -17,12 +17,15 @@ use bevy::{
 use nova_gameplay::prelude::{GameStates, GuardedLeave, PauseStates, UnsavedWork};
 use nova_ui::{
     prelude::{
-        button, icon_button, panel, scroll_bar, scroll_column, scroll_row, scroll_viewport,
-        ButtonSpec, IconButtonType, UiText, CLOSE_GLYPH,
+        action_row, button, icon_button, panel, scroll_bar, scroll_column, scroll_row,
+        scroll_viewport, ButtonSpec, IconButtonType, UiText, CLOSE_GLYPH,
     },
     theme,
     theme::{density, UiColorType},
-    widget::{ButtonCueType, ThemedBorder, ThemedText},
+    widget::{
+        metrics::{GAP, GAP_L},
+        ButtonCueType, ThemedBorder, ThemedRadius, ThemedText, ICON_BUTTON_PX,
+    },
 };
 
 use crate::{
@@ -289,6 +292,7 @@ fn spawn_confirm_window(
             border: UiRect::all(px(theme::BORDER_W)),
             ..default()
         },
+        ThemedRadius::panel(),
         panel(),
     ));
     let window = frame.id();
@@ -302,7 +306,10 @@ fn spawn_confirm_window(
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
                     column_gap: px(density::GAP_S),
-                    padding: UiRect::axes(px(density::PANEL_PAD + 1.0), px(2)),
+                    // The height a window bar takes with its close button, so
+                    // the confirm window's bar matches every other window's.
+                    min_height: px(ICON_BUTTON_PX),
+                    padding: UiRect::axes(px(density::PANEL_PAD), px(0)),
                     border: UiRect::bottom(px(theme::BORDER_W)),
                     ..default()
                 },
@@ -329,7 +336,7 @@ fn spawn_confirm_window(
                 Node {
                     flex_direction: FlexDirection::Column,
                     align_items: AlignItems::Stretch,
-                    row_gap: px(density::GAP_S),
+                    row_gap: px(GAP),
                     padding: UiRect::all(px(density::PANEL_PAD)),
                     ..default()
                 },
@@ -351,7 +358,7 @@ fn spawn_confirm_window(
                     Node {
                         flex_direction: FlexDirection::Row,
                         align_items: AlignItems::Center,
-                        column_gap: px(8),
+                        column_gap: px(GAP),
                         ..default()
                     },
                 ))
@@ -442,6 +449,29 @@ pub(crate) fn close_confirm_window(
     }
 }
 
+/// A modal's panel node: `width` wide, [`GAP_L`] padding, its parts [`GAP`]
+/// apart. The caller adds `ThemedRadius::panel()` and `panel()`.
+pub(crate) fn modal_panel_node(width: f32) -> Node {
+    Node {
+        width: px(width),
+        max_width: percent(94),
+        flex_direction: FlexDirection::Column,
+        row_gap: px(GAP),
+        padding: UiRect::all(px(GAP_L)),
+        border: UiRect::all(px(theme::BORDER_W)),
+        ..default()
+    }
+}
+
+/// A modal's answers: right-aligned and [`GAP`] apart, [`GAP_L`] under the
+/// content (the panel's [`GAP`] plus this margin).
+pub(crate) fn modal_answers() -> Node {
+    Node {
+        margin: UiRect::top(px(GAP_L - GAP)),
+        ..action_row(JustifyContent::FlexEnd)
+    }
+}
+
 /// The frame every floating window shares: the panel, the bar it is dragged
 /// by, the title, the close, and a body the caller fills.
 pub(crate) fn window_frame(
@@ -470,6 +500,7 @@ pub(crate) fn window_frame(
             border: UiRect::all(px(theme::BORDER_W)),
             ..default()
         },
+        ThemedRadius::panel(),
         panel(),
     ));
     let window = frame.id();
@@ -486,7 +517,7 @@ pub(crate) fn window_frame(
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
                     column_gap: px(density::GAP_S),
-                    padding: UiRect::axes(px(density::PANEL_PAD + 1.0), px(0)),
+                    padding: UiRect::axes(px(density::PANEL_PAD), px(0)),
                     border: UiRect::bottom(px(theme::BORDER_W)),
                     ..default()
                 },

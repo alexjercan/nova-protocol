@@ -8,9 +8,12 @@
 
 use bevy::{ecs::relationship::RelatedSpawnerCommands, prelude::*, ui_widgets::observe};
 use nova_modding::prelude::Content;
-use nova_ui::prelude::{
-    list_add, list_count, list_editor, list_entry_row, list_picker, list_remove, ListChoice,
-    ListEditor, ListEntryAdded, ListEntryCounted, ListEntryPicked, ListEntryRemoved,
+use nova_ui::{
+    prelude::{
+        list_add, list_count, list_editor, list_entry_row, list_picker, list_remove, ListChoice,
+        ListEditor, ListEntryAdded, ListEntryCounted, ListEntryPicked, ListEntryRemoved,
+    },
+    theme::density,
 };
 
 use crate::{
@@ -26,7 +29,7 @@ use crate::{
         ModProject,
     },
     ui::{
-        inspector::{row_hint, row_label},
+        inspector::{row_hint, row_label, BLOCK_TAIL},
         layer,
     },
 };
@@ -59,8 +62,8 @@ pub(super) fn spawn_list_row(
             width: percent(100),
             flex_direction: FlexDirection::Column,
             padding: UiRect::left(px(step)),
-            margin: UiRect::bottom(px(6)),
-            row_gap: px(3),
+            margin: UiRect::bottom(px(BLOCK_TAIL)),
+            row_gap: px(density::GAP_S),
             ..default()
         },
     ))

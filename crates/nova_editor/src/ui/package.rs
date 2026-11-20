@@ -24,10 +24,16 @@ use bevy::{
 };
 use nova_ui::{
     prelude::*,
-    theme::{self, density, UiColorType},
+    theme::{density, UiColorType},
+    widget::metrics::GAP,
 };
 
-use super::{assets::UNPACKAGED_MARK, layer, settings::MetaFieldType};
+use super::{
+    assets::UNPACKAGED_MARK,
+    layer,
+    settings::MetaFieldType,
+    window::{modal_answers, modal_panel_node},
+};
 use crate::{
     clipboard::copy_out,
     history::EditHistory,
@@ -160,17 +166,11 @@ pub(crate) fn open_package_modal(world: &mut World) {
             Name::new("Package Panel"),
             PackagePanel,
             Node {
-                width: px(MODAL_W),
-                max_width: percent(94),
                 max_height: percent(90),
-                flex_direction: FlexDirection::Column,
-                row_gap: px(6),
-                padding: UiRect::all(px(10)),
-                border: UiRect::all(px(theme::BORDER_W)),
                 overflow: Overflow::clip(),
-                ..default()
+                ..modal_panel_node(MODAL_W)
             },
-            ThemedRadius::control(),
+            ThemedRadius::panel(),
             panel(),
         ));
 }
@@ -264,7 +264,7 @@ fn spawn_field(
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
             column_gap: px(density::GAP_S),
-            min_height: px(22),
+            min_height: px(density::CONTROL_H),
             ..default()
         },
     ))
@@ -312,33 +312,24 @@ fn spawn_settings(body: &mut RelatedSpawnerCommands<ChildOf>, modal: &PackageMod
             words(reason.clone(), density::TEXT_LABEL, UiColorType::Danger),
         ));
     }
-    body.spawn((
-        Name::new("Package Foot"),
-        Node {
-            flex_direction: FlexDirection::Row,
-            justify_content: JustifyContent::FlexEnd,
-            column_gap: px(density::GAP_S),
-            margin: UiRect::top(px(4)),
-            ..default()
-        },
-    ))
-    .with_children(|foot| {
-        foot.spawn((
-            Name::new("Package Cancel"),
-            button(ButtonSpec::control("Cancel").ghost()),
-            ButtonCueType::Back,
-            observe(on_close),
-        ));
-        let mut go = foot.spawn((
-            Name::new("Package Button"),
-            button(ButtonSpec::control("Package").primary()),
-            ButtonCueType::Owned,
-            observe(on_package),
-        ));
-        if !matches!(modal.plan, Some(Ok(_))) {
-            go.insert(InteractionDisabled);
-        }
-    });
+    body.spawn((Name::new("Package Foot"), modal_answers()))
+        .with_children(|foot| {
+            foot.spawn((
+                Name::new("Package Cancel"),
+                button(ButtonSpec::control("Cancel").ghost()),
+                ButtonCueType::Back,
+                observe(on_close),
+            ));
+            let mut go = foot.spawn((
+                Name::new("Package Button"),
+                button(ButtonSpec::control("Package").primary()),
+                ButtonCueType::Owned,
+                observe(on_package),
+            ));
+            if !matches!(modal.plan, Some(Ok(_))) {
+                go.insert(InteractionDisabled);
+            }
+        });
 }
 
 /// What the check found, as the window's Check line.
@@ -475,8 +466,10 @@ fn spawn_plan(body: &mut RelatedSpawnerCommands<ChildOf>, plan: &PackagePlan) {
             scroll
                 .spawn((
                     Name::new("Package Files"),
+                    // Unframed text lines, read as one listing: no gap.
                     Node {
                         align_items: AlignItems::Stretch,
+                        row_gap: px(0),
                         ..scroll_column()
                     },
                     scroll_viewport(),
@@ -504,11 +497,11 @@ fn spawn_file_row(list: &mut RelatedSpawnerCommands<ChildOf>, path: &str, size: 
         Name::new(format!("Package File Row {path}")),
         Node {
             width: percent(100),
-            min_height: px(18),
+            min_height: px(density::ROW_H),
             flex_shrink: 0.0,
             align_items: AlignItems::Center,
-            column_gap: px(8),
-            padding: UiRect::horizontal(px(4)),
+            column_gap: px(GAP),
+            padding: UiRect::horizontal(px(density::GAP_S)),
             ..default()
         },
     ))
@@ -568,36 +561,27 @@ fn spawn_done(
             words(line.clone(), density::TEXT_LABEL, *tint),
         ));
     }
-    body.spawn((
-        Name::new("Package Foot"),
-        Node {
-            flex_direction: FlexDirection::Row,
-            justify_content: JustifyContent::FlexEnd,
-            column_gap: px(density::GAP_S),
-            margin: UiRect::top(px(4)),
-            ..default()
-        },
-    ))
-    .with_children(|foot| {
-        foot.spawn((
-            Name::new("Package Copy Path"),
-            button(ButtonSpec::control("Copy Path").ghost()),
-            ButtonCueType::Owned,
-            observe(on_copy_path),
-        ));
-        foot.spawn((
-            Name::new("Package Open Folder"),
-            button(ButtonSpec::control("Open Folder").ghost()),
-            ButtonCueType::Owned,
-            observe(on_open_folder),
-        ));
-        foot.spawn((
-            Name::new("Package Close"),
-            button(ButtonSpec::control("Close").primary()),
-            ButtonCueType::Back,
-            observe(on_close),
-        ));
-    });
+    body.spawn((Name::new("Package Foot"), modal_answers()))
+        .with_children(|foot| {
+            foot.spawn((
+                Name::new("Package Copy Path"),
+                button(ButtonSpec::control("Copy Path").ghost()),
+                ButtonCueType::Owned,
+                observe(on_copy_path),
+            ));
+            foot.spawn((
+                Name::new("Package Open Folder"),
+                button(ButtonSpec::control("Open Folder").ghost()),
+                ButtonCueType::Owned,
+                observe(on_open_folder),
+            ));
+            foot.spawn((
+                Name::new("Package Close"),
+                button(ButtonSpec::control("Close").primary()),
+                ButtonCueType::Back,
+                observe(on_close),
+            ));
+        });
 }
 
 /// The window, for a verb that writes to it.

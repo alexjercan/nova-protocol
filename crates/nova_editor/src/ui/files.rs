@@ -19,7 +19,7 @@ use nova_ui::{
     prelude::{button, text_field, ButtonSpec, TextFieldSpec, TextFieldValue, UiText},
     theme,
     theme::{density, ActiveUiTheme, UiColorType},
-    widget::{ButtonCueType, ThemedBorder, ThemedText},
+    widget::{metrics::GAP, ButtonCueType, ThemedBorder, ThemedText},
 };
 
 use crate::{
@@ -258,7 +258,7 @@ fn spawn_file_window(
                     Node {
                         flex_direction: FlexDirection::Column,
                         align_items: AlignItems::Stretch,
-                        row_gap: px(2),
+                        row_gap: px(density::GAP_S),
                         ..default()
                     },
                 ));
@@ -320,7 +320,7 @@ fn spawn_answers(frame: &mut RelatedSpawnerCommands<ChildOf>, kind: &FileWindowK
             Node {
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: px(density::GAP_S),
+                column_gap: px(GAP),
                 padding: UiRect::all(px(density::PANEL_PAD)),
                 border: UiRect::top(px(theme::BORDER_W)),
                 ..default()
