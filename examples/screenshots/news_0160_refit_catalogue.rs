@@ -10,10 +10,12 @@
 //! station offers Refit and builds the kinetic PDC. A seed that gives either
 //! up stops the run, naming it.
 //!
-//! No fixture state: the tug flies its start kit and its start balance. The
-//! industrial kit holds none of the PDC's parts, so the station sells every
-//! one and the price is the recipe at ask; the walk asserts both, because
-//! the news caption says so. A balance or a station stock that cannot pay it
+//! THE HOLD IS DISCLOSED FIXTURE STATE: the tug flies its start kit and its
+//! start balance, less every stack of a kind the PDC's recipe asks for. The
+//! start kits carry section panels, which the recipe takes, and the news
+//! caption shows a part bought whole from an empty hold. So the station
+//! sells every one and the price is the recipe at ask; the walk asserts
+//! both. A balance or a station stock that cannot pay it
 //! mutes Place, and the run stops at the take-in-hand beat's deadline.
 //!
 //! The walk opens the interface with the real key and the Ship tab with a
@@ -396,6 +398,23 @@ fn assert_the_station(world: &mut World) {
     );
 }
 
+/// Take every stack of a kind the kinetic PDC's recipe asks for out of the
+/// tug's hold, so the station sells the whole recipe.
+fn clear_the_pdc_parts(world: &mut World) {
+    let ship = the_ship(world);
+    let kinds: Vec<ItemDesignId> = pdc(world).base.build.parts.keys().cloned().collect();
+    let mut hold = world
+        .get_mut::<ShipInventory>(ship)
+        .expect("refit catalogue: every ship carries a hold");
+    for kind in kinds {
+        let count = hold.count(&kind);
+        if count > 0 {
+            info!("refit catalogue: staging takes {count} {kind} out of the start hold");
+            hold.remove(&kind, count);
+        }
+    }
+}
+
 /// List every free socket of a live section whose outward normal points up
 /// the hull, in design order. The pane's own solve judges each one when the
 /// pointer is over it.
@@ -745,6 +764,7 @@ fn script() -> AutopilotPlugin<GameStates> {
             hide_dev_overlays(world);
             hide_status_bar(world);
             assert_the_station(world);
+            clear_the_pdc_parts(world);
         })
         .add()
         .step("refit catalogue: press the interface key")
