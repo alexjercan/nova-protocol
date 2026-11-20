@@ -34,7 +34,7 @@ use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{bottom_edge_px, StatusBarRootMarker},
     theme::{combat, ActiveUiTheme, UiColorType},
-    widget::ThemedRadius,
+    widget::{metrics, ThemedRadius, UiText},
 };
 
 use crate::{
@@ -71,8 +71,9 @@ const INSET_PANEL_PX: f32 = 256.0;
 /// away by the downscale.
 const INSET_TEXTURE_PX: u32 = INSET_PANEL_PX as u32;
 
-/// Panel inset from the screen's right edge (px).
-const INSET_MARGIN_PX: f32 = 12.0;
+/// Panel inset from the screen's right edge (px): the HUD's screen edge inset,
+/// the keybind dock's too.
+const INSET_MARGIN_PX: f32 = metrics::GAP_XL;
 
 /// Panel inset from the screen's top edge (px) when nothing is above it -
 /// the same inset it keeps from the right edge, so an unoccupied corner reads
@@ -84,7 +85,7 @@ const INSET_TOP_MIN_PX: f32 = INSET_MARGIN_PX;
 /// Matches the bar's own item margin, so the panel sits under the row the way
 /// the row's items sit beside each other. A hand-read 44 px held only for the
 /// one-item bar that happened to be up there.
-const INSET_STATUS_GAP_PX: f32 = 4.0;
+const INSET_STATUS_GAP_PX: f32 = metrics::GAP_S;
 
 /// Panel border thickness (px).
 const INSET_BORDER_PX: f32 = 2.0;
@@ -429,15 +430,17 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
                 TargetInsetCaptionMarker,
                 Text::new(""),
                 TextFont::from_font_size(nova_ui::hud::CHIP_LABEL_FONT),
+                UiText,
                 TextColor(INSET_BORDER_SAFE_COLOR),
                 Node {
                     position_type: PositionType::Absolute,
                     left: Val::Px(INSET_CAPTION_LEFT_PX),
-                    bottom: Val::Px(4.0),
+                    bottom: Val::Px(metrics::GAP_S),
                     // The caption is the inset's header cell (demo 2 `.zh`):
                     // a small-caps line on the family's slab, not loose text
-                    // burned into the viewfinder image.
-                    padding: UiRect::axes(Val::Px(5.0), Val::Px(2.0)),
+                    // burned into the viewfinder image. A chip's padding, so
+                    // it reads as one of the family.
+                    padding: UiRect::axes(Val::Px(metrics::PAD_X), Val::Px(metrics::GAP_S)),
                     ..default()
                 },
                 ThemedRadius::control(),
@@ -456,6 +459,7 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
                 TargetInsetDestroyedFlashMarker,
                 Text::new("DESTROYED"),
                 TextFont::from_font_size(nova_ui::hud::CHIP_FONT),
+                UiText,
                 TextColor(Color::NONE),
                 TextLayout::justify(Justify::Center),
                 Node {
@@ -463,7 +467,7 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
                     left: Val::Px(0.0),
                     top: Val::Percent(44.0),
                     width: Val::Percent(100.0),
-                    padding: UiRect::vertical(Val::Px(4.0)),
+                    padding: UiRect::vertical(Val::Px(metrics::GAP_S)),
                     ..default()
                 },
                 BackgroundColor(DESTROYED_FLASH_BACKDROP),
@@ -475,6 +479,7 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
                 TargetInsetNeutralizedFlashMarker { remaining: 0.0 },
                 Text::new("NEUTRALIZED"),
                 TextFont::from_font_size(nova_ui::hud::CHIP_FONT),
+                UiText,
                 TextColor(Color::NONE),
                 TextLayout::justify(Justify::Center),
                 Node {
@@ -482,7 +487,7 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
                     left: Val::Px(0.0),
                     top: Val::Percent(44.0),
                     width: Val::Percent(100.0),
-                    padding: UiRect::vertical(Val::Px(4.0)),
+                    padding: UiRect::vertical(Val::Px(metrics::GAP_S)),
                     ..default()
                 },
                 BackgroundColor(NEUTRALIZED_FLASH_BACKDROP),

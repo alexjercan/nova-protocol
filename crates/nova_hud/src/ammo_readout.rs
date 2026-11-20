@@ -98,7 +98,7 @@ const GAUGE_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
 };
 use nova_ui::{
     theme::{ActiveUiTheme, UiColorType},
-    widget::ThemedText,
+    widget::{ThemedText, UiText},
 };
 
 /// Visual gap (px) two gauges of the same kind keep before they read as one.
@@ -302,6 +302,7 @@ fn cluster_badge() -> impl Bundle {
         AmmoReadoutClusterBadge,
         Text::new(""),
         TextFont::from_font_size(BADGE_FONT_PX),
+        UiText,
         TextColor(Color::NONE),
         ThemedText::new(UiColorType::Accent),
         Node {
@@ -321,6 +322,7 @@ fn reserve_mark() -> impl Bundle {
         AmmoReadoutReserveMark,
         Text::new(""),
         TextFont::from_font_size(BADGE_FONT_PX),
+        UiText,
         TextColor(Color::NONE),
         TextLayout {
             linebreak: LineBreak::NoWrap,
@@ -344,6 +346,7 @@ fn readout_number() -> impl Bundle {
         AmmoReadoutNumber,
         Text::new(""),
         TextFont::from_font_size(9.0),
+        UiText,
         TextColor(Color::WHITE),
         Node {
             position_type: PositionType::Absolute,

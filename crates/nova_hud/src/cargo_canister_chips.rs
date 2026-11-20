@@ -24,6 +24,7 @@
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_ui::widget::{metrics, ThemedRadius};
 
 use super::{anchored_chip::prelude::*, screen_indicator::prelude::*};
 
@@ -111,6 +112,8 @@ fn cargo_canister_chip_hud(canister: Entity) -> impl Bundle {
                 },
             ),
             CHIP_CLEARANCE,
+            // A box like every HUD chip, so it takes their themed corner.
+            ThemedRadius::control(),
             BackgroundColor(SCRIM_COLOR),
             children![
                 (
@@ -125,7 +128,9 @@ fn cargo_canister_chip_hud(canister: Entity) -> impl Bundle {
                     Name::new("CargoCanisterChipLines"),
                     Node {
                         flex_direction: FlexDirection::Column,
-                        padding: UiRect::axes(Val::Px(7.0), Val::Px(3.0)),
+                        // A HUD chip's padding: the bar is the tag's edge, the
+                        // lines its content.
+                        padding: UiRect::axes(Val::Px(metrics::PAD_X), Val::Px(metrics::GAP_S)),
                         ..default()
                     },
                     children![

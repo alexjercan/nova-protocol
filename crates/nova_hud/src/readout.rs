@@ -24,7 +24,10 @@
 //! next scenario or the menu.
 
 use bevy::prelude::*;
-use nova_ui::hud::{chip_node, chip_paint, ChipText, ChipTone};
+use nova_ui::{
+    hud::{chip_node, chip_paint, ChipText, ChipTone},
+    widget::{metrics, UiText},
+};
 
 use super::HudTier;
 
@@ -143,7 +146,7 @@ fn spawn_readout_strip(mut commands: Commands) {
         HudTier::Instrument,
         Node {
             position_type: PositionType::Absolute,
-            top: Val::Px(16.0),
+            top: Val::Px(metrics::GAP_XL),
             left: Val::Percent(50.0),
             // Center the column on the screen's horizontal midpoint.
             margin: UiRect {
@@ -153,7 +156,7 @@ fn spawn_readout_strip(mut commands: Commands) {
             width: Val::Px(160.0),
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Center,
-            row_gap: Val::Px(4.0),
+            row_gap: Val::Px(metrics::GAP_S),
             ..default()
         },
     ));
@@ -207,6 +210,7 @@ fn sync_readout_rows(
                 },
                 Text::new(text),
                 TextFont::from_font_size(READOUT_FONT_SIZE_PX),
+                UiText,
                 // Each row is a member of the HUD chip family - a
                 // scenario clock reads as an instrument readout, not as text
                 // floating over the starfield.

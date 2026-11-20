@@ -21,7 +21,10 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::hud::{ChipText, ChipTone, CHIP_FONT};
+use nova_ui::{
+    hud::{ChipText, ChipTone, CHIP_FONT},
+    widget::{metrics, UiText},
+};
 
 use super::{
     hud_notice::{NOTICE_BOTTOM_PX, NOTICE_MAX_HEIGHT_PX},
@@ -42,7 +45,7 @@ const TICK_LINES: usize = 3;
 
 /// Clearance between the notice box's top and the column while no dock is on
 /// screen to measure.
-const TICK_GAP_PX: f32 = 8.0;
+const TICK_GAP_PX: f32 = metrics::GAP;
 
 /// Marker for the column; spawned by [`pickup_tick_hud`] for the player's
 /// ship.
@@ -68,7 +71,7 @@ pub fn pickup_tick_hud() -> impl Bundle {
             bottom: Val::Px(NOTICE_BOTTOM_PX + NOTICE_MAX_HEIGHT_PX + TICK_GAP_PX),
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::FlexStart,
-            row_gap: Val::Px(2.0),
+            row_gap: Val::Px(metrics::GAP_S),
             ..default()
         },
         Pickable::IGNORE,
@@ -140,6 +143,7 @@ fn post_pickup_tick(
                 ChildOf(column),
                 Text::new(line),
                 TextFont::from_font_size(CHIP_FONT),
+                UiText,
                 TextLayout {
                     linebreak: LineBreak::NoWrap,
                     ..default()

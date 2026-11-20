@@ -25,9 +25,8 @@
 use bevy::prelude::*;
 use nova_input::prelude::{InputBindings, InputDeviceType};
 use nova_ui::{
-    hud::{chip_paint, ChipText, ChipTone},
-    theme,
-    widget::ThemedRadius,
+    hud::{chip_node, chip_paint, ChipText, ChipTone, CHIP_FONT},
+    widget::{metrics, ThemedRadius, UiText},
 };
 
 use super::keybind_dock::{dock_top_px, LaidOutDock};
@@ -59,11 +58,11 @@ struct CinematicPromptMarker;
 struct CinematicPromptText;
 
 /// Bottom-centre, above the comms stack, when the bottom of the screen is
-/// otherwise empty.
-const PROMPT_BOTTOM_PX: f32 = 18.0;
+/// otherwise empty: the HUD's screen edge inset, the dock's own.
+const PROMPT_BOTTOM_PX: f32 = metrics::GAP_XL;
 
 /// The clearance left between the keybind dock and the prompt riding above it.
-const PROMPT_DOCK_GAP_PX: f32 = 10.0;
+const PROMPT_DOCK_GAP_PX: f32 = metrics::GAP;
 
 /// The skip prompt.
 pub struct CinematicPromptPlugin;
@@ -95,10 +94,7 @@ fn spawn_cinematic_prompt(mut commands: Commands) {
                 // label turns out to be. A fixed 180 px box with a half-width
                 // margin centred one particular label and clipped the rest -
                 // a pad glyph name or a rebound `RIGHT BRACKET` overflowed it.
-                justify_content: JustifyContent::Center,
-                padding: UiRect::axes(Val::Px(10.0), Val::Px(4.0)),
-                border: UiRect::all(Val::Px(theme::BORDER_W)),
-                ..default()
+                ..chip_node()
             },
             ThemedRadius::control(),
             // Centring the measured box on the screen midline, which is what
@@ -110,7 +106,8 @@ fn spawn_cinematic_prompt(mut commands: Commands) {
             prompt.spawn((
                 CinematicPromptText,
                 Text::new(""),
-                TextFont::from_font_size(12.0),
+                TextFont::from_font_size(CHIP_FONT),
+                UiText,
                 ChipText::value(tone),
                 TextColor(Color::NONE),
             ));

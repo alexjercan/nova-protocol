@@ -70,7 +70,7 @@ use nova_sound::prelude::*;
 use nova_ui::{
     hud::{chip_node, ChipTone},
     theme::ActiveUiTheme,
-    widget::ThemedRadius,
+    widget::{ThemedRadius, UiText},
 };
 
 use super::NovaHudSystems;
@@ -205,6 +205,7 @@ pub fn hud_notice_hud() -> impl Bundle {
             HudNoticeText,
             Text::new(""),
             TextFont::from_font_size(NOTICE_FONT_PX),
+            UiText,
             TextLayout {
                 linebreak: LineBreak::NoWrap,
                 ..default()

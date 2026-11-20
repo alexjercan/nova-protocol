@@ -159,9 +159,9 @@ const SPEED_ROW_PX: f32 = -90.0;
 const MODE_ROW_PX: f32 = -120.0;
 
 /// The clear space a chip keeps to the right edge of the view when the outer
-/// shell is too wide to stand outside of.
+/// shell is too wide to stand outside of: the HUD's screen edge inset.
 #[cfg(feature = "debug")]
-const CHIP_VIEW_MARGIN_PX: f32 = 12.0;
+const CHIP_VIEW_MARGIN_PX: f32 = 16.0;
 
 /// How close to the furthest live section a section has to be to count as one
 /// that DECIDES the envelope.

@@ -25,7 +25,10 @@ use nova_ship::{
         RepairWorkType, ShipConsumableEffect, ShipCraftJob, ShipRepairJobs, ShipRescueCall,
     },
 };
-use nova_ui::hud::{chip_node, chip_paint, ChipText, ChipTone};
+use nova_ui::{
+    hud::{chip_node, chip_paint, ChipText, ChipTone},
+    widget::{metrics, UiText},
+};
 
 use super::{
     emphasis::prelude::*,
@@ -65,17 +68,20 @@ const CHIP_FONT_PX: f32 = 12.0;
 /// The clear space between the projected edge of the outer gravity shell and
 /// the NEAR EDGE of a flight chip (px). A fixed pixel gap rather than a world
 /// distance: this is the space between a drawn sphere and a text chip, and that
-/// reads the same whatever the hull behind it measures.
-const CHIP_SHELL_GAP_PX: f32 = 12.0;
+/// reads the same whatever the hull behind it measures. The kit's
+/// block-to-block gap.
+const CHIP_SHELL_GAP_PX: f32 = metrics::GAP_L;
 
 /// The least clear space between the flight chip stack and every edge of the
 /// view (px): a shell too wide to stand outside of, or a stack riding low or
-/// high on the screen, holds the stack this far inside the view.
-const CHIP_VIEW_MARGIN_PX: f32 = 12.0;
+/// high on the screen, holds the stack this far inside the view: the HUD's
+/// screen edge inset.
+const CHIP_VIEW_MARGIN_PX: f32 = metrics::GAP_XL;
 
 /// The least clear space between the flight chip stack and the target inset
-/// panel (px). The inset is a keep-out: a chip under it is unreadable.
-const CHIP_INSET_GAP_PX: f32 = 12.0;
+/// panel (px). The inset is a keep-out: a chip under it is unreadable. The
+/// kit's block-to-block gap.
+const CHIP_INSET_GAP_PX: f32 = metrics::GAP_L;
 
 /// How far the speed chip rides above the ship's centre of mass (px; screen y
 /// grows downward). Lifted clear of the bottom-centre keybind dock: the ship
@@ -211,6 +217,7 @@ pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
                 ),
                 Text::new(""),
                 TextFont::from_font_size(SPEED_FONT_PX),
+                UiText,
                 TextLayout {
                     linebreak: LineBreak::NoWrap,
                     ..default()
@@ -228,6 +235,7 @@ pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
                 chip(None, MODE_CHIP_LIFT_PX),
                 Text::new(""),
                 TextFont::from_font_size(CHIP_FONT_PX),
+                UiText,
                 TextLayout {
                     linebreak: LineBreak::NoWrap,
                     ..default()
@@ -268,6 +276,7 @@ pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
                 chip(None, REPAIR_CHIP_LIFT_PX),
                 Text::new(""),
                 TextFont::from_font_size(CHIP_FONT_PX),
+                UiText,
                 TextLayout {
                     linebreak: LineBreak::NoWrap,
                     ..default()

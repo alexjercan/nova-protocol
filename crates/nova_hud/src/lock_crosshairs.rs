@@ -30,7 +30,7 @@ use bevy::prelude::*;
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::theme::combat;
+use nova_ui::{theme::combat, widget::UiText};
 
 use crate::prelude::*;
 
@@ -167,6 +167,7 @@ pub fn lock_crosshairs_hud(target_sprite: Handle<Image>) -> impl Bundle {
                     RadarCandidateLabelMarker,
                     Text::new(""),
                     TextFont::from_font_size(11.0),
+                    UiText,
                     TextColor(RADAR_TRAVEL_COLOR),
                     Node {
                         position_type: PositionType::Absolute,

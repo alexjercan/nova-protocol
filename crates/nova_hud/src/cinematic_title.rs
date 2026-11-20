@@ -19,7 +19,10 @@
 //! free while it plays.
 
 use bevy::prelude::*;
-use nova_ui::theme::{ActiveUiTheme, UiColorType};
+use nova_ui::{
+    theme::{ActiveUiTheme, UiColorType},
+    widget::{metrics, ThemedRadius, UiText},
+};
 
 /// The `CinematicTitle` resource, its card and the corner it sits in.
 pub mod prelude {
@@ -102,9 +105,12 @@ struct TitleDate;
 #[derive(Component, Debug)]
 struct TitleNote;
 
-/// How far the card sits off the screen edges it hangs from.
-const CARD_INSET_X_PX: f32 = 28.0;
-const CARD_INSET_TOP_PX: f32 = 48.0;
+/// How far the card sits off the screen edges it hangs from: the HUD's screen
+/// edge inset, which the comms stack and the target inset keep too.
+const CARD_INSET_X_PX: f32 = metrics::GAP_XL;
+const CARD_INSET_TOP_PX: f32 = metrics::GAP_XL;
+/// A bottom card stands over the bottom edge's own furniture: the keybind dock
+/// (two wrapped rows on a narrow window) and the skip prompt riding on it.
 const CARD_INSET_BOTTOM_PX: f32 = 96.0;
 
 /// The accent rule down the card's outer edge.
@@ -136,8 +142,8 @@ fn spawn_cinematic_title(mut commands: Commands) {
             Node {
                 position_type: PositionType::Absolute,
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(3.0),
-                padding: UiRect::axes(Val::Px(12.0), Val::Px(8.0)),
+                row_gap: Val::Px(metrics::GAP_S),
+                padding: UiRect::axes(Val::Px(metrics::GAP_L), Val::Px(metrics::GAP)),
                 border: UiRect::left(Val::Px(CARD_RULE_PX)),
                 ..default()
             },
@@ -147,24 +153,30 @@ fn spawn_cinematic_title(mut commands: Commands) {
             // components.
             BorderColor::all(Color::NONE),
             BackgroundColor(Color::NONE),
+            // The card's fill is a box like the HUD chips, so it takes their
+            // themed corner.
+            ThemedRadius::control(),
         ))
         .with_children(|card| {
             card.spawn((
                 TitleLocation,
                 Text::new(""),
                 TextFont::from_font_size(20.0),
+                UiText,
                 TextColor(Color::NONE),
             ));
             card.spawn((
                 TitleDate,
                 Text::new(""),
                 TextFont::from_font_size(12.0),
+                UiText,
                 TextColor(Color::NONE),
             ));
             card.spawn((
                 TitleNote,
                 Text::new(""),
                 TextFont::from_font_size(11.0),
+                UiText,
                 TextColor(Color::NONE),
             ));
         });

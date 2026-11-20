@@ -26,7 +26,10 @@ use std::collections::VecDeque;
 use bevy::prelude::*;
 use nova_gameplay::asset_ref::AssetRef;
 use nova_sound::prelude::{PlaySound, SoundBank, SoundCategoryType, UiSfx};
-use nova_ui::hud::{body_colour, CHIP_BORDER_ALPHA, CHIP_FILL};
+use nova_ui::{
+    hud::{body_colour, CHIP_BORDER_ALPHA, CHIP_FILL},
+    widget::{metrics, ThemedRadius, UiText},
+};
 
 use super::{
     keybind_dock::{dock_top_px, LaidOutDock},
@@ -111,11 +114,12 @@ pub const COMMS_FADE_OUT_SECS: f32 = 0.4;
 /// Screen-relative panel width. The pixel ceiling keeps ultrawide displays
 /// from turning a transmission into one long subtitle line.
 /// How far off the bottom of the screen the newest card sits with no keybind
-/// dock on screen.
+/// dock on screen: clear of the cinematic skip prompt, which takes the dock's
+/// place during a scene (the screen edge inset, its 25 px chip and a gap).
 const COMMS_BOTTOM_PX: f32 = 48.0;
 /// Clearance between the keybind dock's top and the newest card. A hot chip
 /// draws 8 % larger than its slot, which this covers.
-const COMMS_DOCK_GAP_PX: f32 = 8.0;
+const COMMS_DOCK_GAP_PX: f32 = metrics::GAP;
 const COMMS_PANEL_WIDTH_PERCENT: f32 = 48.0;
 const COMMS_PANEL_MAX_WIDTH_PX: f32 = 960.0;
 /// Square speaker icon size inside a comms card.
@@ -288,12 +292,12 @@ fn spawn_comms_panel(mut commands: Commands) {
         Visibility::Hidden,
         Node {
             position_type: PositionType::Absolute,
-            left: Val::Px(16.0),
+            left: Val::Px(metrics::GAP_XL),
             bottom: Val::Px(COMMS_BOTTOM_PX),
             width: Val::Percent(COMMS_PANEL_WIDTH_PERCENT),
             max_width: Val::Px(COMMS_PANEL_MAX_WIDTH_PX),
             flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(10.0),
+            row_gap: Val::Px(metrics::GAP_L),
             ..default()
         },
     ));
@@ -547,13 +551,13 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
         CommsLineId(line.id),
         Node {
             width: Val::Percent(100.0),
-            min_height: Val::Px(76.0),
-            padding: UiRect::all(Val::Px(14.0)),
-            border: UiRect::all(Val::Px(1.0)),
-            column_gap: Val::Px(12.0),
+            padding: UiRect::all(Val::Px(metrics::GAP_L)),
+            border: UiRect::all(Val::Px(nova_ui::theme::BORDER_W)),
+            column_gap: Val::Px(metrics::GAP_L),
             align_items: AlignItems::FlexStart,
             ..default()
         },
+        ThemedRadius::control(),
         // The card is a member of the HUD chip family - the shared slab, the
         // chip border alpha - drawn in the accent THE CUE names. That is what
         // makes an incoming transmission instantly distinguishable from a
@@ -561,12 +565,15 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
         BorderColor::all(accent.with_alpha(CHIP_BORDER_ALPHA * alpha)),
         BackgroundColor(CHIP_FILL.with_alpha(CHIP_FILL.alpha() * alpha)),
         children![
-            comms_icon(line.id, &line.line, accent, alpha, asset_server),
+            (
+                comms_icon(line.id, &line.line, accent, alpha, asset_server),
+                ThemedRadius::control(),
+            ),
             (
                 Node {
                     flex_grow: 1.0,
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(6.0),
+                    row_gap: Val::Px(metrics::GAP),
                     ..default()
                 },
                 children![
@@ -575,6 +582,7 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
                         CommsLineId(line.id),
                         Text::new(header),
                         TextFont::from_font_size(COMMS_SPEAKER_FONT_SIZE_PX),
+                        UiText,
                         TextColor(accent.with_alpha(alpha)),
                     ),
                     (
@@ -582,6 +590,7 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
                         CommsLineId(line.id),
                         Text::new(line.line.text.clone()),
                         TextFont::from_font_size(COMMS_BODY_FONT_SIZE_PX),
+                        UiText,
                         TextColor(body_colour(accent).with_alpha(alpha)),
                         TextLayout {
                             linebreak: LineBreak::WordBoundary,
@@ -605,7 +614,7 @@ fn comms_icon(
         width: Val::Px(COMMS_ICON_SIZE_PX),
         height: Val::Px(COMMS_ICON_SIZE_PX),
         min_width: Val::Px(COMMS_ICON_SIZE_PX),
-        border: UiRect::all(Val::Px(1.0)),
+        border: UiRect::all(Val::Px(nova_ui::theme::BORDER_W)),
         align_items: AlignItems::Center,
         justify_content: JustifyContent::Center,
         ..default()

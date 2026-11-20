@@ -25,17 +25,18 @@ use bevy::{
     text::TextPlugin,
     ui::{ComputedNode, UiGlobalTransform, UiPlugin},
 };
+use nova_ui::{font::UiFont, widget::UiText};
 
 /// Rig viewport, big enough that no chip is ever clamped or wrapped by it.
 const RIG_TARGET: UVec2 = UVec2::new(1280, 720);
 
-/// An app with the real UI layout stack: asset server (the default font lives
-/// in `Assets<Font>`), text measurement, taffy layout, transform propagation,
-/// plus a camera carrying a render target so UI roots have something to lay out
-/// against.
+/// An app with the real UI layout stack: asset server, text measurement, taffy
+/// layout, transform propagation, plus a camera carrying a render target so UI
+/// roots have something to lay out against.
 ///
-/// `bevy_text`'s `default_font` feature is on in this workspace and the chips
-/// pass no font handle, so the glyph measurement here is the production one.
+/// HUD text wears [`UiText`] and draws in the UI face, so the rig loads that
+/// face and routes it the way `nova_ui` does in the game: the glyph
+/// measurement here is the production one.
 pub(super) fn chip_layout_app() -> App {
     let mut app = App::new();
     app.add_plugins((
@@ -62,6 +63,18 @@ pub(super) fn chip_layout_app() -> App {
     // production and this rig registers no game plugins.
     app.init_resource::<nova_ui::theme::ActiveUiTheme>();
 
+    let face = std::fs::read("../../assets/fonts/SGr-IosevkaTerm-Medium.ttf")
+        .expect("the rig reads the UI face from the repo's assets");
+    let face = app
+        .world_mut()
+        .resource_mut::<Assets<Font>>()
+        .add(Font::from_bytes(face));
+    app.insert_resource(UiFont(face));
+    app.add_systems(
+        PostUpdate,
+        route_the_ui_face.before(bevy::ui::UiSystems::Content),
+    );
+
     app.world_mut().spawn((
         Camera2d,
         Camera {
@@ -77,6 +90,14 @@ pub(super) fn chip_layout_app() -> App {
     ));
 
     app
+}
+
+/// Give every newly spawned [`UiText`] span the UI face: the rig's stand-in for
+/// `nova_ui`'s font router, which this rig does not build.
+fn route_the_ui_face(font: Res<UiFont>, mut q: Query<&mut TextFont, Added<UiText>>) {
+    for mut text_font in &mut q {
+        text_font.font = FontSource::Handle(font.handle());
+    }
 }
 
 /// Lay the rig out on a `width` px wide target from the next frame, for a
@@ -185,6 +206,7 @@ pub(super) fn measure_text_leaf(app: &mut App, text: &str, font_px: f32) -> Vec2
             },
             Text::new(text),
             TextFont::from_font_size(font_px),
+            UiText,
             TextLayout {
                 linebreak: LineBreak::NoWrap,
                 ..default()

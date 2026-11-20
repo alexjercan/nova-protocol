@@ -14,7 +14,7 @@ use bevy::prelude::*;
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::theme::combat;
+use nova_ui::{theme::combat, widget::UiText};
 
 use crate::prelude::*;
 
@@ -140,6 +140,7 @@ fn edge_indicator(target: Entity, kind: EdgeIndicatorKind, color: Color) -> impl
                 },
                 Text::new(""),
                 TextFont::from_font_size(LABEL_FONT_PX),
+                UiText,
                 TextColor(color),
                 Pickable::IGNORE,
                 Visibility::Hidden,

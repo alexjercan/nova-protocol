@@ -81,18 +81,20 @@ const CUE_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
 };
 
 /// The gap (px) a cue keeps from the shown notice box and the target inset.
-const CUE_NOTICE_GAP_PX: f32 = 8.0;
+const CUE_NOTICE_GAP_PX: f32 = metrics::GAP;
 use nova_ui::{
+    hud::chip_node,
     theme::{ActiveUiTheme, UiColorType},
-    widget::{ThemedBorder, ThemedRadius, ThemedText},
+    widget::{metrics, ThemedBorder, ThemedRadius, ThemedText, UiText},
 };
 
-/// How far off the bottom of the screen the dock row sits.
+/// How far off the bottom of the screen the dock row sits: the HUD's screen
+/// edge inset, the same as its side margin ([`DOCK_SIDE_PX`]).
 ///
 /// Public because the dock is the floor of the bottom-centre column: anything
 /// else that wants that spot stacks ON it, measuring the row's live height
 /// rather than assuming one (see [`dock_top_px`]).
-pub const DOCK_BOTTOM_PX: f32 = 14.0;
+pub const DOCK_BOTTOM_PX: f32 = metrics::GAP_XL;
 
 /// The dock root as the last layout pass left it, for [`dock_top_px`].
 pub(crate) type LaidOutDock<'w, 's> =
@@ -115,7 +117,7 @@ pub(crate) fn dock_top_px(q_dock: &LaidOutDock) -> Option<f32> {
 }
 
 /// Clearance (px) between the column floor and what stands under it.
-const COLUMN_GAP_PX: f32 = 8.0;
+const COLUMN_GAP_PX: f32 = metrics::GAP;
 
 /// The lowest a piece may stand over the bottom-centre column, in logical px
 /// off the bottom of the screen: clear of the key row's measured top and of
@@ -126,11 +128,13 @@ pub(crate) fn column_floor_px(q_dock: &LaidOutDock) -> Option<f32> {
     dock_top_px(q_dock).map(|top| top.max(NOTICE_BOTTOM_PX + NOTICE_MAX_HEIGHT_PX) + COLUMN_GAP_PX)
 }
 
-/// The margin the dock row keeps from the left and right screen edges.
-const DOCK_SIDE_PX: f32 = 12.0;
+/// The margin the dock row keeps from the left and right screen edges: the
+/// HUD's screen edge inset.
+const DOCK_SIDE_PX: f32 = metrics::GAP_XL;
 
-/// Space between dock chips, across a line and between wrapped lines.
-const DOCK_CHIP_GAP_PX: f32 = 7.0;
+/// Space between dock chips, across a line and between wrapped lines: the
+/// kit's chip-group gap.
+const DOCK_CHIP_GAP_PX: f32 = metrics::GAP;
 
 /// The verb names, in dock display order (left to right): the core group,
 /// then the situational group, then the weapon group.
@@ -338,11 +342,7 @@ pub fn keybind_dock_hud() -> impl Bundle {
                 // A chip keeps its content width: a squeezed chip breaks its
                 // word onto two lines. A row that does not fit wraps instead.
                 flex_shrink: 0.0,
-                align_items: AlignItems::Center,
-                column_gap: Val::Px(6.0),
-                padding: UiRect::new(Val::Px(4.0), Val::Px(8.0), Val::Px(3.0), Val::Px(3.0)),
-                border: UiRect::all(Val::Px(1.0)),
-                ..default()
+                ..chip_node()
             },
             ThemedRadius::control(),
             // Unpainted: `update_dock` paints every chip, and its `Added` gate
@@ -364,6 +364,7 @@ pub fn keybind_dock_hud() -> impl Bundle {
                     ChipModifierText,
                     Text::new(""),
                     TextFont::from_font_size(CHIP_TEXT_PX),
+                    UiText,
                     TextColor(Color::NONE),
                     Node {
                         display: Display::None,
@@ -387,6 +388,7 @@ pub fn keybind_dock_hud() -> impl Bundle {
                     ChipKeyText,
                     Text::new(""),
                     TextFont::from_font_size(CHIP_TEXT_PX),
+                    UiText,
                     TextColor(Color::NONE),
                     Node {
                         display: Display::None,
@@ -397,6 +399,7 @@ pub fn keybind_dock_hud() -> impl Bundle {
                     ChipLabel,
                     Text::new(DOCK_VERBS[index]),
                     TextFont::from_font_size(CHIP_TEXT_PX),
+                    UiText,
                     TextColor(Color::NONE),
                 ),
             ],
@@ -441,13 +444,7 @@ pub fn verb_cues_hud() -> impl Bundle {
                     offset: Vec2::ZERO,
                     offscreen: ScreenIndicatorOffscreen::Hide,
                 },
-                Node {
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(6.0),
-                    padding: UiRect::new(Val::Px(4.0), Val::Px(8.0), Val::Px(3.0), Val::Px(3.0)),
-                    border: UiRect::all(Val::Px(1.0)),
-                    ..default()
-                },
+                chip_node(),
             ),
             ThemedRadius::control(),
             CUE_CLEARANCE,
@@ -470,6 +467,7 @@ pub fn verb_cues_hud() -> impl Bundle {
                     ChipKeyText,
                     Text::new(""),
                     TextFont::from_font_size(CHIP_TEXT_PX),
+                    UiText,
                     TextColor(Color::NONE),
                     ThemedText::new(UiColorType::Text),
                     Node {
@@ -481,6 +479,7 @@ pub fn verb_cues_hud() -> impl Bundle {
                     ChipLabel,
                     Text::new(label),
                     TextFont::from_font_size(CHIP_TEXT_PX),
+                    UiText,
                     TextColor(Color::NONE),
                     ThemedText::new(UiColorType::Text),
                 ),

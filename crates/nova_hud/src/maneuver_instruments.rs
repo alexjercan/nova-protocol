@@ -19,7 +19,10 @@ use bevy::{light::NotShadowCaster, prelude::*};
 use nova_events::units::prelude::*;
 use nova_gameplay::{gravity::prelude::*, markers::prelude::*};
 use nova_ship::flight::prelude::*;
-use nova_ui::hud::{chip_node, chip_paint, ChipText, ChipTone};
+use nova_ui::{
+    hud::{chip_node, chip_paint, ChipText, ChipTone, CHIP_FONT},
+    widget::UiText,
+};
 
 use super::{
     flight_status::prelude::DESTINATION_MARKER_PX,
@@ -130,7 +133,8 @@ pub fn maneuver_instruments_hud(config: ManeuverInstrumentsHudConfig) -> impl Bu
                 chip(READOUT_OFFSET),
                 chip_paint(ChipTone::Readout),
                 Text::new(""),
-                TextFont::from_font_size(12.0),
+                TextFont::from_font_size(CHIP_FONT),
+                UiText,
                 TextLayout {
                     linebreak: LineBreak::NoWrap,
                     ..default()
@@ -144,7 +148,8 @@ pub fn maneuver_instruments_hud(config: ManeuverInstrumentsHudConfig) -> impl Bu
                 chip(Vec2::ZERO),
                 chip_paint(ChipTone::Readout),
                 Text::new(""),
-                TextFont::from_font_size(12.0),
+                TextFont::from_font_size(CHIP_FONT),
+                UiText,
                 ChipText::value(ChipTone::Readout),
                 TextColor(Color::NONE),
             ),
@@ -154,7 +159,8 @@ pub fn maneuver_instruments_hud(config: ManeuverInstrumentsHudConfig) -> impl Bu
                 chip(Vec2::ZERO),
                 chip_paint(ChipTone::Readout),
                 Text::new(""),
-                TextFont::from_font_size(12.0),
+                TextFont::from_font_size(CHIP_FONT),
+                UiText,
                 ChipText::value(ChipTone::Readout),
                 TextColor(Color::NONE),
             ),

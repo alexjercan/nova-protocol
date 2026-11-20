@@ -22,8 +22,9 @@ use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
-    hud::{chip_paint, ChipTone},
+    hud::{chip_node, chip_paint, ChipTone},
     theme::combat,
+    widget::{metrics, UiText},
 };
 
 use crate::{prelude::*, screen_indicator::fit_box, target_inset::TargetInsetKeepOut};
@@ -41,13 +42,15 @@ const READOUT_FONT_PX: f32 = 14.0;
 /// readout holds [`LOCK_READOUT_EMPHASIS`]. The hold grows the readout about
 /// its own centre, so a gap measured at rest let the hot readout touch the
 /// reticle bracket.
-const READOUT_GAP_PX: f32 = 8.0;
+const READOUT_GAP_PX: f32 = metrics::GAP;
 
-/// The least clear space between the readout and every edge of the view (px).
-const READOUT_VIEW_MARGIN_PX: f32 = 12.0;
+/// The least clear space between the readout and every edge of the view (px):
+/// the HUD's screen edge inset.
+const READOUT_VIEW_MARGIN_PX: f32 = metrics::GAP_XL;
 
-/// The least clear space between the readout and the target inset panel (px).
-const READOUT_INSET_GAP_PX: f32 = 12.0;
+/// The least clear space between the readout and the target inset panel (px):
+/// the kit's block-to-block gap.
+const READOUT_INSET_GAP_PX: f32 = metrics::GAP_L;
 
 /// Peak scale of the lock readout while the weapons are hot - demo 2's
 /// `.lock-read.emph`.
@@ -202,7 +205,7 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                         left: Val::Percent(50.0),
                         margin: UiRect {
                             left: Val::Px(-FOCUS_METER_SIZE.x / 2.0),
-                            top: Val::Px(4.0),
+                            top: Val::Px(metrics::GAP_S),
                             ..default()
                         },
                         width: Val::Px(FOCUS_METER_SIZE.x),
@@ -236,10 +239,8 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                         top: Val::Px(0.0),
                         flex_direction: FlexDirection::Column,
                         align_items: AlignItems::FlexStart,
-                        row_gap: Val::Px(2.0),
-                        padding: UiRect::axes(Val::Px(9.0), Val::Px(4.0)),
-                        border: UiRect::all(Val::Px(1.0)),
-                        ..default()
+                        row_gap: Val::Px(metrics::GAP_S),
+                        ..chip_node()
                     },
                     // The lock readout is the THREAT member of the chip family
                     // (demo 2 `.lock-read`): a red-bordered slab so the numbers
@@ -256,6 +257,7 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                             TorpedoTargetReadoutLine::Distance,
                             Text::new(""),
                             TextFont::from_font_size(READOUT_FONT_PX),
+                            UiText,
                             // The chip hugs its text, so a wrapping line would
                             // fold "DST 1.50 km" into two ragged rows.
                             TextLayout {
@@ -269,6 +271,7 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                             TorpedoTargetReadoutLine::ClosingSpeed,
                             Text::new(""),
                             TextFont::from_font_size(READOUT_FONT_PX),
+                            UiText,
                             TextLayout {
                                 linebreak: LineBreak::NoWrap,
                                 ..default()
@@ -280,6 +283,7 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                             TorpedoTargetReadoutLine::TimeToImpact,
                             Text::new(""),
                             TextFont::from_font_size(READOUT_FONT_PX),
+                            UiText,
                             TextLayout {
                                 linebreak: LineBreak::NoWrap,
                                 ..default()

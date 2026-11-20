@@ -30,7 +30,10 @@ pub mod prelude {
 
 use bevy::{platform::collections::HashSet, prelude::*};
 
-use crate::theme::{ActiveUiTheme, UiColorType, UiMetric, UiThemeSystems, BORDER_W};
+use crate::{
+    theme::{ActiveUiTheme, UiColorType, UiMetric, UiThemeSystems, BORDER_W},
+    widget::metrics,
+};
 
 /// The chip's translucent slab fill (`rgba(2,14,8,0.62)` in the demo) - dark
 /// enough to hold text over a bright starfield, sheer enough that the HUD never
@@ -159,8 +162,11 @@ fn lift(component: f32) -> f32 {
     component + (1.0 - component) * BODY_LIFT
 }
 
-/// The chip's [`Node`] geometry: 1px border, the demo's 4x9 padding, centred
-/// content, never wrapping. Callers set position/size on top of it.
+/// The chip's [`Node`] geometry: 1px border, a control's padding
+/// ([`PAD_X`](metrics::PAD_X) at the sides, [`GAP_S`](metrics::GAP_S) above and
+/// below), [`GAP_S`](metrics::GAP_S) between an icon and its label, centred
+/// content. Callers set position/size on top of it, never their own padding:
+/// one padding is what makes the HUD's chips read as one family.
 ///
 /// The corner is not geometry: it is the theme's, and a factory cannot read
 /// the theme. [`ThemedChip`] paints it; a chip that paints itself instead adds
@@ -170,8 +176,8 @@ pub fn chip_node() -> Node {
         display: Display::Flex,
         align_items: AlignItems::Center,
         justify_content: JustifyContent::Center,
-        column_gap: Val::Px(8.0),
-        padding: UiRect::axes(Val::Px(9.0), Val::Px(4.0)),
+        column_gap: Val::Px(metrics::GAP_S),
+        padding: UiRect::axes(Val::Px(metrics::PAD_X), Val::Px(metrics::GAP_S)),
         border: UiRect::all(Val::Px(BORDER_W)),
         ..default()
     }

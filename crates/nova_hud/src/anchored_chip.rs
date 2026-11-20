@@ -27,7 +27,10 @@
 use bevy::{ecs::query::QueryFilter, prelude::*};
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
-use nova_ui::hud::{chip_node, chip_paint, ChipTone};
+use nova_ui::{
+    hud::{chip_node, chip_paint, ChipTone},
+    widget::UiText,
+};
 
 use super::{screen_indicator::prelude::*, HudTier};
 
@@ -134,6 +137,7 @@ pub fn anchored_chip_label<B: Bundle>(font_px: f32, color: Color, extra: B) -> i
         AnchoredChipLabelMarker,
         Text::new(""),
         TextFont::from_font_size(font_px),
+        UiText,
         TextLayout {
             linebreak: LineBreak::NoWrap,
             ..default()

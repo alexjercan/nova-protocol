@@ -43,7 +43,7 @@ use nova_ui::{
     hud::{chip_node, ChipText, ChipTone},
     prelude::bottom_edge_px,
     theme::ActiveUiTheme,
-    widget::ThemedRadius,
+    widget::{metrics, ThemedRadius, UiText},
 };
 
 use super::{emphasis::prelude::*, HudTier, NovaHudAssets, NovaHudSystems};
@@ -95,6 +95,10 @@ const STACK_GAP_PX: f32 = 30.0;
 /// already uses for the same mark.
 const DIAMOND_PX: f32 = 11.0;
 const DIAMOND_BORDER_PX: f32 = 2.0;
+/// How far the diamond's 45 degree turn draws past its layout box on each
+/// side: half the square's diagonal less half its side. Its margin, so the chip
+/// gap and padding are measured from the drawn point, not from the box.
+const DIAMOND_OVERHANG_PX: f32 = DIAMOND_PX * (std::f32::consts::SQRT_2 - 1.0) / 2.0;
 
 const CHIP_FONT_PX: f32 = 17.0;
 /// The TAB keycap's HEIGHT on the stack's footer, sized like the dock's
@@ -244,7 +248,7 @@ pub fn objective_stack_hud() -> impl Bundle {
             width: Val::Percent(100.0),
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Center,
-            row_gap: Val::Px(4.0),
+            row_gap: Val::Px(metrics::GAP_S),
             ..default()
         },
         Pickable::IGNORE,
@@ -557,7 +561,6 @@ fn objective_chip(shown: &ObjectiveNotification, theme: &ActiveUiTheme) -> impl 
     let alpha = shown.alpha();
     let mut node = chip_node();
     node.max_width = Val::Percent(80.0);
-    node.padding = UiRect::axes(Val::Px(12.0), Val::Px(7.0));
     (
         Name::new("ObjectiveStackChip"),
         ObjectiveStackChip(shown.id.clone()),
@@ -589,7 +592,7 @@ fn objective_chip(shown: &ObjectiveNotification, theme: &ActiveUiTheme) -> impl 
                     width: Val::Px(DIAMOND_PX),
                     height: Val::Px(DIAMOND_PX),
                     border: UiRect::all(Val::Px(DIAMOND_BORDER_PX)),
-                    margin: UiRect::right(Val::Px(3.0)),
+                    margin: UiRect::horizontal(Val::Px(DIAMOND_OVERHANG_PX)),
                     ..default()
                 },
                 UiTransform {
@@ -603,6 +606,7 @@ fn objective_chip(shown: &ObjectiveNotification, theme: &ActiveUiTheme) -> impl 
                 Name::new("ObjectiveStackLabel"),
                 Text::new(shown.message.to_uppercase()),
                 TextFont::from_font_size(CHIP_FONT_PX),
+                UiText,
                 TextLayout {
                     linebreak: LineBreak::WordBoundary,
                     ..default()
@@ -640,7 +644,7 @@ fn tab_footer(key: &str, cap: Option<KeyCap>, label: &'static str) -> impl Bundl
         Node {
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: Val::Px(5.0),
+            column_gap: Val::Px(metrics::GAP_S),
             ..default()
         },
         Pickable::IGNORE,
@@ -671,6 +675,7 @@ fn tab_footer(key: &str, cap: Option<KeyCap>, label: &'static str) -> impl Bundl
                     key.to_string()
                 }),
                 TextFont::from_font_size(TAB_FONT_PX),
+                UiText,
                 ChipText::unit(ChipTone::Amber),
                 TextColor(Color::NONE),
                 Node {
@@ -687,6 +692,7 @@ fn tab_footer(key: &str, cap: Option<KeyCap>, label: &'static str) -> impl Bundl
                 Name::new("ObjectiveStackTabLabel"),
                 Text::new(label),
                 TextFont::from_font_size(TAB_FONT_PX),
+                UiText,
                 // The AMBER dim tone, not the phosphor the retired hint used:
                 // the footer belongs to the objective notification above it, and
                 // a green word under an amber chip reads as a second element.
