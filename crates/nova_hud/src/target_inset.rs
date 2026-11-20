@@ -34,6 +34,7 @@ use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{bottom_edge_px, StatusBarRootMarker},
     theme::{combat, ActiveUiTheme, UiColorType},
+    widget::ThemedRadius,
 };
 
 use crate::{
@@ -387,11 +388,11 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
             width: Val::Px(INSET_PANEL_PX),
             height: Val::Px(INSET_PANEL_PX),
             border: UiRect::all(Val::Px(INSET_BORDER_PX)),
-            // Joins the chip family's cornering (demo 2 `.tgt-zoom` is a chip
-            // with a viewfinder in it, not a bare rectangle).
-            border_radius: BorderRadius::all(Val::Px(nova_ui::hud::CHIP_RADIUS)),
             ..default()
         },
+        // Joins the chip family's cornering (demo 2 `.tgt-zoom` is a chip with
+        // a viewfinder in it, not a bare rectangle).
+        ThemedRadius::control(),
         BorderColor::all(INSET_BORDER_SAFE_COLOR),
         ImageNode::new(image),
         Visibility::Hidden,
@@ -437,9 +438,9 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
                     // a small-caps line on the family's slab, not loose text
                     // burned into the viewfinder image.
                     padding: UiRect::axes(Val::Px(5.0), Val::Px(2.0)),
-                    border_radius: BorderRadius::all(Val::Px(nova_ui::hud::CHIP_RADIUS)),
                     ..default()
                 },
+                ThemedRadius::control(),
                 BackgroundColor(nova_ui::hud::CHIP_FILL.with_alpha(INSET_CAPTION_FILL_ALPHA)),
             ),
             armed_tick(true, false, false),

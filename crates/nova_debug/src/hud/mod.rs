@@ -30,7 +30,10 @@ use nova_gameplay::{
     prelude::{Clocks, FreezeOwner},
     GameStates, PauseStates,
 };
-use nova_ui::prelude::{InputMode, InputModeSystems};
+use nova_ui::{
+    prelude::{InputMode, InputModeSystems},
+    theme::{ActiveUiTheme, UiMetric},
+};
 
 use crate::DEBUG_TOGGLE_KEYCODE;
 
@@ -173,7 +176,8 @@ fn debug_hud_ui(world: &mut World) {
         return;
     };
     let mut context = context.clone();
-    square_corners(context.get_mut());
+    let radius = world.resource::<ActiveUiTheme>().metric(UiMetric::Radius);
+    theme_corners(context.get_mut(), radius);
     egui::Window::new("Nova Debug")
         .default_width(440.0)
         .default_height(620.0)
@@ -199,17 +203,18 @@ fn debug_hud_ui(world: &mut World) {
         });
 }
 
-/// Square every egui corner (windows, widgets, menus), as the game's own
-/// boxes are. Written once: the styles keep it.
-fn square_corners(context: &egui::Context) {
-    const SQUARE: egui::CornerRadius = egui::CornerRadius::ZERO;
-    if context.global_style().visuals.window_corner_radius == SQUARE {
+/// Give every egui corner (windows, widgets, menus) the active theme's box
+/// radius, as the game's own boxes have. Written on a change only: the styles
+/// keep it.
+fn theme_corners(context: &egui::Context, radius: f32) {
+    let corner = egui::CornerRadius::same(radius.round().clamp(0.0, 255.0) as u8);
+    if context.global_style().visuals.window_corner_radius == corner {
         return;
     }
     context.all_styles_mut(|style| {
         let visuals = &mut style.visuals;
-        visuals.window_corner_radius = SQUARE;
-        visuals.menu_corner_radius = SQUARE;
+        visuals.window_corner_radius = corner;
+        visuals.menu_corner_radius = corner;
         let widgets = &mut visuals.widgets;
         for widget in [
             &mut widgets.noninteractive,
@@ -218,7 +223,7 @@ fn square_corners(context: &egui::Context) {
             &mut widgets.active,
             &mut widgets.open,
         ] {
-            widget.corner_radius = SQUARE;
+            widget.corner_radius = corner;
         }
     });
 }

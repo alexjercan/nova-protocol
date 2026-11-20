@@ -22,7 +22,7 @@ use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
-    hud::{self as chip, chip_paint, ChipTone},
+    hud::{chip_paint, ChipTone},
     theme::combat,
 };
 
@@ -239,7 +239,6 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                         row_gap: Val::Px(2.0),
                         padding: UiRect::axes(Val::Px(9.0), Val::Px(4.0)),
                         border: UiRect::all(Val::Px(1.0)),
-                        border_radius: BorderRadius::all(Val::Px(chip::CHIP_RADIUS)),
                         ..default()
                     },
                     // The lock readout is the THREAT member of the chip family

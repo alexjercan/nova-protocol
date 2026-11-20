@@ -444,9 +444,12 @@ pub fn hardware_theme() -> UiThemeConfig {
             highlight: hex("#ffffff"),
             shadow: hex("#000000"),
         },
+        // One small corner on every box: a moulded casing is rounded, and one
+        // radius for every role keeps a button, a field, a panel and a toggle
+        // in one family instead of half pill and half box.
         metrics: Some(UiMetrics {
-            radius: 7.0,
-            panel_radius: 10.0,
+            radius: 2.0,
+            panel_radius: 2.0,
         }),
         roles: UiRoles {
             button: Some(hardware_button(
@@ -553,7 +556,7 @@ pub fn hardware_theme() -> UiThemeConfig {
                     fill: solid(va(C::Shadow, 0.55)),
                     border: var(C::Border),
                     effect: None,
-                    radius: Some(6.0),
+                    radius: None,
                 },
                 meter: SliderMeter::Fill,
                 lit: var(C::NominalDark),
@@ -563,7 +566,7 @@ pub fn hardware_theme() -> UiThemeConfig {
             }),
             text_field: Some(washed_field()),
             checkbox: Some(CheckboxRole {
-                radius: Some(5.0),
+                radius: None,
                 off: state(
                     solid(var(C::SurfaceSunken)),
                     var(C::Border),
@@ -580,8 +583,8 @@ pub fn hardware_theme() -> UiThemeConfig {
                 ),
             }),
             toggle: Some(ToggleRole {
-                radius: Some(11.0),
-                knob_radius: 9.0,
+                radius: None,
+                knob_radius: 2.0,
                 off: state(
                     solid(va(C::Shadow, 0.5)),
                     var(C::Border),

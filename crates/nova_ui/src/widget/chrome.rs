@@ -199,7 +199,13 @@ impl ThemedBorder {
 }
 
 /// Marks a node whose CORNER RADIUS is a theme metric, so it follows a look
-/// that rounds its corners differently.
+/// that rounds its corners differently. This is how a hand-built box gets the
+/// themed corner: never write a radius literal on a box, square or round.
+///
+/// [`reconcile_themed_nodes`] writes `Node::border_radius` when the marker
+/// lands and on every theme change. A system that later replaces the WHOLE
+/// `Node` drops the corner until the next theme change, so such a system sets
+/// the corner from `theme.metric(..)` itself.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ThemedRadius(pub UiMetric);
 

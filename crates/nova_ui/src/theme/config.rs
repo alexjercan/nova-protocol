@@ -85,10 +85,10 @@ pub struct UiThemeConfig {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Reflect)]
 #[serde(deny_unknown_fields)]
 pub struct UiMetrics {
-    /// Control corner radius (phosphor is square at 0, hardware moulded).
+    /// Control corner radius (phosphor is square at 0, hardware a small 2).
     pub radius: f32,
-    /// Panel corner radius (phosphor is square at 0, hardware larger than its
-    /// control radius).
+    /// Panel corner radius (both base themes use their control radius, so a
+    /// panel and its controls share one corner).
     pub panel_radius: f32,
 }
 
@@ -587,8 +587,8 @@ pub struct CheckboxRole {
 pub struct ToggleRole {
     /// The track's corner radius, or `None` to take [`UiMetrics::radius`].
     pub radius: Option<f32>,
-    /// The knob's corner radius - square in the terminal look, round in the
-    /// moulded one.
+    /// The knob's corner radius. Both base themes give it their control
+    /// radius, so the knob is a small box in the same family as the track.
     pub knob_radius: f32,
     /// Off. Its `text` is the knob colour; its `effect` the knob's glow.
     pub off: StatePaint,

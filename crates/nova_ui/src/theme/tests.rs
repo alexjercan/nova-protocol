@@ -395,24 +395,42 @@ fn both_base_themes_resolve_completely() {
 fn the_phosphor_theme_draws_every_box_corner_square() {
     let themes = base_ui_themes();
     let phosphor = resolve_theme(PHOSPHOR_THEME_ID, &themes).expect("phosphor resolves");
-    let radii = [
-        ("control", phosphor.metric(UiMetric::Radius)),
-        ("panel", phosphor.metric(UiMetric::PanelRadius)),
-        ("panel surface", phosphor.panel().radius),
-        ("segmented", phosphor.segmented().radius),
-        ("slider track", phosphor.slider_track().surface.radius),
-        ("checkbox", phosphor.checkbox().radius),
-        ("toggle track", phosphor.toggle().radius),
-        ("toggle knob", phosphor.toggle().knob_radius),
-    ];
-    for (name, radius) in radii {
+    for (name, radius) in box_corners(&phosphor) {
         assert_eq!(radius, 0.0, "the phosphor {name} corner is round");
     }
+}
+
+/// Hardware rounds every box by ONE small radius: a theme that kept a pill
+/// toggle beside 2 px buttons reads as two looks glued together.
+#[test]
+fn the_hardware_theme_rounds_every_box_corner_by_one_small_radius() {
+    let themes = base_ui_themes();
     let hardware = resolve_theme(HARDWARE_THEME_ID, &themes).expect("hardware resolves");
+    let control = hardware.metric(UiMetric::Radius);
     assert!(
-        hardware.metric(UiMetric::Radius) > 0.0,
-        "the hardware look keeps its moulded corner"
+        control > 0.0 && control <= 2.0,
+        "the hardware corner is small and not square, got {control}"
     );
+    for (name, radius) in box_corners(&hardware) {
+        assert_eq!(
+            radius, control,
+            "the hardware {name} corner left the family"
+        );
+    }
+}
+
+/// Every box corner a theme authors, by role.
+fn box_corners(theme: &ActiveUiTheme) -> [(&'static str, f32); 8] {
+    [
+        ("control", theme.metric(UiMetric::Radius)),
+        ("panel", theme.metric(UiMetric::PanelRadius)),
+        ("panel surface", theme.panel().radius),
+        ("segmented", theme.segmented().radius),
+        ("slider track", theme.slider_track().surface.radius),
+        ("checkbox", theme.checkbox().radius),
+        ("toggle track", theme.toggle().radius),
+        ("toggle knob", theme.toggle().knob_radius),
+    ]
 }
 
 /// The two shipped looks differ in SHAPE, not only in colour - the blocks/fill

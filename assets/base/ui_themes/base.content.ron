@@ -775,8 +775,8 @@
             shadow: "#000000",
         ),
         metrics: Some((
-            radius: 7.0,
-            panel_radius: 10.0,
+            radius: 2.0,
+            panel_radius: 2.0,
         )),
         roles: (
             button: Some((
@@ -1756,7 +1756,7 @@
                         alpha: 1.0,
                     ),
                     effect: None,
-                    radius: Some(6.0),
+                    radius: None,
                 ),
                 meter: Fill,
                 lit: (
@@ -1831,7 +1831,7 @@
                 ),
             )),
             checkbox: Some((
-                radius: Some(5.0),
+                radius: None,
                 off: (
                     fill: Solid((
                         value: Variable(surface_sunken),
@@ -1864,8 +1864,8 @@
                 ),
             )),
             toggle: Some((
-                radius: Some(11.0),
-                knob_radius: 9.0,
+                radius: None,
+                knob_radius: 2.0,
                 off: (
                     fill: Solid((
                         value: Variable(shadow),

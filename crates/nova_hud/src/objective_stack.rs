@@ -43,6 +43,7 @@ use nova_ui::{
     hud::{chip_node, ChipText, ChipTone},
     prelude::bottom_edge_px,
     theme::ActiveUiTheme,
+    widget::ThemedRadius,
 };
 
 use super::{emphasis::prelude::*, HudTier, NovaHudAssets, NovaHudSystems};
@@ -564,6 +565,8 @@ fn objective_chip(shown: &ObjectiveNotification, theme: &ActiveUiTheme) -> impl 
         // playing the same one-shot.
         HudEmphasis::popped_at_age(CHIP_POP_SCALE, CHIP_POP_SECS, shown.age_secs),
         node,
+        // The chip paints itself (below), so the themed corner is named here.
+        ThemedRadius::control(),
         // NOT `chip_paint(ChipTone::Amber)`: that bundle already carries a
         // BackgroundColor + BorderColor, and a second pair in the same bundle
         // is a duplicate-component panic at spawn. The fade needs alpha-scaled

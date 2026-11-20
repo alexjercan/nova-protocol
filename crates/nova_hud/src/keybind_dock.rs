@@ -84,7 +84,7 @@ const CUE_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
 const CUE_NOTICE_GAP_PX: f32 = 8.0;
 use nova_ui::{
     theme::{ActiveUiTheme, UiColorType},
-    widget::{ThemedBorder, ThemedText},
+    widget::{ThemedBorder, ThemedRadius, ThemedText},
 };
 
 /// How far off the bottom of the screen the dock row sits.
@@ -342,9 +342,9 @@ pub fn keybind_dock_hud() -> impl Bundle {
                 column_gap: Val::Px(6.0),
                 padding: UiRect::new(Val::Px(4.0), Val::Px(8.0), Val::Px(3.0), Val::Px(3.0)),
                 border: UiRect::all(Val::Px(1.0)),
-                border_radius: BorderRadius::all(Val::Px(chip::CHIP_RADIUS)),
                 ..default()
             },
+            ThemedRadius::control(),
             // Unpainted: `update_dock` paints every chip, and its `Added` gate
             // makes that the frame the chip appears.
             BackgroundColor(Color::NONE),
@@ -446,10 +446,10 @@ pub fn verb_cues_hud() -> impl Bundle {
                     column_gap: Val::Px(6.0),
                     padding: UiRect::new(Val::Px(4.0), Val::Px(8.0), Val::Px(3.0), Val::Px(3.0)),
                     border: UiRect::all(Val::Px(1.0)),
-                    border_radius: BorderRadius::all(Val::Px(chip::CHIP_RADIUS)),
                     ..default()
                 },
             ),
+            ThemedRadius::control(),
             CUE_CLEARANCE,
             BackgroundColor(chip::CHIP_FILL),
             BorderColor::all(Color::NONE),

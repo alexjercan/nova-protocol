@@ -30,7 +30,7 @@ pub mod prelude {
 
 use bevy::{platform::collections::HashSet, prelude::*};
 
-use crate::theme::{ActiveUiTheme, UiColorType, UiThemeSystems, BORDER_W};
+use crate::theme::{ActiveUiTheme, UiColorType, UiMetric, UiThemeSystems, BORDER_W};
 
 /// The chip's translucent slab fill (`rgba(2,14,8,0.62)` in the demo) - dark
 /// enough to hold text over a bright starfield, sheer enough that the HUD never
@@ -43,10 +43,6 @@ pub const CHIP_FILL_QUIET: Color = Color::srgba(0.008, 0.055, 0.031, 0.5);
 
 /// The chip border's alpha over its tone colour (demo: `0.34`).
 pub const CHIP_BORDER_ALPHA: f32 = 0.34;
-
-/// The chip corner radius (px): square, as the phosphor controls and panels
-/// are, because a HUD chip is a projected readout, not a physical panel.
-pub const CHIP_RADIUS: f32 = 0.0;
 
 /// The chip's default text size (px). The speed chip overrides it upward; the
 /// small labels (`.lab`, `.who`) use [`CHIP_LABEL_FONT`].
@@ -165,6 +161,10 @@ fn lift(component: f32) -> f32 {
 
 /// The chip's [`Node`] geometry: 1px border, the demo's 4x9 padding, centred
 /// content, never wrapping. Callers set position/size on top of it.
+///
+/// The corner is not geometry: it is the theme's, and a factory cannot read
+/// the theme. [`ThemedChip`] paints it; a chip that paints itself instead adds
+/// [`ThemedRadius::control`](crate::widget::ThemedRadius::control).
 pub fn chip_node() -> Node {
     Node {
         display: Display::Flex,
@@ -173,7 +173,6 @@ pub fn chip_node() -> Node {
         column_gap: Val::Px(8.0),
         padding: UiRect::axes(Val::Px(9.0), Val::Px(4.0)),
         border: UiRect::all(Val::Px(BORDER_W)),
-        border_radius: BorderRadius::all(Val::Px(CHIP_RADIUS)),
         ..default()
     }
 }
@@ -313,10 +312,17 @@ pub(crate) fn build(app: &mut App) {
     );
 }
 
-/// Paint chips on a theme change and on spawn.
+/// Paint chips on a theme change and on spawn: the slab, its border and its
+/// corner, which is the theme's control radius like every other box.
 fn reconcile_chips(
     theme: Res<ActiveUiTheme>,
-    mut q: Query<(Entity, &ThemedChip, &mut BackgroundColor, &mut BorderColor)>,
+    mut q: Query<(
+        Entity,
+        &ThemedChip,
+        &mut Node,
+        &mut BackgroundColor,
+        &mut BorderColor,
+    )>,
     added: Query<Entity, Added<ThemedChip>>,
 ) {
     let restyle_all = theme.is_changed();
@@ -324,11 +330,13 @@ fn reconcile_chips(
     if !restyle_all && just_added.is_empty() {
         return;
     }
-    for (entity, chip, mut bg, mut border) in &mut q {
+    let corner = BorderRadius::all(Val::Px(theme.metric(UiMetric::Radius)));
+    for (entity, chip, mut node, mut bg, mut border) in &mut q {
         if !restyle_all && !just_added.contains(&entity) {
             continue;
         }
         let (fill, edge) = chip.paint(&theme);
+        node.border_radius = corner;
         *bg = fill.into();
         border.set_all(edge);
     }
@@ -454,13 +462,55 @@ mod tests {
         assert_ne!(amber_ink, ink, "a theme that moves `text` moves the ink");
     }
 
+    /// A chip wears the theme's box corner and follows a theme flip: square
+    /// on phosphor, the small moulded corner on hardware.
+    #[test]
+    fn a_chip_wears_the_theme_corner() {
+        use crate::{
+            theme::{
+                base::base_ui_themes, config::HARDWARE_THEME_ID, GameUiThemes, SelectedUiTheme,
+            },
+            NovaUiPlugin,
+        };
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, NovaUiPlugin));
+        app.insert_resource(GameUiThemes(base_ui_themes()));
+        let chip = app.world_mut().spawn(text_chip(ChipTone::Readout)).id();
+        app.update();
+        let corner = |app: &App| {
+            app.world()
+                .entity(chip)
+                .get::<Node>()
+                .unwrap()
+                .border_radius
+        };
+        let theme_corner = |app: &App| {
+            let radius = app
+                .world()
+                .resource::<ActiveUiTheme>()
+                .metric(UiMetric::Radius);
+            BorderRadius::all(Val::Px(radius))
+        };
+        assert_eq!(corner(&app), theme_corner(&app), "the phosphor corner");
+
+        *app.world_mut().resource_mut::<SelectedUiTheme>() =
+            SelectedUiTheme(HARDWARE_THEME_ID.to_string());
+        app.update();
+        assert_ne!(
+            corner(&app),
+            BorderRadius::all(Val::Px(0.0)),
+            "a hardware chip is not square"
+        );
+        assert_eq!(corner(&app), theme_corner(&app), "the hardware corner");
+    }
+
     /// The geometry is a bordered slab - a chip that lost its border is just
     /// floating text again.
     #[test]
     fn chip_geometry_carries_a_hairline_border() {
         let node = chip_node();
         assert_eq!(node.border, UiRect::all(Val::Px(1.0)));
-        assert_eq!(node.border_radius, BorderRadius::all(Val::Px(CHIP_RADIUS)));
         assert_ne!(
             node.padding,
             UiRect::default(),

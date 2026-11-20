@@ -51,6 +51,20 @@ use crate::theme::{ActiveUiTheme, UiColorType, UiMetric, BORDER_W};
 /// The gap between two siblings belongs to their container: a control carries
 /// no margin. [`button_stack`], [`action_row`] and [`group_stack`] are the
 /// containers with the gap built in.
+///
+/// Corners are NOT on this scale: a corner radius is the theme's (phosphor 0,
+/// hardware 2), so no screen writes one. A hand-built box takes the themed
+/// corner from a component:
+///
+/// | Box | Component |
+/// |---|---|
+/// | any control-sized box: a frame, a chip, a well, a tag | [`ThemedRadius::control()`] |
+/// | a card, a window, a modal | [`ThemedRadius::panel()`] |
+///
+/// A system that already holds [`ActiveUiTheme`](crate::theme::ActiveUiTheme)
+/// and writes the node's corner itself reads the same value with
+/// `theme.metric(UiMetric::Radius)`. A shape that is round by nature (a dot, a
+/// pip, a ring) is not a box and keeps its own radius.
 pub mod metrics {
     /// Every button, field, chip, tab, slider slot and verb row.
     pub const CONTROL_H: f32 = 24.0;

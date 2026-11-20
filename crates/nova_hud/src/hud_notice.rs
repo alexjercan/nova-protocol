@@ -70,6 +70,7 @@ use nova_sound::prelude::*;
 use nova_ui::{
     hud::{chip_node, ChipTone},
     theme::ActiveUiTheme,
+    widget::ThemedRadius,
 };
 
 use super::NovaHudSystems;
@@ -196,6 +197,7 @@ pub fn hud_notice_hud() -> impl Bundle {
         Name::new("HudNotice"),
         HudNoticeMarker,
         node,
+        ThemedRadius::control(),
         BackgroundColor(Color::NONE),
         BorderColor::all(Color::NONE),
         Pickable::IGNORE,
