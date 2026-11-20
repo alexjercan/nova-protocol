@@ -69,3 +69,93 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
 
 ## Done when
 - The owner signs off the six start hulls from rendered frames.
+
+## Delivery record (2026-11-20; task stays OPEN for the owner sign-off)
+- Frames: `before/` and `after/` (24 each, same rig), `after/sheet.png`,
+  `after/sheet-top.png`, `compare.png` (before and after, bow and top).
+- Hand viewing: `start_hull_showroom` (keys 1 to 6, N, free-fly camera):
+  `nix develop --command cargo run --example start_hull_showroom --features debug`.
+- Landed:
+  - `screenshot_base_fleet -- --looks`: fixed light, flat backdrop, four
+    views per hull, camera solved from the hull cells.
+  - Six new layouts in `ships/block.rs`. Section counts by kind are the
+    same on every hull; no cell was added or removed. The start role
+    census is identical to `tasks/20261116-132143/CENSUS-AFTER.md`.
+  - Six styles for six hulls. New: `scrap` (raider), `patrol` (picket);
+    both list existing fixtures, no new model. Palettes pushed on
+    `industrial` (ochre), `salvage` (rust), `armoured` (dark blue-grey);
+    hulls and stations that share them follow. Industrial weights raised
+    for the stack, crane, winch and floodlight.
+  - Final plans, cells W x H x L: tug 4 x 2 x 10 (boom, cab aft), hauler
+    6 x 4 x 11 (forked bow), freighter 5 x 3 x 9 (nose, neck two decks
+    high, box hold, outboard drives), interceptor 7 x 2 x 8 (arrowhead,
+    wing-tip mounts), raider 6 x 3 x 8 (hammerhead, short spine, one
+    outrigger drive), picket 5 x 5 x 9 (tower aft, controller in the deck
+    under it).
+  - Mod-visible id changes (changelog, breaking): civilian drive ids,
+    raider `pdc_port`, `pdc_starboard`, `drive_port_dorsal`; `plate_N`
+    names new cells on all six.
+- Rules not met (agent calls): length 2.5 times the width holds for the
+  tug only; the others were shortened for turn rate and for joins. The
+  freighter cab step does not show in profile. The interceptor is a
+  stubby arrowhead with stepped edges.
+- Review (independent, read-only): 0 high, 5 medium, 9 low. Fixed:
+  - One-cell joins. Worst single kill, sections cut off from the
+    controller (before the reshape / first reshape / now): tug 3 / 5 / 5,
+    hauler 1 / 5 / 5, freighter 5 / 44 / 1, interceptor 3 / 2 / 2,
+    raider 1 / 12 with every drive / 4, picket 3 / 30 / 3.
+  - Lesson and loop cameras on the old mounts (`lesson_combat_battery`,
+    `lesson_combat_lance`, `loop_spine_cut`), the mount pick in
+    `lesson_combat_moves`, the range origin in `lesson_combat_reach`
+    (it panicked), the showroom panic with `--ship`, the Transport role
+    text, old shape comments and style counts.
+- Turn rate moved (the hull is structure-bound; a longer arm turns
+  slower). Sustained deg/s, v0.18.0 to now: tug 64 to 63, hauler 71 to
+  59, freighter 75 to 67, interceptor 86 to 76, raider 82 to 73, picket
+  78 to 76. The interceptor ceiling is 1.776 rad/s^2 against 1.766 for
+  the picket. In the changelog.
+- Verified: content gen and lint clean; `base_content` unit tests,
+  greeble, parity, lint gate and balance gate tests; census; workspace
+  check with `debug`; `npm test`; live under Xvfb and lavapipe with a
+  sandboxed profile: probes `system_start_roles`, `system_ai_combat`,
+  `system_encounters`, `system_station_buy`, `scenario menu_duel`
+  (correctness pass); `start_hull_showroom` (also `--ship raider`), the
+  four lessons and two loops above, `screenshot_railgun`; frames read.
+- Not verified: hand play; any hardware render; a live kill for the join
+  numbers (script model of the sever rule); the full `menu_duel` probe
+  verdict; `loop_damage_sequence` after its last text edit;
+  `screenshot_editor` at 1024x768 (stalls at a thruster step, not tested
+  on the commit before this work); stations and wrecks in the new
+  colours; the gauntlet course with the slower freighter; workspace tests
+  and clippy.
+- Open:
+  - Looks: tug boom faces are bare (no line piece seats there); hauler
+    rust pieces share the hull hue; the raider reads mid red, not dark;
+    every hull is still chamfered lumps (cube-only parts).
+  - Thin margins: `lesson_combat_reach` passes by 6 m of 120 m;
+    `MIN_RING_SPREAD` clears by one section; one barrel-discipline cell
+    fires across the hull behind the dorsal block.
+  - Controller cover moved: the interceptor and freighter bridges are
+    open on four faces.
+  - Lesson texts in `lessons.rs` still say "dorsal mounts"; they match
+    the shipped media until the re-shoot.
+- Pictures to recapture on hardware (none replaced; all show old hulls or
+  colours): `greeble-catalog*.png`; `wiki-sections.png`;
+  `wiki-ships-damage.png`, `landing-damage-sequence.webm`,
+  `spine-cut.webm`; `wiki-section-railgun*.png`,
+  `wiki-combat-railgun.png`, `catalog-siege-railgun-lance-section.png`;
+  `wiki-section-mining-beam*.png`, `mining-beam-*.png`;
+  `wiki-section-cargo-intake.png`, `mine-sell-*.png`; loops
+  `loop-section-mining-beam`, `loop-section-cargo-intake`,
+  `loop-section-cargo-jettison`, the docked helm loop;
+  `tutorial-radar-lock.png`, `wiki-radar.png`; `wiki-combat.png`,
+  `wiki-combat-aftermath.png`, `wiki-hud.png`,
+  `wiki-combat-torpedo.png`; `tutorial-menu.png`, `wiki-settings.png`,
+  `wiki-controls.png`; `wiki-section-docking.png`; `wiki-hud-shell.png`;
+  `wiki-sandbox-range.png`, `feature-editor.png`; `wiki-flight.png`;
+  the combat lesson media under `assets/base/training`. Frozen news
+  pictures stay.
+- Later (larger than this task): new part shapes (slope, wedge, thin
+  part), new section art, a trim colour, lights.
+- Owner calls wanted with the sign-off: the turn rate cost of the longer
+  hulls; the rust hauler.
