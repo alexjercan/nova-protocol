@@ -8,7 +8,8 @@
 //! and the gallery lays itself out inside that node and draws its tiles
 //! through the host's camera. Everything else here is the gallery's own.
 //! Change this module when the browse flow changes; `catalog` owns WHAT is
-//! listed, `ui` the layout, `scene` the 3D tiles and `input` the keyboard.
+//! listed, `ui` the layout, `scene` the 3D tiles and `input` the keyboard
+//! and the grid's wheel.
 
 pub mod catalog;
 mod input;
@@ -107,9 +108,10 @@ pub struct GalleryHost {
     pub stage: Vec3,
     /// The render layers the tiles and the focus view's socket marks draw on.
     pub layers: RenderLayers,
-    /// The key chip that closes the gallery, as the host binds it (`Esc` or
-    /// `Esc/Tab`).
-    pub close_keys: &'static str,
+    /// The key chip that closes the gallery, as the host binds it (`Esc/Tab`
+    /// in the editor). A host whose close key is rebindable rewrites it when
+    /// the binding moves, and the overlay redraws.
+    pub close_keys: String,
     /// Whether the header draws its own Close verb. `false` under a host
     /// whose chrome already shows one, such as the Tab interface's top bar.
     pub close_verb: bool,
@@ -368,6 +370,20 @@ impl GalleryState {
         }
     }
 
+    /// The state a return to the browse opens on: the category, the filter,
+    /// the Available switch and the page the last browse left, on the grid
+    /// with the caret out of the field. A host that sends the player back
+    /// and forth between the gallery and the part in hand reopens this way,
+    /// so the next part is on the page the last one was taken from.
+    pub fn resumed(&self) -> Self {
+        Self {
+            open: true,
+            filter_focused: false,
+            focused: false,
+            ..self.clone()
+        }
+    }
+
     /// Move the selection by `delta`, clamped to a list of `len` entries.
     /// Clamped rather than wrapped: paging off the end of the last page should
     /// stop there, not jump back to the first tile.
@@ -437,24 +453,49 @@ fn claim_gallery_keyboard(
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PartsGallerySystems;
 
-/// Open on All when the category the last browse left has nothing to show. The
-/// Mod chip stands only while the mod holds parts, so an empty Mod has no way
-/// back on screen. Checked on opening only: a chip pressed in an open gallery is
-/// a question, and an empty grid is its answer.
-fn leave_empty_category(
+/// Settle the state a browse opens on. Open on All when the category the
+/// last browse left has nothing to show: the Mod chip stands only while the
+/// mod holds parts, so an empty Mod has no way back on screen. Checked on
+/// opening only: a chip pressed in an open gallery is a question, and an
+/// empty grid is its answer. And pull the selection back inside the list:
+/// a [`GalleryState::resumed`] browse keeps its page, and the listing can
+/// have shrunk while the gallery was closed (a part bought, the stock spent).
+///
+/// The opening edge is the open state OR a new host: the Ship pane spawns a
+/// host per visit and despawns it on close, and this set does not run
+/// without one, so the closed frame between two visits is never seen.
+fn settle_opened_gallery(
     sections: Res<GameSections>,
-    host: Query<Option<&GalleryListing>, With<GalleryHost>>,
+    host: Query<(Entity, Option<&GalleryListing>), With<GalleryHost>>,
     mut state: ResMut<GalleryState>,
-    mut was_open: Local<bool>,
+    mut seen: Local<Option<Entity>>,
 ) {
-    let opening = state.open && !*was_open;
-    *was_open = state.open;
-    if !opening || state.category == GalleryCategory::All {
+    let current = host.single().ok();
+    let shown = state
+        .open
+        .then(|| current.map(|(entity, _)| entity))
+        .flatten();
+    let opening = shown.is_some() && *seen != shown;
+    *seen = shown;
+    if !opening {
         return;
     }
-    let listing = host.single().ok().flatten();
-    if catalog::browsable(&sections, listing, state.category, "", false).is_empty() {
+    let listing = current.and_then(|(_, listing)| listing);
+    if state.category != GalleryCategory::All
+        && catalog::browsable(&sections, listing, state.category, "", false).is_empty()
+    {
         state.category = GalleryCategory::All;
+    }
+    let listed = catalog::browsable(
+        &sections,
+        listing,
+        state.category,
+        &state.filter,
+        state.available_only,
+    )
+    .len();
+    if state.selected > 0 && state.selected >= listed {
+        state.step(0, listed);
     }
 }
 
@@ -484,7 +525,7 @@ impl Plugin for PartsGalleryPlugin {
                 // Browse is the gallery's own mode, so its keyboard answers
                 // under Browse and under Normal and goes quiet under a mode
                 // above it: a rebind waiting for a key gets the key.
-                leave_empty_category,
+                settle_opened_gallery,
                 input::gallery_keyboard.run_if(owns_or_enters(InputMode::Browse)),
                 // Both BEFORE the rebuild: the grid is laid out from one and
                 // the tiles are spawned on the other, and either read a frame
@@ -522,6 +563,16 @@ impl Plugin for PartsGalleryPlugin {
                 .before(scene::place_gallery_items)
                 .in_set(PartsGallerySystems)
                 .run_if(resource_exists::<Messages<MouseMotion>>)
+                .run_if(resource_exists::<Messages<MouseWheel>>),
+        );
+        // The grid's wheel paging, gated the same way. Before the rebuild, so
+        // the page a notch lands on is drawn the frame it is turned.
+        app.add_systems(
+            Update,
+            input::page_gallery_by_wheel
+                .after(input::gallery_keyboard)
+                .before(ui::rebuild_gallery)
+                .in_set(PartsGallerySystems)
                 .run_if(resource_exists::<Messages<MouseWheel>>),
         );
         app.configure_sets(
@@ -596,7 +647,7 @@ mod tests {
                     camera: Entity::PLACEHOLDER,
                     stage: Vec3::ZERO,
                     layers: RenderLayers::default(),
-                    close_keys: "Esc",
+                    close_keys: "Esc".into(),
                     close_verb: true,
                 },
                 ComputedNode {
@@ -645,7 +696,7 @@ mod tests {
                     camera: Entity::PLACEHOLDER,
                     stage: Vec3::ZERO,
                     layers: RenderLayers::default(),
-                    close_keys: "Esc",
+                    close_keys: "Esc".into(),
                     close_verb: true,
                 });
             }
@@ -730,6 +781,43 @@ mod tests {
         assert_eq!(state.category, GalleryCategory::Weapons);
         assert_eq!(state.selected, 0, "a wider list renumbers the tiles");
         assert!(state.open, "clearing a filter is not leaving the gallery");
+    }
+
+    /// A resumed browse keeps the page it left, but not past the end of a
+    /// list that shrank while the gallery was closed: it opens on the last
+    /// part there is. Each visit of a host that spawns per visit is an
+    /// opening, so the second visit is settled too.
+    #[test]
+    fn a_resumed_browse_past_the_end_of_a_shorter_list_opens_on_its_last_part() {
+        let mut app = App::new();
+        app.insert_resource(catalog_of(&["hull_a", "hull_b", "hull_c"]));
+        app.insert_resource(GalleryState {
+            open: true,
+            selected: 2,
+            ..default()
+        });
+        app.add_systems(Update, settle_opened_gallery);
+        let host = || GalleryHost {
+            camera: Entity::PLACEHOLDER,
+            stage: Vec3::ZERO,
+            layers: RenderLayers::default(),
+            close_keys: "Esc".into(),
+            close_verb: false,
+        };
+        let first = app.world_mut().spawn(host()).id();
+        app.update();
+        assert_eq!(app.world().resource::<GalleryState>().selected, 2);
+
+        // The visit ends with its host; the list shrinks before the next.
+        app.world_mut().despawn(first);
+        app.insert_resource(catalog_of(&["hull_a", "hull_b"]));
+        app.world_mut().spawn(host());
+        app.update();
+        assert_eq!(
+            app.world().resource::<GalleryState>().selected,
+            1,
+            "the selection is pulled back to the last part"
+        );
     }
 
     /// An Add row that NAMES a kind opens the gallery on that kind, and on a

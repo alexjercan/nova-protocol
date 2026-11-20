@@ -3,7 +3,9 @@
 //! a Station pane. The Inventory pane's Craft button opens the Craft view
 //! over it (`crate::craft`).
 //!
-//! TAB opens it from flight (`Unpaused -> Interface`) and closes it again.
+//! TAB opens it from flight (`Unpaused -> Interface`) and closes it again;
+//! in the Ship pane at a refit dock TAB is the catalogue's key instead
+//! ([`InterfaceToggleType`]) and Esc closes the interface.
 //! Keyboard M and gamepad Y step Map -> Ship -> Inventory -> Jobs -> Station
 //! -> Map, Station only while docked, and the buttons in the card's title
 //! row pick a pane. The first open shows Map; after that TAB reopens the
@@ -30,7 +32,7 @@ use nova_gameplay::{
 use nova_input::prelude::{
     ActionContext, ActiveContexts, InputBindings, InputDeviceType, InputSources,
 };
-use nova_ship::prelude::{DockedShip, DockingConnection, GalleryAction, GalleryState, HeldPart};
+use nova_ship::prelude::{DockedShip, DockingConnection, GalleryState, HeldPart};
 use nova_sound::prelude::{PlaySound, SoundBank, SoundCategoryType, UiSfx};
 use nova_ui::{
     prelude::*,
@@ -47,10 +49,10 @@ use crate::{
         MapLegendMarker, MapRuntime, MapViewportMarker,
     },
     ship::{
-        on_ship_fit_button, on_ship_reset_button, on_ship_viewport_click, on_ship_viewport_enter,
-        on_ship_viewport_leave, on_ship_viewport_move, spawn_ship_panel,
-        spawn_ship_rebind_click_guard, spawn_ship_rebind_prompt, ShipCatalogueButton, ShipRuntime,
-        ShipSplitMarker, ShipViewportMarker,
+        on_ship_catalogue_button, on_ship_fit_button, on_ship_reset_button, on_ship_viewport_click,
+        on_ship_viewport_enter, on_ship_viewport_leave, on_ship_viewport_move, spawn_ship_panel,
+        spawn_ship_rebind_click_guard, spawn_ship_rebind_prompt, toggle_ship_catalogue,
+        ShipCatalogueButton, ShipRuntime, ShipSplitMarker, ShipViewportMarker,
     },
     station::{station_body, StationDock},
     terminal::NovaOsCloseTransition,
@@ -124,20 +126,55 @@ impl InterfacePaneType {
 #[derive(Component)]
 pub(crate) struct InterfaceRootMarker;
 
-/// `interface_toggle` opens the interface from flight and closes it again.
+/// What `interface_toggle` (TAB) acts on in the current state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum InterfaceToggleType {
+    /// Open the interface from flight, or close it.
+    Interface,
+    /// Open or close the Ship pane's catalogue: the interface is up on the
+    /// Ship pane, docked at a station that refits, where the footer shows the
+    /// Catalogue button (`ShipRuntime::refits`).
+    Catalogue,
+}
+
+impl InterfaceToggleType {
+    /// The one rule for what TAB does, read by the toggle and by the top bar's
+    /// Close chip, which names the key that closes the interface.
+    pub(crate) fn of(current: PauseStates, ship: Option<&ShipRuntime>) -> Self {
+        if current == PauseStates::Interface && ship.is_some_and(|ship| ship.refits) {
+            Self::Catalogue
+        } else {
+            Self::Interface
+        }
+    }
+}
+
+/// `interface_toggle` opens the interface from flight and closes it again,
+/// except in the Ship pane at a refit dock, where it opens and closes the
+/// catalogue (see [`InterfaceToggleType`]) and leaves the interface open.
+/// This is the only reader of the key, so one press does one of the two.
 ///
 /// Opening needs a ship: `Playing` also covers the editor's build mode, and an
 /// interface over a scene with no ship would have nothing to show. Closing is
 /// ungated by the ship, but an armed section rebind owns the next key, so it
 /// refuses the toggle rather than lose the capture. Under the command modal the
 /// desk key is the prompt's completion, so `Commands` is left alone.
+///
+/// The keyboard mode gates it here rather than in a run condition, because the
+/// two targets answer under different modes: the interface only under
+/// [`InputMode::Normal`] (TAB typed into a focused field is a character, not a
+/// close), the catalogue also under the [`InputMode::Browse`] it claims while
+/// open, so TAB closes what TAB opened.
 pub(crate) fn toggle_interface(
     sources: InputSources,
     bindings: Res<InputBindings>,
+    mode: Option<Res<InputMode>>,
     player: Query<(), With<PlayerSpaceshipMarker>>,
     current: Res<State<PauseStates>>,
     mut next: ResMut<NextState<PauseStates>>,
     ship: Option<Res<ShipRuntime>>,
+    gallery: Option<ResMut<GalleryState>>,
+    held: Option<ResMut<HeldPart>>,
 ) {
     let Some(action) = bindings.get("interface_toggle") else {
         return;
@@ -145,12 +182,29 @@ pub(crate) fn toggle_interface(
     if !sources.just_pressed(action) {
         return;
     }
-    toggle_interface_state(
-        *current.get(),
-        !player.is_empty(),
-        ship.is_some_and(|ship| ship.rebind_armed()),
-        &mut next,
-    );
+    let mode = mode.as_deref().copied().unwrap_or_default();
+    match InterfaceToggleType::of(*current.get(), ship.as_deref()) {
+        InterfaceToggleType::Catalogue => {
+            if mode > InputMode::Browse || ship.is_some_and(|ship| ship.rebind_armed()) {
+                return;
+            }
+            let (Some(mut gallery), Some(mut held)) = (gallery, held) else {
+                panic!("the Ship pane's catalogue runs without the parts gallery's resources");
+            };
+            toggle_ship_catalogue(&mut gallery, &mut held);
+        }
+        InterfaceToggleType::Interface => {
+            if mode != InputMode::Normal {
+                return;
+            }
+            toggle_interface_state(
+                *current.get(),
+                !player.is_empty(),
+                ship.is_some_and(|ship| ship.rebind_armed()),
+                &mut next,
+            );
+        }
+    }
 }
 
 /// The one open-or-close step the toggle key and the card's Close button
@@ -540,10 +594,13 @@ fn on_interface_close_click(
     );
 }
 
-/// Write the live key names into the title row's chips: the Close chip reads
-/// `interface_toggle`, the Next chip `interface_next_tab`, both for the device
-/// the player pressed last. Repaints when the bindings or the device change
-/// and on a new card.
+/// Write the live key names into the chips that name the interface's own
+/// keys: the Close chip, the Next chip `interface_next_tab` and the Ship
+/// pane's Catalogue chip `interface_toggle`, for the device the player
+/// pressed last. The Close chip names the key that closes the interface now:
+/// `interface_toggle`, or Esc where TAB is the catalogue's
+/// ([`InterfaceToggleType`]). Repaints when the bindings, the device or that
+/// rule change and on a new chip.
 ///
 /// # Panics
 ///
@@ -551,26 +608,54 @@ fn on_interface_close_click(
 pub(crate) fn refresh_card_head_keys(
     bindings: Res<InputBindings>,
     device: Res<InputDeviceType>,
-    q_new: Query<(), Or<(Added<InterfaceCloseButton>, Added<InterfaceNextKey>)>>,
+    current: Res<State<PauseStates>>,
+    ship: Option<Res<ShipRuntime>>,
+    q_new: Query<
+        (),
+        Or<(
+            Added<InterfaceCloseButton>,
+            Added<InterfaceNextKey>,
+            Added<ShipCatalogueButton>,
+        )>,
+    >,
     q_close: Query<Entity, With<InterfaceCloseButton>>,
     q_next: Query<Entity, With<InterfaceNextKey>>,
+    q_catalogue: Query<Entity, With<ShipCatalogueButton>>,
     q_children: Query<&Children>,
     mut q_label: Query<&mut Text, With<KeyChipLabel>>,
+    mut painted: Local<Option<InterfaceToggleType>>,
 ) {
-    if !bindings.is_changed() && !device.is_changed() && q_new.is_empty() {
+    let target = InterfaceToggleType::of(*current.get(), ship.as_deref());
+    if !bindings.is_changed()
+        && !device.is_changed()
+        && q_new.is_empty()
+        && *painted == Some(target)
+    {
         return;
     }
+    *painted = Some(target);
     let shown = |action: &str| {
         bindings
             .get(action)
             .unwrap_or_else(|| panic!("the card head names `{action}`, which is not registered"))
             .hint_display(*device)
     };
-    for (chips, action) in [
-        (q_close.iter().collect::<Vec<_>>(), "interface_toggle"),
-        (q_next.iter().collect::<Vec<_>>(), "interface_next_tab"),
+    // Esc stays off the registry (see `close_surface_from_menu_keys`).
+    let close = match target {
+        InterfaceToggleType::Interface => shown("interface_toggle"),
+        InterfaceToggleType::Catalogue => "Esc".to_string(),
+    };
+    for (chips, key) in [
+        (q_close.iter().collect::<Vec<_>>(), close),
+        (
+            q_next.iter().collect::<Vec<_>>(),
+            shown("interface_next_tab"),
+        ),
+        (
+            q_catalogue.iter().collect::<Vec<_>>(),
+            shown("interface_toggle"),
+        ),
     ] {
-        let key = shown(action);
         for chip in chips {
             for node in q_children.iter_descendants(chip) {
                 if let Ok(mut text) = q_label.get_mut(node) {
@@ -1840,12 +1925,15 @@ fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
         |controls| {
             // First of the three: it shows only at a refit dock, and Fit and
             // Reset keep their places at the right edge with or without it.
-            controls.spawn((
-                ShipCatalogueButton,
-                GalleryAction::Open,
-                button(ButtonSpec::control("Catalogue")),
-                Name::new("ShipCatalogue"),
-            ));
+            // Its key chip is `interface_toggle`'s, written by
+            // `refresh_card_head_keys`.
+            controls
+                .spawn((
+                    ShipCatalogueButton,
+                    button(ButtonSpec::control("Catalogue").key("")),
+                    Name::new("ShipCatalogue"),
+                ))
+                .observe(on_ship_catalogue_button);
             controls
                 .spawn((button(ButtonSpec::control("Fit")), Name::new("ShipFit")))
                 .observe(on_ship_fit_button);

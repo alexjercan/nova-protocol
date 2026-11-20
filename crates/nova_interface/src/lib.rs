@@ -86,6 +86,7 @@ use bevy::prelude::*;
 use nova_gameplay::{GameStates, PauseStates};
 use nova_hud::NovaHudSystems;
 use nova_input::prelude::RegisterInputActions;
+use nova_ship::prelude::PartsGallerySystems;
 use nova_ui::{
     input_mode::prelude::{in_input_mode, InputMode},
     theme::UiThemeSystems,
@@ -158,6 +159,12 @@ impl Plugin for InterfacePlugin {
                 .before(JobsPaneSystems)
                 .before(StationPaneSystems),
         );
+        // TAB is read once, by `toggle_interface`, before the parts gallery
+        // reads its keys: a TAB that opens the catalogue is seen open by the
+        // gallery's keyboard in the same frame, and a TAB that closes it
+        // leaves the gallery nothing to answer. The gallery reads no TAB of
+        // its own in the game.
+        app.configure_sets(Update, InterfaceSystems.before(PartsGallerySystems));
         // A hull buy clears the Ship pane's selection before the Ship pane
         // reads it (see `StationPaneSystems`).
         app.configure_sets(Update, StationPaneSystems.before(ShipPaneSystems));
@@ -180,11 +187,10 @@ impl Plugin for InterfacePlugin {
         app.add_systems(
             Update,
             (
-                // Normal only: TAB typed into a focused field (a pane's
-                // quantity, the Nova Debug prompt) is a character, not a close.
-                toggle_interface
-                    .run_if(in_state(GameStates::Playing))
-                    .run_if(in_input_mode(InputMode::Normal)),
+                // Gated on the keyboard mode inside: the catalogue's TAB
+                // answers under the Browse it claims, the interface's only
+                // under Normal.
+                toggle_interface.run_if(in_state(GameStates::Playing)),
                 next_interface_pane.run_if(in_input_mode(InputMode::Normal)),
                 leave_station_pane,
                 spawn_interface_root,

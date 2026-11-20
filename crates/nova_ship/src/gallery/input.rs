@@ -1,6 +1,6 @@
 //! The gallery keyboard: selection, paging, focus, the pick key and the
-//! filter field. Opening is the host's: a key or a button sets
-//! [`GalleryState::open`].
+//! filter field; and the wheel, which pages the grid. Opening is the host's:
+//! a key or a button sets [`GalleryState::open`].
 //!
 //! Letters reach the FILTER only while the filter field itself is focused.
 //! Swallowing every keystroke made the field the only thing the keyboard could
@@ -8,12 +8,21 @@
 //! unfocused, the letters are free for the shortcuts below. Change this module
 //! when the browse keys change.
 
-use bevy::{input::keyboard::KeyboardInput, picking::hover::Hovered, prelude::*};
+use bevy::{
+    input::{
+        keyboard::KeyboardInput,
+        mouse::{MouseScrollUnit, MouseWheel},
+    },
+    picking::hover::Hovered,
+    prelude::*,
+};
 use nova_gameplay::prelude::{play_menu_back, play_menu_select};
 use nova_sound::prelude::{SoundBank, UiSfx};
 
 use super::{
-    catalog, ui::GalleryCell, GalleryHost, GalleryLayout, GalleryListing, GalleryState, HeldPart,
+    catalog,
+    ui::{GalleryCell, GalleryGrid},
+    GalleryHost, GalleryLayout, GalleryListing, GalleryState, HeldPart,
 };
 use crate::prelude::*;
 
@@ -164,6 +173,57 @@ pub fn gallery_keyboard(
 
     if *state != next {
         *state = next;
+    }
+}
+
+/// The pixel scroll that pages the grid once, the travel of a few wheel
+/// notches. A trackpad reports pixels many times a second, and a page per
+/// report would run off the end of the catalog in one swipe.
+const WHEEL_PAGE_PX: f32 = 100.0;
+
+/// Page the grid by the wheel while the pointer is over it: a notch down is
+/// the next page, a notch up the previous one, as the `>` and `<` buttons.
+/// The focus card keeps the wheel for its zoom (`super::scene`), and a wheel
+/// turned anywhere else pages nothing and leaves no travel behind.
+pub(crate) fn page_gallery_by_wheel(
+    mut wheel: MessageReader<MouseWheel>,
+    sections: Res<GameSections>,
+    layout: Res<GalleryLayout>,
+    host: Query<Option<&GalleryListing>, With<GalleryHost>>,
+    grid: Query<&Hovered, With<GalleryGrid>>,
+    mut state: ResMut<GalleryState>,
+    mut travel: Local<f32>,
+) {
+    let notches: f32 = wheel
+        .read()
+        .map(|event| match event.unit {
+            MouseScrollUnit::Line => event.y,
+            MouseScrollUnit::Pixel => event.y / WHEEL_PAGE_PX,
+        })
+        .sum();
+    if !state.open || state.focused || !grid.iter().any(Hovered::get) {
+        *travel = 0.0;
+        return;
+    }
+    *travel += notches;
+    let pages = travel.trunc();
+    if pages == 0.0 {
+        return;
+    }
+    *travel -= pages;
+    let listing = host.single().ok().flatten();
+    let listed = catalog::browsable(
+        &sections,
+        listing,
+        state.category,
+        &state.filter,
+        state.available_only,
+    );
+    // winit's sign: a positive notch scrolls toward the top, the page before.
+    let mut next = state.clone();
+    next.step(-(pages as isize) * layout.page() as isize, listed.len());
+    if next.selected != state.selected {
+        state.selected = next.selected;
     }
 }
 
@@ -457,7 +517,7 @@ mod tests {
                     camera: Entity::PLACEHOLDER,
                     stage: Vec3::ZERO,
                     layers: default(),
-                    close_keys: "Esc",
+                    close_keys: "Esc".into(),
                     close_verb: true,
                 },
                 GalleryListing(vec![entry("hull", true, false), blocked.clone()]),
@@ -488,6 +548,47 @@ mod tests {
                 "a ready part still places beside a {why} one"
             );
         }
+    }
+
+    /// A wheel notch over the grid pages it, down to the next page and up to
+    /// the one before, as the `<` and `>` buttons. Away from the grid, or on
+    /// the focus card whose zoom owns the wheel, it pages nothing.
+    #[test]
+    fn the_wheel_over_the_grid_pages_it() {
+        let mut app = gallery_app(GalleryState {
+            open: true,
+            ..default()
+        });
+        app.insert_resource(long_catalog(40));
+        app.add_message::<MouseWheel>();
+        app.add_systems(Update, page_gallery_by_wheel);
+        let grid = app
+            .world_mut()
+            .spawn((super::super::ui::GalleryGrid, Hovered(true)))
+            .id();
+        let page = app.world().resource::<GalleryLayout>().page();
+        let notch = |app: &mut App, y: f32| {
+            app.world_mut().write_message(MouseWheel {
+                unit: MouseScrollUnit::Line,
+                x: 0.0,
+                y,
+                window: Entity::PLACEHOLDER,
+                phase: bevy::input::touch::TouchPhase::Moved,
+            });
+            app.update();
+            app.world().resource::<GalleryState>().selected
+        };
+
+        assert_eq!(notch(&mut app, -1.0), page, "a notch down is the next page");
+        assert_eq!(notch(&mut app, -1.0), 2 * page);
+        assert_eq!(notch(&mut app, 1.0), page, "a notch up is the page before");
+
+        app.world_mut().entity_mut(grid).insert(Hovered(false));
+        assert_eq!(notch(&mut app, -1.0), page, "the pointer is off the grid");
+
+        app.world_mut().entity_mut(grid).insert(Hovered(true));
+        app.world_mut().resource_mut::<GalleryState>().focused = true;
+        assert_eq!(notch(&mut app, -1.0), page, "the focus card zooms instead");
     }
 
     /// Q is a character too: with the caret in the filter it types, and the

@@ -19,7 +19,8 @@
 //! - the TAB interface opens on the Ship tab.
 //!
 //! From there it is yours: nothing closes the interface and nothing ends the
-//! run. Close it with TAB and fly, dock again, or reopen it.
+//! run. On the Ship tab TAB opens and closes the Catalogue and Esc closes the
+//! interface; on another tab TAB closes it. Fly, dock again, or reopen it.
 //!
 //! What to try:
 //!
@@ -621,7 +622,9 @@ fn open_the_ship_tab(world: &mut World) {
     world
         .resource_mut::<NextState<PauseStates>>()
         .set(PauseStates::Interface);
-    info!("station sandbox: the Ship tab is open; TAB closes and reopens the interface");
+    info!(
+        "station sandbox: the Ship tab is open; TAB opens the Catalogue, Esc closes the interface"
+    );
 }
 
 /// What the sandbox is for, for the diagnostics intro.
@@ -2173,17 +2176,18 @@ mod smoke {
     /// rig and the Ship tab opens again.
     fn berth_shots(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
         let script = script
-            .step("station sandbox: close the interface for the berth shots")
-            .on_enter(press_action("interface_toggle"))
-            .until(Arc::new(|world: &World| {
-                world
-                    .get_resource::<State<PauseStates>>()
-                    .is_some_and(|pause| *pause.get() == PauseStates::Unpaused)
-            }))
-            .deadline(BEAT_SECS)
-            .add()
+            // TAB in the Ship pane at this refit dock is the catalogue's key.
+            .click_named(
+                "station sandbox: close the interface for the berth shots",
+                "InterfaceClose",
+                Arc::new(|world: &World| {
+                    world
+                        .get_resource::<State<PauseStates>>()
+                        .is_some_and(|pause| *pause.get() == PauseStates::Unpaused)
+                }),
+                BEAT_SECS,
+            )
             .step("station sandbox: let the close key up for the berth shots")
-            .on_enter(release_action("interface_toggle"))
             .until(frames(SETTLE_FRAMES))
             .add()
             .step("station sandbox: the berth sleeves reach out")
@@ -4177,17 +4181,18 @@ mod smoke {
             // The world is frozen while the interface is open, and a docked
             // hull's own throttle is inert without the helm, which a station
             // keeps: the ship lets go of the dock to fly.
-            .step("station sandbox: close the interface to fly")
-            .on_enter(press_action("interface_toggle"))
-            .until(Arc::new(|world: &World| {
-                world
-                    .get_resource::<State<PauseStates>>()
-                    .is_some_and(|pause| *pause.get() == PauseStates::Unpaused)
-            }))
-            .deadline(BEAT_SECS)
-            .add()
+            // TAB in the Ship pane at this refit dock is the catalogue's key.
+            .click_named(
+                "station sandbox: close the interface to fly",
+                "InterfaceClose",
+                Arc::new(|world: &World| {
+                    world
+                        .get_resource::<State<PauseStates>>()
+                        .is_some_and(|pause| *pause.get() == PauseStates::Unpaused)
+                }),
+                BEAT_SECS,
+            )
             .step("station sandbox: let the close key up")
-            .on_enter(release_action("interface_toggle"))
             .until(frames(SETTLE_FRAMES))
             .add()
             .step("station sandbox: let go of the dock")

@@ -763,7 +763,15 @@ mod walk {
         );
         // The pane pushed its reports under the interface pause; the tracker
         // drains them on the first fixed tick after the clock runs again.
-        tap(script, "the interface key", "interface_toggle", unpaused())
+        // At a refit dock TAB in the Ship pane is the catalogue's key; the top
+        // bar's Close closes the interface.
+        script
+            .click_named(
+                "station rebuild: close the interface",
+                "InterfaceClose",
+                unpaused(),
+                SESSION_SECS,
+            )
             .step("station rebuild: the rebuild reports")
             .until(rebuild_reported())
             .deadline(SESSION_SECS)

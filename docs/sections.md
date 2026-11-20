@@ -195,7 +195,9 @@ docked (`check_saved_jobs`). A hull buy (`rehull_ship`) drops the job.
 ### Swapping a section
 
 While docked to a station that offers `Refit`, the Ship pane footer's
-Catalogue button, left of Fit and Reset, opens the parts gallery
+Catalogue button, left of Fit and Reset, or the interface toggle key
+(`InterfaceToggleType::Catalogue` in `pane.rs`, `toggle_ship_catalogue`)
+opens the parts gallery
 (`nova_ship::gallery`, the editor's picker) over the pane
 (`nova_interface/src/ship/catalogue.rs`). A placeable part the
 selected live section can be swapped for gets Swap as the focus card's second
@@ -234,11 +236,15 @@ also shows one Available chip after the filter box
 listed parts that are ready (`GalleryEntry::ready`: placeable and paid
 for) and resets the selection to the first
 tile; a second click brings every listed part back, and `Open`/`Browse` turn
-it off; the count reads `N of M parts` whenever the chip or the filter
+it off, while the Ship pane's toggle and Catalogue button resume the last
+browse (`GalleryState::resumed`) with the chip, category, filter and page as
+they were; the count reads `N of M parts` whenever the chip or the filter
 narrows the grid. The header draws its own Close only when
-`GalleryHost.close_verb` is set (the editor); under the Tab interface the top
-bar's Close and Esc close it. The hint row is key chips with one verb each,
-keyed by `GalleryHost.close_keys`. A part the station's `StationBuilds` does not name, or
+`GalleryHost.close_verb` is set (the editor); under the Tab interface Esc and
+the toggle key close it, and the top bar's Close closes the interface. The
+hint row is key chips with one verb each, keyed by `GalleryHost.close_keys`,
+which `manage_ship_gallery` rewrites from the live binding. The wheel over
+the grid (`GalleryGrid`'s `Hovered`) pages it (`page_gallery_by_wheel`). A part the station's `StationBuilds` does not name, or
 whose recipe the player's hold and the station's stock together cannot carry
 (`plan_recipe_payment` finds a missing part), has `placeable: false`: its
 tile text, border and focus card title are muted, a theme surface veil greys

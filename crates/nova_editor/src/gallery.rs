@@ -115,7 +115,7 @@ pub(crate) fn gallery_host(camera: Entity) -> impl Bundle {
             camera,
             stage: Vec3::Y * STAGE_CLEARANCE.to_engine(),
             layers: RenderLayers::default(),
-            close_keys: "Esc/Tab",
+            close_keys: "Esc/Tab".into(),
             // The editor hides its own chrome under the gallery.
             close_verb: true,
         },

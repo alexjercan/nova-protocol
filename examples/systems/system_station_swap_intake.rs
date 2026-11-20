@@ -811,23 +811,27 @@ mod walk {
         );
         // The pane pushed its report under the interface pause; the tracker
         // drains it on the first fixed tick after the clock runs again.
-        tap(
-            script,
-            "interface_toggle",
-            when(|world| {
-                world
-                    .get_resource::<State<PauseStates>>()
-                    .is_some_and(|pause| *pause.get() == PauseStates::Unpaused)
-            }),
-        )
-        .step("station swap intake: the swap reports")
-        .until(when(|world| {
-            !world.resource::<SwapWatch>().events.is_empty()
-        }))
-        .deadline(SESSION_SECS)
-        .add()
-        .step("station swap intake: assert the swap")
-        .on_enter(assert_the_swap)
-        .add()
+        // At a refit dock TAB in the Ship pane is the catalogue's key; the top
+        // bar's Close closes the interface.
+        script
+            .click_named(
+                "station swap intake: close the interface",
+                "InterfaceClose",
+                when(|world| {
+                    world
+                        .get_resource::<State<PauseStates>>()
+                        .is_some_and(|pause| *pause.get() == PauseStates::Unpaused)
+                }),
+                SESSION_SECS,
+            )
+            .step("station swap intake: the swap reports")
+            .until(when(|world| {
+                !world.resource::<SwapWatch>().events.is_empty()
+            }))
+            .deadline(SESSION_SECS)
+            .add()
+            .step("station swap intake: assert the swap")
+            .on_enter(assert_the_swap)
+            .add()
     }
 }

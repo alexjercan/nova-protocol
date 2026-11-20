@@ -1,11 +1,14 @@
 //! The Ship pane's station catalogue: the parts gallery (`nova_ship::gallery`)
 //! over the pane while the ship is docked at a station that refits.
 //!
-//! The footer's Catalogue button opens it. [`manage_ship_gallery`] then puts a
-//! [`GalleryHost`] node over the view, the panel and the footer, with its own
-//! camera on [`GALLERY_LAYER`] rendering the part tiles into an image the node
-//! shows 1:1, and takes both away when the gallery closes or the pane goes:
-//! a tab switch or the interface closing closes the gallery.
+//! `interface_toggle` (TAB) and the footer's Catalogue button open it, on the
+//! category, filter and page the last visit left ([`open_ship_catalogue`]);
+//! TAB closes it again (`crate::pane::toggle_interface` owns the key).
+//! [`manage_ship_gallery`] then puts a [`GalleryHost`] node over the view, the
+//! panel and the footer, with its own camera on [`GALLERY_LAYER`] rendering
+//! the part tiles into an image the node shows 1:1, and takes both away when
+//! the gallery closes or the pane goes: a tab switch or the interface closing
+//! closes the gallery.
 //!
 //! [`update_ship_gallery_listing`] lists every part not hidden from the editor
 //! palette, each with its recipe items. A part the station does not build, or
@@ -18,8 +21,9 @@
 //! focus card's second verb, or, when the swap is refused for a cause of its
 //! own, a second note line with the section and the tag word.
 //!
-//! Place puts the part in hand ([`HeldPart`]); the placement ghost
-//! (`super::ghost`) shows where a click adds it. Swap raises a
+//! Place puts the part in hand ([`HeldPart`]) and closes the gallery; the
+//! placement ghost (`super::ghost`) shows where a click adds it, and TAB puts
+//! the part away and returns to the gallery. Swap raises a
 //! [`SectionSwapCommand`] for the selected section
 //! ([`apply_ship_gallery_alternates`]).
 //!
@@ -30,8 +34,10 @@ use bevy::{
     camera::{visibility::RenderLayers, ImageRenderTarget, RenderTarget},
     prelude::*,
     ui::ComputedNode,
+    ui_widgets::Activate,
 };
 use nova_gameplay::prelude::*;
+use nova_input::prelude::{InputBindings, InputDeviceType};
 use nova_ship::prelude::*;
 use nova_ui::theme::{ActiveUiTheme, UiColorType};
 
@@ -67,8 +73,55 @@ const GALLERY_AMBIENT: f32 = 220.0;
 pub(crate) struct ShipSplitMarker;
 
 /// Marks the footer's Catalogue button, shown while the station builds parts.
+/// It carries the `interface_toggle` key chip: the key opens what the button
+/// opens.
 #[derive(Component)]
 pub(crate) struct ShipCatalogueButton;
+
+/// Open the catalogue where the last visit left it, with the hand empty: the
+/// player opens it to choose a part, and the part in hand is the one they are
+/// done with. TAB and the Catalogue button share it.
+pub(crate) fn open_ship_catalogue(state: &mut GalleryState, held: &mut HeldPart) {
+    if held.0.is_some() {
+        held.0 = None;
+    }
+    *state = state.resumed();
+}
+
+/// TAB at a refit dock: close the open catalogue back to the ship view, or
+/// open it by [`open_ship_catalogue`].
+pub(crate) fn toggle_ship_catalogue(state: &mut GalleryState, held: &mut HeldPart) {
+    if state.open {
+        state.open = false;
+        state.focused = false;
+        state.filter_focused = false;
+    } else {
+        open_ship_catalogue(state, held);
+    }
+}
+
+/// The Catalogue button's click: the open half of TAB.
+pub(crate) fn on_ship_catalogue_button(
+    _activate: On<Activate>,
+    mut state: ResMut<GalleryState>,
+    mut held: ResMut<HeldPart>,
+) {
+    open_ship_catalogue(&mut state, &mut held);
+}
+
+/// The catalogue's close keys as the gallery's hint row shows them: Esc and
+/// `interface_toggle` for the device in use.
+///
+/// # Panics
+///
+/// When `interface_toggle` is not registered in [`InputBindings`].
+fn catalogue_close_keys(bindings: &InputBindings, device: InputDeviceType) -> String {
+    let toggle = bindings
+        .get("interface_toggle")
+        .expect("the catalogue names `interface_toggle`, which is not registered")
+        .hint_display(device);
+    format!("Esc/{toggle}")
+}
 
 /// Marks the catalogue's own camera, which holds its lights. The camera is a
 /// root entity: a despawn of the pane body takes the host node, not the
@@ -295,6 +348,8 @@ pub(crate) fn manage_ship_gallery(
     subject: Res<ShipViewSubject>,
     mut state: ResMut<GalleryState>,
     theme: Res<ActiveUiTheme>,
+    bindings: Res<InputBindings>,
+    device: Res<InputDeviceType>,
     site: StationSite,
     images: Option<ResMut<Assets<Image>>>,
     q_split: Query<&ChildOf, With<ShipSplitMarker>>,
@@ -302,7 +357,7 @@ pub(crate) fn manage_ship_gallery(
     mut q_host: Query<(
         Entity,
         &ShipGalleryHost,
-        &GalleryHost,
+        &mut GalleryHost,
         &ComputedNode,
         &mut ImageNode,
     )>,
@@ -332,7 +387,12 @@ pub(crate) fn manage_ship_gallery(
     let Some(mut images) = images else {
         return;
     };
-    if let Ok((_, owned, gallery, computed, mut node)) = q_host.single_mut() {
+    let close_keys = catalogue_close_keys(&bindings, *device);
+    if let Ok((_, owned, mut gallery, computed, mut node)) = q_host.single_mut() {
+        // A rebind or a device switch moves the hint row with it.
+        if gallery.close_keys != close_keys {
+            gallery.close_keys = close_keys;
+        }
         // A node not laid out yet measures zero; the image keeps its size.
         let desired = computed.size().round().as_uvec2();
         if desired.cmpeq(UVec2::ZERO).any() {
@@ -404,8 +464,8 @@ pub(crate) fn manage_ship_gallery(
             camera,
             stage: eye.translation + eye.forward() * GALLERY_STAGE_DISTANCE,
             layers,
-            close_keys: "Esc",
-            // The Tab top bar's Close and Esc cover it.
+            close_keys,
+            // Esc and TAB close it; the top bar's Close is the interface's.
             close_verb: false,
         },
         GalleryListing::default(),

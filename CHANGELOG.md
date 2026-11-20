@@ -85,6 +85,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A HUD chip on a target near the screen edge stays whole in view; before, the edge cut its first characters.
 - Jobs, Map and Station panes share that layout: Station offers are cards in an even grid, GOTO and Cancel sit side by side, and the tooltips that explained a tag or button are gone.
 - The parts catalogue shares it too: category chips, one Available chip, key chips for the hints, no second Close, and the last tile row in full. A price you cannot pay is red and disables Place.
+- At a refit dock TAB in the Ship pane opens and closes the parts catalogue on the category, filter and page you left, and Esc closes the interface. Before, TAB shut it and dropped a held part.
 - A ghost button such as Cancel, Max or Close has a brighter frame in both themes, so it no longer reads as a disabled one.
 - The Jobs board gains Range and Threat columns, and the job inspector lists each part of the reward that pays: Base, Goods or Cargo, Range with the km, Threat with the weapon count.
 - The Jobs pane always shows two lists, Available over Your jobs. Available holds the docked station's jobs and a standing hail offer; empty, it keeps its column heads.

@@ -37,6 +37,11 @@ use crate::prelude::*;
 #[derive(Component)]
 pub struct GalleryRoot;
 
+/// The tile grid's node. The wheel pages the grid while the pointer is over
+/// it (`super::input::page_gallery_by_wheel`).
+#[derive(Component)]
+pub(crate) struct GalleryGrid;
+
 /// One tile, carrying its position in the filtered list so the painter can tell
 /// the selected cell from its neighbours.
 #[derive(Component)]
@@ -52,8 +57,8 @@ pub struct GalleryCell {
 /// control is a new variant rather than a new observer.
 #[derive(Component, Clone, Debug)]
 pub enum GalleryAction {
-    /// Open the gallery (the editor rail's category row, the Ship pane's
-    /// Catalogue button).
+    /// Open the gallery on a fresh browse ([`GalleryState::opened`]): the
+    /// editor's Parts rows.
     Open,
     /// Close it, keeping the current selection for the next visit.
     Close,
@@ -290,7 +295,11 @@ pub(crate) fn rebuild_gallery(
                 if host.close_verb {
                     header.spawn((
                         Name::new("Gallery Close Button"),
-                        button(ButtonSpec::control("Close").ghost().key(host.close_keys)),
+                        button(
+                            ButtonSpec::control("Close")
+                                .ghost()
+                                .key(host.close_keys.clone()),
+                        ),
                         ButtonCueType::Back,
                         GalleryAction::Close,
                     ));
@@ -335,7 +344,7 @@ pub(crate) fn rebuild_gallery(
                     ("Arrows", "select"),
                     ("Enter", "focus"),
                     ("/", "filter"),
-                    (host.close_keys, "close"),
+                    (host.close_keys.as_str(), "close"),
                 ]
             };
             root.spawn((
@@ -391,6 +400,8 @@ fn grid_body(
 ) {
     root.spawn((
         Name::new("Gallery Grid"),
+        GalleryGrid,
+        Hovered::default(),
         Node {
             width: percent(100),
             flex_grow: 1.0,

@@ -965,6 +965,14 @@ name = "system_station_add"
 path = "examples/systems/system_station_add.rs"
 required-features = ["debug"]
 
+# TAB opens and closes the Ship pane's catalogue at a refit dock and returns
+# to it as it was left after a Place; the wheel pages the grid; Esc steps back
+# one layer per press.
+[[example]]
+name = "system_catalogue_keys"
+path = "examples/systems/system_catalogue_keys.rs"
+required-features = ["debug"]
+
 # A generated trader's stock drifts back toward its spawn stock by the play
 # time its cell stood frozen, on a thaw and on a Load from the saved clock.
 [[example]]

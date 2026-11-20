@@ -467,8 +467,9 @@ fn a_narrow_window_puts_the_footer_hints_under_the_legend_and_nothing_overlaps()
     );
 }
 
-/// A click on the Ship pane's Catalogue button opens the parts gallery and
-/// plays one interface click, as Fit and Reset do, after the pointer's tick.
+/// A click on the Ship pane's Catalogue button opens the parts gallery, as
+/// TAB does there, putting a part in hand away, and plays one interface
+/// click, as Fit and Reset do, after the pointer's tick.
 #[test]
 fn the_catalogue_button_opens_the_gallery_and_clicks_once() {
     #[derive(Resource, Default)]
@@ -491,12 +492,18 @@ fn the_catalogue_button_opens_the_gallery_and_clicks_once() {
     take_cues(&mut rig.app);
     rig.app.world_mut().resource_mut::<HeardPlaces>().0.clear();
 
+    rig.app.insert_resource(HeldPart(Some("pdc".to_string())));
     let catalogue = rect_named(rig.app.world_mut(), "ShipCatalogue").center();
     click_at(&mut rig, catalogue);
 
     assert!(
         rig.app.world().resource::<GalleryState>().open,
         "the Catalogue button opens the gallery"
+    );
+    assert_eq!(
+        rig.app.world().resource::<HeldPart>().0,
+        None,
+        "and puts the part in hand away"
     );
     assert_eq!(
         take_cues(&mut rig.app),
@@ -506,6 +513,63 @@ fn the_catalogue_button_opens_the_gallery_and_clicks_once() {
         rig.app.world().resource::<HeardPlaces>().0,
         [SoundAt::Ui, SoundAt::Ui]
     );
+}
+
+/// The key chip text inside the node called `name`.
+fn chip_of(world: &mut World, name: &str) -> String {
+    let node = world
+        .query::<(Entity, &Name)>()
+        .iter(world)
+        .find(|(_, found)| found.as_str() == name)
+        .map(|(entity, _)| entity)
+        .unwrap_or_else(|| panic!("the card has a {name}"));
+    let labels: Vec<Entity> = world
+        .query_filtered::<Entity, With<KeyChipLabel>>()
+        .iter(world)
+        .collect();
+    let mut stack = vec![node];
+    while let Some(at) = stack.pop() {
+        if labels.contains(&at) {
+            return world
+                .get::<Text>(at)
+                .expect("a chip label is text")
+                .0
+                .clone();
+        }
+        stack.extend(world.get::<Children>(at).into_iter().flatten().copied());
+    }
+    panic!("{name} carries no key chip");
+}
+
+/// The Catalogue button carries the interface toggle's key chip, the key
+/// that opens it. The Close chip names the key that closes the interface:
+/// Esc while the toggle key is the catalogue's, the toggle key again once the
+/// Ship pane has no refit.
+#[test]
+fn the_catalogue_button_carries_the_toggle_key_and_the_close_chip_names_the_closing_key() {
+    let mut rig = card_rig();
+    rig.app.add_plugins(PartsGalleryPlugin);
+    rig.app.init_resource::<GameSections>();
+    *rig.app.world_mut().resource_mut::<InterfacePaneType>() = InterfacePaneType::Ship;
+    rig.app.insert_resource(ShipRuntime {
+        refits: true,
+        ..default()
+    });
+    settle(&mut rig.app);
+    let toggle = rig
+        .app
+        .world()
+        .resource::<InputBindings>()
+        .get("interface_toggle")
+        .expect("the toggle is registered")
+        .hint_display(*rig.app.world().resource::<InputDeviceType>());
+
+    assert_eq!(chip_of(rig.app.world_mut(), "ShipCatalogue"), toggle);
+    assert_eq!(chip_of(rig.app.world_mut(), "InterfaceClose"), "Esc");
+
+    rig.app.world_mut().resource_mut::<ShipRuntime>().refits = false;
+    settle(&mut rig.app);
+    assert_eq!(chip_of(rig.app.world_mut(), "InterfaceClose"), toggle);
 }
 
 /// Whether the Craft view's host node is in the tree.
@@ -726,8 +790,8 @@ fn a_focused_text_field_types_m_instead_of_switching_panes() {
 }
 
 /// The Nova Debug window claims `InputMode::Insert` while its prompt has the
-/// keyboard. Before the toggle took the plugin's Normal gate, TAB typed there
-/// for completion also closed the Interface under the window.
+/// keyboard. Before the toggle answered only under `InputMode::Normal`, TAB
+/// typed there for completion also closed the Interface under the window.
 #[test]
 fn tab_typed_into_a_focused_field_does_not_close_the_interface() {
     use bevy::{
@@ -739,7 +803,7 @@ fn tab_typed_into_a_focused_field_does_not_close_the_interface() {
     };
     use nova_gameplay::{GameStates, PauseStates};
     use nova_ui::{
-        prelude::{in_input_mode, ClaimKeyboard, InputMode, InputModeSystems},
+        prelude::{ClaimKeyboard, InputMode, InputModeSystems},
         NovaUiPlugin,
     };
 
@@ -762,11 +826,10 @@ fn tab_typed_into_a_focused_field_does_not_close_the_interface() {
         })
         .before(InputModeSystems),
     );
+    // As `InterfacePlugin` registers it: the toggle reads the mode itself.
     app.add_systems(
         Update,
-        toggle_interface
-            .run_if(in_state(GameStates::Playing))
-            .run_if(in_input_mode(InputMode::Normal)),
+        toggle_interface.run_if(in_state(GameStates::Playing)),
     );
     app.update();
 

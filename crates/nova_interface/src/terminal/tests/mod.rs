@@ -1,6 +1,7 @@
 //! Shared rig for the command modal and TAB toggle tests; each submodule
 //! covers one concern.
 
+mod catalogue_keys;
 mod chin;
 mod commands;
 mod crt;
