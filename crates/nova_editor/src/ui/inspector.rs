@@ -1247,6 +1247,15 @@ fn spawn_choice_options(
                         observe(on_inspector_choice),
                     ));
                     entity.insert(segmented_option_fit(option));
+                    // A wrapping option is as wide as its label and the kit
+                    // padding, not a verb's minimum: five kinds at 56 px each
+                    // overran the 300 px panel and put the last on a line of
+                    // its own.
+                    if wide {
+                        entity.entry::<Node>().and_modify(|mut node| {
+                            node.min_width = Val::Auto;
+                        });
+                    }
                     if marked.get(index).copied().unwrap_or(false) {
                         entity.insert(Selected);
                     }
@@ -1254,6 +1263,11 @@ fn spawn_choice_options(
             });
         });
 }
+
+/// The space over and under the lines of a words field that grows with its
+/// text. Small enough that one line still lays out at `CONTROL_H`, and enough
+/// that a second line clears the border.
+const FIELD_LINE_PAD: f32 = 3.0;
 
 /// How many options a choice may have before its control wraps. Three fit
 /// across the value column at the panel's width; a fourth clips.
@@ -2260,6 +2274,7 @@ fn build_rows(
                     // scrub it also answers to rides on the row's name, not in
                     // this column.
                     RowValue::Text(text) | RowValue::Number(text) => {
+                        let words = matches!(row.value, RowValue::Text(_));
                         // The placeholder is the OPTIONAL row's whole affordance:
                         // an empty box that says "none" is what tells a builder
                         // that emptying it is allowed.
@@ -2282,12 +2297,23 @@ fn build_rows(
                                 ..default()
                             })
                             .with_children(|box_slot| {
-                                box_slot.spawn((
+                                let mut field_node = box_slot.spawn((
                                     Name::new(format!("Inspector Field {}", row.label)),
                                     InspectorSlot(slot),
                                     field.clone(),
                                     text_field(spec),
                                 ));
+                                // Words wrap: the box grows with its lines, so
+                                // a description or a path reads whole instead
+                                // of cut at the second line.
+                                if words {
+                                    field_node.entry::<Node>().and_modify(|mut node| {
+                                        node.height = Val::Auto;
+                                        node.min_height = px(density::CONTROL_H);
+                                        node.padding.top = px(FIELD_LINE_PAD);
+                                        node.padding.bottom = px(FIELD_LINE_PAD);
+                                    });
+                                }
                             });
                         // The picker, for a row the config said names
                         // something: what the document holds is a list only

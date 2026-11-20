@@ -257,16 +257,13 @@ mod smoke {
             .add()
     }
 
-    /// Advance once Back stands inside the stage tools' row and its tooltip
-    /// panel shows the whole `Back to <name> (Esc)`.
+    /// Advance once Back stands on the bar and its tooltip panel shows the
+    /// whole `Back to <name> (Esc)`.
     fn back_names_the_whole_way() -> Arc<Predicate> {
         Arc::new(|world: &World| {
-            let (Some(back), Some(tools)) = (
-                laid_out(world, "Back Button"),
-                laid_out(world, "Stage Tools"),
-            ) else {
+            if ui_node_rect(world, "Back Button").is_none() {
                 return false;
-            };
+            }
             let Some(mut owners) = world.try_query::<(&Name, &Tooltip, &Children)>() else {
                 return false;
             };
@@ -288,7 +285,7 @@ mod smoke {
                             .any(|line| world.get::<Text>(line).is_some_and(|text| text.0 == tip.0))
                     })
             });
-            whole && shown && back.min.x >= tools.min.x - 0.5 && back.max.x <= tools.max.x + 0.5
+            whole && shown
         })
     }
 
@@ -303,17 +300,6 @@ mod smoke {
             };
             back.min.x >= snap.max.x
         })
-    }
-
-    /// The physical-px box of the node called `name`, hidden or not: the stage
-    /// tools are hidden in the Ship view and still hold their space.
-    fn laid_out(world: &World, name: &str) -> Option<Rect> {
-        let mut nodes = world.try_query::<(&Name, &UiGlobalTransform, &ComputedNode)>()?;
-        nodes
-            .iter(world)
-            .find(|(node, ..)| node.as_str() == name)
-            .map(|(_, at, computed)| Rect::from_center_size(at.translation, computed.size()))
-            .filter(|rect| rect.width() > 0.0)
     }
 
     /// Whether the menu row `name` carries the highlight.
@@ -899,9 +885,8 @@ mod smoke {
             .diagnose(readout)
             .deadline(BEAT_SECS)
             .add()
-            // Back stands over the space the hidden stage tools hold, so its
-            // label is cut to that space, and the panel under it names the
-            // whole way back.
+            // Back's label is cut to its widest, and the panel under it names
+            // the whole way back.
             .step("editor shell: rest on Back")
             .on_enter(hover_named("Back Button"))
             .until(back_names_the_whole_way())
@@ -930,6 +915,32 @@ mod smoke {
             .deadline(BEAT_SECS)
             .add();
         let script = shot(script, "editor-shell-back-tools.png");
+        // A selected ship adds Open Ship beside Back: the fullest bar. It
+        // stays one line, and the title gives way before UNSAVED or a verb
+        // leaves the window.
+        let script = script
+            .click_row(
+                "editor shell: select the ship beside Back",
+                |world| world.resource::<Walk>().ship.clone(),
+                ui_node_present("Open Ship Button"),
+                BEAT_SECS,
+            )
+            .step("editor shell: the fullest bar fits")
+            .until(Arc::new(|world: &World| {
+                let width = world.resource::<WalkWindow>().0;
+                let (Some(bar), Some(open), Some(mark)) = (
+                    ui_node_rect(world, "Editor Top Bar"),
+                    ui_node_rect(world, "Open Ship Button"),
+                    ui_node_rect(world, "Unsaved Mark"),
+                ) else {
+                    return false;
+                };
+                (bar.height() - 36.0).abs() < 0.5 && open.max.x <= mark.min.x && mark.max.x <= width
+            }))
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add();
+        let script = shot(script, "editor-shell-bar-full.png");
         let script = script
             .click_named(
                 "editor shell: back to the ship",
@@ -991,6 +1002,26 @@ mod smoke {
                 |held| held,
                 editor(move |probe| probe.next_undo.as_deref() == Some("Add On Start")),
             )
+            // The new handler lands in a column of its own, past the right
+            // edge of a 1024 px window. F frames the selected block, as a
+            // builder would before reaching for its slot.
+            .step("editor shell: frame the new handler")
+            .on_enter(press_key(KeyCode::KeyF))
+            .until(frames(2))
+            .add()
+            .step("editor shell: let go of F")
+            .on_enter(release_key(KeyCode::KeyF))
+            .until(Arc::new(|world: &World| {
+                let Some(hat) = world.resource::<EditorProbe>().shell.selected_block.clone() else {
+                    return false;
+                };
+                let size = world.resource::<WalkWindow>();
+                let screen = Rect::new(0.0, 0.0, size.0, size.1);
+                ui_node_centre(world, &format!("Block {hat}")).is_some_and(|at| screen.contains(at))
+            }))
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add()
             .filter_palette("Logic")
             .drag_block(
                 "editor shell: an empty Or",

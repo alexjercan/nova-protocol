@@ -67,9 +67,10 @@ pub(crate) const FOOT_H: f32 = 22.0;
 /// The height of the top bar.
 pub(crate) const TOP_BAR_H: f32 = 36.0;
 
-/// Under this logical width the top bar's words drop to glyphs, so the left
-/// group fits beside Play. A bar at 1280 px holds the glyphs and not the words.
-const BAR_WORDS_W: f32 = 1500.0;
+/// Under this logical width the top bar's words drop to glyphs, so the tools
+/// fit right of Play. A bar at 1280 px holds the words; at 1024 px the fullest
+/// row, Back and Open Ship included, holds only the glyphs.
+const BAR_WORDS_W: f32 = 1280.0;
 
 /// What a pass-through node gives the stage: no hover, and no block on the
 /// node under it.
@@ -176,8 +177,7 @@ pub(crate) struct SnapButton;
 
 /// The bar's stage tools: the tool buttons, the axes and Snap. Events and
 /// Form have no stage, and in the Ship view a part mates where it goes, so
-/// [`sync_panels`] hides them there. Hidden, not taken out of the layout, so
-/// nothing beside them moves on a tab change.
+/// [`sync_bar_tools`] takes them off the bar there.
 #[derive(Component)]
 pub(crate) struct StageTools;
 
@@ -195,12 +195,7 @@ pub(crate) struct BarWord {
 }
 
 /// Back: the document this one was opened over, named. Absent from the bar
-/// when there is none.
-///
-/// A child of the stage tools' row, shown over it even where the row is
-/// hidden. Where the tools are hidden, as in the Ship view, Back stands over
-/// the space they hold, clipped to it, so Play does not move when Back comes
-/// and goes. Where the tools show, Back follows them in the row.
+/// when there is none. It follows the stage tools where they show.
 #[derive(Component)]
 pub(crate) struct BackButton;
 
@@ -236,8 +231,7 @@ fn bar_button(label: &str) -> impl Bundle {
     button(bar_spec(label))
 }
 
-/// The widest Back gets where it stands in the tools' row. Over the hidden
-/// tools it takes their width instead.
+/// The widest Back gets in the tools' row, so the row fits half a 1024 px bar.
 const BACK_MAX_W: f32 = 200.0;
 
 /// The one size every bar word is set in.
@@ -268,8 +262,8 @@ fn bar_rule() -> impl Bundle {
     )
 }
 
-/// Spawn the one top bar. Three columns keep Play in the middle of the window
-/// however wide the left group is.
+/// Spawn the one top bar. Three columns keep Play in the middle of the window:
+/// the document's verbs stand left of it, the stage's tools right of it.
 pub(crate) fn spawn_top_bar(root: &mut RelatedSpawnerCommands<ChildOf>) {
     root.spawn((
         Name::new("Editor Top Bar"),
@@ -297,7 +291,7 @@ pub(crate) fn spawn_top_bar(root: &mut RelatedSpawnerCommands<ChildOf>) {
                 // NO `min_width: px(0)`, unlike the right column. An item
                 // allowed below its own content does not clip, it overflows,
                 // and a menu button that is not there to press is a missing
-                // verb. The right column's title is the part that gives way.
+                // verb. The menus and tabs fit half a 1024 px bar.
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
                 column_gap: px(density::GAP_S),
@@ -308,8 +302,6 @@ pub(crate) fn spawn_top_bar(root: &mut RelatedSpawnerCommands<ChildOf>) {
             super::spawn_menu_bar(left);
             left.spawn(bar_rule());
             super::spawn_view_tabs(left);
-            left.spawn(bar_rule());
-            spawn_tool_group(left);
         });
         bar.spawn((
             Name::new("Play Slot"),
@@ -333,26 +325,46 @@ pub(crate) fn spawn_top_bar(root: &mut RelatedSpawnerCommands<ChildOf>) {
         });
         bar.spawn((
             Name::new("Toolbar Right"),
+            // The same share as the left column, so Play stands in the middle
+            // of the bar whatever each view shows. The tools come first and
+            // keep their width; the title takes what is left.
             Node {
                 flex_basis: px(0),
                 flex_grow: 1.0,
                 min_width: px(0),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                justify_content: JustifyContent::FlexEnd,
                 column_gap: px(density::GAP_S),
                 ..default()
             },
         ))
         .with_children(|right| {
+            spawn_tool_group(right);
+            right.spawn((
+                Name::new("Editor Title Cut"),
+                TitleCut,
+                line("...", density::TEXT, UiColorType::TextBody),
+                Node {
+                    display: Display::None,
+                    flex_shrink: 0.0,
+                    ..default()
+                },
+            ));
             // A wrapper carries the clip. `Overflow::clip` bounds a node's
-            // children, and a text node draws its own glyphs.
+            // children, and a text node draws its own glyphs. The title stands
+            // at the clip's end, so a long title loses its start and keeps the
+            // open document's name.
             right
                 .spawn((
                     Name::new("Editor Title Clip"),
+                    TitleClip,
                     Node {
                         min_width: px(0),
-                        flex_shrink: 1.0,
+                        flex_grow: 1.0,
+                        // Shrink weighs by this times the width, so the title
+                        // gives way all the way before Back starts to.
+                        flex_shrink: 1000.0,
+                        justify_content: JustifyContent::FlexEnd,
                         overflow: Overflow::clip(),
                         ..default()
                     },
@@ -361,6 +373,10 @@ pub(crate) fn spawn_top_bar(root: &mut RelatedSpawnerCommands<ChildOf>) {
                     Name::new("Editor Title"),
                     super::EditorTitle,
                     line("EDITOR", density::TEXT, UiColorType::TextBody),
+                    Node {
+                        flex_shrink: 0.0,
+                        ..default()
+                    },
                 ));
             // Beside the title and never in it: the title clips, and this is
             // the one word that must not be cut off.
@@ -378,8 +394,38 @@ pub(crate) fn spawn_top_bar(root: &mut RelatedSpawnerCommands<ChildOf>) {
     });
 }
 
-/// The left group's tools: select, move, turn, scale, then axes, snap, history
-/// and the parts gallery.
+/// The `...` before a title that its clip cuts.
+#[derive(Component)]
+pub(crate) struct TitleCut;
+
+/// The box the top bar's title clips to.
+#[derive(Component)]
+pub(crate) struct TitleClip;
+
+/// Show the `...` while the title is wider than its clip.
+pub(crate) fn sync_title_cut(
+    clips: Query<(&ComputedNode, &Children), With<TitleClip>>,
+    titles: Query<&ComputedNode, With<super::EditorTitle>>,
+    mut cuts: Query<&mut Node, With<TitleCut>>,
+) {
+    let Some(cut) = clips.iter().next().map(|(clip, children)| {
+        children
+            .iter()
+            .filter_map(|child| titles.get(child).ok())
+            .any(|title| title.size().x > clip.size().x + 0.5)
+    }) else {
+        return;
+    };
+    let display = if cut { Display::Flex } else { Display::None };
+    for mut node in &mut cuts {
+        if node.display != display {
+            node.display = display;
+        }
+    }
+}
+
+/// The right group's tools: select, move, turn, scale, then axes, snap, Back,
+/// history and the parts gallery.
 fn spawn_tool_group(group: &mut RelatedSpawnerCommands<ChildOf>) {
     group
         .spawn((
@@ -425,23 +471,25 @@ fn spawn_tool_group(group: &mut RelatedSpawnerCommands<ChildOf>) {
                 observe(on_snap_button),
             ));
             stage.spawn(bar_rule());
-            stage
-                .spawn((
-                    Name::new("Back Button"),
-                    BackButton,
-                    Tooltip::default(),
-                    Visibility::Visible,
-                    bar_button("Back"),
-                    observe(on_back),
-                ))
-                .entry::<Node>()
-                .and_modify(|mut node| {
-                    // The label starts at the left and the clip cuts its end.
-                    // The tooltip carries the whole name.
-                    node.left = px(0);
-                    node.overflow = Overflow::clip();
-                    node.justify_content = JustifyContent::FlexStart;
-                });
+        });
+    group
+        .spawn((
+            Name::new("Back Button"),
+            BackButton,
+            Tooltip::default(),
+            bar_button("Back"),
+            observe(on_back),
+        ))
+        .entry::<Node>()
+        .and_modify(|mut node| {
+            // The label starts at the left and the clip cuts its end. The
+            // tooltip carries the whole name. Back is the one tool that gives
+            // way, once the title has, so a long name never pushes UNSAVED
+            // off a 1024 px bar.
+            node.max_width = px(BACK_MAX_W);
+            node.flex_shrink = 1.0;
+            node.overflow = Overflow::clip();
+            node.justify_content = JustifyContent::FlexStart;
         });
     group.spawn((
         Name::new("Undo Button"),
@@ -668,8 +716,7 @@ pub(crate) fn stage_enter_opens_ship(
 }
 
 /// Name Back's target, and show Open Ship over a selected ship of a scenario.
-/// Each button leaves the bar when it could not act. Back stands over the stage
-/// tools where they are hidden, and in their row where they show.
+/// Each button leaves the bar when it could not act.
 pub(crate) fn sync_ship_step(
     context: Res<EditContext>,
     selected: Res<SelectedNode>,
@@ -682,7 +729,6 @@ pub(crate) fn sync_ship_step(
     >,
     mut opens: Query<&mut Node, (With<OpenShipButton>, Without<BackButton>)>,
     mut labels: Query<&mut Text, With<ButtonLabel>>,
-    tools: Query<&Visibility, (With<StageTools>, Without<BackButton>)>,
 ) {
     let over = context.ship().is_none()
         && selected
@@ -708,24 +754,9 @@ pub(crate) fn sync_ship_step(
     let word = target
         .as_ref()
         .map_or_else(String::new, |name| format!("Back to {name}"));
-    let over_tools = tools
-        .iter()
-        .next()
-        .is_some_and(|visibility| *visibility == Visibility::Hidden);
-    let (position, max_width) = if over_tools {
-        (PositionType::Absolute, percent(100))
-    } else {
-        (PositionType::Relative, px(BACK_MAX_W))
-    };
     for (mut node, children, mut tooltip) in &mut backs {
         if node.display != shown {
             node.display = shown;
-        }
-        if node.position_type != position {
-            node.position_type = position;
-        }
-        if node.max_width != max_width {
-            node.max_width = max_width;
         }
         let hint = format!("{word} (Esc)");
         if tooltip.0 != hint {
@@ -753,8 +784,6 @@ pub(crate) fn sync_panels(
     mut rails: Query<&mut Node, (With<EditorRail>, Without<ScriptMount>, Without<EditorStage>)>,
     mut mounts: Query<&mut Node, (With<ScriptMount>, Without<EditorStage>)>,
     mut stages: Query<&mut Node, With<EditorStage>>,
-    mut stage_tools: Query<&mut Visibility, (With<StageTools>, Without<PartsTools>)>,
-    mut parts_tools: Query<&mut Visibility, (With<PartsTools>, Without<StageTools>)>,
     mut areas: Query<
         &mut Node,
         (
@@ -870,25 +899,28 @@ pub(crate) fn sync_panels(
             node.display = display;
         }
     }
+}
+
+/// Show the bar's tools where they act. They leave the row where they do not:
+/// Play stands in a column of its own, so a shorter row moves nothing else.
+pub(crate) fn sync_bar_tools(
+    tab: Res<EditorViewType>,
+    mut stage_tools: Query<&mut Node, (With<StageTools>, Without<PartsTools>)>,
+    mut parts_tools: Query<&mut Node, (With<PartsTools>, Without<StageTools>)>,
+) {
+    let stage = matches!(*tab, EditorViewType::Scene | EditorViewType::Section);
+    let shown = |on: bool| if on { Display::Flex } else { Display::None };
     // The Ship editor has no stage tools: a part mates where it goes.
-    let tools = if events || form || *tab == EditorViewType::Ship {
-        Visibility::Hidden
-    } else {
-        Visibility::Inherited
-    };
-    for mut visibility in &mut stage_tools {
-        if *visibility != tools {
-            *visibility = tools;
+    let tools = shown(stage);
+    for mut node in &mut stage_tools {
+        if node.display != tools {
+            node.display = tools;
         }
     }
-    let parts = if events || form {
-        Visibility::Hidden
-    } else {
-        Visibility::Inherited
-    };
-    for mut visibility in &mut parts_tools {
-        if *visibility != parts {
-            *visibility = parts;
+    let parts = shown(stage || *tab == EditorViewType::Ship);
+    for mut node in &mut parts_tools {
+        if node.display != parts {
+            node.display = parts;
         }
     }
 }
@@ -1200,45 +1232,35 @@ mod tests {
     }
 
     /// The stage tools have nothing to act on in Events, and a part mates
-    /// where it goes in a ship, so they hide there. They hide without leaving
-    /// the layout, so Undo and Play hold their place across the tabs. Parts
-    /// hides with the stage in Events and shows in a ship, where it acts.
+    /// where it goes in a ship, so they leave the bar there. Parts leaves with
+    /// the stage in Events and stays in a ship, where it acts.
     #[test]
-    fn events_hides_the_stage_tools_and_keeps_their_place() {
-        let (mut app, ..) = panel_app();
-        let tools = app
-            .world_mut()
-            .spawn((StageTools, Node::default(), Visibility::default()))
-            .id();
-        let parts = app
-            .world_mut()
-            .spawn((PartsTools, Node::default(), Visibility::default()))
-            .id();
-        let seen = |app: &App, entity| {
-            let world = app.world();
-            let visibility = *world.get::<Visibility>(entity).expect("a visibility");
-            (
-                visibility,
-                world.get::<Node>(entity).expect("a node").display,
-            )
-        };
-        let hidden = (Visibility::Hidden, Display::Flex);
-        let shown = (Visibility::Inherited, Display::Flex);
+    fn events_takes_the_stage_tools_off_the_bar() {
+        let mut app = App::new();
+        app.init_resource::<EditorViewType>()
+            .add_systems(Update, sync_bar_tools);
+        let tools = app.world_mut().spawn((StageTools, Node::default())).id();
+        let parts = app.world_mut().spawn((PartsTools, Node::default())).id();
+        let seen = |app: &App, entity| app.world().get::<Node>(entity).expect("a node").display;
 
         *app.world_mut().resource_mut::<EditorViewType>() = EditorViewType::Events;
         app.update();
-        assert_eq!(seen(&app, tools), hidden);
-        assert_eq!(seen(&app, parts), hidden);
+        assert_eq!(seen(&app, tools), Display::None);
+        assert_eq!(seen(&app, parts), Display::None);
 
         *app.world_mut().resource_mut::<EditorViewType>() = EditorViewType::Scene;
         app.update();
-        assert_eq!(seen(&app, tools), shown);
-        assert_eq!(seen(&app, parts), shown);
+        assert_eq!(seen(&app, tools), Display::Flex);
+        assert_eq!(seen(&app, parts), Display::Flex);
 
         *app.world_mut().resource_mut::<EditorViewType>() = EditorViewType::Ship;
         app.update();
-        assert_eq!(seen(&app, tools), hidden, "no handle tools in a ship");
-        assert_eq!(seen(&app, parts), shown, "Parts shows in a ship");
+        assert_eq!(
+            seen(&app, tools),
+            Display::None,
+            "no handle tools in a ship"
+        );
+        assert_eq!(seen(&app, parts), Display::Flex, "Parts shows in a ship");
     }
 
     /// `ViewportPointer::over_ui` is true for any `Node` that takes the hit, and

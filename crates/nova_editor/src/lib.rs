@@ -178,8 +178,8 @@ use ui::{
     settings::{apply_settings_fields, sync_settings_window},
     setup_editor_scene,
     shell::{
-        panel_keys, stage_enter_opens_ship, sync_panels, sync_ship_step, sync_stage_overlay,
-        sync_toolbar, EditorPanels,
+        panel_keys, stage_enter_opens_ship, sync_bar_tools, sync_panels, sync_ship_step,
+        sync_stage_overlay, sync_title_cut, sync_toolbar, EditorPanels,
     },
     stage_menu::{stage_context_menu, StageRightPress},
     sync_context_panels, sync_editor_title, sync_hull_plan, sync_key_legend, sync_part_ticks,
@@ -508,6 +508,8 @@ fn editor_plugin(app: &mut App) {
         Update,
         (
             sync_panels,
+            sync_bar_tools,
+            sync_title_cut,
             sync_toolbar,
             sync_ship_step,
             stage_enter_opens_ship.run_if(in_input_mode(InputMode::Normal)),
@@ -537,6 +539,7 @@ fn editor_plugin(app: &mut App) {
         Update,
         conform_view
             .before(sync_panels)
+            .before(sync_bar_tools)
             .before(sync_view_tabs)
             .before(sync_menus)
             .run_if(in_state(ExampleStates::Editor)),

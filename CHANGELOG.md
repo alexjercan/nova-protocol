@@ -95,6 +95,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - HUD text draws in the same UI face as the menus and panes. Before, it drew in the engine default font.
 - Tab panes line up: the legend starts on the content edge, the footer's last button ends on the inspector edge with its whole border, and the head rule runs to the balance.
 - Mod editor: top bar buttons stand 4 px apart, list and inspector rows 4 px apart, and modals pad 12 px with their answers 8 px apart and 12 px under the content.
+- Mod editor: Play holds the centre of the top bar in every view with the stage tools right of it, choice rows fit one line, and text fields grow to show every line.
 - **(breaking)** UiTheme drops `metrics.border_width`, the slider `height` and the badge `bracketed`, `padding_x` and `border_width`. Lint refuses a disabled button state that looks live.
 
 ### Fixes
