@@ -70,7 +70,7 @@
 //! cargo run --example wfc_ships --features debug -- --style salvage
 //! ```
 //!
-//! `L` - not `S`, which the free-fly camera owns - is what makes four authored
+//! `L` - not `S`, which the free-fly camera owns - is what makes the authored
 //! looks COMPARABLE: the same hulls at the same pose, redressed in place.
 //! Grave/tilde cycles the game HUD, and in a hand-run the seed readout follows
 //! it. Captures are exempt: the readout is what makes a frame reproducible.
@@ -333,7 +333,7 @@ fn load_row(
 /// through the same `LoadScenario` path the first row took (which tears the
 /// old one down for us). `C` strips or restores the cladding on the spot, and
 /// `L` steps to the next authored look on the SAME seeds - which is the only
-/// way to judge four looks against one hull rather than against four hulls.
+/// way to judge the looks against one hull rather than each against its own.
 fn reroll_on_key(
     mut commands: Commands,
     keyboard: Res<ButtonInput<KeyCode>>,

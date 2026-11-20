@@ -161,8 +161,8 @@ pub mod prelude {
         CLEARANCE_MARGIN, CRAFT_ADVANCEMENT, FINE_CR, HAIL_CHIP, HAULER_CRUISE,
         INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS, OPEN_WORLD_ACTIVE_RADIUS,
         OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, OPEN_WORLD_SECTOR_EDGE,
-        SALVAGE_STYLE_ID, SIGNAL_CHIP, STANCE_ALLY_SHARE, STANCE_ENEMY_SHARE,
-        STANCE_NEIGHBOUR_RADIUS, START_PREVIEW_REACH, STATION_STYLE_ID,
+        PATROL_STYLE_ID, SALVAGE_STYLE_ID, SCRAP_STYLE_ID, SIGNAL_CHIP, STANCE_ALLY_SHARE,
+        STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS, START_PREVIEW_REACH, STATION_STYLE_ID,
     };
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::{
@@ -197,6 +197,12 @@ pub const CIVILIAN_STYLE_ID: &str = "civilian";
 
 /// The id the salvage look is named by. Scavenger world ships wear it.
 pub const SALVAGE_STYLE_ID: &str = "salvage";
+
+/// The id the scrap look is named by. The raider start hull wears it.
+pub const SCRAP_STYLE_ID: &str = "scrap";
+
+/// The id the patrol look is named by. The patrol picket start hull wears it.
+pub const PATROL_STYLE_ID: &str = "patrol";
 
 /// The id the station look is named by. The ring station wears it.
 pub const STATION_STYLE_ID: &str = "station";

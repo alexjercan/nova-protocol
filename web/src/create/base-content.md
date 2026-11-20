@@ -98,7 +98,9 @@ have an id.
 | `industrial` | a working hull: exposed services, corrugation, radiators, safety-yellow paint on its edges |
 | `armoured` | flat plate, a belt down every straight edge, sensor blisters |
 | `civilian` | a private yacht's: pale satin paint, a cobalt livery rail, lit cabin windows |
-| `salvage` | mismatched patches, weld beads, a lashed drum, a whip antenna |
+| `salvage` | rusted plate, mismatched patches, weld beads, a lashed drum, a whip antenna |
+| `scrap` | dark red-brown plate, steel patches, chains, armour tiles and tally marks, built from `salvage` and `armoured` pieces. The Raider wears it |
+| `patrol` | slate plate, a cobalt stripe, a belt, a sensor blister and red beacons, built from `armoured`, `civilian` and `station` pieces. The Patrol Picket wears it |
 | `station` | a pale enamelled habitat with navigation red: antennas, lit windows, radiators, beacons by the guns and collars, hatches and approach chevrons. The ring station wears it |
 
 A ship names one with `style: Some("<id>")` beside `skin: true` on its

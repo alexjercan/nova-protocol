@@ -420,6 +420,14 @@ name = "greeble_solve"
 path = "examples/playable/greeble_solve.rs"
 required-features = ["debug"]
 
+# The six start hulls, one at a time, up close on the game skybox: `1` to `6`
+# pick a hull, `N` stands the next one, the free-fly camera goes round it.
+# Under NOVA_AUTOPILOT a smoke walk checks six hulls wear six styles.
+[[example]]
+name = "start_hull_showroom"
+path = "examples/playable/start_hull_showroom.rs"
+required-features = ["debug"]
+
 # A browsable gallery of the generated part-candidate meshes under
 # art/part-candidates: a paged grid, a focus turntable and a reassembled recipe
 # ship with an explode toggle, all driven from the keyboard.

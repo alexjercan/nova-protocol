@@ -3763,7 +3763,7 @@
             integrity: (),
             presentation: (
                 skin: true,
-                style: Some("salvage"),
+                style: Some("scrap"),
                 collapse_sound: Some("self://sounds/destroy_ship.wav"),
                 lock_on_sound: Some("self://sounds/lock_on.wav"),
                 lock_off_sound: Some("self://sounds/lock_off.wav"),
@@ -4349,7 +4349,7 @@
             integrity: (),
             presentation: (
                 skin: true,
-                style: Some("armoured"),
+                style: Some("patrol"),
                 collapse_sound: Some("self://sounds/destroy_ship.wav"),
                 lock_on_sound: Some("self://sounds/lock_on.wav"),
                 lock_off_sound: Some("self://sounds/lock_off.wav"),

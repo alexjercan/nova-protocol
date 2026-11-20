@@ -319,15 +319,21 @@ looks and every scenario spawning them gets the right one. A style id nothing au
 clad and BARE rather than falling back to another look - a missing mod is
 visible, not silently substituted.
 
-The base game ships five looks:
+The base game ships seven looks:
 
 | id | what it is |
 |---|---|
 | `industrial` | a working hull: exposed services, cranes and stacks, radiator clusters, safety-yellow hazard bands and ducts as lines |
 | `armoured` | flat plate, applique clusters, strake lines, sensor blisters and masts |
 | `civilian` | a private yacht's: pale satin paint, cobalt stripe and cabin window lines, dishes, fins and fairings |
-| `salvage` | mismatched patch clusters, weld seam, chain and hose lines, a lashed drum, a whip antenna |
+| `salvage` | rusted plate: mismatched patch clusters, weld seam, chain and hose lines, a lashed drum, a whip antenna |
+| `scrap` | dark red-brown plate: steel patches, chain and weld seam lines, a whip antenna, applique tiles, magazines and tally marks |
+| `patrol` | slate plate: cobalt stripe and strake lines, a sensor blister, an antenna, red beacons, a registry mark and approach chevrons |
 | `station` | station plate: antennae, beacons, radiator clusters, hatches, markings and window lines |
+
+`scrap` and `patrol` ship no model of their own. Each lists fixtures of the
+other base kits, with the same ids and model paths, under its own palette and
+rules.
 
 A ship that names no style flies undressed: built-in plate colours, no
 decoration. The EDITOR's build view instead previews the first style the merged

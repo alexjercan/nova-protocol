@@ -32,7 +32,8 @@ use nova_ship::prelude::{
     REINFORCED_HULL_SECTION_ID, TORPEDO_SECTION_ID,
 };
 use nova_world_base::prelude::{
-    ARMOURED_STYLE_ID, CIVILIAN_STYLE_ID, INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID,
+    ARMOURED_STYLE_ID, CIVILIAN_STYLE_ID, INDUSTRIAL_STYLE_ID, PATROL_STYLE_ID, SALVAGE_STYLE_ID,
+    SCRAP_STYLE_ID,
 };
 
 use crate::base_content::sections::{
@@ -553,7 +554,7 @@ pub(super) fn raider() -> BlockShip {
         ],
         plate: LIGHT_HULL_SECTION_ID,
         zones: vec![],
-        style: SALVAGE_STYLE_ID,
+        style: SCRAP_STYLE_ID,
     }
 }
 
@@ -629,7 +630,7 @@ pub(super) fn patrol_picket() -> BlockShip {
         ],
         plate: LIGHT_HULL_SECTION_ID,
         zones: vec![],
-        style: ARMOURED_STYLE_ID,
+        style: PATROL_STYLE_ID,
     }
 }
 

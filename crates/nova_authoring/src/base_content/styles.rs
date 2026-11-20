@@ -4,9 +4,11 @@
 //! not a table of constants - `content gen` serializes it into
 //! `assets/base/styles/base.content.ron` and a mod overlays it by id.
 //!
-//! Five looks ship: `industrial`, `armoured`, `civilian` and `salvage` for
-//! ships, and `station` for the ring station. Each lists its fixtures and the
-//! greeble rules that place them. The rules share one link-type set
+//! Seven looks ship: `industrial`, `armoured`, `civilian`, `salvage`, `scrap`
+//! and `patrol` for ships, and `station` for the ring station. Each lists its
+//! fixtures and the greeble rules that place them. `scrap` and `patrol` author
+//! no fixture: each lists pieces of the other kits ([`shared_fixtures`]) under
+//! its own palette, weights and seed. The rules share one link-type set
 //! ([`link_types`]): `any` pieces may touch each other, `spaced` pieces touch
 //! only empty space, and each line type faces only itself, so a line runs on
 //! until a border or an end greeble.
@@ -17,7 +19,8 @@ use nova_ship::prelude::{
     GreebleRules, ShipStyleConfig, StyleFixtureConfig, StylePalette, SurfaceFinish,
 };
 use nova_world_base::prelude::{
-    ARMOURED_STYLE_ID, CIVILIAN_STYLE_ID, INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID, STATION_STYLE_ID,
+    ARMOURED_STYLE_ID, CIVILIAN_STYLE_ID, INDUSTRIAL_STYLE_ID, PATROL_STYLE_ID, SALVAGE_STYLE_ID,
+    SCRAP_STYLE_ID, STATION_STYLE_ID,
 };
 
 use super::assets::BaseContentAssets;
@@ -37,6 +40,8 @@ pub(crate) fn style_catalog(assets: &BaseContentAssets) -> Vec<ShipStyleConfig> 
         armoured_style(assets),
         civilian_style(assets),
         salvage_style(assets),
+        scrap_style(assets),
+        patrol_style(assets),
         station_style(),
     ]
 }
@@ -69,14 +74,16 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
     ShipStyleConfig {
         id: INDUSTRIAL_STYLE_ID.to_string(),
         name: "Industrial".to_string(),
+        // Ochre: the hue of the hazard paint at low saturation. A neutral
+        // beige plate photographed as off-white beside the `civilian` hull.
         palette: StylePalette {
             top: SurfaceFinish {
-                color: Color::linear_rgb(0.200, 0.190, 0.168),
+                color: Color::linear_rgb(0.230, 0.172, 0.085),
                 roughness: 0.9,
                 metallic: 0.15,
             },
             wall: SurfaceFinish {
-                color: Color::linear_rgb(0.030, 0.028, 0.024),
+                color: Color::linear_rgb(0.046, 0.033, 0.015),
                 roughness: 0.95,
                 metallic: 0.1,
             },
@@ -196,9 +203,10 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
 /// rim is what makes the plate above it read thick. That is a smaller claim than
 /// the one it replaced and it is the one the render supports.
 ///
-/// The `Top` is where the palette earns its keep, and mostly through HUE: off
-/// the built-in blue slate onto a desaturated gunmetal, matte and
-/// metallic-free, so the hull carries no specular highlight.
+/// The `Top` is where the palette earns its keep, and mostly through HUE: a
+/// dark blue-grey, matte and metallic-free, so the hull carries no specular
+/// highlight. The blue keeps it apart from the warm hulls, and the low value
+/// from the lighter slate of `patrol`.
 ///
 /// The kit: ten pieces, the smallest of the four, all low and flush but the
 /// sensor and the mast, which stand alone. The belt runs as a line and the
@@ -210,10 +218,10 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
         // THE PALETTE, and it is half the look. Linear values, so they read
         // considerably lighter on screen than they look here.
         //
-        // - the TOP is gunmetal: barely cool, all but desaturated, metallic
+        // - the TOP is a dark blue-grey: cool, low in saturation, metallic
         //   zero, and less than half the albedo of the built-in plate. Matte
-        //   armour, which presents no highlight to be seen by. The hue is
-        //   MEASURED, not guessed: a neutral 0.155 photographs as warm cream,
+        //   armour, which presents no highlight to be seen by. The blue is
+        //   strong on purpose: a neutral 0.155 photographs as warm cream,
         //   because the photo rig's key is warm and a neutral plate takes its
         //   colour;
         // - the WALL is a sixth of the top again. A wall is only ever seen
@@ -227,18 +235,18 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
         // flank from 55% to 46% on screen rather than the 45% the albedo says,
         // because the rig's ambient and the tonemapper put a floor under
         // everything. Going darker still buys almost nothing. What the palette
-        // bought outright was the HUE - off the built-in blue slate onto
-        // gunmetal - and the SEPARATION between plate and greeble: the kit's
-        // pieces are 3x the hull's albedo, so a belt reads as a light rail on a
-        // dark hull rather than as a lump of the same stuff.
+        // buys outright is the HUE and the SEPARATION between plate and
+        // greeble: the kit's pieces are baked neutral gunmetal at up to five
+        // times the hull's albedo, so a belt reads as a light rail on a dark
+        // hull rather than as a lump of the same stuff.
         palette: StylePalette {
             top: SurfaceFinish {
-                color: Color::linear_rgb(0.045, 0.048, 0.055),
+                color: Color::linear_rgb(0.026, 0.034, 0.054),
                 roughness: 0.88,
                 metallic: 0.0,
             },
             wall: SurfaceFinish {
-                color: Color::linear_rgb(0.007, 0.0075, 0.009),
+                color: Color::linear_rgb(0.007, 0.009, 0.015),
                 roughness: 0.95,
                 metallic: 0.0,
             },
@@ -438,11 +446,11 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
         id: SALVAGE_STYLE_ID.to_string(),
         name: "Salvage".to_string(),
         // WARM and dirty, against the built-in cool slate. This is half the
-        // look and it costs nothing: oxidised brown plate is what the scrap
-        // steel, the rust and the faded livery green of the patches all have to
-        // read AGAINST, and against the stock blue-grey the bare-metal pieces
-        // read as uniform rather than mixed. Nearly no metallic and
-        // nearly all roughness, so no facet of the hull takes a highlight.
+        // look and it costs nothing: rusted plate is what the scrap steel and
+        // the faded livery green of the patches have to read AGAINST, and
+        // against the stock blue-grey the bare-metal pieces read as uniform
+        // rather than mixed. Nearly no metallic and nearly all roughness, so
+        // no facet of the hull takes a highlight.
         //
         // The TOP-TO-WALL RATIO is 6:1. That is a SILHOUETTE device and not
         // a panelling one, measured: two plates
@@ -457,18 +465,19 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
         // moves on screen - dropping this colour 6.6x, from 0.132 to 0.020,
         // changed a lit flank by well under half of that, because ambient and
         // the tonemap floor it. So a style cannot vary a plate's colour by its
-        // cell anyway (`surfaces` is per ROLE, not per plate) and the three
-        // patch materials do the whole job: cool grey steel, orange rust and a
-        // faded livery green, all of them a HUE away from this warm brown
-        // rather than a brightness away from it.
+        // cell anyway (`surfaces` is per ROLE, not per plate) and the patch
+        // materials do the whole job: cool grey steel and a faded livery
+        // green, both a HUE away from this rust rather than a brightness away
+        // from it. The rust patch material is the hull's own hue, a step
+        // lighter, so the rust pieces read by shape and not by colour.
         palette: StylePalette {
             top: SurfaceFinish {
-                color: Color::linear_rgb(0.024, 0.0175, 0.0125),
+                color: Color::linear_rgb(0.100, 0.040, 0.016),
                 roughness: 0.94,
                 metallic: 0.04,
             },
             wall: SurfaceFinish {
-                color: Color::linear_rgb(0.0038, 0.0028, 0.0020),
+                color: Color::linear_rgb(0.020, 0.008, 0.004),
                 roughness: 0.96,
                 metallic: 0.04,
             },
@@ -560,6 +569,123 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
             },
         ],
         greeble_rules: salvage_rules(),
+    }
+}
+
+/// The fixtures `ids` name, each as the kit in `kits` that authors it wrote
+/// it.
+///
+/// A style that lists a piece of another kit takes the piece's model, health
+/// and collider from here, so the three have one definition.
+fn shared_fixtures(kits: &[ShipStyleConfig], ids: &[&str]) -> Vec<StyleFixtureConfig> {
+    ids.iter()
+        .map(|id| {
+            kits.iter()
+                .flat_map(|kit| &kit.fixtures)
+                .find(|fixture| fixture.id == *id)
+                .unwrap_or_else(|| panic!("no base kit authors the fixture '{id}'"))
+                .clone()
+        })
+        .collect()
+}
+
+/// SCRAP: salvage plating with armour tiles and weapon fittings bolted on.
+///
+/// The kit authors no piece. It lists seven pieces of the salvage kit and
+/// three of the armoured kit, so it differs from `salvage` in what it leaves
+/// out as much as in what it adds: no strip patch, net, drum, hose, dish,
+/// grille or cog, and so none of the livery green but the tally's marks.
+///
+/// The greebles: the whip stands alone, the chain and the weld seam run as
+/// lines, the applique tiles cluster, the two steel patches weight each other
+/// up, and the tally and the magazine are capped.
+fn scrap_style(assets: &BaseContentAssets) -> ShipStyleConfig {
+    ShipStyleConfig {
+        id: SCRAP_STYLE_ID.to_string(),
+        name: "Scrap".to_string(),
+        // Dark red-brown: redder and darker than the rust of `salvage`, so
+        // the two warm hulls stay apart at thumbnail size. The steel patches
+        // and the armour tiles are cool grey against it.
+        palette: StylePalette {
+            top: SurfaceFinish {
+                color: Color::linear_rgb(0.075, 0.014, 0.012),
+                roughness: 0.92,
+                metallic: 0.04,
+            },
+            wall: SurfaceFinish {
+                color: Color::linear_rgb(0.017, 0.004, 0.003),
+                roughness: 0.96,
+                metallic: 0.04,
+            },
+        },
+        fixtures: shared_fixtures(
+            &[salvage_style(assets), armoured_style(assets)],
+            &[
+                "salvage_whip",
+                "salvage_chain",
+                "salvage_kills",
+                "salvage_hook",
+                "salvage_weld_seam",
+                "salvage_patch_plate",
+                "salvage_patch_scab",
+                "armoured_applique",
+                "armoured_magazine",
+                "armoured_ammo_stripes",
+            ],
+        ),
+        greeble_rules: scrap_rules(),
+    }
+}
+
+/// PATROL: a service hull, plain plate under two long bands and a few marks.
+///
+/// The kit authors no piece. It lists four pieces of the armoured kit, two of
+/// the civilian kit and three of the station kit: the armour belt and the
+/// cobalt band as its two lines, one sensor blister, one antenna, red
+/// navigation lamps, a registry mark, hatches, shuttered intakes and approach
+/// chevrons.
+///
+/// The greebles: the two bands run as lines, the blister, the antenna and
+/// the lamps stand alone, the registry mark is capped, and the rest fill
+/// between.
+fn patrol_style(assets: &BaseContentAssets) -> ShipStyleConfig {
+    ShipStyleConfig {
+        id: PATROL_STYLE_ID.to_string(),
+        name: "Patrol".to_string(),
+        // Slate: the blue of `armoured` at about five times its albedo and a
+        // third of the `civilian` plate's, so the three stay apart. Satin, not
+        // matte: a painted service hull.
+        palette: StylePalette {
+            top: SurfaceFinish {
+                color: Color::linear_rgb(0.130, 0.172, 0.240),
+                roughness: 0.6,
+                metallic: 0.05,
+            },
+            wall: SurfaceFinish {
+                color: Color::linear_rgb(0.028, 0.036, 0.052),
+                roughness: 0.8,
+                metallic: 0.05,
+            },
+        },
+        fixtures: shared_fixtures(
+            &[
+                armoured_style(assets),
+                civilian_style(assets),
+                station_style(),
+            ],
+            &[
+                "armoured_strake",
+                "civilian_stripe",
+                "armoured_sensor",
+                "station_antenna",
+                "station_beacon",
+                "civilian_registry",
+                "armoured_hatch",
+                "armoured_intake",
+                "station_marking",
+            ],
+        ),
+        greeble_rules: patrol_rules(),
     }
 }
 
@@ -726,15 +852,15 @@ fn clustered(mut greeble: GreebleConfig, factor: f32) -> GreebleConfig {
 /// (`line_2`).
 fn industrial_rules() -> GreebleRules {
     let mut greebles = vec![
-        empty(6.0),
-        alone("industrial_stack", 0.5, 3, 4),
-        alone("industrial_crane", 0.25, 4, 2),
+        empty(5.5),
+        alone("industrial_stack", 1.5, 3, 4),
+        alone("industrial_crane", 1.0, 4, 2),
         filler("industrial_umbilical", 0.4),
         filler("industrial_plate_rack", 0.4),
         filler("industrial_cells", 0.3),
         clustered(filler("industrial_radiator", 0.5), 3.0),
-        alone("industrial_winch", 0.3, 2, 3),
-        alone("industrial_floodlight", 0.3, 2, 4),
+        alone("industrial_winch", 1.5, 2, 3),
+        alone("industrial_floodlight", 1.0, 2, 4),
         filler("industrial_louvre", 0.5),
         filler("industrial_hatch", 0.5),
         filler("industrial_stencil", 0.4),
@@ -842,6 +968,64 @@ fn salvage_rules() -> GreebleRules {
     }
 }
 
+/// SCRAP rules. Two lines: the chain (`line`) and the weld seam (`line_2`).
+/// The two steel patches weight each other up.
+fn scrap_rules() -> GreebleRules {
+    let patches = ["salvage_patch_plate", "salvage_patch_scab"];
+    let patch = |fixture: &str, weight: f32| GreebleConfig {
+        near: vec![near(&patches, 1, 2.0)],
+        ..filler(fixture, weight)
+    };
+    let mut greebles = vec![
+        empty(4.5),
+        alone("salvage_whip", 0.8, 4, 2),
+        filler("salvage_hook", 0.6),
+        patch("salvage_patch_plate", 0.8),
+        patch("salvage_patch_scab", 0.4),
+        GreebleConfig {
+            max_count: Some(2),
+            ..filler("salvage_kills", 0.8)
+        },
+        clustered(filler("armoured_applique", 0.5), 2.5),
+        GreebleConfig {
+            max_count: Some(3),
+            ..filler("armoured_magazine", 0.8)
+        },
+        filler("armoured_ammo_stripes", 0.6),
+    ];
+    greebles.extend(line("salvage_chain", "line", 0.8, 0.3));
+    greebles.extend(line("salvage_weld_seam", "line_2", 1.2, 0.4));
+    GreebleRules {
+        link_types: link_types(&["line", "line_2"]),
+        greebles,
+    }
+}
+
+/// PATROL rules. Two lines: the cobalt band (`line`) and the belt
+/// (`line_2`).
+fn patrol_rules() -> GreebleRules {
+    let mut greebles = vec![
+        empty(7.0),
+        alone("armoured_sensor", 2.0, 4, 2),
+        alone("station_antenna", 1.0, 4, 2),
+        alone("station_beacon", 1.0, 2, 6),
+        GreebleConfig {
+            near: vec![near(&["civilian_registry"], 3, 0.0)],
+            max_count: Some(2),
+            ..filler("civilian_registry", 0.6)
+        },
+        filler("armoured_hatch", 0.3),
+        filler("armoured_intake", 0.3),
+        filler("station_marking", 0.4),
+    ];
+    greebles.extend(line("civilian_stripe", "line", 1.5, 0.3));
+    greebles.extend(line("armoured_strake", "line_2", 1.0, 0.3));
+    GreebleRules {
+        link_types: link_types(&["line", "line_2"]),
+        greebles,
+    }
+}
+
 /// STATION rules. One line: the window row (`line`).
 fn station_rules() -> GreebleRules {
     let mut greebles = vec![
@@ -875,7 +1059,13 @@ mod tests {
             .map(|style| style.id)
             .collect();
         assert_eq!(ids.first().map(String::as_str), Some(INDUSTRIAL_STYLE_ID));
-        for authored in [ARMOURED_STYLE_ID, CIVILIAN_STYLE_ID, SALVAGE_STYLE_ID] {
+        for authored in [
+            ARMOURED_STYLE_ID,
+            CIVILIAN_STYLE_ID,
+            SALVAGE_STYLE_ID,
+            SCRAP_STYLE_ID,
+            PATROL_STYLE_ID,
+        ] {
             assert!(
                 ids.iter().any(|id| id == authored),
                 "{authored} is not in the catalog",
@@ -979,10 +1169,11 @@ mod tests {
         }
     }
 
-    /// Every kit is namespaced by its style - fixture ids and the art each one
-    /// names - and its size is pinned. Armoured stays the smallest and salvage
-    /// the largest (see `the_kit_caps_order_the_tone_split`); a kit that grows
-    /// quietly is how this repo once carried forty meshes.
+    /// Every kit that authors its own art is namespaced by its style - fixture
+    /// ids and the art each one names - and its size is pinned. Armoured stays
+    /// the smallest and salvage the largest (see
+    /// `the_kit_caps_order_the_tone_split`); a kit that grows quietly is how
+    /// this repo once carried forty meshes.
     #[test]
     fn every_kit_is_namespaced_and_pinned_in_size() {
         let assets = BaseContentAssets::from_paths();
@@ -1006,6 +1197,49 @@ mod tests {
                     path,
                     format!("self://gltf/greebles/{}.glb#Scene0", fixture.id),
                     "'{}' names another greeble",
+                    fixture.id,
+                );
+            }
+        }
+    }
+
+    /// A kit that authors no art lists each piece exactly as the kit that
+    /// authors it does: the same id, model, health and collider. Its size is
+    /// pinned like the others.
+    ///
+    /// A copy that drifted would give one model two colliders, and the fit
+    /// test would then pass on one style and fail on the other.
+    #[test]
+    fn a_kit_with_no_art_of_its_own_lists_each_piece_as_its_kit_authors_it() {
+        let assets = BaseContentAssets::from_paths();
+        let authored: Vec<StyleFixtureConfig> = [
+            industrial_style(&assets),
+            armoured_style(&assets),
+            civilian_style(&assets),
+            salvage_style(&assets),
+            station_style(),
+        ]
+        .into_iter()
+        .flat_map(|style| style.fixtures)
+        .collect();
+        for (style, size) in [(scrap_style(&assets), 10), (patrol_style(&assets), 9)] {
+            assert_eq!(style.fixtures.len(), size, "{} kit size", style.id);
+            for fixture in &style.fixtures {
+                let source = authored
+                    .iter()
+                    .find(|source| source.id == fixture.id)
+                    .unwrap_or_else(|| panic!("no kit authors '{}'", fixture.id));
+                assert_eq!(
+                    fixture.model.path(),
+                    source.model.path(),
+                    "'{}' names another model in {}",
+                    fixture.id,
+                    style.id,
+                );
+                assert_eq!(fixture.health, source.health, "'{}' health", fixture.id);
+                assert_eq!(
+                    fixture.collider, source.collider,
+                    "'{}' collider",
                     fixture.id,
                 );
             }

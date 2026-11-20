@@ -19,7 +19,8 @@ unrelated diff.
 ## What is here now
 
 Four authored KITS and the scaffolding. Each `<kit>_` prefix is worn by the
-style of that name.
+style of that name. The `scrap` and `patrol` styles author no piece: each
+lists pieces of these kits and of the station kit.
 
 `armoured_*.glb` - a belt (`strake`) that runs the length of a hull's straight
 edges, a corner boss (`cap`), a flush access hatch, a faceted sensor blister,
