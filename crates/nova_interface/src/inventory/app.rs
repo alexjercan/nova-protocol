@@ -32,8 +32,8 @@ use nova_ui::{
     screen::{drive_wheel_scroll, EllipsisText},
     theme::UiColorType,
     widget::{
-        ButtonCueType, ButtonSpec, TextFieldFocused, ThemedBorder, ThemedFill, ThemedImageTint,
-        ThemedRadius, ThemedText,
+        ring_clip_margin, ButtonCueType, ButtonSpec, TextFieldFocused, ThemedBorder, ThemedFill,
+        ThemedImageTint, ThemedRadius, ThemedText,
     },
 };
 
@@ -660,6 +660,8 @@ fn inventory_column(
                     flex_direction: FlexDirection::Column,
                     row_gap: px(4),
                     overflow: Overflow::scroll_y(),
+                    // The rows are plain buttons on the clip edge.
+                    overflow_clip_margin: ring_clip_margin(),
                     ..default()
                 },
                 ScrollPosition::default(),

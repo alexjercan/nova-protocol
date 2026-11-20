@@ -36,7 +36,7 @@ pub mod prelude {
         icon_verb, inspector, key_chip, list_add, list_count, list_editor, list_entry_row,
         list_picker, list_remove, list_row, list_row_colors, metrics, panel, panel_head,
         panel_head_fixed, panel_head_tag, panel_header, panel_node, panel_paint, panel_radius,
-        popup_row, preview_frame, search_cascade, segmented, segmented_container,
+        popup_row, preview_frame, ring_clip_margin, search_cascade, segmented, segmented_container,
         segmented_container_wrapping, segmented_option, segmented_option_fit, select, separator,
         slider_meter_color, slider_track, spawn_block, spawn_cascade, spawn_kv, spawn_kv_slot,
         spawn_popup, swatch, tab, tab_strip, tag, text, text_field, text_toned, toggle,

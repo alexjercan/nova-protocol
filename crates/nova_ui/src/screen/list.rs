@@ -5,7 +5,11 @@
 use bevy::prelude::*;
 
 use super::scroll::ScrollViewport;
-use crate::{layer::MENU_PANEL_Z, theme::BORDER_W, widget::ThemedSeparator};
+use crate::{
+    layer::MENU_PANEL_Z,
+    theme::BORDER_W,
+    widget::{ring_clip_margin, ThemedSeparator},
+};
 
 /// Width of the list pane, as a share of the screen card.
 const LIST_PANE_PERCENT: f32 = 40.0;
@@ -99,7 +103,8 @@ pub fn list_pane() -> Node {
 
 /// A scrollable column filling whatever box it is given. `min_height: 0` is what
 /// lets it shrink below its content height, without which the overflow never
-/// scrolls.
+/// scrolls. Its clip leaves [`ring_clip_margin`] around the box, so a row of
+/// buttons on its top or bottom edge keeps its whole hover and press ring.
 pub fn scroll_column() -> Node {
     Node {
         flex_direction: FlexDirection::Column,
@@ -108,6 +113,7 @@ pub fn scroll_column() -> Node {
         min_height: px(0),
         min_width: px(0),
         overflow: Overflow::scroll_y(),
+        overflow_clip_margin: ring_clip_margin(),
         ..default()
     }
 }

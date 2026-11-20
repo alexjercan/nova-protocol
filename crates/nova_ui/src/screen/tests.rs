@@ -735,3 +735,133 @@ fn a_window_root_stays_the_window_size_over_a_list_taller_than_the_window() {
         "the list scrolls inside the window"
     );
 }
+
+/// A plain button lights its ring outside its box. The first row of a list
+/// stands on the top edge of the viewport, and the last one on its bottom
+/// edge once the list is scrolled to its end: the viewport's clip cut that
+/// side of the ring.
+#[test]
+fn a_scroll_column_keeps_the_whole_ring_of_its_first_and_last_row() {
+    use bevy::{
+        asset::AssetPlugin,
+        camera::{ComputedCameraValues, RenderTargetInfo},
+        image::TextureAtlasLayout,
+        text::TextPlugin,
+        ui::{Pressed, UiGlobalTransform, UiPlugin},
+    };
+
+    use crate::theme::{base::base_ui_themes, GameUiThemes, SelectedUiTheme, PHOSPHOR_THEME_ID};
+
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        AssetPlugin::default(),
+        TransformPlugin,
+        bevy::a11y::AccessibilityPlugin,
+        bevy::input::InputPlugin,
+        bevy::picking::PickingPlugin,
+        bevy::picking::InteractionPlugin,
+        TextPlugin,
+        UiPlugin,
+        crate::NovaUiPlugin,
+    ));
+    app.init_asset::<Image>().init_asset::<TextureAtlasLayout>();
+    app.insert_resource(GameUiThemes(base_ui_themes()));
+    app.insert_resource(SelectedUiTheme(PHOSPHOR_THEME_ID.to_string()));
+    app.world_mut().spawn((
+        Camera2d,
+        Camera {
+            computed: ComputedCameraValues {
+                target_info: Some(RenderTargetInfo {
+                    physical_size: UVec2::new(800, 600),
+                    scale_factor: 1.0,
+                }),
+                ..default()
+            },
+            ..default()
+        },
+    ));
+    let row = |app: &mut App| {
+        app.world_mut()
+            .spawn((
+                bevy::ui_widgets::Button,
+                bevy::picking::hover::Hovered::default(),
+                Node {
+                    height: px(40),
+                    flex_shrink: 0.0,
+                    ..default()
+                },
+            ))
+            .id()
+    };
+    let rows = [row(&mut app), row(&mut app), row(&mut app)];
+    // 100 px of viewport over 120 px of rows.
+    let pane = app
+        .world_mut()
+        .spawn((
+            Node {
+                max_height: px(100),
+                ..scroll_column()
+            },
+            scroll_viewport(),
+        ))
+        .add_children(&rows)
+        .id();
+    app.world_mut()
+        .spawn(Node {
+            flex_direction: FlexDirection::Column,
+            ..window_root()
+        })
+        .add_child(pane);
+
+    // The vertical span of `entity`'s box, grown by `grow` of its node.
+    let span = |app: &App, entity: Entity, grow: fn(&Node, &ComputedNode) -> Rect| {
+        let world = app.world();
+        let centre = world.get::<UiGlobalTransform>(entity).unwrap().translation;
+        let local = grow(
+            world.get::<Node>(entity).unwrap(),
+            world.get::<ComputedNode>(entity).unwrap(),
+        );
+        (centre.y + local.min.y, centre.y + local.max.y)
+    };
+    let ring = |app: &App, entity: Entity| {
+        span(app, entity, |_, computed| {
+            Rect::from_center_size(Vec2::ZERO, computed.outlined_node_size())
+        })
+    };
+    let clip = |app: &App| {
+        span(app, pane, |node, computed| {
+            computed.resolve_clip_rect(node.overflow, node.overflow_clip_margin)
+        })
+    };
+
+    // Pressed lights the widest ring.
+    app.world_mut().entity_mut(rows[0]).insert(Pressed);
+    app.world_mut().entity_mut(rows[2]).insert(Pressed);
+    for _ in 0..4 {
+        app.update();
+    }
+    let (top, _) = ring(&app, rows[0]);
+    assert!(
+        top < span(&app, rows[0], |_, computed| computed.border_box()).0,
+        "the pressed row lights a ring outside its box"
+    );
+    assert!(
+        clip(&app).0 <= top,
+        "the clip {:?} cuts the first row's ring, which starts at {top}",
+        clip(&app)
+    );
+
+    app.world_mut()
+        .entity_mut(pane)
+        .insert(ScrollPosition(Vec2::new(0.0, 20.0)));
+    for _ in 0..4 {
+        app.update();
+    }
+    let (_, bottom) = ring(&app, rows[2]);
+    assert!(
+        bottom <= clip(&app).1,
+        "the clip {:?} cuts the last row's ring, which ends at {bottom}",
+        clip(&app)
+    );
+}

@@ -237,6 +237,15 @@ const PRESS_RING_PX: f32 = 2.0;
 /// The ring a hover lights.
 const HOVER_RING_PX: f32 = 1.0;
 
+/// The clip margin of a scroll viewport whose rows are plain buttons. The
+/// ring is drawn outside its button, and the first and the last row of a list
+/// stand on the viewport's clip edge: without the margin the clip cuts that
+/// side of the ring. The margin is the widest ring; it moves the clip only,
+/// so no row moves.
+pub const fn ring_clip_margin() -> OverflowClipMargin {
+    OverflowClipMargin::padding_box().with_margin(PRESS_RING_PX)
+}
+
 /// Ring a button no theme table paints: on any hover/press/disable change, put
 /// the hover or press outline on it, or take it off. `Outline` draws outside
 /// the node, so a pane's own fill and border, which often report selection,
