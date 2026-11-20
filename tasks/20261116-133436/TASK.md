@@ -1,6 +1,6 @@
 # Catalogue UX: open, browse and return without leaving the interface
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.19.0, ui, shipyard
 
@@ -103,3 +103,5 @@ editor shares it). Fix how it opens, returns and closes:
 - Not verified: hand play; `station_docked_sandbox` live (stalls under
   lavapipe, compile only). Stale picture: `wiki-interface-ship.png`.
 - Open until the owner hand-checks the flow.
+
+- Owner sign-off 2026-11-20: "it works". Closed.
