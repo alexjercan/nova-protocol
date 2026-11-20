@@ -198,7 +198,7 @@ const CONTROLLER_MAX_TORQUE = 9760; // controller.rs
 // The GOTO widget flies this hull. `hullState(INTERCEPTOR_CELLS)` re-derives it
 // from the ship's own cells and agrees, which is the check that the assembly
 // model below is the game's; `web/tests/widgets.test.ts` holds them together.
-export const INTERCEPTOR_ARM_U = 4.607;
+export const INTERCEPTOR_ARM_U = 4.419;
 
 // Thrust is authored as an IMPULSE PER FIXED TICK and handed to avian with no
 // `dt` factor, so a hull's acceleration is its summed magnitude times the tick
@@ -2718,8 +2718,9 @@ function cell(
 // small military boat and the hull the drydock figures pose. A one-deck
 // armoured arrowhead: a one-cell tip, a body that steps out to seven cells
 // across the wings, a PDC mount on each wing tip, the bridge and a cargo
-// intake on the deck, a bell drive on each wing tip, a pair on the tail and
-// one raised behind the intake, and a docking collar on the port wing tip.
+// intake on the deck, a bell drive on each wing tip, one on each of the two
+// stern tails and one raised on the dorsal plate behind the intake, and a
+// docking collar on the port wing tip.
 // Nothing here is a mesh: every cell is a section on the same build grid a
 // player builds on.
 export const INTERCEPTOR_CELLS: ShipPart[] = [
@@ -2731,7 +2732,9 @@ export const INTERCEPTOR_CELLS: ShipPart[] = [
     cell("plate_3", 0, 0, -1, HULL_CELL, "hull"),
     cell("plate_4", 0, 0, 0, HULL_CELL, "hull"),
     cell("plate_5", 0, 0, 1, HULL_CELL, "hull"),
-    cell("plate_6", 0, 0, 2, HULL_CELL, "hull"),
+    // The dorsal plate: it stands on the deck behind the intake and the
+    // raised drive bolts to its aft face.
+    cell("plate_6", 0, 1, 1, HULL_CELL, "hull"),
     cell("plate_8", -1, 0, -2, HULL_CELL, "hull"),
     cell("plate_9", -1, 0, -1, HULL_CELL, "hull"),
     cell("plate_10", -1, 0, 0, HULL_CELL, "hull"),
@@ -2757,14 +2760,14 @@ export const INTERCEPTOR_CELLS: ShipPart[] = [
     cell("plate_27", 3, 0, 1, HULL_CELL, "starboard wing"),
     cell("pdc_starboard", 3, 0.75, 1, PDC_MOUNT, "starboard wing"),
     cell("drive_wing_starboard", 3, 0, 2, BASIC_DRIVE, "starboard wing"),
-    cell("bridge", 0, 1, -1, CONTROLLER_CELL, "bridge"),
+    cell("bridge", 0, 1, -2, CONTROLLER_CELL, "bridge"),
     // Door up: the 3x2x1 box turned a quarter about x, so it lies 3 wide,
     // 1 tall and 2 long on the deck behind the bridge.
     {
         id: "cargo_intake",
         label: CARGO_INTAKE.label,
         health: CARGO_INTAKE.health,
-        center: [0, 1, 0.5],
+        center: [0, 1, -0.5],
         size: [3, 1, 2],
         group: "intake",
     },

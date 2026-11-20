@@ -197,24 +197,24 @@ function rustNumber(rel: string, pattern: RegExp): number {
 {
     assert.equal(METERS_PER_UNIT, 10);
     assert.equal(engineMeters(30), "300 m", "30 u is a 300 m blast radius");
-    assert.equal(engineMeters(4.607, 1), "46.1 m", "the interceptor's arm");
+    assert.equal(engineMeters(4.419, 1), "44.2 m", "the interceptor's arm");
     assert.equal(engineKilometers(328.6, 1), "3.3 km", "a planetoid SOI");
     assert.equal(engineMetersPerSec(100), "1,000 m/s", "the reference speed");
     assert.equal(engineMetersPerSec2(64, 0), "640 m/s^2", "one bare drive");
 }
 
 // The attitude model's one crossing: the arm arrives in world units off the
-// collider boxes and the 8 G limit is SI, so 4.607 u is 46.07 m and the ceiling
-// is 78.48 / 46.07 - the same rad/s^2 the game reads.
+// collider boxes and the 8 G limit is SI, so 4.419 u is 44.19 m and the ceiling
+// is 78.48 / 44.19 - the same rad/s^2 the game reads.
 {
     const ceiling = structuralCeiling(INTERCEPTOR_ARM_U);
     assert.ok(
-        Math.abs(ceiling - (8 * 9.81) / 46.07) < 1e-9,
+        Math.abs(ceiling - (8 * 9.81) / 44.19) < 1e-9,
         `the interceptor's structural ceiling, got ${ceiling}`
     );
     assert.ok(
-        Math.abs(ceiling - 1.7) < 5e-3,
-        `~1.70 rad/s^2 as the widget prints it, got ${ceiling}`
+        Math.abs(ceiling - 1.78) < 5e-3,
+        `~1.78 rad/s^2 as the widget prints it, got ${ceiling}`
     );
     assert.equal(structuralCeiling(0), Infinity, "a point mass has no arm");
 }
