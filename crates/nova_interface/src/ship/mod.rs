@@ -195,9 +195,9 @@ impl Plugin for ShipPanePlugin {
                     .chain(),
                 (
                     reset_mount_for_new_part,
-                    // A focused repair field types P, B and the selection
-                    // keys, and the open catalogue the letters and arrows.
-                    ship_input.run_if(in_input_mode(InputMode::Normal)),
+                    // Ungated: it drains the pointer under every input mode
+                    // and acts only under Normal (see `ship_input`).
+                    ship_input,
                     scroll_ship_panel,
                     drive_ship_camera,
                     update_ship_blocks,

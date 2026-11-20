@@ -480,6 +480,12 @@ fn spawn_cell(
             min_width: px(0),
             flex_direction: FlexDirection::Column,
             border: UiRect::all(px(theme::BORDER_W)),
+            // Keeps the opaque name strip inside the border. Rows share the
+            // grid's height, so a tile can start on a half pixel; taffy rounds
+            // a child's offset from its parent but the parent's border from
+            // the window, and the strip then lands one pixel low and paints
+            // over the bottom border.
+            overflow: Overflow::clip(),
             ..default()
         },
         ThemedRadius::control(),

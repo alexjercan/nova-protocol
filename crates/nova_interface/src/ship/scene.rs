@@ -25,6 +25,7 @@ use nova_ship::prelude::{
 };
 use nova_sound::prelude::*;
 use nova_ui::{
+    input_mode::prelude::InputMode,
     prelude::{
         spawn_kv, text, Amount, AmountChanged, AmountField, AmountTop, Bar, BarFill, Short,
         TextRole, VerbGate,
@@ -813,6 +814,12 @@ pub fn ease_orbit_center(center: Vec3, target: Vec3, dt: f32) -> Vec3 {
 /// selection, and raise repair on the selected section. The wheel zooms
 /// only while the pointer is off the side panel, which scrolls under it.
 ///
+/// Runs in every input mode and acts only under [`InputMode::Normal`]: a
+/// focused repair field types the pane's keys, and the open catalogue owns
+/// the letters, the arrows and the wheel. The pointer is drained either way,
+/// because the interface pauses the fixed step that ages messages, and wheel
+/// travel the catalogue paged with would zoom the view once it closes.
+///
 /// With a part in hand the tilt keys roll it and cycle its mating socket
 /// instead (`ship_part_roll` and `ship_part_socket` follow them), as the
 /// editor's R and F do.
@@ -832,10 +839,14 @@ pub(crate) fn ship_input(
     mut q_camera: Query<&mut ShipOrbit, With<ShipCameraMarker>>,
     mut q_mates: Query<&mut Visibility, With<ShipMateOverlay>>,
     q_panel: Query<&bevy::picking::hover::Hovered, With<ShipPanelMarker>>,
+    mode: Option<Res<InputMode>>,
 ) {
     let Some((motion_delta, wheel_delta)) = input.active_pointer(InterfacePaneType::Ship) else {
         return;
     };
+    if mode.is_some_and(|mode| *mode != InputMode::Normal) {
+        return;
+    }
     let dt = input.dt();
 
     if runtime.rebind_armed() {

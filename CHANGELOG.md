@@ -107,6 +107,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A tapped burn key no longer leaves the drive hum on for about a second: the hum ends with the plume. The RCS hiss stops within 0.12 s of the last push.
 - The menu duel no longer ends half a second after the first hit: the interceptor breaks the raider as the two ships cross, and the siege torpedo still fires at a winner that has lost its guns.
 - Jobs, Inventory, Scenarios and Load lists: a hovered row on the list's top or bottom edge shows its whole outline. Before, the list's edge cut that line.
+- Parts catalogue: every tile keeps its bottom border. Before, at some window sizes the name strip covered it on a row, often the last one.
+- The wheel turned in the parts catalogue no longer zooms the Ship view when the catalogue closes. Before, all that travel zoomed it at once.
 
 ## [0.18.0] - 2026-11-15
 

@@ -603,6 +603,78 @@ fn the_map_wheel_does_not_zoom_the_ship_view() {
     );
 }
 
+/// The wheel that pages the open catalogue leaves the Ship view's zoom
+/// alone, also once the catalogue closes. The catalogue
+/// holds [`InputMode::Browse`], and the interface pauses `Time<Virtual>`, so
+/// no fixed step ages the wheel messages: travel the view did not read under
+/// the catalogue would zoom it on the first frame after.
+#[test]
+fn the_catalogue_wheel_does_not_zoom_the_ship_view() {
+    use bevy::input::{
+        mouse::{MouseScrollUnit, MouseWheel},
+        touch::TouchPhase,
+    };
+    use nova_ui::input_mode::prelude::InputMode;
+
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        StatesPlugin,
+        AssetPlugin::default(),
+        InputPlugin,
+    ));
+    app.init_asset::<Image>();
+    app.init_asset::<Mesh>();
+    app.init_asset::<StandardMaterial>();
+    app.insert_state(PauseStates::Interface);
+    app.register_input_actions(crate::bindings::interface_bindings());
+    app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
+    app.init_resource::<HeldPart>();
+    app.init_resource::<ActiveUiTheme>();
+    app.init_resource::<NovaOsCloseTransition>();
+    app.insert_resource(InterfacePaneType::Ship);
+    app.insert_resource(InputMode::Normal);
+    app.add_message::<SectionRepairCommand>();
+    app.add_message::<SectionDeleteCommand>();
+    app.add_systems(Update, ship_input);
+    spawn_scripted_ship(app.world_mut());
+    app.world_mut()
+        .run_system_once(assign_section_codes)
+        .unwrap();
+    app.world_mut().run_system_once(manage_ship_scene).unwrap();
+    app.world_mut().resource_mut::<Time<Virtual>>().pause();
+    app.update();
+    let before = ship_orbit(&mut app).radius;
+
+    // The catalogue opens and claims the keyboard; the wheel is its.
+    *app.world_mut().resource_mut::<InputMode>() = InputMode::Browse;
+    for _ in 0..4 {
+        app.world_mut().write_message(MouseWheel {
+            unit: MouseScrollUnit::Line,
+            x: 0.0,
+            y: -1.0,
+            window: Entity::PLACEHOLDER,
+            phase: TouchPhase::Moved,
+        });
+        app.update();
+    }
+    assert_eq!(
+        ship_orbit(&mut app).radius,
+        before,
+        "the wheel under the catalogue must not zoom the Ship view"
+    );
+    // The catalogue closes.
+    *app.world_mut().resource_mut::<InputMode>() = InputMode::Normal;
+    app.update();
+
+    assert_eq!(
+        ship_orbit(&mut app).radius,
+        before,
+        "the catalogue's wheel must not zoom the Ship view once it closes"
+    );
+}
+
 /// A rebind owns the key it captures. `T` resets the view, so binding a
 /// section to `T` must not reset a turned view on the capture frame, nor
 /// while the key is still held after the capture closes. `T` is free of the

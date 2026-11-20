@@ -5,9 +5,10 @@
 //! TAB opens the interface and a click opens the Ship pane. There TAB is the
 //! catalogue's key: the footer's Catalogue button carries its chip, and the
 //! top bar's Close chip names Esc. TAB opens the catalogue; the wheel over the
-//! grid pages it; Weapons and the filter `kinetic` narrow it; Place puts the
-//! kinetic PDC in hand and a click on the ghost adds it, the part still in
-//! hand. TAB puts the part away and returns to the catalogue on Weapons,
+//! grid pages it; the grid is shot with Available off and on in the Hardware
+//! and Phosphor themes; Weapons and the filter `kinetic` narrow it; Place
+//! puts the kinetic PDC in hand and a click on the ghost adds it, the part
+//! still in hand. TAB puts the part away and returns to the catalogue on Weapons,
 //! `kinetic` and the same page; TAB closes it again and the interface stays.
 //! Esc then steps back one layer per press: the filter caret, the focus card,
 //! the catalogue, the part in hand, the interface. Last, a pane switch closes
@@ -721,6 +722,47 @@ mod walk {
         .add()
     }
 
+    /// Shoot the grid with the Available chip off and on, in each theme,
+    /// then put the default theme back with the chip off.
+    fn shoot_the_available_grid(
+        mut script: AutopilotPlugin<GameStates>,
+    ) -> AutopilotPlugin<GameStates> {
+        use nova_ui::theme::{
+            ActiveUiTheme, SelectedUiTheme, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID,
+        };
+
+        for (theme, name) in [
+            (HARDWARE_THEME_ID, "hardware"),
+            (PHOSPHOR_THEME_ID, "phosphor"),
+        ] {
+            script = script
+                .step(format!("catalogue keys: switch to the {name} theme"))
+                .on_enter(move |world: &mut World| {
+                    world.resource_mut::<SelectedUiTheme>().0 = theme.to_string();
+                })
+                .until(when(move |world| {
+                    world.resource::<ActiveUiTheme>().id() == theme
+                }))
+                .deadline(SESSION_SECS)
+                .add();
+            script = shot(script, &format!("02b-available-off-{name}"));
+            script = click(
+                script,
+                &format!("Available on in {name}"),
+                "Gallery Stock Available",
+                when(|world| gallery(world).available_only),
+            );
+            script = shot(script, &format!("02c-available-on-{name}"));
+            script = click(
+                script,
+                &format!("Available off in {name}"),
+                "Gallery Stock Available",
+                when(|world| !gallery(world).available_only),
+            );
+        }
+        script
+    }
+
     /// The walk. Every beat waits on a world value, so a slow load delays it
     /// instead of truncating it.
     pub(super) fn script() -> AutopilotPlugin<GameStates> {
@@ -781,6 +823,8 @@ mod walk {
             .on_enter(assert_the_wheel)
             .until(frames(1))
             .add();
+
+        let script = shoot_the_available_grid(script);
 
         // Claim 3: narrow, Place, add, TAB back as left, TAB closes.
         let script = click(
