@@ -401,7 +401,7 @@ fn an_overflowing_row_name_ends_in_an_ellipsis_and_shows_whole_once_its_cell_wid
             settle(app);
         };
 
-        set_content_width(&mut rig.app, 600.0);
+        set_content_width(&mut rig.app, 616.0);
         let (shown, shown_px, cell_px) = row_name(rig.app.world_mut());
         assert!(
             shown.len() > "...".len()

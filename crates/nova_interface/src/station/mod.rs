@@ -63,7 +63,7 @@ use nova_sound::prelude::*;
 use nova_ui::{
     prelude::{card, control_row, metrics, text, verb_row, RowAlign, TextRole},
     screen::drive_wheel_scroll,
-    theme::UiColorType,
+    theme::{UiColorType, BORDER_W},
 };
 
 pub use self::{
@@ -281,14 +281,15 @@ pub(crate) fn scroll_station_panel(
     drive_wheel_scroll(wheel, q_panel);
 }
 
-/// Play the cue a result queued, and show the empty line while no list
-/// shows.
+/// Play the cue a result queued, show the empty line while no list shows,
+/// and drop the top rule of the first shown list: the pane head already
+/// draws a rule above the panel, so a second one 12 px below it is noise.
 pub(crate) fn update_station_panel(
     mut runtime: ResMut<StationRuntime>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
-    q_lists: Query<
-        &Node,
+    mut q_lists: Query<
+        (&mut Node, Has<StationSaleBlock>, Has<StationHullList>),
         (
             Or<(
                 With<StationSaleBlock>,
@@ -301,8 +302,29 @@ pub(crate) fn update_station_panel(
     mut q_empty: Query<&mut Node, With<StationEmptyLine>>,
 ) {
     runtime.cue.tick(bank.as_deref(), &mut commands);
-    let any_list = q_lists.iter().any(|node| node.display != Display::None);
-    let display = if any_list {
+    // Panel order: the sale block, then the hull list, then the escort list.
+    let rank = |sale: bool, hull: bool| match (sale, hull) {
+        (true, _) => 0,
+        (_, true) => 1,
+        _ => 2,
+    };
+    let first = q_lists
+        .iter()
+        .filter(|(node, ..)| node.display != Display::None)
+        .map(|(_, sale, hull)| rank(sale, hull))
+        .min();
+    for (mut node, sale, hull) in &mut q_lists {
+        let (rule, pad) = if Some(rank(sale, hull)) == first {
+            (Val::ZERO, Val::ZERO)
+        } else {
+            (px(BORDER_W), px(metrics::GAP_L))
+        };
+        if node.border.top != rule || node.padding.top != pad {
+            node.border.top = rule;
+            node.padding.top = pad;
+        }
+    }
+    let display = if first.is_some() {
         Display::None
     } else {
         Display::Flex

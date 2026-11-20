@@ -32,6 +32,7 @@ use nova_ui::{
     theme::{ActiveUiTheme, UiColorType},
     widget::{
         ButtonCueType, Selected, TextFieldFocused, ThemedBorder, ThemedFill, ThemedImageTint,
+        ThemedRadius,
     },
 };
 
@@ -44,7 +45,7 @@ use super::{
 };
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
-    pane::{interface_shown, spawn_part_tile, InterfacePaneType},
+    pane::{interface_shown, spawn_part_tile, view_label_pad, InterfacePaneType},
     terminal::{NovaOsAppInput, NovaOsCloseTransition},
     viewer::{cycle_index, orbit_eye, solid, unlit, zoom_radius, OrbitGesture},
 };
@@ -1166,7 +1167,6 @@ pub(crate) fn spawn_ship_blip(
                 width: Val::Px(SHIP_BLIP_PX),
                 height: Val::Px(SHIP_BLIP_PX),
                 border: UiRect::all(Val::Px(SHIP_BLIP_BORDER_PX)),
-                border_radius: BorderRadius::all(Val::Px(5.0)),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 ..default()
@@ -1177,6 +1177,7 @@ pub(crate) fn spawn_ship_blip(
             ThemedFill::alpha(UiColorType::Background, 0.8),
             BorderColor::all(Color::NONE),
             ThemedBorder::alpha(UiColorType::Accent, 0.0),
+            ThemedRadius::control(),
             children![
                 icon_node(icons.section(icon), icon.color(), SHIP_BLIP_PX - 6.0),
                 (
@@ -1210,11 +1211,12 @@ pub(crate) fn spawn_ship_blip(
             position_type: PositionType::Absolute,
             left: Val::Px(SHIP_LABEL_LEFT_PX),
             top: Val::Px(SHIP_BLIP_PX * 0.5 - 10.0),
-            padding: UiRect::axes(Val::Px(4.0), Val::Px(1.0)),
+            padding: view_label_pad(),
             ..default()
         },
         BackgroundColor(Color::NONE),
         ThemedFill::alpha(UiColorType::Background, 0.8),
+        ThemedRadius::control(),
         Visibility::Hidden,
         ChildOf(badge),
         children![text(&view.code, TextRole::Body)],

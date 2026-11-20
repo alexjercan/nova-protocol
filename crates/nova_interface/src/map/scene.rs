@@ -17,15 +17,18 @@ use bevy::{
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
-    prelude::{text, TextRole, VerbGate},
-    theme::{ActiveUiTheme, UiColorType},
-    widget::{ButtonCueType, ThemedBorder, ThemedFill, ThemedImageTint, ThemedText},
+    prelude::{metrics, text, TextRole, VerbGate},
+    theme::{ActiveUiTheme, UiColorType, BORDER_W},
+    widget::{ButtonCueType, ThemedBorder, ThemedFill, ThemedImageTint, ThemedRadius, ThemedText},
 };
 
 use super::{app::*, contacts::*, *};
 use crate::{
     icons::{icon_node, BodyIconType, InterfaceIcons},
-    pane::{interface_shown, legend_entry, ActionOutcomeType, InterfacePaneType},
+    pane::{
+        interface_shown, legend_entry, view_label_pad, ActionOutcomeType, InterfacePaneType,
+        LEGEND_ICON_PX,
+    },
     terminal::{NovaOsAppInput, NovaOsCloseTransition},
     // The viewer the Map and Ship panes are two framings of.
     viewer::{cycle_index, orbit_eye, unlit, zoom_radius, OrbitGesture},
@@ -967,8 +970,8 @@ fn spawn_map_route(commands: &mut Commands, viewport: Entity) {
         Node {
             position_type: PositionType::Absolute,
             height: Val::Px(MAP_GOTO_MARKER_PX),
-            padding: UiRect::horizontal(Val::Px(4.0)),
-            border: UiRect::all(Val::Px(1.0)),
+            padding: UiRect::horizontal(Val::Px(metrics::GAP_S)),
+            border: UiRect::all(Val::Px(BORDER_W)),
             align_items: AlignItems::Center,
             ..default()
         },
@@ -979,6 +982,7 @@ fn spawn_map_route(commands: &mut Commands, viewport: Entity) {
         ThemedFill::alpha(UiColorType::Background, 0.85),
         BorderColor::all(Color::NONE),
         ThemedBorder::alpha(UiColorType::Accent, 1.0),
+        ThemedRadius::control(),
         ChildOf(viewport),
         children![(text("GOTO", TextRole::Heading), Pickable::IGNORE)],
     ));
@@ -1026,7 +1030,6 @@ pub(crate) fn spawn_blip(
                 width: Val::Px(MAP_BLIP_PX),
                 height: Val::Px(MAP_BLIP_PX),
                 border: UiRect::all(Val::Px(MAP_BLIP_BORDER_PX)),
-                border_radius: BorderRadius::all(Val::Px(5.0)),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 ..default()
@@ -1040,6 +1043,7 @@ pub(crate) fn spawn_blip(
                 let (color, alpha) = blip_border(false);
                 ThemedBorder::alpha(color, alpha)
             },
+            ThemedRadius::control(),
             children![icon_node(
                 icons.body(contact.body),
                 contact.kind.color(),
@@ -1061,11 +1065,12 @@ pub(crate) fn spawn_blip(
             position_type: PositionType::Absolute,
             left: Val::Px(MAP_BLIP_PX - MAP_BLIP_BORDER_PX),
             top: Val::Px(MAP_BLIP_PX * 0.5 - 10.0),
-            padding: UiRect::axes(Val::Px(4.0), Val::Px(1.0)),
+            padding: view_label_pad(),
             ..default()
         },
         BackgroundColor(Color::NONE),
         ThemedFill::alpha(UiColorType::Background, 0.85),
+        ThemedRadius::control(),
         ChildOf(blip),
         // The blip carries its unique CODE, not the freeform name, so the
         // label you read is the label the contact panel shows.
@@ -1230,15 +1235,6 @@ pub(crate) fn update_map_panel(
 
     let mut slots_read = Vec::with_capacity(2);
     for (field, mut text, mut themed, mut node) in &mut q_field {
-        let display = if job_selected && matches!(field, MapPanelField::Kind | MapPanelField::Range)
-        {
-            Display::None
-        } else {
-            Display::Flex
-        };
-        if node.display != display {
-            node.display = display;
-        }
         let (value, color) = match (&selected, field) {
             (_, MapPanelField::Destination) if runtime.chart => {
                 (String::new(), UiColorType::TextMuted)
@@ -1274,6 +1270,19 @@ pub(crate) fn update_map_panel(
         };
         if matches!(field, MapPanelField::Range | MapPanelField::Bearing) {
             slots_read.push((*field, !value.is_empty()));
+        }
+        // A line that reads nothing takes no row: a shown empty line still
+        // costs its parent one gap, which stood the GOTO pair 24 px under
+        // the panel's top border with nothing selected.
+        let display = if value.is_empty()
+            || (job_selected && matches!(field, MapPanelField::Kind | MapPanelField::Range))
+        {
+            Display::None
+        } else {
+            Display::Flex
+        };
+        if node.display != display {
+            node.display = display;
         }
         if text.0 != value {
             text.0 = value;
@@ -1443,7 +1452,11 @@ pub(crate) fn refresh_map_legend(
             }
             for mark in &marks {
                 legend.spawn(legend_entry()).with_children(|entry| {
-                    entry.spawn(icon_node(icons.body(mark.0), mark.1.color(), 16.0));
+                    entry.spawn(icon_node(
+                        icons.body(mark.0),
+                        mark.1.color(),
+                        LEGEND_ICON_PX,
+                    ));
                     entry.spawn(text(legend_label(*mark), TextRole::Body));
                 });
             }

@@ -35,9 +35,9 @@ use nova_input::prelude::{InputBindings, InputSources};
 use nova_ship::prelude::*;
 use nova_sound::prelude::*;
 use nova_ui::{
-    prelude::{text, TextRole},
+    prelude::{metrics, text, TextRole},
     theme::UiColorType,
-    widget::{ThemedFill, ThemedText},
+    widget::{ThemedFill, ThemedRadius, ThemedText},
 };
 
 use super::{
@@ -715,12 +715,13 @@ pub(crate) fn sync_ship_ghost(
             Name::new(SHIP_GHOST_CALLOUT),
             Node {
                 position_type: PositionType::Absolute,
-                padding: UiRect::axes(Val::Px(6.0), Val::Px(3.0)),
+                padding: UiRect::axes(Val::Px(metrics::GAP), Val::Px(metrics::GAP_S)),
                 max_width: Val::Px(360.0),
                 ..default()
             },
             BackgroundColor(Color::NONE),
             ThemedFill::alpha(UiColorType::Background, 0.85),
+            ThemedRadius::control(),
             Visibility::Hidden,
             Pickable::IGNORE,
             // Above the section badges, its siblings, which would cover its

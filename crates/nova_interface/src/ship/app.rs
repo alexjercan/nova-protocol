@@ -25,7 +25,7 @@ use nova_ui::{
     },
     screen::drive_wheel_scroll,
     theme::UiColorType,
-    widget::{button, ButtonCueType, ButtonSpec, ThemedFill},
+    widget::{button, ButtonCueType, ButtonSpec, ThemedFill, ThemedRadius},
 };
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -215,6 +215,7 @@ pub(crate) fn spawn_ship_rebind_prompt(view: &mut ChildSpawnerCommands) {
             },
             BackgroundColor(Color::NONE),
             ThemedFill::alpha(UiColorType::Background, 0.85),
+            ThemedRadius::control(),
             Pickable::IGNORE,
         ))
         .with_children(|banner| {

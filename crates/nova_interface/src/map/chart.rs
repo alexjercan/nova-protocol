@@ -49,15 +49,15 @@ use nova_ui::{
         block, block_header, button, control_row, divider, metrics, spawn_kv, text, text_toned,
         BlockTitle, ButtonSpec, TextRole, VerbGate,
     },
-    theme::{ActiveUiTheme, UiColorType},
-    widget::{ThemedBorder, ThemedFill},
+    theme::{ActiveUiTheme, UiColorType, BORDER_W},
+    widget::{ThemedBorder, ThemedFill, ThemedRadius},
 };
 
 use super::{app::*, contacts::*, tiles::ChartTileTextures, *};
 use crate::{
     icons::{icon_node, ChartIconType, InterfaceIcons, JobIconType},
     inventory::category_color,
-    pane::{legend_entry, ActionOutcomeType, InterfacePaneType},
+    pane::{legend_entry, view_label_pad, ActionOutcomeType, InterfacePaneType, LEGEND_ICON_PX},
     terminal::NovaOsAppInput,
     viewer::unlit,
 };
@@ -815,8 +815,8 @@ fn spawn_chart_label(
         MapChartLabel { anchor, mark },
         Node {
             position_type: PositionType::Absolute,
-            padding: UiRect::axes(Val::Px(4.0), Val::Px(1.0)),
-            border: UiRect::all(Val::Px(1.0)),
+            padding: view_label_pad(),
+            border: UiRect::all(Val::Px(BORDER_W)),
             ..default()
         },
         Visibility::Hidden,
@@ -828,6 +828,7 @@ fn spawn_chart_label(
             UiColorType::TextSecondary,
             if clickable { 0.3 } else { 0.0 },
         ),
+        ThemedRadius::control(),
         ChildOf(viewport),
         children![(text_toned(text, role, color), Pickable::IGNORE)],
     ));
@@ -964,6 +965,11 @@ fn block_note(parent: &mut ChildSpawnerCommands, value: &str) {
     parent.spawn((text(value, TextRole::Label), Pickable::IGNORE));
 }
 
+/// Vertical padding of an icon row, in logical px. Off the spacing scale:
+/// with the row's border it brings the 16 px icon to [`metrics::ROW_H`], so
+/// an icon row is as high as a `label  value` line of the same block.
+const ICON_ROW_PAD_Y: f32 = 1.0;
+
 /// One icon row of a chart panel block: an icon in its tint, a label that
 /// takes the width and clips, and the trailing cells in the Label colour.
 /// Returns the row for the caller to make a button of.
@@ -996,9 +1002,8 @@ fn spawn_icon_row_breaking<'a>(
     line_break: LineBreak,
 ) -> EntityCommands<'a> {
     let mut row = parent.spawn(Node {
-        column_gap: px(8),
-        padding: UiRect::axes(px(4), px(1)),
-        border: UiRect::all(px(1)),
+        padding: UiRect::axes(px(metrics::GAP_S), px(ICON_ROW_PAD_Y)),
+        border: UiRect::all(px(BORDER_W)),
         ..control_row(JustifyContent::FlexStart)
     });
     row.with_children(|row| {
@@ -1043,6 +1048,7 @@ fn select_row(row: &mut EntityCommands, name: String, mark: MapChartMarkType, se
         BackgroundColor(Color::NONE),
         BorderColor::all(Color::NONE),
         ThemedBorder::alpha(edge, alpha),
+        ThemedRadius::control(),
     ))
     .observe(on_map_chart_log_row_click);
 }
@@ -1911,7 +1917,7 @@ pub(crate) fn chart_slot_label(
 pub(crate) fn spawn_chart_legend(legend: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     for icon in ChartIconType::LEGEND {
         legend.spawn(legend_entry()).with_children(|entry| {
-            entry.spawn(icon_node(icons.chart(icon), icon.color(), 16.0));
+            entry.spawn(icon_node(icons.chart(icon), icon.color(), LEGEND_ICON_PX));
             entry.spawn(text(icon.label(), TextRole::Body));
         });
     }

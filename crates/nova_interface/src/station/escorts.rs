@@ -23,7 +23,7 @@ use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{control_row, metrics, spawn_block, text, ButtonSpec, TextRole, VerbGate},
     theme::{UiColorType, BORDER_W},
-    widget::ThemedBorder,
+    widget::{ThemedBorder, ThemedRadius},
 };
 
 use super::{
@@ -216,6 +216,7 @@ fn spawn_fleet_row(list: &mut ChildSpawnerCommands, slots: &[Option<String>]) {
                 },
                 BorderColor::all(Color::NONE),
                 border,
+                ThemedRadius::control(),
             ))
             .with_children(|slot| {
                 slot.spawn(text(fleet_side_label(*side), TextRole::Label));

@@ -30,7 +30,7 @@ use nova_ui::{
         VerbGate,
     },
     screen::{drive_wheel_scroll, EllipsisText},
-    theme::UiColorType,
+    theme::{UiColorType, BORDER_W},
     widget::{
         ring_clip_margin, ButtonCueType, ButtonSpec, TextFieldFocused, ThemedBorder, ThemedFill,
         ThemedImageTint, ThemedRadius, ThemedText,
@@ -45,7 +45,7 @@ use super::{
 use crate::{
     craft::{spawn_craft_open_button, CraftRuntime},
     icons::{icon_node, InterfaceIcons},
-    pane::{spawn_credit_figure, ui_width, InterfacePaneType},
+    pane::{card_frame, card_node, spawn_credit_figure, ui_width, InterfacePaneType},
     terminal::NovaOsAppInput,
     viewer::cycle_index,
 };
@@ -58,9 +58,18 @@ const PRICE_PX: f32 = 72.0;
 /// Width of the `Deal` column, in logical px: `+100%` at 12 px.
 const DEAL_PX: f32 = 44.0;
 /// Gap between the cells of a row and of its heading line, in logical px.
-const CELL_GAP_PX: f32 = 6.0;
-/// Width of a row's category stripe on its left edge, in logical px.
+/// The tight step: a priced row at 1024 px has about 86 px for the name, and
+/// each wider step takes 4 px per cell from it.
+const CELL_GAP_PX: f32 = metrics::GAP_S;
+/// Width of a row's category stripe on its left edge, in logical px. Not a
+/// spacing step: it is the row's category mark.
 const ROW_STRIPE_PX: f32 = 3.0;
+/// Side of a row's category icon, in logical px.
+const ROW_ICON_PX: f32 = 18.0;
+/// From a row's left edge to its name: the stripe, the row padding, the icon
+/// and one cell gap. The heading line pads its left by this, so `Item` stands
+/// over the names.
+const ROW_NAME_INSET_PX: f32 = ROW_STRIPE_PX + metrics::PAD_X + ROW_ICON_PX + CELL_GAP_PX;
 /// UI width ([`ui_width`]), in logical px, from which the Inventory stores lay out
 /// Own, Partner and Storage as three equal columns. Under it, with Storage
 /// drawn beside the partner, Storage stacks under Partner so the priced
@@ -417,7 +426,7 @@ pub(crate) fn inventory_body(body: &mut ChildSpawnerCommands, icons: &InterfaceI
         flex_grow: 1.0,
         min_height: px(0),
         flex_direction: FlexDirection::Row,
-        column_gap: px(12),
+        column_gap: px(metrics::GAP_L),
         ..default()
     })
     .with_children(|split| {
@@ -428,7 +437,7 @@ pub(crate) fn inventory_body(body: &mut ChildSpawnerCommands, icons: &InterfaceI
                 min_width: px(0),
                 min_height: px(0),
                 flex_direction: FlexDirection::Column,
-                row_gap: px(10),
+                row_gap: px(metrics::GAP_L),
                 ..default()
             })
             .with_children(|stores| {
@@ -449,8 +458,8 @@ pub(crate) fn inventory_body(body: &mut ChildSpawnerCommands, icons: &InterfaceI
                             display: Display::Grid,
                             flex_grow: 1.0,
                             min_height: px(0),
-                            column_gap: px(12),
-                            row_gap: px(12),
+                            column_gap: px(metrics::GAP_L),
+                            row_gap: px(metrics::GAP_L),
                             ..default()
                         },
                     ))
@@ -478,7 +487,7 @@ fn inventory_column(
     columns
         .spawn((
             InventoryColumnPanel(side),
-            Node {
+            card_frame(Node {
                 display: if side == InventorySideType::Storage {
                     Display::None
                 } else {
@@ -486,17 +495,9 @@ fn inventory_column(
                 },
                 min_width: px(0),
                 min_height: px(0),
-                flex_direction: FlexDirection::Column,
-                row_gap: px(4),
-                padding: UiRect::all(px(8)),
-                border: UiRect::all(px(1)),
                 overflow: Overflow::clip(),
-                ..default()
-            },
-            BackgroundColor(Color::NONE),
-            BorderColor::all(Color::NONE),
-            ThemedBorder::alpha(UiColorType::TextSecondary, 0.35),
-            ThemedRadius::control(),
+                ..card_node()
+            }),
         ))
         .with_children(|panel| {
             if side == InventorySideType::Partner {
@@ -521,8 +522,8 @@ fn inventory_column(
             panel
                 .spawn(Node {
                     flex_wrap: FlexWrap::Wrap,
-                    row_gap: px(2),
-                    column_gap: px(16),
+                    row_gap: px(metrics::GAP_S),
+                    column_gap: px(metrics::GAP_L),
                     ..control_row(JustifyContent::FlexStart)
                 })
                 .with_children(|facts| {
@@ -541,10 +542,7 @@ fn inventory_column(
                             InventoryColumnFactType::Storage => "Stored",
                         };
                         facts
-                            .spawn(Node {
-                                column_gap: px(6),
-                                ..control_row(JustifyContent::FlexStart)
-                            })
+                            .spawn(control_row(JustifyContent::FlexStart))
                             .with_children(|pair| {
                                 pair.spawn(text(label, TextRole::Label));
                                 if fact == InventoryColumnFactType::Credits {
@@ -595,78 +593,92 @@ fn inventory_column(
                     }
                 });
             panel.spawn(divider());
-            panel
-                .spawn(Node {
-                    column_gap: px(CELL_GAP_PX),
-                    padding: UiRect::axes(px(8), px(0)),
-                    flex_shrink: 0.0,
-                    ..default()
-                })
-                .with_children(|line| {
-                    // Bevy clips a text by its parent's overflow, not its
-                    // own: the cell shrinks with the row's name cell.
-                    line.spawn(Node {
-                        flex_grow: 1.0,
-                        flex_basis: px(0),
-                        min_width: px(0),
-                        margin: UiRect::left(px(27)),
-                        overflow: Overflow::clip(),
+            // The heading line and the rows are one table: the line stands
+            // a row gap over the first row, not a card gap.
+            let mut table = panel.spawn(Node {
+                flex_grow: 1.0,
+                min_height: px(0),
+                flex_direction: FlexDirection::Column,
+                row_gap: px(metrics::GAP_S),
+                ..default()
+            });
+            table.with_children(|panel| {
+                panel
+                    .spawn(Node {
+                        column_gap: px(CELL_GAP_PX),
+                        padding: UiRect {
+                            left: px(ROW_NAME_INSET_PX),
+                            right: px(metrics::PAD_X),
+                            ..default()
+                        },
+                        flex_shrink: 0.0,
                         ..default()
                     })
-                    .with_children(|cell| {
-                        cell.spawn((
-                            text("Item", TextRole::Label),
-                            TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                        ));
-                    });
-                    line.spawn(cell(QTY_PX)).with_children(|cell| {
-                        cell.spawn((
-                            text("Qty", TextRole::Label),
-                            TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                        ));
-                    });
-                    if matches!(side, InventorySideType::Own | InventorySideType::Partner) {
-                        line.spawn((
-                            InventoryPriceHeadings(side),
-                            Node {
-                                display: Display::None,
-                                column_gap: px(CELL_GAP_PX),
-                                flex_shrink: 0.0,
-                                ..default()
-                            },
-                        ))
-                        .with_children(|prices| {
-                            prices.spawn(cell(PRICE_PX)).with_children(|cell| {
-                                cell.spawn((
-                                    text("Price", TextRole::Label),
-                                    TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                                ));
-                            });
-                            prices.spawn(cell(DEAL_PX)).with_children(|cell| {
-                                cell.spawn((
-                                    text("Deal", TextRole::Label),
-                                    TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                                ));
-                            });
+                    .with_children(|line| {
+                        // Bevy clips a text by its parent's overflow, not its
+                        // own: the cell shrinks with the row's name cell.
+                        line.spawn(Node {
+                            flex_grow: 1.0,
+                            flex_basis: px(0),
+                            min_width: px(0),
+                            overflow: Overflow::clip(),
+                            ..default()
+                        })
+                        .with_children(|cell| {
+                            cell.spawn((
+                                text("Item", TextRole::Label),
+                                TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                            ));
                         });
-                    }
-                });
-            // Scrolls: a stacked Partner or Storage column shows a few rows.
-            panel.spawn((
-                InventoryColumn { side, drawn: None },
-                Node {
-                    flex_grow: 1.0,
-                    min_height: px(0),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: px(4),
-                    overflow: Overflow::scroll_y(),
-                    // The rows are plain buttons on the clip edge.
-                    overflow_clip_margin: ring_clip_margin(),
-                    ..default()
-                },
-                ScrollPosition::default(),
-                Hovered::default(),
-            ));
+                        line.spawn(cell(QTY_PX)).with_children(|cell| {
+                            cell.spawn((
+                                text("Qty", TextRole::Label),
+                                TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                            ));
+                        });
+                        if matches!(side, InventorySideType::Own | InventorySideType::Partner) {
+                            line.spawn((
+                                InventoryPriceHeadings(side),
+                                Node {
+                                    display: Display::None,
+                                    column_gap: px(CELL_GAP_PX),
+                                    flex_shrink: 0.0,
+                                    ..default()
+                                },
+                            ))
+                            .with_children(|prices| {
+                                prices.spawn(cell(PRICE_PX)).with_children(|cell| {
+                                    cell.spawn((
+                                        text("Price", TextRole::Label),
+                                        TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                                    ));
+                                });
+                                prices.spawn(cell(DEAL_PX)).with_children(|cell| {
+                                    cell.spawn((
+                                        text("Deal", TextRole::Label),
+                                        TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                                    ));
+                                });
+                            });
+                        }
+                    });
+                // Scrolls: a stacked Partner or Storage column shows a few rows.
+                panel.spawn((
+                    InventoryColumn { side, drawn: None },
+                    Node {
+                        flex_grow: 1.0,
+                        min_height: px(0),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: px(metrics::GAP_S),
+                        overflow: Overflow::scroll_y(),
+                        // The rows are plain buttons on the clip edge.
+                        overflow_clip_margin: ring_clip_margin(),
+                        ..default()
+                    },
+                    ScrollPosition::default(),
+                    Hovered::default(),
+                ));
+            });
         });
 }
 
@@ -896,11 +908,12 @@ fn about_box(item: &mut ChildSpawnerCommands) {
                     position_type: PositionType::Absolute,
                     right: px(0),
                     bottom: px(0),
-                    padding: UiRect::left(px(6)),
+                    padding: UiRect::left(px(metrics::GAP)),
                     ..default()
                 },
                 BackgroundColor(Color::NONE),
                 ThemedFill::new(UiColorType::Surface),
+                ThemedRadius::control(),
                 Pickable::IGNORE,
                 Visibility::Hidden,
             ))
@@ -917,12 +930,15 @@ fn about_box(item: &mut ChildSpawnerCommands) {
                 Node {
                     display: Display::None,
                     position_type: PositionType::Absolute,
-                    top: px(-4),
-                    left: px(-4),
-                    right: px(-4),
+                    // The overlay stands one small gap outside the box on
+                    // three sides and pads by the same, so the text keeps
+                    // its place when the overlay opens.
+                    top: px(-metrics::GAP_S),
+                    left: px(-metrics::GAP_S),
+                    right: px(-metrics::GAP_S),
                     min_height: percent(100),
-                    padding: UiRect::all(px(4)),
-                    border: UiRect::all(px(1)),
+                    padding: UiRect::all(px(metrics::GAP_S)),
+                    border: UiRect::all(px(BORDER_W)),
                     ..default()
                 },
                 BackgroundColor(Color::NONE),
@@ -1139,10 +1155,11 @@ fn inventory_row(
         ThemedFill::alpha(fill_tone, fill),
         BorderColor::all(Color::NONE),
         ThemedBorder::alpha(tone, row_stripe(selected)),
+        ThemedRadius::control(),
     ))
     .observe(on_inventory_row)
     .with_children(|row| {
-        row.spawn(icon_node(icons.category(category), tone, 18.0));
+        row.spawn(icon_node(icons.category(category), tone, ROW_ICON_PX));
         // Bevy clips a text by its parent's overflow, not its own.
         row.spawn((
             Node {
@@ -2950,13 +2967,22 @@ pub(crate) fn update_inventory_panel(
         }
         commands.entity(list).despawn_children();
         commands.entity(list).with_children(|rows| {
-            for section in draw.sections.iter().flatten() {
+            for (index, section) in draw.sections.iter().flatten().enumerate() {
                 if let Some(heading) = &section.heading {
                     rows.spawn((
                         text(heading, TextRole::Value),
                         TextLayout::new(Justify::Left, LineBreak::NoWrap),
                         Node {
-                            margin: UiRect::top(px(6)),
+                            // The sections share one flat scroll list, so
+                            // the list cannot space them: a heading under
+                            // another section adds to the row gap up to one
+                            // group gap. The first line of the list adds
+                            // nothing.
+                            margin: UiRect::top(px(if index == 0 {
+                                0.0
+                            } else {
+                                metrics::GAP_L - metrics::GAP_S
+                            })),
                             overflow: Overflow::clip(),
                             ..default()
                         },

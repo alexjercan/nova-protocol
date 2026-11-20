@@ -32,7 +32,11 @@ use nova_input::prelude::{
 };
 use nova_ship::prelude::{DockedShip, DockingConnection, GalleryAction, GalleryState, HeldPart};
 use nova_sound::prelude::{PlaySound, SoundBank, SoundCategoryType, UiSfx};
-use nova_ui::{prelude::*, theme::UiColorType};
+use nova_ui::{
+    prelude::*,
+    theme::{ActiveUiTheme, UiColorType, BORDER_W},
+    widget::PanelHeadRule,
+};
 
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
@@ -284,8 +288,8 @@ pub(crate) fn spawn_interface_root(
                         height: percent(100),
                         flex_direction: FlexDirection::Column,
                         align_items: AlignItems::Center,
-                        padding: UiRect::all(px(16)),
-                        row_gap: px(12),
+                        padding: UiRect::all(px(metrics::GAP_XL)),
+                        row_gap: px(metrics::GAP_L),
                         ..default()
                     },
                     // Above the flight HUD, below the command modal. No fill: the
@@ -305,11 +309,12 @@ mod tests;
 /// Widest the interface grows, in logical px.
 const INTERFACE_MAX_PX: f32 = 1520.0;
 
-/// The card's title row: the pane title, the pane tabs, the mode tags, the
-/// player balance, the gain it counts up to, the play clock, the next-pane
-/// hint and Close. Everything right of the mode tags sits in a fixed slot, so
-/// the tabs never move; a narrow card takes its room from the rule, then from
-/// the mode tags.
+/// The card's title row: the pane title, the pane tabs, the rule, the mode
+/// tags, the player balance, the gain it counts up to, the play clock, the
+/// next-pane hint and Close. Everything right of the mode tags sits in a fixed
+/// slot, so the tabs never move; a narrow card takes its room from the rule,
+/// then from the mode tags. The rule runs from the tabs to the balance figure
+/// and breaks only for the mode tags ([`head_rule`]).
 #[derive(Component)]
 pub(crate) struct InterfacePaneHead;
 
@@ -379,6 +384,59 @@ fn fixed_slot_leading(width: f32) -> Node {
     }
 }
 
+/// One segment of the title row's rule, painted by [`paint_head_rules`]. The
+/// kit head paints a rule only as its direct child; the title row needs one
+/// inside the balance slot as well, so both segments are the pane's.
+#[derive(Component)]
+pub(crate) struct InterfaceHeadRule;
+
+/// A rule segment of the title row: it takes the room its row has left.
+fn head_rule() -> impl Bundle {
+    (
+        InterfaceHeadRule,
+        Node {
+            flex_grow: 1.0,
+            min_width: px(0),
+            height: px(BORDER_W),
+            ..default()
+        },
+        BackgroundColor(Color::NONE),
+        Pickable::IGNORE,
+    )
+}
+
+/// Paint the title row's rule segments in the head rule colour of the theme,
+/// on a new segment and on a theme change.
+pub(crate) fn paint_head_rules(
+    theme: Res<ActiveUiTheme>,
+    q_new: Query<(), Added<InterfaceHeadRule>>,
+    mut q_rule: Query<&mut BackgroundColor, With<InterfaceHeadRule>>,
+) {
+    if !theme.is_changed() && q_new.is_empty() {
+        return;
+    }
+    let rule = theme.panel_head().rule;
+    for mut fill in &mut q_rule {
+        if fill.0 != rule {
+            fill.0 = rule;
+        }
+    }
+}
+
+/// The part of the title row that gives way: the rule, the mode tags and the
+/// balance slot. It has no gap of its own, so with no tag shown the rule runs
+/// unbroken into the balance slot; the tag slot pads itself while it holds a
+/// tag ([`show_pane_mode_tags`]).
+fn head_status_node() -> Node {
+    Node {
+        flex_grow: 1.0,
+        flex_basis: px(0),
+        min_width: px(BALANCE_SLOT_PX),
+        align_items: AlignItems::Center,
+        ..default()
+    }
+}
+
 /// The title row's mode tags: the docked station's name and the services it
 /// offers, or nothing in flight. Holds the words it shows, so the tags respawn
 /// only when they change.
@@ -424,9 +482,9 @@ pub(crate) fn show_pane_mode_tags(
         (Option<&Name>, Option<&StationServices>),
         (With<StationMarker>, Without<DerelictShipMarker>),
     >,
-    mut q_tags: Query<(Entity, &mut InterfaceModeTags)>,
+    mut q_tags: Query<(Entity, &mut InterfaceModeTags, &mut Node)>,
 ) {
-    let Ok((slot, mut shown)) = q_tags.single_mut() else {
+    let Ok((slot, mut shown, mut node)) = q_tags.single_mut() else {
         return;
     };
     let words = q_player
@@ -455,6 +513,13 @@ pub(crate) fn show_pane_mode_tags(
             slot.spawn(panel_head_tag(word));
         }
     });
+    // The tags stand one gap off the rule on each side. An empty slot takes
+    // no room, so the rule is not broken where no tag stands.
+    node.padding = if words.is_empty() {
+        UiRect::ZERO
+    } else {
+        UiRect::horizontal(px(metrics::GAP))
+    };
     shown.0 = words;
 }
 
@@ -938,38 +1003,49 @@ fn spawn_interface_card(
                         }
                     })
                     .id();
-                // The one slot that gives way after the rule: it shrinks to
-                // zero, and a tag that does not fit wraps to a second line its
-                // one-tag height clips, so the last services drop first.
-                head.spawn((
-                    InterfaceModeTags::default(),
-                    Name::new(INTERFACE_MODE_TAGS),
-                    Node {
-                        height: px(metrics::TAG_H),
-                        min_width: px(0),
-                        flex_shrink: 1.0,
-                        flex_wrap: FlexWrap::Wrap,
-                        justify_content: JustifyContent::FlexEnd,
-                        align_content: AlignContent::FlexStart,
-                        align_items: AlignItems::Center,
-                        column_gap: px(metrics::GAP_S),
-                        row_gap: px(metrics::GAP_S),
-                        overflow: Overflow::clip(),
-                        ..default()
-                    },
-                ));
-                // Fixed slots from here to the end: a growing balance or
-                // a key name never moves what stands left of it.
-                head.spawn(fixed_slot(BALANCE_SLOT_PX))
-                    .with_children(|slot| {
-                        spawn_credit_figure(
-                            slot,
-                            icons,
-                            0,
-                            TextRole::Value,
-                            UiColorType::Text,
-                            (InterfacePaneBalance, Name::new(INTERFACE_PANE_BALANCE)),
-                        );
+                head.spawn((Name::new("InterfaceHeadStatus"), head_status_node()))
+                    .with_children(|status| {
+                        status.spawn(head_rule());
+                        // The one slot that gives way after the rule: it
+                        // shrinks to zero, and a tag that does not fit wraps
+                        // to a second line its one-tag height clips, so the
+                        // last services drop first.
+                        status.spawn((
+                            InterfaceModeTags::default(),
+                            Name::new(INTERFACE_MODE_TAGS),
+                            Node {
+                                height: px(metrics::TAG_H),
+                                min_width: px(0),
+                                flex_shrink: 1.0,
+                                flex_wrap: FlexWrap::Wrap,
+                                justify_content: JustifyContent::FlexEnd,
+                                align_content: AlignContent::FlexStart,
+                                align_items: AlignItems::Center,
+                                column_gap: px(metrics::GAP_S),
+                                row_gap: px(metrics::GAP_S),
+                                overflow: Overflow::clip(),
+                                ..default()
+                            },
+                        ));
+                        // Fixed slots from here to the end: a growing balance
+                        // or a key name never moves what stands left of it.
+                        // The rule fills what the figure leaves of its slot.
+                        status
+                            .spawn(Node {
+                                column_gap: px(metrics::GAP),
+                                ..fixed_slot(BALANCE_SLOT_PX)
+                            })
+                            .with_children(|slot| {
+                                slot.spawn(head_rule());
+                                spawn_credit_figure(
+                                    slot,
+                                    icons,
+                                    0,
+                                    TextRole::Value,
+                                    UiColorType::Text,
+                                    (InterfacePaneBalance, Name::new(INTERFACE_PANE_BALANCE)),
+                                );
+                            });
                     });
                 head.spawn(fixed_slot_leading(GAIN_SLOT_PX))
                     .with_children(|slot| {
@@ -1018,23 +1094,60 @@ fn spawn_interface_card(
                         .observe(on_interface_close_click);
                     });
             })
-            // The tabs stand right of the title, left-anchored; the head's
-            // rule then fills the room between them and the mode tags.
-            .insert_children(1, &[tabs]);
+            // The tabs stand right of the title, left-anchored.
+            .insert_children(1, &[tabs])
+            .queue(drop_kit_head_rule);
             card.spawn((
                 InterfacePaneBody,
                 Node {
                     flex_grow: 1.0,
                     min_height: px(0),
                     flex_direction: FlexDirection::Column,
-                    row_gap: px(10),
-                    padding: UiRect::all(px(12)),
+                    row_gap: px(metrics::GAP_L),
+                    padding: UiRect::all(px(metrics::GAP_L)),
                     ..default()
                 },
             ))
             .with_children(|body| pane_body(body, pane, icons));
         });
     });
+}
+
+/// Take the kit head's own rule out of the title row. It fills the row as one
+/// segment and the kit paints it only as the head's direct child; the title
+/// row draws its rule as [`head_rule`] segments, one of them in the balance
+/// slot.
+fn drop_kit_head_rule(mut head: EntityWorldMut) {
+    let children: Vec<Entity> = head
+        .get::<Children>()
+        .map(|children| children.iter().collect())
+        .unwrap_or_default();
+    head.world_scope(|world| {
+        for child in children {
+            if world.get::<PanelHeadRule>(child).is_some() {
+                world.despawn(child);
+            }
+        }
+    });
+}
+
+/// The frame every card of a pane wears: the kit [`card`]'s padding, border
+/// and paint on `node`, for a card that sets more of its node than the kit
+/// card does. Spread [`card_node`] into `node`.
+pub(crate) fn card_frame(node: Node) -> impl Bundle {
+    (node, panel_paint(), ThemedRadius::control())
+}
+
+/// The node of a [`card_frame`]: a column, [`metrics::GAP_L`] padding inside
+/// a [`BORDER_W`] border, [`metrics::GAP`] between its rows.
+pub(crate) fn card_node() -> Node {
+    Node {
+        flex_direction: FlexDirection::Column,
+        row_gap: px(metrics::GAP),
+        padding: UiRect::all(px(metrics::GAP_L)),
+        border: UiRect::all(px(BORDER_W)),
+        ..default()
+    }
 }
 
 /// The body of `pane`.
@@ -1159,7 +1272,7 @@ pub(crate) fn view_split() -> Node {
         flex_grow: 1.0,
         min_height: px(0),
         flex_direction: FlexDirection::Row,
-        column_gap: px(12),
+        column_gap: px(metrics::GAP_L),
         ..default()
     }
 }
@@ -1372,17 +1485,22 @@ fn footer_node(narrow: bool) -> Node {
         grid_template_rows: rows,
         align_items: AlignItems::Center,
         align_content: AlignContent::Center,
-        column_gap: px(16),
-        row_gap: px(6),
-        padding: UiRect::axes(px(12), px(8)),
-        border: UiRect::top(px(1)),
+        column_gap: px(metrics::GAP_L),
+        row_gap: px(metrics::GAP),
+        // No side padding: the legend starts and the buttons end on the
+        // pane's content edges, under the view and the side panel.
+        padding: UiRect::vertical(px(metrics::GAP)),
+        border: UiRect::top(px(BORDER_W)),
         ..default()
     }
 }
 
 /// A footer zone's node for the window band. The legend and the buttons keep
-/// their content width, so they never clip; the hints wrap in their track
-/// instead: at most half the footer wide, or the whole second row when narrow.
+/// their content width; the hints wrap in their track instead: at most half
+/// the footer wide, or the whole second row when narrow. The legend clips at
+/// its track, so a legend wider than it never draws over the hints. The
+/// buttons do not clip: they never shrink, and a clip on their zone cut the
+/// right border of the last one when it stood 1 px past the zone.
 fn footer_zone_node(zone: PaneFooterZoneType, narrow: bool) -> Node {
     // No `height: percent(100)`: on the two-row grid that would size the
     // first row to the whole footer and push the hints out of it.
@@ -1391,15 +1509,15 @@ fn footer_zone_node(zone: PaneFooterZoneType, narrow: bool) -> Node {
         flex_wrap: FlexWrap::Wrap,
         align_items: AlignItems::Center,
         align_content: AlignContent::Center,
-        column_gap: px(12),
-        row_gap: px(6),
-        overflow: Overflow::clip(),
+        column_gap: px(metrics::GAP_L),
+        row_gap: px(metrics::GAP_S),
         ..default()
     };
     match zone {
         PaneFooterZoneType::Legend => Node {
             grid_column: GridPlacement::start(1),
             grid_row: GridPlacement::start(1),
+            overflow: Overflow::clip(),
             ..side()
         },
         PaneFooterZoneType::Hints => {
@@ -1413,13 +1531,18 @@ fn footer_zone_node(zone: PaneFooterZoneType, narrow: bool) -> Node {
                 grid_row,
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
-                row_gap: px(4),
+                row_gap: px(metrics::GAP_S),
                 ..default()
             }
         }
         PaneFooterZoneType::Controls => Node {
             grid_column: GridPlacement::start(if narrow { 2 } else { 3 }),
             grid_row: GridPlacement::start(1),
+            // As wide as its buttons, at the end of its track. Stretched
+            // over a track that starts on a half pixel, the zone and the
+            // button row in it each round up, and the last button stands
+            // 1 px past the footer's edge.
+            justify_self: JustifySelf::End,
             justify_content: JustifyContent::FlexEnd,
             ..side()
         },
@@ -1459,8 +1582,8 @@ fn pane_footer(
                         flex_direction: FlexDirection::Row,
                         flex_wrap: FlexWrap::Wrap,
                         justify_content: JustifyContent::Center,
-                        column_gap: px(12),
-                        row_gap: px(2),
+                        column_gap: px(metrics::GAP_L),
+                        row_gap: px(metrics::GAP_S),
                         ..default()
                     })
                     .with_children(|hints| {
@@ -1648,12 +1771,9 @@ fn map_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
             legend.spawn((
                 MapLegendMarker,
                 Node {
-                    flex_direction: FlexDirection::Row,
                     flex_wrap: FlexWrap::Wrap,
-                    align_items: AlignItems::Center,
-                    column_gap: px(12),
-                    row_gap: px(6),
-                    ..default()
+                    row_gap: px(metrics::GAP_S),
+                    ..legend_row()
                 },
             ));
         },
@@ -1697,21 +1817,19 @@ fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
             legend
                 .spawn(Node {
                     flex_direction: FlexDirection::Column,
-                    row_gap: px(5),
+                    row_gap: px(metrics::GAP_S),
                     ..default()
                 })
                 .with_children(|rows| {
                     for icons_in_row in SectionIconType::ALL.chunks(3) {
-                        rows.spawn(Node {
-                            flex_direction: FlexDirection::Row,
-                            align_items: AlignItems::Center,
-                            column_gap: px(8),
-                            ..default()
-                        })
-                        .with_children(|row| {
+                        rows.spawn(legend_row()).with_children(|row| {
                             for &icon in icons_in_row {
                                 row.spawn(legend_entry()).with_children(|entry| {
-                                    entry.spawn(icon_node(icons.section(icon), icon.color(), 18.0));
+                                    entry.spawn(icon_node(
+                                        icons.section(icon),
+                                        icon.color(),
+                                        LEGEND_ICON_PX,
+                                    ));
                                     entry.spawn(text(icon.label(), TextRole::Body));
                                 });
                             }
@@ -1739,12 +1857,38 @@ fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     );
 }
 
+/// Vertical padding of a label plate over a 3D view, in logical px. Off the
+/// spacing scale: the plate stands over the scene, and one px clears its text
+/// from its edge without covering more of the view.
+const VIEW_LABEL_PAD_Y: f32 = 1.0;
+
+/// The padding of a label plate over a 3D view: a blip's code, a chart
+/// mark's name.
+pub(crate) fn view_label_pad() -> UiRect {
+    UiRect::axes(px(metrics::GAP_S), px(VIEW_LABEL_PAD_Y))
+}
+
+/// One line of a legend: its entries [`metrics::GAP`] apart. Both footers
+/// use it, so the Map and the Ship legend space their entries alike.
+fn legend_row() -> Node {
+    Node {
+        flex_direction: FlexDirection::Row,
+        align_items: AlignItems::Center,
+        column_gap: px(metrics::GAP),
+        ..default()
+    }
+}
+
+/// Side of a legend's icon, in logical px: one size in the Map, the chart and
+/// the Ship legend.
+pub(crate) const LEGEND_ICON_PX: f32 = 16.0;
+
 /// One icon and its word in a legend.
 pub(crate) fn legend_entry() -> Node {
     Node {
         flex_direction: FlexDirection::Row,
         align_items: AlignItems::Center,
-        column_gap: px(4),
+        column_gap: px(metrics::GAP_S),
         ..default()
     }
 }
@@ -1765,7 +1909,7 @@ pub(crate) fn spawn_part_tile(
     let design = items.design(item);
     row.spawn(Node {
         align_items: AlignItems::Center,
-        column_gap: Val::Px(4.0),
+        column_gap: px(metrics::GAP_S),
         ..default()
     })
     .with_children(|tile| {

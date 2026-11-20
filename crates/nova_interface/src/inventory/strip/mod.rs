@@ -51,13 +51,17 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_sound::prelude::*;
 use nova_ui::{
-    prelude::{button, text, TextRole, VerbGate},
+    prelude::{button, metrics, text, TextRole, VerbGate},
     theme::UiColorType,
     widget::{ButtonCueType, ButtonSpec, ThemedBorder, ThemedFill, ThemedRadius, ThemedText},
 };
 
 use super::{loot_text, take_loot, InventoryShips};
-use crate::{icons::InterfaceIcons, pane::spawn_part_tile, ship::design_section_code};
+use crate::{
+    icons::InterfaceIcons,
+    pane::{card_node, spawn_part_tile},
+    ship::design_section_code,
+};
 
 /// The name of the strip block, shown only while docked with a wreck.
 pub const INVENTORY_STRIP_BLOCK: &str = "InventoryStripBlock";
@@ -438,14 +442,13 @@ pub(crate) fn spawn_strip_block(panel: &mut ChildSpawnerCommands) {
         .spawn((
             StripBlock,
             Name::new(INVENTORY_STRIP_BLOCK),
+            // The card frame in the Accent colour of a running job, with its
+            // meter lines a list row gap apart.
             Node {
                 display: Display::None,
-                flex_direction: FlexDirection::Column,
                 flex_shrink: 0.0,
-                row_gap: Val::Px(4.0),
-                padding: UiRect::all(Val::Px(6.0)),
-                border: UiRect::all(Val::Px(1.0)),
-                ..default()
+                row_gap: Val::Px(metrics::GAP_S),
+                ..card_node()
             },
             BorderColor::all(Color::NONE),
             ThemedBorder::alpha(UiColorType::Accent, 0.45),
@@ -456,7 +459,7 @@ pub(crate) fn spawn_strip_block(panel: &mut ChildSpawnerCommands) {
                 .spawn(Node {
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(8.0),
+                    column_gap: Val::Px(metrics::GAP),
                     ..default()
                 })
                 .with_children(|row| {
@@ -494,8 +497,8 @@ pub(crate) fn spawn_strip_block(panel: &mut ChildSpawnerCommands) {
                 Node {
                     flex_direction: FlexDirection::Row,
                     flex_wrap: FlexWrap::Wrap,
-                    column_gap: Val::Px(12.0),
-                    row_gap: Val::Px(4.0),
+                    column_gap: Val::Px(metrics::GAP_L),
+                    row_gap: Val::Px(metrics::GAP_S),
                     ..default()
                 },
             ));
@@ -514,7 +517,7 @@ fn spawn_meter_row(
             flex_grow: 1.0,
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: Val::Px(8.0),
+            column_gap: Val::Px(metrics::GAP),
             ..default()
         })
         .with_children(|row| {
@@ -549,6 +552,7 @@ fn spawn_meter_row(
                     },
                     BackgroundColor(Color::NONE),
                     ThemedFill::new(UiColorType::Accent),
+                    ThemedRadius::control(),
                 ));
             });
             let mut value = row.spawn((

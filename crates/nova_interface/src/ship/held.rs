@@ -62,9 +62,13 @@ pub(crate) fn spawn_ship_held_block(panel: &mut ChildSpawnerCommands, icons: &In
         "Placing",
         (ShipHeldBlock, Name::new(SHIP_HELD_PANEL)),
     );
-    block
-        .entry::<Node>()
-        .and_modify(|mut node| node.display = Display::None);
+    block.entry::<Node>().and_modify(|mut node| {
+        node.display = Display::None;
+        // The first block of the panel: a rule above it would stand loose
+        // under the panel's own border.
+        node.border.top = Val::ZERO;
+        node.padding.top = Val::ZERO;
+    });
     block.with_children(|block| {
         block.spawn(preview_frame()).with_children(|frame| {
             frame.spawn((

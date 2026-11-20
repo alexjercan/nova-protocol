@@ -1545,3 +1545,50 @@ fn a_gain_shows_beside_the_balance_moves_nothing_and_ends_with_the_title_row() {
     assert_eq!(balance_of(world), "5,000");
     assert_eq!(gain_of(world), "");
 }
+
+/// The footer's buttons end on its right edge, which is the side panel's.
+/// Stretched over a track that starts on a half pixel, the button zone and
+/// the row in it each rounded up, and the last button stood 1 px past the
+/// footer, where the zone's clip cut its right border.
+#[test]
+fn the_footer_buttons_end_on_the_footer_s_right_edge() {
+    let mut rig = card_rig();
+    for pane in [InterfacePaneType::Map, InterfacePaneType::Ship] {
+        *rig.app.world_mut().resource_mut::<InterfacePaneType>() = pane;
+        settle(&mut rig.app);
+        settle(&mut rig.app);
+        let world = rig.app.world_mut();
+        let footer = footer(world).unwrap_or_else(|| panic!("{pane:?} has a footer"));
+        let foot = rect_of(world, footer);
+        let zone = world
+            .get::<Children>(footer)
+            .expect("the footer has zones")
+            .iter()
+            .find(|zone| {
+                world.get::<PaneFooterZoneType>(*zone) == Some(&PaneFooterZoneType::Controls)
+            })
+            .unwrap_or_else(|| panic!("{pane:?} footer has a button zone"));
+        let mut buttons = Vec::new();
+        let mut stack = vec![zone];
+        while let Some(entity) = stack.pop() {
+            if world
+                .get::<nova_ui::prelude::ThemedButton>(entity)
+                .is_some()
+            {
+                buttons.push(rect_of(world, entity));
+            }
+            if let Some(children) = world.get::<Children>(entity) {
+                stack.extend(children.iter());
+            }
+        }
+        let last = buttons
+            .iter()
+            .map(|button| button.max.x)
+            .fold(f32::MIN, f32::max);
+        assert!(
+            !buttons.is_empty() && (last - foot.max.x).abs() <= 0.5,
+            "{pane:?} buttons {buttons:?} end on the footer edge {}",
+            foot.max.x
+        );
+    }
+}

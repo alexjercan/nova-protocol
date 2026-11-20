@@ -63,7 +63,7 @@ use nova_ui::{
         AmountSpec, Bar, ButtonCueType, ButtonSpec, RowAlign, Selected, Short, TextRole, VerbGate,
     },
     screen::drive_wheel_scroll,
-    theme::UiColorType,
+    theme::{UiColorType, BORDER_W},
     widget::{TextFieldFocused, ThemedBorder, ThemedFill, ThemedRadius},
 };
 
@@ -500,8 +500,10 @@ pub(crate) fn manage_craft_view(
                 top: px(0),
                 bottom: px(0),
                 flex_direction: FlexDirection::Column,
-                row_gap: px(10),
-                padding: UiRect::all(px(12)),
+                row_gap: px(metrics::GAP_L),
+                // The host covers the pane body, padding and all, and pads
+                // by the same step, so its content keeps the body's edges.
+                padding: UiRect::all(px(metrics::GAP_L)),
                 ..default()
             },
             // Opaque, so the Inventory view under it does not show through,
@@ -571,7 +573,7 @@ pub(crate) fn craft_body(body: &mut ChildSpawnerCommands) {
                         column_gap: px(metrics::GAP),
                         row_gap: px(metrics::GAP),
                         padding: UiRect::all(px(metrics::GAP_L)),
-                        border: UiRect::all(px(1)),
+                        border: UiRect::all(px(BORDER_W)),
                         overflow: Overflow::scroll_y(),
                         ..default()
                     },
@@ -939,7 +941,7 @@ fn spawn_tile(grid: &mut ChildSpawnerCommands, tile: &CraftTileView, icons: &Int
             flex_direction: FlexDirection::Column,
             row_gap: px(metrics::GAP_S),
             padding: UiRect::all(px(metrics::GAP)),
-            border: UiRect::all(px(1)),
+            border: UiRect::all(px(BORDER_W)),
             overflow: Overflow::clip(),
             ..default()
         },

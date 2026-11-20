@@ -12,13 +12,13 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ui::{
-    prelude::{bar, control_row, metrics, panel_paint, tag, text, TextRole},
+    prelude::{bar, control_row, metrics, tag, text, TextRole},
     theme::UiColorType,
-    widget::ThemedRadius,
 };
 use nova_world_base::prelude::CivilizationField;
 
 use super::InventoryShips;
+use crate::pane::{card_frame, card_node};
 
 /// The `Name` of the strip's node, for tests and captures.
 pub const INVENTORY_MARKET_STRIP: &str = "InventoryMarketStrip";
@@ -81,17 +81,11 @@ pub(crate) fn spawn_market_strip(stores: &mut ChildSpawnerCommands) {
     stores.spawn((
         MarketStrip::default(),
         Name::new(INVENTORY_MARKET_STRIP),
-        Node {
+        card_frame(Node {
             display: Display::None,
             flex_shrink: 0.0,
-            flex_direction: FlexDirection::Column,
-            row_gap: px(6),
-            padding: UiRect::all(px(8)),
-            border: UiRect::all(px(1)),
-            ..default()
-        },
-        panel_paint(),
-        ThemedRadius::control(),
+            ..card_node()
+        }),
     ));
 }
 

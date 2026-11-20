@@ -90,7 +90,6 @@ use nova_sound::prelude::*;
 use nova_ui::{
     prelude::*,
     theme::{UiColorType, BORDER_W},
-    widget::ThemedBorder,
 };
 use nova_world_base::prelude::{record_merit, PlayerHull};
 
@@ -98,8 +97,8 @@ use crate::{
     icons::{icon_node, ChartIconType, InterfaceIcons, JobIconType},
     map::{job_cell, MapChartMarkType, MapRuntime},
     pane::{
-        gated_verb, spawn_credit_figure, view_split, ActionCue, ActionOutcomeType, BalanceCountUp,
-        InterfacePaneType,
+        card_frame, card_node, gated_verb, spawn_credit_figure, view_split, ActionCue,
+        ActionOutcomeType, BalanceCountUp, InterfacePaneType,
     },
     ship::StationSite,
 };
@@ -996,10 +995,10 @@ const VERBS_PX: f32 = 160.0;
 /// Width of a row's icon column.
 const ICON_PX: f32 = 28.0;
 /// Least width of a row's title cell. A row whose fixed cells leave the title
-/// less than this wraps them onto a second line. It is what a board row's
-/// fixed cells leave of the pane in a 1024 px window, so from that width
+/// less than this wraps them onto a second line. A board row's fixed cells
+/// leave the title 94 px of the pane in a 1024 px window, so from that width
 /// every row is one line and the title is the cell that gives way.
-const TITLE_MIN_PX: f32 = 100.0;
+const TITLE_MIN_PX: f32 = 92.0;
 /// The scrollbar's track and its margin, which narrow a list's rows. A table
 /// head pads its right side by this much to stay over the same columns.
 const SCROLL_GUTTER_PX: f32 = 12.0;
@@ -1014,31 +1013,34 @@ fn column() -> Node {
         min_width: px(0),
         min_height: px(0),
         flex_direction: FlexDirection::Column,
-        row_gap: px(10),
+        row_gap: px(metrics::GAP_L),
         ..default()
     }
 }
 
-/// A panel of the column: an equal share of its height.
+/// A panel of the column: an equal share of its height, in the card frame
+/// every pane's cards wear.
 fn column_panel() -> impl Bundle {
-    (
-        Node {
-            flex_grow: 1.0,
-            flex_basis: px(0),
-            min_width: px(0),
-            min_height: px(0),
-            flex_direction: FlexDirection::Column,
-            row_gap: px(4),
-            padding: UiRect::all(px(8)),
-            border: UiRect::all(px(1)),
-            overflow: Overflow::clip(),
-            ..default()
-        },
-        BackgroundColor(Color::NONE),
-        BorderColor::all(Color::NONE),
-        ThemedBorder::alpha(UiColorType::TextSecondary, 0.35),
-        ThemedRadius::control(),
-    )
+    card_frame(Node {
+        flex_grow: 1.0,
+        flex_basis: px(0),
+        min_width: px(0),
+        min_height: px(0),
+        overflow: Overflow::clip(),
+        ..card_node()
+    })
+}
+
+/// A panel's table: its head line, then its rows, a list row gap apart. It
+/// takes the height the panel's title leaves.
+fn table() -> Node {
+    Node {
+        flex_grow: 1.0,
+        min_height: px(0),
+        flex_direction: FlexDirection::Column,
+        row_gap: px(metrics::GAP_S),
+        ..default()
+    }
 }
 
 /// The scroll offset and kind a list's viewport carries.
@@ -1055,14 +1057,8 @@ fn scroll_rows(
     rows: impl FnOnce(&mut ChildSpawnerCommands),
 ) {
     panel.spawn(scroll_row()).with_children(|row| {
-        row.spawn((
-            Node {
-                row_gap: px(4),
-                ..scroll_column()
-            },
-            jobs_viewport(kind, offset),
-        ))
-        .with_children(rows);
+        row.spawn((scroll_column(), jobs_viewport(kind, offset)))
+            .with_children(rows);
         row.spawn(scroll_bar());
     });
 }
@@ -1131,7 +1127,7 @@ fn ask_title_cell(question: &str, title: &str, role: TextRole) -> impl Bundle {
             flex_grow: 1.0,
             flex_basis: px(TITLE_MIN_PX),
             min_width: px(TITLE_MIN_PX),
-            column_gap: px(8),
+            column_gap: px(metrics::GAP),
             align_items: AlignItems::Center,
             overflow: Overflow::clip(),
             ..default()
@@ -1202,7 +1198,7 @@ fn meter(width: f32, have: u64, need: u64, short: bool) -> impl Bundle {
         Node {
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: px(8),
+            column_gap: px(metrics::GAP),
             flex_shrink: 0.0,
             ..default()
         },
@@ -1231,8 +1227,7 @@ fn table_head(panel: &mut ChildSpawnerCommands, columns: &[(f32, &str)]) {
             padding: UiRect {
                 left: px(ROW_INSET_PX),
                 right: px(ROW_INSET_PX + SCROLL_GUTTER_PX),
-                top: px(2),
-                bottom: px(2),
+                ..default()
             },
             flex_wrap: FlexWrap::Wrap,
             column_gap: px(metrics::GAP_L),
@@ -1382,31 +1377,33 @@ fn available_panel(
     col.spawn((Name::new(JOBS_AVAILABLE), column_panel()))
         .with_children(|panel| {
             panel_title(panel, "Available");
-            table_head(
-                panel,
-                &[
-                    (ICON_PX, ""),
-                    (0.0, "Job"),
-                    (RANGE_PX, "Range"),
-                    (THREAT_PX, "Threat"),
-                    (REWARD_PX, "Reward"),
-                    (TIME_PX, "Time left"),
-                    (VERBS_PX, ""),
-                ],
-            );
-            if rows.is_empty() {
-                return;
-            }
-            scroll_rows(panel, JobsScrollType::Available, offset, |panel| {
-                for (index, row) in rows.iter().enumerate() {
-                    spawn_row(
-                        panel,
-                        &row.id,
-                        format!("JobRowPosted-{index}"),
-                        selected == Some(&row.id),
-                    )
-                    .with_children(|r| posted_row(r, icons, index, row));
+            panel.spawn(table()).with_children(|panel| {
+                table_head(
+                    panel,
+                    &[
+                        (ICON_PX, ""),
+                        (0.0, "Job"),
+                        (RANGE_PX, "Range"),
+                        (THREAT_PX, "Threat"),
+                        (REWARD_PX, "Reward"),
+                        (TIME_PX, "Time left"),
+                        (VERBS_PX, ""),
+                    ],
+                );
+                if rows.is_empty() {
+                    return;
                 }
+                scroll_rows(panel, JobsScrollType::Available, offset, |panel| {
+                    for (index, row) in rows.iter().enumerate() {
+                        spawn_row(
+                            panel,
+                            &row.id,
+                            format!("JobRowPosted-{index}"),
+                            selected == Some(&row.id),
+                        )
+                        .with_children(|r| posted_row(r, icons, index, row));
+                    }
+                });
             });
         });
 }
@@ -1612,27 +1609,29 @@ fn held_panel(
             if view.held.is_empty() && !goal {
                 return;
             }
-            table_head(
-                panel,
-                &[
-                    (ICON_PX, ""),
-                    (0.0, "Job"),
-                    (PROGRESS_PX, "Progress"),
-                    (HAND_IN_PX, "Hand-in"),
-                    (VERBS_PX, ""),
-                ],
-            );
-            goal_row(panel, icons, view);
-            scroll_rows(panel, JobsScrollType::Held, offset, |panel| {
-                for (index, row) in view.held.iter().enumerate() {
-                    spawn_row(
-                        panel,
-                        &row.id,
-                        format!("JobRowHeld-{index}"),
-                        selected == Some(&row.id),
-                    )
-                    .with_children(|r| held_row(r, icons, index, row));
-                }
+            panel.spawn(table()).with_children(|panel| {
+                table_head(
+                    panel,
+                    &[
+                        (ICON_PX, ""),
+                        (0.0, "Job"),
+                        (PROGRESS_PX, "Progress"),
+                        (HAND_IN_PX, "Hand-in"),
+                        (VERBS_PX, ""),
+                    ],
+                );
+                goal_row(panel, icons, view);
+                scroll_rows(panel, JobsScrollType::Held, offset, |panel| {
+                    for (index, row) in view.held.iter().enumerate() {
+                        spawn_row(
+                            panel,
+                            &row.id,
+                            format!("JobRowHeld-{index}"),
+                            selected == Some(&row.id),
+                        )
+                        .with_children(|r| held_row(r, icons, index, row));
+                    }
+                });
             });
         });
 }
@@ -3623,6 +3622,13 @@ mod tests {
         use crate::pointer_rig::{click_at, pane_pointer_rig, settle};
 
         let mut rig = pane_pointer_rig();
+        // A fixed clock: the message buffers swap once per fixed step, so on
+        // the wall clock a loaded host ran a step each frame and swept an
+        // answer away in the frames between the click and the read below.
+        rig.app
+            .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+                std::time::Duration::from_millis(1),
+            ));
         rig.app.add_message::<JobAcceptCommand>();
         rig.app.add_message::<JobHandInCommand>();
         rig.app.add_message::<HailAnswerCommand>();
