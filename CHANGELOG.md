@@ -50,6 +50,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Undocked, a lost section rebuilds in the field from its recipe parts in the hold, with no credits, 5 s a part (20 s at least). A lost docking port no longer ends docking for good.
 - The Interceptor flies five drives, up from three: the fastest armed start. The Patrol Picket gains a third drive and six hull cells, and stays the lightest armed start.
 - New look for the six start hulls, each in its own style and colour: a pusher tug with a bow boom, a fork-bowed hauler, a necked freighter, a dart interceptor, a hammerhead raider and a tower picket.
+- The new start hull shapes reach further from their centre and turn slower. Sustained deg/s: hauler 71 to 59, freighter 75 to 67, interceptor 86 to 76, raider 82 to 73, picket 78 to 76, tug 64 to 63.
 - Industrial plating is now ochre, armoured plating dark blue-grey and salvage plating rust, on every ship, wreck and station in those styles.
 
 ### Modding & Mod Portal

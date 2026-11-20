@@ -17,13 +17,15 @@
 //! there. Nothing is faked for the camera except the send-off nudge, which
 //! only sets the pace the separation reads at.
 //!
-//! Everything the beats touch is on the PORT flank, because the camera is:
-//! the cracked plating, the turret that dies and the pod that severs all have
-//! to be the ones facing the lens.
+//! The cracked plating and the wing tip that severs are on the PORT flank,
+//! because the camera is. The turret that dies is the STARBOARD one: the port
+//! mount stands on the plate the last beat cuts and has to leave as a whole
+//! wreck. The lens on the port quarter sees the far wing tip over the aft
+//! deck.
 //!
 //! The same walk also shoots the ships chapter's opening still,
 //! `wiki-ships-damage.png`, off the last beat - the hull cracked along the
-//! flank, its port turret dead, and the hole where its port wing tip tore off. One
+//! flank and the hole where its port wing tip tore off. One
 //! scene answers both, and the still is taken AFTER the loop closes: a
 //! screenshot and a loop frame are the same window capture, and the second one
 //! asked for in a frame is dropped.
@@ -97,7 +99,8 @@ const BROADSIDE_FRACTION: f32 = 0.78;
 
 /// The turret that goes quiet. A turret is a leaf on the hull graph, so
 /// killing it disables a gun without severing anything - which is the beat:
-/// losing a weapon is not the same event as losing structure.
+/// losing a weapon is not the same event as losing structure. The starboard
+/// one, because the port mount stands on [`SEVERED_CELL`] and leaves with it.
 #[cfg(feature = "debug")]
 const DISABLED_TURRET: &str = "pdc_starboard";
 
@@ -115,11 +118,11 @@ const SEVERED_CELL: Vec3 = Vec3::new(-3.0, 0.0, 1.0);
 ///
 /// Broadside off the port bow, and not the loop's own bearing: the loop looks
 /// from the port QUARTER, which is a fine view of a hull coming apart in
-/// motion and the wrong one for a still, because everything the sequence
-/// touches is on the flank. Cracked plating runs bow to waist
-/// ([`BROADSIDE_CELLS`]), the dead gun is the mount on the starboard wing tip,
-/// and the hole is under the port mount at [`SEVERED_CELL`] - one flank-on
-/// frame carries all three, an aft quarter carries none of them.
+/// motion and the wrong one for a still, because the cracks are on the flank.
+/// Cracked plating runs bow to waist ([`BROADSIDE_CELLS`]) and the hole is
+/// under the port mount at [`SEVERED_CELL`] - one flank-on frame carries both.
+/// The dead gun stood on the starboard wing tip, which the dorsal block hides
+/// from the port bow.
 #[cfg(feature = "debug")]
 const STILL_EYE: Vec3 = Vec3::new(-1.0, 0.3, -0.35);
 
@@ -141,7 +144,8 @@ const STILL_STANDOFF: f32 = 185.0;
 ///
 /// The port quarter from astern - far enough round to hold both the flank the
 /// beats walk and the deck the last one frees, without the drive bell in the
-/// middle of it.
+/// middle of it. From astern the starboard wing tip shows over the aft deck,
+/// so the turret beat is in shot.
 #[cfg(feature = "debug")]
 const LOOP_EYE: Vec3 = Vec3::new(-0.68, 0.23, 0.70);
 
@@ -290,14 +294,14 @@ fn damage_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .on_enter(spread_cracks)
         .until(elapsed(1.2))
         .add()
-        .step("kill the port turret")
+        .step("kill the starboard turret")
         .on_enter(disable_turret)
         .until(elapsed(0.9))
         .add()
         // The cut waits for the production sever - a wreck fragment with its
         // own body - to actually exist, not for a duration.
         .step("cut the port wing tip")
-        .on_enter(sever_pod)
+        .on_enter(sever_wing_tip)
         .until(any_entity::<With<ShipWreckFragmentMarker>>())
         .deadline(5.0)
         .add()
@@ -311,7 +315,7 @@ fn damage_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .deadline(60.0)
         .add()
         // The still, on the loop's own last state: the hull is already
-        // cracked, the turret is already gone and the pod is already clear,
+        // cracked, the turret is already gone and the wing tip is already clear,
         // which is the whole of what the chapter's figure note promises. It
         // cannot be shot a beat earlier - see the module doc on the shared
         // window capture - and it is not shot on the loop's fixed pose
@@ -343,7 +347,7 @@ fn subject_present() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predi
 /// constant world pose lands on whichever side happens to be turned toward the
 /// lens by the last beat - the drive bell, as it happens, with every hit on
 /// the far side. Rebuilt from the hull's live rotation, the lens goes back to
-/// the PORT flank, which is the only flank any of the beats touched.
+/// the PORT flank, which the broadside and the cut are on.
 ///
 /// The spin is zeroed first, so the pose the camera is given is the pose the
 /// shot is taken on.
@@ -446,7 +450,7 @@ fn spread_cracks(world: &mut World) {
     }
 }
 
-/// Kill the port turret outright - a gun lost, no structure freed.
+/// Kill the starboard turret outright - a gun lost, no structure freed.
 #[cfg(feature = "debug")]
 fn disable_turret(world: &mut World) {
     kill_section(world, DISABLED_TURRET);
@@ -455,7 +459,7 @@ fn disable_turret(world: &mut World) {
 /// Kill the port wing-tip plate, which frees the mount standing on it and the
 /// drive behind it.
 #[cfg(feature = "debug")]
-fn sever_pod(world: &mut World) {
+fn sever_wing_tip(world: &mut World) {
     let ships = world.resource::<GameShipDesigns>().clone();
     let section = kit::cell_section(&ships, SUBJECT_HULL, SEVERED_CELL);
     kill_section(world, &section);

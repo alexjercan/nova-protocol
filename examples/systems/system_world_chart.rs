@@ -147,9 +147,9 @@ mod walk {
     const SEED_FIELD: &str = "World Seed Field";
     const CREATE_WORLD_BUTTON: &str = "Create World Button";
     const WORLD_NEXT_BUTTON: &str = "World Next Button";
-    /// The start role the walk picks: the scavenger's salvage hauler, a compact
-    /// box. The first role's mining tug has a bow boom that can strike a berthed
-    /// partner.
+    /// The start role the walk picks: the scavenger's salvage hauler, whose
+    /// forked bow stays one cell inboard of its port collar face. The first
+    /// role's mining tug has a bow boom that can strike a berthed partner.
     const START_ROLE_BUTTON: &str = "Start Role Button: scavenger";
     const PAUSE_EXIT_BUTTON: &str = "Pause Exit Button";
     const BACK_TO_MENU_BUTTON: &str = "Back To Menu Button";

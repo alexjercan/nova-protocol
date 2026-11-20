@@ -3529,9 +3529,8 @@ mod tests {
         assert_eq!(marked(&mut app), vec!["second".to_string()]);
     }
 
-    /// A row shows the paint its style puts on a hull's top surface: five words
-    /// for five looks made a builder open each in turn to find out what they
-    /// meant.
+    /// A row shows the paint its style puts on a hull's top surface: names
+    /// alone made a builder open each style in turn to find out what it meant.
     #[test]
     fn a_style_row_carries_the_colour_that_style_paints() {
         let listed = listed_styles(&GameStyles(vec![style("civilian")]));

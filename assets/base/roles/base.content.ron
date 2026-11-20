@@ -51,7 +51,7 @@
         id: "transport",
         name: "Transport",
         icon: Container,
-        about: "A light freighter with a deep stack, a flank pod and no weapons. Buy cargo at one station and sell it at another.",
+        about: "A light freighter with a box hold, two drive pods and no weapons. Buy cargo at one station and sell it at another.",
         hull: "light_freighter",
         kit: (
             credits: 2200,

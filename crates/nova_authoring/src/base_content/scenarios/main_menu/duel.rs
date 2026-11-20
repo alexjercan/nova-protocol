@@ -2,8 +2,9 @@
 //! arena. The surviving ship becomes the target of a scripted torpedo, then
 //! the scenario resets.
 //!
-//! The silhouettes stay distinct at menu scale: one is symmetric with six
-//! mounts; the other has an outrigger, a boom, and two mounts.
+//! The silhouettes stay distinct at menu scale: the interceptor is a symmetric
+//! arrowhead; the raider is a hammerhead with one offset outrigger drive. Each
+//! carries two PDC mounts.
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
@@ -83,8 +84,10 @@ const BAY_CELLS: Vec3 = Vec3::new(1.0, 1.0, 2.0);
 /// `blast_damage` 6000 over a 450 m radius kills the victor from any side in
 /// one hit: pressure keeps 65% through each plate it destroys, so the eighth
 /// layer still takes about 265 (over a 200 plate) and the fifth about 960
-/// (over the 500 bridge), and the interceptor is five cells deep at most.
-/// `projectile_health` 50000 exceeds the damage six PDC mounts can deal during
+/// (over the 500 bridge). The interceptor is eight cells long; its bridge is
+/// the fifth cell of the upper deck from the stern and nothing covers it from
+/// the bow or either side.
+/// `projectile_health` 50000 exceeds the damage four PDC mounts can deal during
 /// the approximately 6 s closing window, so the round remains visible under
 /// fire and still reaches the target.
 fn siege_bay(assets: &BaseContentAssets) -> SectionConfig {
@@ -299,9 +302,9 @@ fn duelist(
             // end the act seconds after it starts. The 500 keeps the DOGFIGHT
             // on screen; however the loser finally cripples (guns, computer,
             // or full destruction), the defeat chain fires and the finale
-            // plays. Both hulls bury their computers under plate, so
-            // this is now belt-and-braces rather than the only thing holding
-            // the act up - and the exposed guns are what actually decide it.
+            // plays. No plate stands in for the 500: the interceptor bridge
+            // is open on four faces (top, bow, both sides) and the raider
+            // bridge on its keel face.
             design: ships::patched_section(
                 design,
                 ships::BLOCK_BRIDGE_SECTION_ID,

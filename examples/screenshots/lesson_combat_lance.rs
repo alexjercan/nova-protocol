@@ -176,7 +176,7 @@ const BOAT_ID: &str = "lance_boat";
 const LANCE_ID: &str = "lance";
 const TARGET_ID: &str = "target_raider";
 
-/// The catalog hull downrange: a base Raider, whose hull runs about 70 m, so
+/// The catalog hull downrange: a base Raider, whose hull runs about 80 m, so
 /// a bow-on shot has something to bore THROUGH.
 const TARGET_HULL: &str = "raider";
 
@@ -296,15 +296,16 @@ const COLLAPSE_SLOWDOWN: f32 = 0.11;
 /// How far the gunboat yaws off the target's spine at the far end of the
 /// bore-sight swing, in degrees.
 ///
-/// Set against the hull's shoulder, not its half-width. The raider's body is
-/// 30 m across with a one-cell outrigger to starboard; ten degrees at this
-/// range walks the trace from about 18 m off the centreline at the nose to
-/// about 34 m at the drives, so it crosses the outrigger and the flank rather
-/// than the spine. [`MIN_RING_SPREAD`] is the check that the far end of the
-/// swing still prices fewer sections than the bow-on shot.
+/// Set against the hull's shoulder, not its half-width. The raider's head is
+/// 50 m across on a spine one cell wide; ten degrees at this range walks the
+/// trace from about 17 m off the centreline at the nose to about 31 m at the
+/// drives, so it crosses the starboard end of the head rather than the
+/// spine. [`MIN_RING_SPREAD`] is the check that the far end of the swing
+/// still prices fewer sections than the bow-on shot.
 ///
-/// The far end of the swing is a shot catching a corner, not a shot missing. A sheet that swung wider spent
-/// seven of its twenty cells on a clean pass, which is a different lesson.
+/// The far end of the swing is a shot catching a corner, not a shot missing.
+/// A sheet that swung wider spent seven of its twenty cells on a clean pass,
+/// which is a different lesson.
 #[cfg(feature = "debug")]
 const BORE_YAW_SWING: f32 = 10.0;
 
@@ -330,9 +331,11 @@ const BORE_YAW_SWING: f32 = 10.0;
 /// and therefore out of shot; its thread arrives over the frame edge instead,
 /// which is the trade this frame makes for a mark a reader can see.
 #[cfg(feature = "debug")]
-const BORE_EYE: Meters3 = Meters3::new(-60.0, 27.0, -79.0);
+const BORE_EYE: Meters3 = Meters3::new(-60.0, 27.0, -62.0);
+/// What the bore-sight sheet aims at: the middle of the raider's length. Its
+/// hull runs from 95 m to 175 m downrange, not evenly about [`TARGET_Z`].
 #[cfg(feature = "debug")]
-const BORE_AIM: Meters3 = Meters3::new(0.0, 0.0, -150.0);
+const BORE_AIM: Meters3 = Meters3::new(0.0, 0.0, -133.0);
 
 /// Where the lens stands for the railgun sheet, and what it looks at.
 ///
@@ -1032,10 +1035,9 @@ fn report_the_sight(world: &World) -> String {
 /// The fewest sections the two ends of the swing have to differ by.
 ///
 /// The lesson's claim is a COMPARISON, and a comparison needs a gap a reader
-/// can see. A shot down this hull's spine prices some nine or ten sections and
-/// one on its shoulder a couple, so four is a wide margin on the delivered
-/// scene and still fails the moment the two ends of the swing stop saying
-/// different things.
+/// can see. A shot down this hull's spine prices eleven sections and one on
+/// its shoulder six, so four clears the delivered scene by one section and
+/// fails the moment the two ends of the swing stop saying different things.
 #[cfg(feature = "debug")]
 const MIN_RING_SPREAD: usize = 4;
 

@@ -77,11 +77,12 @@ const CUT_INTERVAL: f32 = 0.65;
 /// Two numbers decide how the ship SITS in that frame. The STAND-OFF (the
 /// length of the first three) sets how much of the width the hull fills: the
 /// lens is 45 degrees vertical, so at 16:9 it spans 1.47 times its distance,
-/// and a 65 m interceptor is under a third of the frame width at 150 m and a
-/// seventh of it at 300. The LOOK-AHEAD decides where in the frame it sits, because the
-/// camera aims at a point down the track rather than at the ship: half the
-/// horizontal field is 36 degrees, so a lead of 200 m at a 300 m stand-off
-/// pushes the subject 34 degrees off axis, onto the frame edge.
+/// and an 80 m interceptor is a little over a third of the frame width at
+/// 150 m and under a fifth of it at 300. The LOOK-AHEAD decides where in the
+/// frame it sits, because the camera aims at a point down the track rather
+/// than at the ship: half the horizontal field is 36 degrees, so a lead of
+/// 200 m at a 300 m stand-off pushes the subject 34 degrees off axis, onto the
+/// frame edge.
 ///
 /// So: stand-offs between 120 and 170 m, and leads short enough to keep the
 /// hull inside the middle two thirds with the space it is flying into ahead of

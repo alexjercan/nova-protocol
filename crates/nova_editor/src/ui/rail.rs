@@ -75,15 +75,15 @@ pub(crate) fn skin_toggle_row(on: bool) -> impl Bundle {
 /// the editor owning any colour.
 ///
 /// `colour` is the paint the style puts on a hull's top surface, shown as a
-/// block in front of the name: the choice is a purely visual one, and five
-/// words for five looks made a builder open each in turn to find out what they
-/// meant.
+/// block in front of the name: the choice is a purely visual one, and names
+/// alone made a builder open each style in turn to find out what it meant.
 ///
 /// Deliberately COMPACT - 22px against a tool button's 34. The rail is 150px
 /// wide on a 1024x768 window and the catalog is as long as the content merge
-/// makes it, so five styles at tool height push Play off the bottom of the
-/// screen. Measured, not guessed. The block is sized to the row for the same
-/// reason: the shared 22px `swatch` would set the height of the list.
+/// makes it: five styles at tool height pushed Play off the bottom of the
+/// screen, and the base catalog now lists seven. The block is sized to the row
+/// for the same reason: the shared 22px `swatch` would set the height of the
+/// list.
 pub(crate) fn style_row(id: &str, name: &str, colour: Color) -> impl Bundle {
     (
         ListRow,

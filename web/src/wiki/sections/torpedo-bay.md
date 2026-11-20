@@ -157,8 +157,8 @@ The result scales through geometry rather than a ship-size bonus. A thin small c
             >assets/loops/spine-cut.webm</span
         >
         <span class="figure__placeholder-note"
-            >A cut that disconnects the graph: the engine block
-            severs and drifts free as a wreck.</span
+            >A cut that disconnects the graph: a wing-tip gun
+            mount and its drive sever and drift free as wrecks.</span
         >
     </div>
 </figure>

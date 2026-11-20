@@ -52,13 +52,15 @@
 //! as well would read as a pan rather than as a drain.
 //!
 //! It stands off the STARBOARD QUARTER at 40 degrees rather than abeam. Abeam
-//! is the bearing that shows a burst best, but the two forward dorsal mounts
-//! are separated across the hull's X axis, so an eye on that axis stacks them
-//! one behind the other - and two ammo rings within four pixels of each other
+//! is the bearing that shows a burst best, but the two wing-tip mounts are
+//! separated across the hull's X axis, so an eye on that axis stacks them one
+//! behind the other - and two ammo rings within four pixels of each other
 //! FOLD INTO ONE badge (`nova_hud::ammo_readout` clusters crowded gauges), so
 //! the frame would have shown one gauge where the ship has two. From the
-//! quarter the mounts sit 280 pixels apart and each keeps its own ring, while
-//! the rounds still cross the cell instead of flying up the lens.
+//! quarter the mounts sit 400 pixels apart and each keeps its own ring, while
+//! the rounds still cross the cell instead of flying up the lens. The eye
+//! rides above the dorsal spine, which stands a deck higher than the mounts
+//! and hides the port one from a level eye.
 //!
 //! ## The point-defence frame is a STILL, and the reason is pixels
 //!
@@ -84,7 +86,7 @@
 //! readable in one frame of the battery already on the threats.
 //!
 //! The eye stands off the starboard quarter and looks PAST the hull down the
-//! threat bearing, so the interceptor takes the lower left of the frame at 100 m
+//! threat bearing, so the interceptor takes the lower left of the frame at 155 m
 //! and the torpedoes converge toward the upper right at a kilometre. That is
 //! the one composition that holds both ends of a line a kilometre long: framed
 //! on the ship the picks are off the edge, and framed on the salvo the mounts
@@ -164,23 +166,24 @@ const BOAT_POSITIONS: [Meters3; 3] = [
 
 /// Where the magazine loop's eye stands, and what it looks at.
 ///
-/// Off the STARBOARD QUARTER at about 40 degrees and 70 m, looking at the
-/// forward dorsal pair. The module docs carry the reasoning: abeam stacks the
-/// two mounts on one another and folds their two gauges into one cluster badge,
+/// Off the STARBOARD QUARTER at about 40 degrees and 80 m, with both wing-tip
+/// mounts in frame. The module docs carry the reasoning: abeam stacks the two
+/// mounts on one another and folds their two gauges into one cluster badge,
 /// and dead astern points the burst up the lens.
-#[cfg(feature = "debug")]
-const MAGAZINE_EYE: Meters3 = Meters3::new(46.0, 30.0, 36.0);
-/// What the magazine loop aims at: just over the dorsal mounts, two cells up
-/// and two cells forward of the hull's centre.
 ///
-/// Level-ish with the deck rather than looking down on it. The gauge stands off
-/// its weapon's projected edge up and to the RIGHT
-/// (`nova_hud::ammo_readout::GAUGE_CLEARANCE`), so an eye that rides near the
-/// mounts' own height puts every ring on black sky instead of on the armour
-/// behind them - and the first cut, shot from fifteen metres higher, laid four
-/// amber rings over a wall of grey plate.
+/// 24 m up: the dorsal spine stands 15 m high between the mounts, and the
+/// sight line to the port mount has to pass over its aft end.
 #[cfg(feature = "debug")]
-const MAGAZINE_AIM: Meters3 = Meters3::new(0.0, 21.0, -18.0);
+const MAGAZINE_EYE: Meters3 = Meters3::new(48.0, 24.0, 68.0);
+/// What the magazine loop aims at: the centreline between the two wing-tip
+/// mounts, which stand 30 m to either side of it and one cell aft of the hull's
+/// centre.
+///
+/// No higher than the spine needs. The gauge stands off its weapon's projected
+/// edge up and to the RIGHT (`nova_hud::ammo_readout::GAUGE_CLEARANCE`), so a
+/// low eye puts each ring on black sky instead of on the armour behind it.
+#[cfg(feature = "debug")]
+const MAGAZINE_AIM: Meters3 = Meters3::new(0.0, 9.0, 6.0);
 
 /// How much faster than real time the world runs while the magazine sheet is
 /// recording.
@@ -237,13 +240,14 @@ const RELEASE_TAIL_SECS: f32 = 0.5;
 
 /// Where the point-defence still's eye stands, and what it looks at.
 ///
-/// Off the starboard quarter at about 115 m, aimed 90 m PAST the hull down the
-/// threat bearing. That puts the interceptor in the lower left of the frame at a
-/// third of the frame's height and sends world -Z away to the upper right, so a
-/// line drawn from a mount to a torpedo a kilometre out runs diagonally across
-/// the picture with both of its ends inside it.
+/// Off the starboard quarter at about 155 m, aimed 90 m PAST the hull down the
+/// threat bearing. That puts the whole interceptor, 70 m across the wing tips,
+/// in the lower left of the frame at a third of the frame's height and sends
+/// world -Z away to the upper right, so a line drawn from a mount to a torpedo
+/// a kilometre out runs diagonally across the picture with both of its ends
+/// inside it.
 #[cfg(feature = "debug")]
-const DEFENSE_EYE: Meters3 = Meters3::new(75.0, 34.0, 78.0);
+const DEFENSE_EYE: Meters3 = Meters3::new(100.0, 42.0, 110.0);
 /// What the point-defence still aims at: a point down the threat bearing
 /// rather than the hull, so the hull and its picks share the frame.
 #[cfg(feature = "debug")]
@@ -561,9 +565,9 @@ fn combat_battery_script() -> nova_protocol::nova_debug::harness::AutopilotPlugi
         .until(and(player_ship_present(), scenario_camera_present()))
         .deadline(30.0)
         .add()
-        // A MAGAZINE REFILLS FROM THE RESERVE. The eye goes to the forward
-        // dorsal pair and stays there: the drain is the motion.
-        .step("raise the instruments and frame the forward mounts")
+        // A MAGAZINE REFILLS FROM THE RESERVE. The eye goes to the wing-tip
+        // pair and stays there: the drain is the motion.
+        .step("raise the instruments and frame the wing-tip mounts")
         .on_enter(|world: &mut World| {
             hollow::hud_instrument(world);
             hollow::hold_station(world);

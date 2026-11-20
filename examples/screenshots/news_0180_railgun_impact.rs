@@ -53,7 +53,7 @@ const BOAT_ID: &str = "lance_boat";
 const LANCE_ID: &str = "lance";
 
 /// Scenario id of the hull that is shot at, and its catalog hull: a base
-/// Raider, about 70 m from nose to drives.
+/// Raider, about 80 m from nose to drives.
 const TARGET_ID: &str = "target_raider";
 const TARGET_HULL: &str = "raider";
 

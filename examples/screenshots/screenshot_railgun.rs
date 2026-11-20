@@ -84,7 +84,7 @@ const LANCE_ID: &str = "lance";
 /// Scenario id of the hull that is shot at.
 const TARGET_ID: &str = "target_raider";
 
-/// The catalog hull downrange. A base Raider: about 70 m from its nose stub to
+/// The catalog hull downrange. A base Raider: about 80 m from its nose to
 /// its drives, long enough that a bow-on shot has something to bore THROUGH,
 /// which is the claim the corridor figure makes.
 const TARGET_HULL: &str = "raider";

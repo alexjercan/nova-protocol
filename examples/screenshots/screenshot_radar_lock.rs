@@ -266,9 +266,9 @@ fn radar_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         // from a tighter, lower camera.
         //
         // The lens distance is set by the SUBJECT'S SIZE, not by taste. The
-        // `interceptor` is about 50 x 30 x 65 m - a 44 m bounding radius - and
+        // `interceptor` is about 70 x 20 x 80 m - a 54 m bounding radius - and
         // an eye inside that is a close-up of hull plating with the ship's own
-        // drives and cockpit out of frame. This sits ~141 m out, about three
+        // drives and cockpit out of frame. This sits ~141 m out, about 2.6
         // times the radius, which holds the whole hull with the
         // beacon's lock bracket beside it. Re-measure it if the hull is
         // re-clad: the framing that came before this one was measured against

@@ -47,9 +47,9 @@ const LESSON: &str = "flight_aim";
 /// Where the camera stands off the parked player, which sits at the origin.
 ///
 /// Set by the SUBJECT'S SIZE, not by taste: the `interceptor` is about
-/// 50 x 30 x 65 m - a 44 m bounding radius - so an eye at 70 m is a close-up of
+/// 70 x 20 x 80 m - a 54 m bounding radius - so an eye at 70 m is a close-up of
 /// hull plating with the nose and the drives both out of frame. This sits at
-/// about 3.4 times the radius, which holds the whole hull in a cell.
+/// about 2.8 times the radius, which holds the whole hull in a cell.
 #[cfg(feature = "debug")]
 const SWEEP_RANGE: Meters = Meters(150.0);
 /// How far above the hull the camera rides: a slight downward look, so the

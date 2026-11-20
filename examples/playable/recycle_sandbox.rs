@@ -83,8 +83,8 @@ struct Cli;
 /// The world seed: `system_station_strip`'s, whose window around the spawn
 /// holds a lootable generated derelict ship with a free port.
 const SANDBOX_SEED: u32 = 115;
-/// The start role the player spawns as: the scavenger's salvage hauler, a
-/// compact box with a deep hold.
+/// The start role the player spawns as: the scavenger's salvage hauler, the
+/// start hull with the largest hold.
 const SANDBOX_ROLE: &str = "scavenger";
 /// How far from the wreck the player parks before the berth.
 const PARK_DISTANCE: Meters = Meters(2_000.0);

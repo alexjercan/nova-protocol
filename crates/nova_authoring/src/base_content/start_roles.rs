@@ -84,7 +84,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             "transport",
             "Transport",
             RoleIconType::Container,
-            "A light freighter with a deep stack, a flank pod and no weapons. Buy cargo at \
+            "A light freighter with a box hold, two drive pods and no weapons. Buy cargo at \
              one station and sell it at another.",
             LIGHT_FREIGHTER_SHIP_ID,
             2_200,

@@ -96,10 +96,11 @@ pub(crate) fn kaveri() -> ScenarioObjectConfig {
 /// Gantry, stranded: nobody at the helm, nothing hostile aboard, and a stern
 /// that is not there any more.
 ///
-/// It flies the freighter DERELICT: the light freighter with its drive, its
-/// transom, an aft tank cube and half its starboard wing missing. Nothing drives it and
-/// nothing is authored to move it, so the hull the player closes on is exactly
-/// as still as the intact one: it LOOKS worse and the clamp is no harder.
+/// It flies the freighter DERELICT: a yard-fitted freighter of an older
+/// pattern than the light freighter, with its drive, its transom, an aft tank
+/// cube and half its starboard wing missing. Nothing drives it and nothing is
+/// authored to move it, so the hull the player closes on is as still as an
+/// intact one: it LOOKS worse and the clamp is no harder.
 pub(crate) fn gantry() -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {

@@ -295,6 +295,17 @@ mod smoke {
         })
     }
 
+    /// The hull `--ship` named is up. `load_hull` reads `GameAssets`, which
+    /// exists only after loading, so the walk stands no other hull before
+    /// this holds.
+    fn first_hull_staged() -> Arc<dyn Fn(&World) -> bool + Send + Sync> {
+        Arc::new(|world: &World| {
+            world
+                .get_resource::<Focus>()
+                .is_some_and(|focus| staged(focus.0)(world))
+        })
+    }
+
     fn check(hull: usize) -> impl Fn(&mut World) + Send + Sync + 'static {
         move |world: &mut World| {
             let (id, _) = HULLS[hull];
@@ -335,7 +346,11 @@ mod smoke {
     /// The smoke walk: each hull stands, carries pieces and is shot; the six
     /// wear six styles.
     pub(super) fn script() -> AutopilotPlugin<GameStates> {
-        let mut script = AutopilotPlugin::<GameStates>::new();
+        let mut script = AutopilotPlugin::<GameStates>::new()
+            .step("start hull showroom: wait for the first hull")
+            .until(first_hull_staged())
+            .deadline(SETUP_SECS)
+            .add();
         for (hull, (id, _)) in HULLS.into_iter().enumerate() {
             let shot = format!("start-hull-{id}.png");
             script = script

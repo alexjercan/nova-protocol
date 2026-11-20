@@ -83,7 +83,7 @@
 //! own plane, so an eye level with the mounts - `lesson_combat_battery`'s
 //! magazine framing, borrowed whole - projects the entire swing onto a few
 //! pixels of foreshortened barrel against a wall of grey flank. From up here
-//! all four dorsal mounts sit on their deck, the swing is a swing, and the
+//! both wing-tip mounts sit on their deck, the swing is a swing, and the
 //! cell is wide enough that a round stays in it for a hundred metres of
 //! flight.
 //!
@@ -176,9 +176,11 @@ const REACH_AIM: Meters3 = Meters3::new(0.0, 190.0, -1_350.0);
 /// How far the furthest live round may sit from [`PDC_REACH`] when the shutter
 /// opens.
 ///
-/// Generous on purpose: the mounts are spread over a 105 m hull, so the round
-/// that has flown furthest left a muzzle up to half that ahead of the origin
-/// the reach is measured from, and a round is only sampled once a frame.
+/// A round dies up to one frame of travel short of its reach, which is 100 m
+/// on the held clock (`hold_the_lane_clock`); a run on a software rasterizer
+/// measured 114 m. The range is taken from the mounts ([`StreamOrigin`]) and
+/// not from the hull's origin, so where a hull carries its guns adds nothing
+/// to it.
 #[cfg(feature = "debug")]
 const REACH_TOLERANCE: Meters = Meters(120.0);
 
@@ -249,9 +251,9 @@ const SWING_DEGREES: f32 = 90.0;
 ///
 /// The distance is free - a commanded POINT has no body, so the gate is
 /// [`POINT_AIM_ON_TARGET_RAD`] at any range - and this is chosen so the rounds
-/// have somewhere to go. The height is NOT free: it is about the dorsal
-/// mounts' own, so the pair the eye is framed on is laid level rather than
-/// craning.
+/// have somewhere to go. The height is NOT free: it is within 10 m of the
+/// wing-tip mounts' own, so the pair the eye is framed on is laid within a
+/// degree of level rather than craning.
 #[cfg(feature = "debug")]
 const SWING_RADIUS: Meters = Meters(600.0);
 /// The height the commanded point walks at. See [`SWING_RADIUS`].
@@ -590,14 +592,44 @@ fn the_guns_held_and_came_back(world: &mut World) {
     );
 }
 
-/// How far the furthest live round has flown from the hull that fired it.
+/// Where the stream is measured from: the middle of the player's mounts, in
+/// engine units.
+///
+/// A round lives [`PDC_REACH`] from its own muzzle. The interceptor carries
+/// its mounts 10 m aft of its origin, so a range taken from the origin reads
+/// that much short and failed [`REACH_TOLERANCE`] on a full lane.
 #[cfg(feature = "debug")]
-fn furthest_round(world: &mut World) -> Meters {
+#[derive(Resource)]
+struct StreamOrigin(Vec3);
+
+/// Record [`StreamOrigin`] off the live hull.
+#[cfg(feature = "debug")]
+fn mark_the_stream_origin(world: &mut World) {
+    let mounts = turrets_of(world, PLAYER_ID);
+    assert!(
+        !mounts.is_empty(),
+        "the reach lesson's player carries no turret to measure a stream from"
+    );
+    let sum: Vec3 = mounts
+        .iter()
+        .filter_map(|&mount| world.get::<GlobalTransform>(mount))
+        .map(GlobalTransform::translation)
+        .sum();
+    world.insert_resource(StreamOrigin(sum / mounts.len() as f32));
+}
+
+/// How far the furthest live round has flown from [`StreamOrigin`].
+#[cfg(feature = "debug")]
+fn furthest_round(world: &World) -> Meters {
+    let origin = world.resource::<StreamOrigin>().0;
     let furthest = world
-        .query_filtered::<&GlobalTransform, With<TurretBulletProjectileMarker>>()
-        .iter(world)
-        .map(|at| at.translation().length())
-        .fold(0.0_f32, f32::max);
+        .try_query_filtered::<&GlobalTransform, With<TurretBulletProjectileMarker>>()
+        .map_or(0.0, |mut rounds| {
+            rounds
+                .iter(world)
+                .map(|at| at.translation().distance(origin))
+                .fold(0.0_f32, f32::max)
+        });
     Meters::from_engine(furthest)
 }
 
@@ -606,15 +638,7 @@ fn furthest_round(world: &mut World) -> Meters {
 #[cfg(feature = "debug")]
 fn the_lane_is_full() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(|world: &World| {
-        let furthest = world
-            .try_query_filtered::<&GlobalTransform, With<TurretBulletProjectileMarker>>()
-            .map_or(0.0, |mut rounds| {
-                rounds
-                    .iter(world)
-                    .map(|at| at.translation().length())
-                    .fold(0.0_f32, f32::max)
-            });
-        Meters::from_engine(furthest).get() >= PDC_REACH.get() - REACH_TOLERANCE.get()
+        furthest_round(world).get() >= PDC_REACH.get() - REACH_TOLERANCE.get()
     })
 }
 
@@ -643,18 +667,10 @@ fn the_salvo_is_in_the_gap() -> std::sync::Arc<nova_protocol::nova_debug::harnes
 /// What to print when the reach beat stalls: the two numbers it is waiting on.
 #[cfg(feature = "debug")]
 fn report_the_lane(world: &World) -> String {
-    let furthest = world
-        .try_query_filtered::<&GlobalTransform, With<TurretBulletProjectileMarker>>()
-        .map_or(0.0, |mut rounds| {
-            rounds
-                .iter(world)
-                .map(|at| at.translation().length())
-                .fold(0.0_f32, f32::max)
-        });
     let torpedo = lead_torpedo_range(world).map(|range| range.get());
     format!(
         "furthest round {:.0} m, lead torpedo {:?} m",
-        Meters::from_engine(furthest).get(),
+        furthest_round(world).get(),
         torpedo.map(|range| range.round())
     )
 }
@@ -761,7 +777,7 @@ fn combat_reach_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<
         // in already pointing where the step leads spends the first cells
         // firing where the loop will have it chasing - the sheet then wraps
         // from a barrel at one bearing to a barrel at the other.
-        .step("frame the dorsal deck and lay the guns on the bearing it steps off")
+        .step("frame the deck from astern and lay the guns on the bearing it steps off")
         .on_enter(|world: &mut World| {
             hide_hud(world);
             swing_the_aim(world, LESSON_GRID.frames() - 1);
@@ -820,7 +836,10 @@ fn combat_reach_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<
         .until(frames(1))
         .add()
         .step("hold the battery down and fill the lane")
-        .on_enter(|world: &mut World| set_triggers(world, true))
+        .on_enter(|world: &mut World| {
+            mark_the_stream_origin(world);
+            set_triggers(world, true);
+        })
         .until(and(the_lane_is_full(), elapsed(FILL_SECS)))
         .deadline(120.0)
         .diagnose(report_the_lane)

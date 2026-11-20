@@ -16,8 +16,8 @@
 //! the sever is the production integrity pipeline - the script asserts a
 //! [`ShipWreckFragmentMarker`] actually appears, so a run that fails to sever
 //! aborts by name instead of recording a loop of nothing. The drift is the
-//! hull's own inherited spin plus one scripted nudge per fragment, so the
-//! separation reads at a close camera within the loop's seconds.
+//! production sever kick and the hull's own inherited spin, plus one scripted
+//! nudge per fragment.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - the full walk, recording
@@ -48,7 +48,7 @@ struct Cli;
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "spine-cut";
 
-/// Scenario id of the interceptor that loses its port flank.
+/// Scenario id of the interceptor that loses its port wing tip.
 const SUBJECT_ID: &str = "loop_subject";
 
 /// The catalog hull the cut is made in.
@@ -65,16 +65,34 @@ const SUBJECT_HULL: &str = "interceptor";
 #[cfg(feature = "debug")]
 const CUT_CELL: Vec3 = Vec3::new(-3.0, 0.0, 1.0);
 
+/// Where the lens stands off [`CUT_CELL`], in the HULL's own frame, meters.
+///
+/// High off the starboard quarter, looking across the aft deck at the port
+/// wing tip. The freed mount and drive leave to port at about 35 m/s, the
+/// sever kick plus the scripted nudge; a lens astern of the wing tip has them
+/// out of frame inside two seconds. From here they cross the frame and are
+/// still in it when the loop closes.
+///
+/// Read in the hull's frame because the subject is authored with a yaw; a
+/// pose in world axes lands on whichever part of the hull that yaw turns
+/// toward it.
+#[cfg(feature = "debug")]
+const CUT_EYE: Vec3 = Vec3::new(75.0, 75.0, 155.0);
+
+/// What the lens aims at, as an offset from [`CUT_CELL`] in the hull's frame,
+/// meters: outboard and aft of the cut, so the hull sits in the right half of
+/// the frame and the left half is open for the drift.
+#[cfg(feature = "debug")]
+const CUT_AIM: Vec3 = Vec3::new(-25.0, 10.0, 20.0);
+
 /// The slow tumble the hull carries into the cut, so the freed structure
 /// inherits real motion instead of hanging dead in frame.
 #[cfg(feature = "debug")]
 const SUBJECT_SPIN: Vec3 = Vec3::new(0.0, 0.10, 0.04);
 
-/// Scripted send-off speed per freed fragment, on top of the inherited spin:
-/// enough to read as "drifting away" inside the loop's few seconds at this
-/// camera, slow enough to stay adrift rather than launched. Added straight to
-/// an avian `LinearVelocity`, so it is an engine world-unit figure (world
-/// units per second).
+/// Scripted send-off speed per freed fragment, on top of the sever kick and
+/// the inherited spin. Added straight to an avian `LinearVelocity`, so it is
+/// an engine world-unit figure (world units per second).
 #[cfg(feature = "debug")]
 const FRAGMENT_DRIFT_SPEED: f32 = 1.1;
 
@@ -93,18 +111,14 @@ fn main() -> bevy::app::AppExit {
                 .until(subject_present())
                 .deadline(60.0)
                 .add()
-                // One fixed framing: three-quarter on the port flank, close
-                // enough that the cut and the freed engine block carry the
-                // frame. The HUD drops to cinematic so the fps/version bar
-                // stays out of the recording.
-                .step("frame the port flank")
+                // One fixed framing, solved once before the spin: the hull
+                // from high off its starboard quarter, with room to port for
+                // the freed mount and drive. The HUD drops to cinematic so the
+                // fps/version bar stays out of the recording.
+                .step("frame the port wing tip")
                 .on_enter(|world| {
                     hide_hud(world);
-                    pose_camera(
-                        world,
-                        Meters3::new(-85.0, 30.0, 75.0),
-                        Meters3::new(-15.0, 6.0, 5.0),
-                    );
+                    frame_the_cut(world);
                 })
                 .until(elapsed(0.8))
                 .add()
@@ -120,15 +134,15 @@ fn main() -> bevy::app::AppExit {
                 // than on frame one.
                 .until(elapsed(0.5))
                 .add()
-                .step("scar the spine")
-                .on_enter(scar_spine)
+                .step("scar the wing-tip plate")
+                .on_enter(scar_plate)
                 .until(elapsed(1.0))
                 .add()
-                // The cut: production damage kills the pod, and the step
+                // The cut: production damage kills the plate, and the step
                 // waits for the production sever - a wreck fragment with its
                 // own body - to actually exist.
-                .step("cut the spine")
-                .on_enter(cut_spine)
+                .step("cut the wing-tip plate")
+                .on_enter(cut_plate)
                 .until(any_entity::<With<ShipWreckFragmentMarker>>())
                 .deadline(5.0)
                 .add()
@@ -191,7 +205,8 @@ fn sever_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioCon
     };
 
     ScenarioConfig {
-        description: "An interceptor losing its port mount to a spine cut.".to_string(),
+        description: "An interceptor losing its port mount and wing-tip drive to one cut."
+            .to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             position: None,
@@ -222,6 +237,21 @@ fn subject_present() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predi
     })
 }
 
+/// Stand the lens [`CUT_EYE`] off [`CUT_CELL`] on the live hull, aimed
+/// [`CUT_AIM`] off it.
+#[cfg(feature = "debug")]
+fn frame_the_cut(world: &mut World) {
+    let hull = kit::ship_root(world, SUBJECT_ID)
+        .and_then(|subject| world.get::<GlobalTransform>(subject).copied())
+        .expect("spine loop: the subject is in the world before it is framed");
+    // A build cell is one engine unit, so the cell is the hull-local point.
+    let cut = Meters3::from_engine(hull.transform_point(CUT_CELL)).get();
+    let eye = cut + hull.rotation() * CUT_EYE;
+    let aim = cut + hull.rotation() * CUT_AIM;
+    let meters = |v: Vec3| Meters3::new(v.x, v.y, v.z);
+    pose_camera(world, meters(eye), meters(aim));
+}
+
 /// Give the hull its slow tumble.
 #[cfg(feature = "debug")]
 fn spin_subject(world: &mut World) {
@@ -246,7 +276,7 @@ fn cut_section(world: &mut World) -> String {
 
 /// Leave the cut section visibly cracked before the final severing hit.
 #[cfg(feature = "debug")]
-fn scar_spine(world: &mut World) {
+fn scar_plate(world: &mut World) {
     let section = cut_section(world);
     let Some(node) = kit::section_health(world, SUBJECT_ID, &section) else {
         warn!("spine loop: no health node under section '{section}'");
@@ -265,7 +295,7 @@ fn scar_spine(world: &mut World) {
 
 /// Kill the cut section through the production damage path.
 #[cfg(feature = "debug")]
-fn cut_spine(world: &mut World) {
+fn cut_plate(world: &mut World) {
     let section = cut_section(world);
     let Some(node) = kit::section_health(world, SUBJECT_ID, &section) else {
         warn!("spine loop: no health node under section '{section}'");

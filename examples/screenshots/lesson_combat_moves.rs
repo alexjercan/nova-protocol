@@ -115,6 +115,13 @@ const MOUNT_HEIGHT: Meters = Meters(5.0);
 /// that comes up is seen along its length rather than end-on.
 #[cfg(feature = "debug")]
 const MOUNT_BEARING_DEGREES: f32 = 35.0;
+/// The section id of the mount the stance sheet watches.
+///
+/// The interceptor's two mounts stand at the same height on opposite wing
+/// tips. [`MOUNT_BEARING_DEGREES`] puts the camera off the starboard quarter,
+/// so the starboard mount is the one with no hull between it and the lens.
+#[cfg(feature = "debug")]
+const STANCE_MOUNT: &str = "pdc_starboard";
 
 /// Where the component camera looks: the raider itself, which
 /// `hollow::RAIDER_POSITION` parks 340 m down the player's nose.
@@ -170,11 +177,11 @@ const FIRING_SECS: f32 = 1.0;
 ///
 /// A COMPOSITION figure, and it is worth saying what it is not. The lesson
 /// teaches that a hull masks part of a mount's arc, and the obvious shot is a
-/// mount that cannot bear sitting on its stops beside one that is firing. That
-/// shot cannot be taken on this hull: the interceptor carries its whole point
-/// defence on the open dorsal deck, and the raider sits in that deck's own
-/// plane, so every mount clears the hull and every mount fires however the
-/// ship is turned. Masking here needs a target well below the deck, and the
+/// mount that cannot bear sitting on its stops beside one that is firing. This
+/// frame is not that shot: the interceptor carries its two mounts on the wing
+/// tips, and at this yaw the raider stands off the starboard quarter, where
+/// both fire clear of the hull. The only hull above the mounts is the dorsal
+/// spine between them, and a mount masked by it is not staged here: the
 /// target is the lock the frame before this one was built on.
 ///
 /// So the yaw buys framing instead: turned across, the hull lies on the cell's
@@ -321,33 +328,31 @@ fn pin_raider(
     }
 }
 
-/// Where the player's highest-riding turret mount is, in world meters.
+/// Where the player's [`STANCE_MOUNT`] is, in world meters.
 ///
-/// The stance sheet is framed on a MOUNT, and which sections a hull carries
-/// and where it bolts them is the ship design's business, not this producer's.
-/// So the framing is measured off the live hull: the dorsal mount - the one
-/// with the most sky over it - is the one whose lids and column a camera above
-/// the deck can actually see open.
+/// The stance sheet is framed on a MOUNT, and where a hull bolts its sections
+/// is the ship design's business, not this producer's. So the mount is named
+/// by section id and its position is measured off the live hull.
 #[cfg(feature = "debug")]
-fn dorsal_mount(world: &mut World) -> Option<Meters3> {
+fn stance_mount(world: &mut World) -> Option<Meters3> {
     let player = hollow::player_root(world)?;
-    let mut mounts =
-        world.query_filtered::<(&GlobalTransform, &ChildOf), With<TurretSectionMarker>>();
+    let mut mounts = world
+        .query_filtered::<(&GlobalTransform, &ChildOf, &EntityId), With<TurretSectionMarker>>();
     mounts
         .iter(world)
-        .filter(|(_, ChildOf(parent))| *parent == player)
-        .map(|(transform, _)| transform.translation())
-        .max_by(|a, b| a.y.total_cmp(&b.y))
-        .map(Meters3::from_engine)
+        .find(|(_, ChildOf(parent), id)| *parent == player && id.0 == STANCE_MOUNT)
+        .map(|(transform, ..)| Meters3::from_engine(transform.translation()))
 }
 
 /// Stand the camera over one of the player's own mounts, holding still.
 #[cfg(feature = "debug")]
 fn frame_the_mount(world: &mut World) {
-    let Some(subject) = dorsal_mount(world) else {
-        warn!("lesson_combat_moves: the player carries no turret to frame");
-        return;
-    };
+    let subject = stance_mount(world).unwrap_or_else(|| {
+        panic!(
+            "lesson_combat_moves: the player hull carries no turret section '{STANCE_MOUNT}', so \
+             the stance sheet has no mount to frame. Name a mount the interceptor still has."
+        )
+    });
     world.insert_resource(LessonSweep::new(
         subject,
         MOUNT_RANGE,
