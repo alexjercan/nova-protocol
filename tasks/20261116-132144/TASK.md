@@ -1,6 +1,6 @@
 # Nicer ship looks, starting with the six start hulls
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 65
 - TAGS: v0.19.0, ships, art
 
@@ -160,3 +160,9 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
   part), new section art, a trim colour, lights.
 - Owner calls wanted with the sign-off: the turn rate cost of the longer
   hulls; the rust hauler.
+
+## Owner sign-off (2026-11-20)
+- Owner, after a hand run of `start_hull_showroom`: "looks good to me",
+  and likes that the hulls have different colours. Task CLOSED.
+- The turn rate cost and the rust hauler stand as delivered.
+- Owner idea, not in this task: a colour palette per faction.
