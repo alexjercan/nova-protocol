@@ -23,6 +23,16 @@
 //!   and the door play no part. The report is one physics step old, and a
 //!   canister that closes on the face ends its step against the face, inside
 //!   the trigger, so a fast head-on canister is still reported.
+//! - pull: while the door is fully open, a canister whose centre is in front
+//!   of the face and within `pull_range` of its centre, with at least one
+//!   whole item that fits the hold's free mass after this pass's takes, moves
+//!   straight at the trigger centre at `pull_speed` relative to the intake.
+//!   The pass sets the canister's linear velocity every fixed tick, so its
+//!   mass plays no part and its relative speed never exceeds `pull_speed`;
+//!   its spin is kept. A canister in reach of two intakes goes to the nearer
+//!   face centre, then the lower intake entity. A canister the intake
+//!   dropped carries [`CargoCanisterJettisoned`] and is not pulled until it
+//!   is out of every intake's `pull_range`.
 //!
 //! The same fixed pass publishes [`CargoPickupReadiness`] for every live
 //! intake/canister pair, including canisters outside detection. Each pair's
@@ -66,11 +76,11 @@ use crate::{physics::prelude::rigid_body_point_velocity, prelude::*};
 pub mod prelude {
     pub use super::{
         cargo_canister, cargo_intake_face, cargo_intake_section, freeze_canister,
-        preview_cargo_intake_section, thaw_canister, CargoCanisterEjected, CargoCanisterTaken,
-        CargoIntakeDoorMoved, CargoIntakeEjectionQueue, CargoIntakeSectionConfig,
-        CargoIntakeSectionConfigHelper, CargoIntakeSectionMarker, CargoIntakeSectionPlugin,
-        CargoIntakeSystems, CargoPickupPair, CargoPickupReadiness, FrozenCanister, TakenStack,
-        CARGO_CANISTER_SIZE,
+        preview_cargo_intake_section, thaw_canister, CargoCanisterEjected, CargoCanisterJettisoned,
+        CargoCanisterTaken, CargoIntakeDoorMoved, CargoIntakeEjectionQueue,
+        CargoIntakeSectionConfig, CargoIntakeSectionConfigHelper, CargoIntakeSectionMarker,
+        CargoIntakeSectionPlugin, CargoIntakeSystems, CargoPickupPair, CargoPickupReadiness,
+        FrozenCanister, TakenStack, CARGO_CANISTER_SIZE,
     };
 }
 
@@ -125,6 +135,13 @@ pub struct CargoIntakeSectionConfig {
     /// The speed a dropped canister leaves the face at, relative to the
     /// intake's own point velocity.
     pub eject_speed: MetersPerSecond,
+    /// How far from the face centre a canister in front of the fully open
+    /// door is pulled to the trigger. More than `capture_gap`, at most
+    /// `detection_range`.
+    pub pull_range: Meters,
+    /// The speed a pulled canister moves at toward the trigger, relative to
+    /// the intake's own point velocity.
+    pub pull_speed: MetersPerSecond,
 }
 
 /// Tags a live or previewed cargo intake.
@@ -146,6 +163,14 @@ pub struct CargoIntakeSectionConfigHelper(CargoIntakeSectionConfig);
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CargoIntakeEjectionQueue(pub VecDeque<CargoCanister>);
+
+/// On a canister an intake dropped: no intake pulls it. The pull removes it
+/// once the canister centre is beyond every live intake's `pull_range`, so a
+/// drop leaves its ship and can be pulled back in only after it was clear.
+/// A take on contact still works. Saved as [`FrozenCanister`]'s `jettisoned`.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct CargoCanisterJettisoned;
 
 /// An intake's door started to move: the change of its target, not of its
 /// progress, as the torpedo bay's iris reports.
@@ -296,6 +321,8 @@ pub struct FrozenCanister {
     contents: CargoCanister,
     health: Health,
     mesh: AssetRef<WorldAsset>,
+    /// Whether it still carries [`CargoCanisterJettisoned`].
+    jettisoned: bool,
 }
 
 impl FrozenCanister {
@@ -319,7 +346,7 @@ impl FrozenCanister {
     }
 }
 
-/// Capture `canister`'s id, contents, health and model.
+/// Capture `canister`'s id, contents, health, model and jettison mark.
 ///
 /// # Errors
 ///
@@ -356,13 +383,23 @@ pub fn freeze_canister(world: &World, canister: Entity) -> Result<FrozenCanister
         contents: contents.clone(),
         health: health.clone(),
         mesh: mesh.clone(),
+        jettisoned: world.get::<CargoCanisterJettisoned>(canister).is_some(),
     })
 }
 
-/// The canister with its own runtime id (never re-minted), contents, health
-/// and model, at `transform` moving at `velocity` in world units per second.
-pub fn thaw_canister(frozen: FrozenCanister, transform: Transform, velocity: Vec3) -> impl Bundle {
-    (
+/// Rebuild on `entity` the canister with its own runtime id (never
+/// re-minted), contents, health, model and jettison mark, at `transform`
+/// moving at `velocity` in world units per second.
+pub fn thaw_canister(
+    entity: &mut EntityCommands,
+    frozen: FrozenCanister,
+    transform: Transform,
+    velocity: Vec3,
+) {
+    if frozen.jettisoned {
+        entity.insert(CargoCanisterJettisoned);
+    }
+    entity.insert((
         Name::new("Cargo Canister"),
         frozen.contents,
         frozen.id,
@@ -391,7 +428,7 @@ pub fn thaw_canister(frozen: FrozenCanister, transform: Transform, velocity: Vec
         ),
         LinearVelocity(velocity),
         CargoCanisterRenderMesh(frozen.mesh),
-    )
+    ));
 }
 
 /// The centre and outward normal of the door face of an intake at `position`
@@ -705,6 +742,7 @@ fn run_cargo_intakes(
                     config.canister_mesh.clone(),
                 ),
                 id,
+                CargoCanisterJettisoned,
             ));
             commands.trigger(CargoCanisterEjected { entity: intake });
         }
@@ -718,6 +756,157 @@ fn run_cargo_intakes(
             .get_mut(read.entity)
             .expect("run_cargo_intakes: a canister read this pass left the query");
         *canister = read.canister;
+    }
+}
+
+/// One open intake as the pull reads it.
+struct PullingIntake {
+    intake: Entity,
+    ship: Entity,
+    face_centre: Vec3,
+    normal: Vec3,
+    trigger_centre: Vec3,
+    range: f32,
+    speed: f32,
+    /// The intake's point velocity at its trigger centre.
+    velocity: Vec3,
+}
+
+/// Steer every canister an open intake pulls straight at that intake's
+/// trigger centre, at its `pull_speed` relative to the intake, and clear the
+/// jettison mark of every canister out of all pull ranges.
+///
+/// Runs after [`run_cargo_intakes`]: the chain's sync point has despawned
+/// each canister taken whole, the door targets are this pass's, and the
+/// hold's free mass is the one after this pass's takes. Runs before avian
+/// steps, which moves the canister on the new velocity. A missing
+/// `IntakeDoor` track counts as an open door, as in the take pass.
+#[expect(
+    clippy::type_complexity,
+    reason = "ship motion and hold, intake pose and door, canister motion"
+)]
+fn pull_canisters_to_open_intakes(
+    mut commands: Commands,
+    q_ships: Query<
+        (
+            &Position,
+            &Rotation,
+            &LinearVelocity,
+            &AngularVelocity,
+            &ComputedCenterOfMass,
+            &ShipInventory,
+        ),
+        (With<SpaceshipRootMarker>, Without<CargoCanister>),
+    >,
+    q_intakes: Query<
+        (
+            Entity,
+            &ChildOf,
+            &CargoIntakeSectionConfigHelper,
+            &SectionCollider,
+            &SectionAnimations,
+        ),
+        (
+            With<CargoIntakeSectionMarker>,
+            Without<SectionInactiveMarker>,
+        ),
+    >,
+    mut q_canisters: Query<
+        (
+            Entity,
+            &CargoCanister,
+            &Position,
+            &Health,
+            &mut LinearVelocity,
+            Has<CargoCanisterJettisoned>,
+        ),
+        (Without<HealthZeroMarker>, Without<SpaceshipRootMarker>),
+    >,
+    q_chain: Query<(&Transform, &ChildOf)>,
+    items: Res<GameItems>,
+) {
+    // Every live intake's face and reach, open or not: the jettison mark
+    // clears against all of them.
+    let mut reaches: Vec<(Vec3, f32)> = Vec::new();
+    let mut pulling: Vec<PullingIntake> = Vec::new();
+    for (intake, &ChildOf(ship), config, collider, animations) in &q_intakes {
+        let Ok((position, rotation, lin_vel, ang_vel, center, _)) = q_ships.get(ship) else {
+            continue;
+        };
+        let Some((local_position, local_rotation)) = local_pose_in_root(intake, ship, &q_chain)
+        else {
+            continue;
+        };
+        let intake_position = position.0 + rotation.0 * local_position;
+        let intake_rotation = rotation.0 * local_rotation;
+        let (face_centre, normal) = cargo_intake_face(intake_position, intake_rotation, *collider);
+        let range = config.pull_range.to_engine();
+        reaches.push((face_centre, range));
+        let open = animations
+            .cue_progress(SectionAnimationCue::IntakeDoor)
+            .is_none_or(|progress| progress >= 1.0);
+        if !open {
+            continue;
+        }
+        let trigger_centre = face_centre + normal * (config.capture_gap.to_engine() * 0.5);
+        let center_of_mass = position.0 + rotation.0 * center.0;
+        pulling.push(PullingIntake {
+            intake,
+            ship,
+            face_centre,
+            normal,
+            trigger_centre,
+            range,
+            speed: config.pull_speed.to_engine(),
+            velocity: rigid_body_point_velocity(
+                lin_vel.0,
+                ang_vel.0,
+                center_of_mass,
+                trigger_centre,
+            ),
+        });
+    }
+    pulling.sort_by_key(|pull| pull.intake);
+
+    for (canister, contents, position, health, mut velocity, jettisoned) in &mut q_canisters {
+        if health.current <= 0.0 {
+            continue;
+        }
+        let at = position.0;
+        if jettisoned {
+            if reaches
+                .iter()
+                .all(|&(face, range)| at.distance(face) > range)
+            {
+                commands
+                    .entity(canister)
+                    .remove::<CargoCanisterJettisoned>();
+            }
+            continue;
+        }
+        // Nearest face first; a tie keeps the lower intake, as sorted.
+        let mut best: Option<(&PullingIntake, f32)> = None;
+        for pull in &pulling {
+            let offset = at - pull.face_centre;
+            let distance = offset.length();
+            if offset.dot(pull.normal) < 0.0 || distance > pull.range {
+                continue;
+            }
+            let Ok((.., inventory)) = q_ships.get(pull.ship) else {
+                continue;
+            };
+            if !contents.fits_any(&items, inventory.free_g(&items)) {
+                continue;
+            }
+            if best.is_none_or(|(_, nearest)| distance < nearest) {
+                best = Some((pull, distance));
+            }
+        }
+        let Some((pull, _)) = best else {
+            continue;
+        };
+        let toward = (pull.trigger_centre - at).normalize_or_zero();
+        velocity.0 = pull.velocity + toward * pull.speed;
     }
 }
 
@@ -810,14 +999,14 @@ fn insert_cargo_canister_render(
     )]);
 }
 
-/// System set for the trigger sync and the intake pass, on the fixed clock
-/// with the other section systems, so a trigger pose, a take and a drop land
-/// before physics steps.
+/// System set for the trigger sync, the intake pass and the pull, on the
+/// fixed clock with the other section systems, so a trigger pose, a take, a
+/// drop and a pull land before physics steps.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CargoIntakeSystems;
 
 /// Adds cargo intakes: their triggers, the door driver, takes and drops,
-/// readiness, and (when `render`) the intake and canister scenes.
+/// the pull, readiness, and (when `render`) the intake and canister scenes.
 #[derive(Default)]
 pub struct CargoIntakeSectionPlugin {
     /// Whether the render-side half is added (false on headless servers).
@@ -830,6 +1019,7 @@ impl Plugin for CargoIntakeSectionPlugin {
 
         app.register_type::<CargoIntakeSectionMarker>();
         app.register_type::<CargoIntakeEjectionQueue>();
+        app.register_type::<CargoCanisterJettisoned>();
         app.register_type::<CargoCanister>();
         app.init_resource::<CargoPickupReadiness>();
         app.add_observer(despawn_destroyed_canister);
@@ -840,7 +1030,11 @@ impl Plugin for CargoIntakeSectionPlugin {
         );
         app.add_systems(
             FixedUpdate,
-            (sync_cargo_intake_triggers, run_cargo_intakes)
+            (
+                sync_cargo_intake_triggers,
+                run_cargo_intakes,
+                pull_canisters_to_open_intakes,
+            )
                 .chain()
                 .in_set(CargoIntakeSystems),
         );

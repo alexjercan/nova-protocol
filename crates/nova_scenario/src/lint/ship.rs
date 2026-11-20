@@ -724,14 +724,16 @@ fn check_cargo_intake_config(
         error(format!("cargo intake {field} names no file"));
     }
     let detection_range = intake.detection_range;
-    if detection_range <= Meters::ZERO || !detection_range.is_finite() {
+    let detection_valid = detection_range > Meters::ZERO && detection_range.is_finite();
+    if !detection_valid {
         error(format!(
             "cargo intake detection_range must be a finite, positive number of meters, got {}",
             detection_range.get()
         ));
     }
     let capture_gap = intake.capture_gap;
-    if capture_gap <= Meters::ZERO || !capture_gap.is_finite() {
+    let gap_valid = capture_gap > Meters::ZERO && capture_gap.is_finite();
+    if !gap_valid {
         error(format!(
             "cargo intake capture_gap must be a finite, positive number of meters, got {}",
             capture_gap.get()
@@ -773,6 +775,37 @@ fn check_cargo_intake_config(
         error(format!(
             "cargo intake eject_speed must be a finite, positive speed, got {}",
             eject_speed.get()
+        ));
+    }
+    let pull_range = intake.pull_range;
+    if pull_range <= Meters::ZERO || !pull_range.is_finite() {
+        error(format!(
+            "cargo intake pull_range must be a finite, positive number of meters, got {}",
+            pull_range.get()
+        ));
+    } else if detection_valid && gap_valid && capture_gap < detection_range {
+        // Bounded only by a gap and a range that passed their own checks, so
+        // one bad field is one error.
+        if pull_range <= capture_gap {
+            error(format!(
+                "cargo intake pull_range {} m must be more than capture_gap {} m",
+                pull_range.get(),
+                capture_gap.get()
+            ));
+        } else if pull_range > detection_range {
+            error(format!(
+                "cargo intake pull_range {} m must be at most detection_range {} m: the pull \
+                 acts only through a door a canister in detection_range opened",
+                pull_range.get(),
+                detection_range.get()
+            ));
+        }
+    }
+    let pull_speed = intake.pull_speed;
+    if pull_speed <= MetersPerSecond::ZERO || !pull_speed.is_finite() {
+        error(format!(
+            "cargo intake pull_speed must be a finite, positive speed, got {}",
+            pull_speed.get()
         ));
     }
     if !config
@@ -2387,7 +2420,7 @@ mod tests {
     }
 
     #[test]
-    fn cargo_intake_lint_rejects_bad_volumes_a_bad_eject_speed_a_missing_door_track_and_an_empty_file(
+    fn cargo_intake_lint_rejects_bad_volumes_bad_speeds_a_pull_outside_its_bounds_a_missing_door_track_and_an_empty_file(
     ) {
         use nova_ship::prelude::{BaseSectionConfig, SectionAnimation, SectionAnimationMotion};
 
@@ -2414,6 +2447,8 @@ mod tests {
             aperture_width: Meters(14.1),
             aperture_height: Meters(16.0),
             eject_speed: MetersPerSecond(3.0),
+            pull_range: Meters(40.0),
+            pull_speed: MetersPerSecond(5.0),
         };
         let section = |collider, animations: Vec<SectionAnimation>, intake| SectionConfig {
             base: BaseSectionConfig {
@@ -2476,7 +2511,25 @@ mod tests {
             let mut intake = good.clone();
             intake.eject_speed = MetersPerSecond(bad);
             refused(lint(cuboid, vec![door.clone()], intake), "eject_speed");
+            let mut intake = good.clone();
+            intake.pull_range = Meters(bad);
+            refused(lint(cuboid, vec![door.clone()], intake), "pull_range");
+            let mut intake = good.clone();
+            intake.pull_speed = MetersPerSecond(bad);
+            refused(lint(cuboid, vec![door.clone()], intake), "pull_speed");
         }
+        let mut short = good.clone();
+        short.pull_range = good.capture_gap;
+        refused(
+            lint(cuboid, vec![door.clone()], short),
+            "pull_range 1 m must be more than capture_gap",
+        );
+        let mut long = good.clone();
+        long.pull_range = Meters(40.5);
+        refused(
+            lint(cuboid, vec![door.clone()], long),
+            "must be at most detection_range",
+        );
         let mut unnamed = good.clone();
         unnamed.take_sound = String::new().into();
         refused(

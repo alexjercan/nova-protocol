@@ -17,7 +17,8 @@
 //!
 //! 1. face the rock and hold the mine key (`V`) until ore pays, then let it
 //!    up.
-//! 2. fly the dorsal intake up under a canister the rock drops, slowly.
+//! 2. fly the dorsal intake under a canister the rock drops, within 40 m:
+//!    the door opens and pulls the canister in.
 //! 3. fly the port collar onto the trader's port, lock the trader and
 //!    press the dock key.
 //! 4. press TAB, pick Inventory, click Stone ore on your side, pick Sell and
@@ -31,17 +32,20 @@
 //! until at least five ore is cut, which drops more than one canister, and
 //! tracks the one holding the most ore. It flies the tug with the flight
 //! computer's `MatchVelocity`, the primitive every AI pilot steers with: down
-//! clear of the canisters, level under the tracked one, and slowly up onto it.
-//! It then holds the berth beside the trader
-//! and docks with the real key. The other canisters stay in space, so the ore
-//! sold is the ore collected, not the ore mined. It fails loudly if the rock's
-//! lost corners, the pulse log and the ore in canisters, the queue and the
-//! hold disagree, if a canister leaves without a take, if the intake takes
-//! anything but the tracked canister or adds other than exactly its ore and
-//! mass to the hold, or if the Sell does not move exactly that ore and its
-//! bid between the two ships. `NOVA_CAPTURE=1` also writes the mining, the
-//! pickup, the take and the Sell frames, and records the last meters of the
-//! lift through the take as the site's `loop-section-cargo-intake` webm.
+//! clear of the canisters toward a point under the tracked one. Once the
+//! intake's door is fully open it holds still and the door pulls the canister
+//! in, with any other canister in the pull. It waits for the door to shut,
+//! then holds the berth beside the trader and docks with the real key. A
+//! canister out of the pull stays in space, so the ore sold is the ore
+//! collected, not the ore mined. It fails loudly if the rock's lost corners,
+//! the pulse log and the ore in canisters, the queue and the hold disagree,
+//! if a canister leaves without a take, if the tracked canister is not taken,
+//! if the hold gains other than exactly the taken ore and its mass, or if the
+//! Sell does not move exactly that ore and its bid between the two ships. It
+//! logs each canister's birth and take on the game clock. `NOVA_CAPTURE=1`
+//! also writes the mining, the pickup, the take and the Sell frames, and
+//! records the pull through the take as the site's
+//! `loop-section-cargo-intake` webm.
 //!
 //! The walk is long on lavapipe: set `NOVA_AUTOPILOT_DEADLINE` past the
 //! default backstop.
@@ -254,26 +258,16 @@ mod walk {
     /// Real-seconds backstop for a state wait, long enough for lavapipe
     /// frames.
     const STEP_DEADLINE: f32 = 120.0;
-    /// Real-seconds backstop for a flown leg: the canister drifts at 2 m/s
-    /// from the rock to the intake.
+    /// Real-seconds backstop for a flown leg: the tug flies under the
+    /// canister at a few m/s.
     const FLIGHT_DEADLINE: f32 = 900.0;
 
     /// The least z the tug's root is flown to, in engine units, so its
     /// bow keeps clear of the rock while it waits under the canister.
     const SAFE_Z: f32 = 0.0;
-    /// How far below the canister the intake face waits while the tug
-    /// levels under it, in engine units: clear of the bridge and the turrets.
+    /// How far below the canister the helm aims the intake face, in engine
+    /// units: inside the pull range and clear of the bridge and the turrets.
     const HOVER_CLEARANCE: f32 = 2.5;
-    /// The gap the lift closes to between the face and the canister's nearest
-    /// side, in engine units: inside the intake's 1 m capture gap.
-    const LIFT_GAP: f32 = 0.02;
-    /// How near the face centre must stand under the canister, across the
-    /// face, before the lift starts, in engine units.
-    const LIFT_ALIGN: f32 = 0.1;
-    /// The fastest the lift closes on the canister, in engine units per
-    /// second: slow, so the canister meets the trigger slab in front of the
-    /// opening and not the hull beside it.
-    const LIFT_SPEED: f32 = 0.25;
     /// Velocity per engine unit of position error, per second.
     const GAIN: f32 = 0.8;
     /// The largest correction the helm asks for, in engine units per second:
@@ -286,10 +280,6 @@ mod walk {
     /// Ore to cut before the mine key comes up: more than one, so a count of
     /// canisters or of pulses cannot pass for a count of ore.
     const MINED_ORE_FLOOR: u32 = 5;
-    /// The canister's nearest-side gap to the face at which the pickup shot
-    /// is taken, in engine units.
-    const PICKUP_SHOT_GAP: f32 = 0.5;
-
     /// Where the tug closes on the berth from: beside it, clear of the
     /// spar, so the last leg is straight across the gap.
     const BERTH_APPROACH: Vec3 = Vec3::new(BERTH.x + 2.0, BERTH.y, BERTH.z);
@@ -310,8 +300,9 @@ mod walk {
         /// Nothing: the script owns the ship.
         #[default]
         Off,
-        /// Hold the intake face under `canister`, then close on it.
-        Track { canister: Entity, lift: bool },
+        /// Fly the intake face toward a point under `canister`; hold still
+        /// once the door is fully open, while it pulls the canister in.
+        Track { canister: Entity },
         /// Come to rest with the root at a world point.
         Hold(Vec3),
     }
@@ -323,6 +314,9 @@ mod walk {
         seeded_corners: Option<u32>,
         /// Every canister seen, with the ore it held.
         canisters: BTreeMap<Entity, u32>,
+        /// Game seconds (`Time<Virtual>`) at which each canister was first
+        /// seen and, once it left the world through a take, when it left.
+        stamps: BTreeMap<Entity, (f64, Option<f64>)>,
         /// [`CargoCanisterTaken`] events.
         taken: u32,
         /// The canister the helm tracks: the one holding the most ore once
@@ -351,13 +345,18 @@ mod walk {
     /// forward.
     fn steer_helm(
         mut commands: Commands,
-        mut helm: ResMut<Helm>,
+        helm: Res<Helm>,
         mut q_player: Query<
             (Entity, &GlobalTransform, Option<&mut Autopilot>),
             With<PlayerSpaceshipMarker>,
         >,
         q_intakes: Query<
-            (&ChildOf, &GlobalTransform, &SectionCollider),
+            (
+                &ChildOf,
+                &GlobalTransform,
+                &SectionCollider,
+                &SectionAnimations,
+            ),
             With<CargoIntakeSectionMarker>,
         >,
         q_canisters: Query<(&GlobalTransform, &LinearVelocity), With<CargoCanister>>,
@@ -372,51 +371,32 @@ mod walk {
         let velocity = match *helm {
             Helm::Off => return,
             Helm::Hold(point) => ((point - at) * GAIN).clamp_length_max(MAX_CORRECTION),
-            Helm::Track { canister, lift } => {
-                let Some((_, intake, collider)) = q_intakes
+            Helm::Track { canister } => {
+                let Some((_, intake, collider, animations)) = q_intakes
                     .iter()
                     .find(|(&ChildOf(parent), ..)| parent == ship)
                 else {
                     panic!("mine_and_sell: the tug has no cargo intake");
                 };
+                let open = animations
+                    .cue_progress(SectionAnimationCue::IntakeDoor)
+                    .is_some_and(|progress| progress >= 1.0);
                 let (face, normal) =
                     cargo_intake_face(intake.translation(), intake.rotation(), *collider);
                 match q_canisters.get(canister) {
-                    // Taken or gone: hold still for the checks.
+                    // Taken or gone, or the door pulls it: hold still.
                     Err(_) => Vec3::ZERO,
+                    Ok(_) if open => Vec3::ZERO,
                     Ok((canister_pose, canister_velocity)) => {
                         let centre = canister_pose.translation();
-                        let half = (canister_pose.rotation().inverse() * normal)
-                            .abs()
-                            .dot(CARGO_CANISTER_SIZE * 0.5);
-                        let clearance = if lift {
-                            half + LIFT_GAP
-                        } else {
-                            HOVER_CLEARANCE
-                        };
-                        let mut goal = at + (centre - normal * clearance - face);
+                        let mut goal = at + (centre - normal * HOVER_CLEARANCE - face);
                         let held_back = goal.z < SAFE_Z;
                         goal.z = goal.z.max(SAFE_Z);
                         let mut feed = canister_velocity.0;
                         if held_back {
                             feed.z = 0.0;
                         }
-                        let error = goal - at;
-                        let mut velocity = feed + (error * GAIN).clamp_length_max(MAX_CORRECTION);
-                        if lift {
-                            let along = velocity.dot(normal);
-                            velocity += normal * (along.clamp(-LIFT_SPEED, LIFT_SPEED) - along);
-                        } else if !held_back
-                            && error.reject_from_normalized(normal).length() < LIFT_ALIGN
-                            && error.dot(normal).abs() < LIFT_ALIGN
-                        {
-                            info!("mine_and_sell: level under the canister, lifting");
-                            *helm = Helm::Track {
-                                canister,
-                                lift: true,
-                            };
-                        }
-                        velocity
+                        feed + ((goal - at) * GAIN).clamp_length_max(MAX_CORRECTION)
                     }
                 }
             }
@@ -442,6 +422,7 @@ mod walk {
     /// canister's ore.
     fn record_proof(world: &mut World) {
         let items = world.resource::<GameItems>().clone();
+        let now = world.resource::<Time<Virtual>>().elapsed_secs_f64();
         let seen: Vec<(Entity, u32, u32)> = world
             .query::<(Entity, &CargoCanister)>()
             .iter(world)
@@ -455,13 +436,28 @@ mod walk {
             );
             let mut proof = world.resource_mut::<FlowProof>();
             match proof.canisters.insert(entity, ore) {
-                None => info!("mine_and_sell: canister {entity:?} holds {ore} ore"),
+                None => {
+                    proof.stamps.insert(entity, (now, None));
+                    info!("mine_and_sell: canister {entity:?} holds {ore} ore, born t={now:.2}s");
+                }
                 Some(recorded) => {
                     assert_eq!(recorded, ore, "mine_and_sell: a canister's ore changed");
                 }
             }
         }
-        if world.resource::<FlowProof>().seeded_corners.is_some() {
+        let mut live = world.query_filtered::<Entity, With<CargoCanister>>();
+        let live: Vec<Entity> = live.iter(world).collect();
+        let mut proof = world.resource_mut::<FlowProof>();
+        for (entity, (born, gone)) in &mut proof.stamps {
+            if gone.is_none() && !live.contains(entity) {
+                *gone = Some(now);
+                info!(
+                    "mine_and_sell: canister {entity:?} left at t={now:.2}s, {:.2}s after its birth",
+                    now - *born
+                );
+            }
+        }
+        if proof.seeded_corners.is_some() {
             return;
         }
         if let Some(corners) = solid_corners(world) {
@@ -610,25 +606,24 @@ mod walk {
         picked
     }
 
-    /// The step after the take: the tracked canister, and no other, is gone
-    /// through a take, and the hold gained exactly its ore and mass.
+    /// The step after the take: the tracked canister is gone through a
+    /// take, with any other canister the pull brought in, and the hold gained
+    /// exactly the taken ore and its mass.
     fn check_take(world: &mut World) {
         let proof = world.resource::<FlowProof>();
         let target = proof.target.expect("a canister was tracked");
         let target_ore = proof.canisters[&target];
-        assert_eq!(
-            proof.taken, 1,
-            "mine_and_sell: the intake took one canister"
-        );
         assert!(
             world.get_entity(target).is_err(),
             "mine_and_sell: the tracked canister is still in the world"
         );
+        let taken = proof.taken;
         let picked = check_ledger(world, "after the take");
-        assert_eq!(
-            picked, target_ore,
-            "the intake took the tracked canister alone"
+        assert!(
+            picked >= target_ore,
+            "the intake took the tracked canister's {target_ore} ore, the hold has {picked}"
         );
+        info!("mine_and_sell: the pull brought in {taken} canister(s), {picked} ore");
         let items = world.resource::<GameItems>().clone();
         let ore_id = ORE.into();
         let hold = inventory(world, PLAYER_ID);
@@ -672,9 +667,10 @@ mod walk {
         assert_eq!(stacks, expected, "the trader holds its stock and the ore");
         let own_credits = credits(world, PLAYER_ID);
         let partner_credits = credits(world, TRADER_ID);
+        let now = world.resource::<Time<Virtual>>().elapsed_secs_f64();
         info!(
-            "mine_and_sell: sold {collected} ore for {price} cr: tug {own_credits} cr, \
-             trader {partner_credits} cr"
+            "mine_and_sell: sold {collected} ore for {price} cr at t={now:.2}s: tug \
+             {own_credits} cr, trader {partner_credits} cr"
         );
         assert_eq!(own_credits, PLAYER_CREDITS + price);
         assert_eq!(partner_credits, TRADER_CREDITS - price);
@@ -722,18 +718,14 @@ mod walk {
         })
     }
 
-    /// The tracked canister's nearest-side gap to the intake face, while it
-    /// exists.
-    fn pickup_gap(world: &World) -> Option<f32> {
-        let target = world.resource::<FlowProof>().target?;
-        let canister = world.get::<GlobalTransform>(target)?;
-        let mut intakes = world.try_query_filtered::<(&GlobalTransform, &SectionCollider), With<CargoIntakeSectionMarker>>()?;
-        let (intake, collider) = intakes.iter(world).next()?;
-        let (face, normal) = cargo_intake_face(intake.translation(), intake.rotation(), *collider);
-        let half = (canister.rotation().inverse() * normal)
-            .abs()
-            .dot(CARGO_CANISTER_SIZE * 0.5);
-        Some((canister.translation() - face).dot(normal) - half)
+    /// The tug's intake door progress, 1 fully open.
+    fn intake_door(world: &World) -> Option<f32> {
+        let mut intakes =
+            world.try_query_filtered::<&SectionAnimations, With<CargoIntakeSectionMarker>>()?;
+        intakes
+            .iter(world)
+            .next()?
+            .cue_progress(SectionAnimationCue::IntakeDoor)
     }
 
     fn lock(world: &mut World, target: Entity) {
@@ -885,17 +877,13 @@ mod walk {
                     target
                 };
                 info!("mine_and_sell: tracking canister {target:?}");
-                *world.resource_mut::<Helm>() = Helm::Track {
-                    canister: target,
-                    lift: false,
-                };
+                *world.resource_mut::<Helm>() = Helm::Track { canister: target };
             })
             .until(frames(1))
             .add()
-            .step("fly the intake under the canister and up onto it")
+            .step("fly the intake under the canister until the door is open")
             .until(when(|world| {
-                matches!(*world.resource::<Helm>(), Helm::Track { lift: true, .. })
-                    && pickup_gap(world).is_some_and(|gap| gap <= PICKUP_SHOT_GAP)
+                intake_door(world).is_some_and(|door| door >= 1.0)
             }))
             .deadline(FLIGHT_DEADLINE)
             .add();
@@ -904,15 +892,18 @@ mod walk {
             .on_enter(|world: &mut World| loop_start(world, INTAKE_LOOP))
             .until(frames(1))
             .add()
-            .step("wait for the take")
+            // The door shuts once no canister it can take is in range, so
+            // every canister the pull brings in is aboard before the check.
+            .step("wait for the pull to take the canister and the door to shut")
             .until(when(|world| {
                 let proof = world.resource::<FlowProof>();
                 proof.taken >= 1
                     && proof
                         .target
                         .is_some_and(|target| world.get_entity(target).is_err())
+                    && intake_door(world) == Some(0.0)
             }))
-            .deadline(STEP_DEADLINE)
+            .deadline(FLIGHT_DEADLINE)
             .add()
             .step("check the take")
             .on_enter(check_take)

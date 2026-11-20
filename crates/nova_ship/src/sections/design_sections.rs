@@ -1177,6 +1177,8 @@ mod tests {
                 aperture_width: Meters(8.0),
                 aperture_height: Meters(8.0),
                 eject_speed: MetersPerSecond(3.0),
+                pull_range: Meters(40.0),
+                pull_speed: MetersPerSecond(5.0),
             }),
             Vec3::new(3.0, 2.0, 1.0),
             cube_points(),

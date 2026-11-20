@@ -184,6 +184,13 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
                 format!("{:.0} m", intake.detection_range.0),
             ),
             (
+                "Pull".to_string(),
+                format!(
+                    "{:.0} m at {:.0} m/s",
+                    intake.pull_range.0, intake.pull_speed.0
+                ),
+            ),
+            (
                 "Capture".to_string(),
                 format!("{:.0} m gap", intake.capture_gap.0),
             ),

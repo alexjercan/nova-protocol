@@ -1059,7 +1059,7 @@ fn thaw_body(
         }
         FrozenBodyType::Canister(canister) => {
             let linear = motion.map_or(Vec3::ZERO, |(linear, _)| linear);
-            entity.insert(thaw_canister(canister, transform, linear));
+            thaw_canister(&mut entity, canister, transform, linear);
         }
         FrozenBodyType::WreckFragment(fragment) => thaw_wreck_fragment(&mut entity, fragment),
         FrozenBodyType::OreDrop(drop) => {

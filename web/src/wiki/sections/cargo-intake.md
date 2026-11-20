@@ -18,17 +18,18 @@
     </div>
 </figure>
 
-A cargo intake is a **hold mouth**: a 30 x 20 m box, three cells across, two high and one deep, with an accordion door on one face. Bring the door to a canister and the intake takes every whole item of it that your hold has room for. Pick an item in the Inventory pane and the intake drops it out through the same door, packed into canisters.
+A cargo intake is a **hold mouth**: a 30 x 20 m box, three cells across, two high and one deep, with an accordion door on one face. Bring the door within 40 m of a canister and the intake pulls it in and takes every whole item of it that your hold has room for. Pick an item in the Inventory pane and the intake drops it out through the same door, packed into canisters.
 
-The intake does not reach out or pull. A canister goes in only when it touches the thin slab in front of the opening, so a pickup is flying: you move the door onto the canister.
+The open door pulls. A canister in front of it, within 40 m, with an item your hold has room for, comes straight at the opening at 5 m/s, whatever its own drift, and goes in when it touches the thin slab in front of the opening. A pickup is flying the door to within 40 m of the canister, door first.
 
-<!-- Values from crates/nova_authoring/src/base_content/sections/cargo_intake.rs: health 90 (CARGO_INTAKE_BASE_HEALTH), INTAKE_CELLS 3 x 2 x 1, door open_seconds 1.2, detection_range 40 m, capture_gap 1 m, aperture 22.2 x 15.3 m, eject_speed 3 m/s. Pickup sight range CARGO_PICKUP_SIGHT_RANGE 200 m in crates/nova_hud/src/pickup_sight.rs. -->
+<!-- Values from crates/nova_authoring/src/base_content/sections/cargo_intake.rs: health 90 (CARGO_INTAKE_BASE_HEALTH), INTAKE_CELLS 3 x 2 x 1, door open_seconds 1.2, detection_range 40 m, capture_gap 1 m, aperture 22.2 x 15.3 m, eject_speed 3 m/s, pull_range 40 m, pull_speed 5 m/s. Pickup sight range CARGO_PICKUP_SIGHT_RANGE 200 m in crates/nova_hud/src/pickup_sight.rs. Pull: `pull_canisters_to_open_intakes` in crates/nova_ship/src/sections/cargo_intake_section.rs. -->
 
 | The cargo intake at a glance | |
 |---|---|
 | Size | **30 x 20 x 10 m**: three cells across, two high, one deep |
 | Opening | **22.2 x 15.3 m**, centred on the door face |
 | Door | opens for a canister within **40 m** in front of it with at least one item your hold has room for, in **1.2 s** |
+| Pull | once the door is open, a canister within **40 m** that your hold has room for comes in at **5 m/s** |
 | Take | any part of a canister within **1 m** in front of the opening |
 | Drop | one canister at a time, at **3 m/s** away from your ship |
 | Sight | drawn for a canister within **200 m** of your ship |
@@ -37,7 +38,7 @@ The intake does not reach out or pull. A canister goes in only when it touches t
 <!-- Widget values: crates/nova_authoring/src/base_content/sections/cargo_intake.rs:23 (INTAKE_CELLS 3 x 2 x 1), :111-112 (detection_range 40 m, capture_gap 1 m), :117-119 (aperture 22.2 x 15.3 m, eject_speed 3 m/s); crates/nova_ship/src/sections/cargo_intake_section.rs:73 (CARGO_CANISTER_SIZE 9.4 x 5.8 x 5.8 m), `run_cargo_intakes` (door detection by the canister centre from the face centre, front half only, room for one whole item; take: contact penetration >= 0 and room for one whole item, then `CargoCanister::take_fitting` in crates/nova_gameplay/src/inventory.rs), :602-606 (birth 2.9 + 1 + 0.5 = 4.4 m off the face). -->
 
 <div class="widget" data-widget="cargo-intake-take">
-<p>The intake's door face is 30 by 20 m, and the clear opening in it is 22.2 by 15.3 m, wider than a 9.4 by 5.8 by 5.8 m canister is long. The door opens for a canister whose centre is in front of the face and within 40 m of the face centre and that holds at least one item the hold's free room fits, so an end-on canister whose near end is inside 40 m can still leave the door shut. The intake takes every whole item that fits the hold when part of the canister is in contact with the 1 m slab in front of the opening. A dropped canister is born 4.4 m off the face and leaves at 3 m/s.</p>
+<p>The intake's door face is 30 by 20 m, and the clear opening in it is 22.2 by 15.3 m, wider than a 9.4 by 5.8 by 5.8 m canister is long. The door opens for a canister whose centre is in front of the face and within 40 m of the face centre and that holds at least one item the hold's free room fits, so an end-on canister whose near end is inside 40 m can still leave the door shut. Once the door is fully open, the same canister moves straight at the opening at 5 m/s relative to your ship. The intake takes every whole item that fits the hold when part of the canister is in contact with the 1 m slab in front of the opening. A dropped canister is born 4.4 m off the face and leaves at 3 m/s.</p>
 </div>
 
 ## Taking a canister in
@@ -46,16 +47,18 @@ The intake does not reach out or pull. A canister goes in only when it touches t
 
 | Canister | What the intake does |
 | --- | --- |
-| In front of the door and within 40 m of it | Opens the door if your hold has room for at least one of its items. |
+| In front of the door and within 40 m of it | Opens the door if your hold has room for at least one of its items. Once the door is open, comes straight at the opening at 5 m/s relative to your ship, tumbling as it was. |
 | Any part of it within 1 m in front of the 22.2 x 15.3 m opening | Takes every whole item your hold has room for at once, at any speed and any angle, open door or not. |
 | Touching your ship anywhere else | Is not taken. |
 | Heavier than your hold has room for | Takes what fits, item by item in a fixed item order, and leaves the rest in the same canister. Its tag reads what is left, and a travel lock stays on it. |
-| With no item your hold has room for | Stays out, whole. Alone, it leaves the door shut. |
-| Just dropped | Leaves without being taken. It is taken back only if it turns and comes within 1 m of the opening again. |
+| With no item your hold has room for | Stays out, whole, and is not pulled, even through a door another canister opened. Alone, it leaves the door shut. |
+| Just dropped | Leaves without being pulled or taken. It is pulled again only after it has drifted out of every intake's pull range, and taken back on its own only if it turns and comes within 1 m of the opening. A saved world keeps this. |
 
-With a canister within 200 m of your ship, the **pickup sight** draws a cross on your intake's face and a line to the canister, with no lock needed. A travel-locked canister in range takes the line first; otherwise the canister nearest an intake does. Fly until the line stands perpendicular to the intake cross, then close the gap. The sight stays cyan while closing. The take sound confirms a take, the intake blinks warm, and the HUD prints a [pickup tick](../../hud/#pickup-sight-and-canister-tags) naming each stack that came aboard. A canister taken whole goes through the door, and the sight goes with it. A canister with items left over stays at the door, and the sight stays on it. An unavailable intake, or no canister within 200 m, draws no sight.
+With a canister within 200 m of your ship, the **pickup sight** draws a cross on your intake's face and a line to the canister, with no lock needed. A travel-locked canister in range takes the line first; otherwise the canister nearest an intake does. Fly until the line stands perpendicular to the intake cross, then close to within 40 m; the open door pulls the canister the rest of the way. The sight stays cyan while closing. The take sound confirms a take, the intake blinks warm, and the HUD prints a [pickup tick](../../hud/#pickup-sight-and-canister-tags) naming each stack that came aboard. A canister taken whole goes through the door, and the sight goes with it. A canister with items left over stays at the door, and the sight stays on it. An unavailable intake, or no canister within 200 m, draws no sight.
 
-The take ignores speed, but a canister is a free body: one that meets your hull beside the opening is knocked aside, not taken. Come up under it door first and gently.
+The take ignores speed, but a canister is a free body: one that meets your hull beside the opening is knocked aside, not taken. The pull aims at the opening, so keep the door, not the hull, between you and the canister. After a take that fills the hold, the rest of the canister stops being pulled and drifts off the door.
+
+Every ship's open intake pulls the same way, so a ship that passes close with its door toward a canister can take it.
 
 <figure class="figure">
     <!-- Capture: assets/loops/loop-section-cargo-intake.webm (producer: mine_and_sell) -->
@@ -113,11 +116,11 @@ Canisters come from three places: your own jettison, a [mining beam](../mining-b
 <div class="catalog__head"><span class="catalog__title">Cargo intake - shipped prototypes</span></div>
 <table>
 <thead>
-<tr><th></th><th>Variant</th><th>Size</th><th>Opening</th><th>Door zone</th><th>Take gap</th><th>Drop speed</th><th>Health</th></tr>
+<tr><th></th><th>Variant</th><th>Size</th><th>Opening</th><th>Door zone</th><th>Pull</th><th>Take gap</th><th>Drop speed</th><th>Health</th></tr>
 </thead>
 <tbody>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargo-intake-section.png</span></span></span></td><td><span class="catalog__name">Cargo Intake Section</span><span class="catalog__id">cargo_intake_section</span></td><td class="catalog__num">3x2x1</td><td class="catalog__num">22.2 x 15.3 m</td><td class="catalog__num">40 m</td><td class="catalog__num">1 m</td><td class="catalog__num">3 m/s</td><td class="catalog__num">90</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-wide-intake-section.png</span></span></span></td><td><span class="catalog__name">Wide Intake Section</span><span class="catalog__id">wide_intake_section</span></td><td class="catalog__num">3x2x1</td><td class="catalog__num">28 x 18 m</td><td class="catalog__num">60 m</td><td class="catalog__num">1.5 m</td><td class="catalog__num">3 m/s</td><td class="catalog__num">120</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargo-intake-section.png</span></span></span></td><td><span class="catalog__name">Cargo Intake Section</span><span class="catalog__id">cargo_intake_section</span></td><td class="catalog__num">3x2x1</td><td class="catalog__num">22.2 x 15.3 m</td><td class="catalog__num">40 m</td><td class="catalog__num">40 m at 5 m/s</td><td class="catalog__num">1 m</td><td class="catalog__num">3 m/s</td><td class="catalog__num">90</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-wide-intake-section.png</span></span></span></td><td><span class="catalog__name">Wide Intake Section</span><span class="catalog__id">wide_intake_section</span></td><td class="catalog__num">3x2x1</td><td class="catalog__num">28 x 18 m</td><td class="catalog__num">60 m</td><td class="catalog__num">60 m at 8 m/s</td><td class="catalog__num">1.5 m</td><td class="catalog__num">3 m/s</td><td class="catalog__num">120</td></tr>
 </tbody>
 </table>
 </div>

@@ -1224,8 +1224,8 @@ hold, the intake takes one, at any speed, into the ship's
 [inventory](../objects/#inventory), and the Inventory pane's Jettison drops
 canisters out through it. Two ship: `cargo_intake_section`, a 3x2x1 box on
 the top deck of the mining tug, the salvage hauler and the line warship, door
-up, and `wide_intake_section`, the same box with a 60 m door zone and a
-28 x 18 m opening that swaps for it at a shipyard.
+up, and `wide_intake_section`, the same box with a 60 m door zone, a 60 m
+pull at 8 m/s and a 28 x 18 m opening that swaps for it at a shipyard.
 
 ```ron
 kind: CargoIntake((
@@ -1239,6 +1239,8 @@ kind: CargoIntake((
     aperture_width: 22.2,
     aperture_height: 15.3,
     eject_speed: 3.0,
+    pull_range: 40.0,
+    pull_speed: 5.0,
 )),
 ```
 
@@ -1259,6 +1261,14 @@ kind: CargoIntake((
   collider face.
 - `eject_speed` (meters per second) - how fast a dropped canister leaves the
   face, relative to the intake's own point velocity.
+- `pull_range` (meters) - while the door is fully open, a canister centre in
+  front of the face and within this distance of the face centre, with an item
+  the hold has room for, is pulled to the trigger. More than `capture_gap`, at
+  most `detection_range`. Required.
+- `pull_speed` (meters per second) - the speed a pulled canister moves straight
+  at the trigger centre, relative to the intake's own point velocity. The pull
+  sets the canister's velocity each physics tick, so its mass plays no part and
+  its spin is kept. Required.
 
 The trigger is measured from the `-Z` face of the section's `Cuboid`
 collider, so an intake must author one; it is a detached sensor, not a child
@@ -1276,15 +1286,20 @@ them on the intake; the intake drops the front one once the door is fully open
 and no canister centre is within 12.5 m of the birth point. Waiting canisters
 are lost with the intake. The canister is born 1.5 m clear of the face,
 outside the trigger and moving away, so any intake takes it back only once it
-turns and closes on the trigger again. Author an
+turns and closes on the trigger again. No intake pulls a dropped canister until
+its centre has been out of every intake's `pull_range`; a save keeps that. A
+canister in two intakes' pull goes to the nearer face centre. Author an
 [`IntakeDoor` track](#animation-tracks) with a `Fold` motion to give the door
 its slats. Lint rejects an intake without a `Cuboid` collider, a range, gap or
 aperture that is not finite and positive, a `capture_gap` not less than
+`detection_range`, a `pull_range` or `pull_speed` that is not finite and
+positive, a `pull_range` not more than `capture_gap` or more than
 `detection_range`, an aperture wider than the collider face, or no
-`IntakeDoor` track. A missing sound field fails the parse. Offer no link point
+`IntakeDoor` track. A missing sound, `pull_range` or `pull_speed` field fails
+the parse. Offer no link point
 on the `-Z` face: that face is the door.
 
-<!-- Grammar verified against crates/nova_ship/src/sections/cargo_intake_section.rs (config, trigger, run_cargo_intakes) and crates/nova_scenario/src/lint/ship.rs check_cargo_intake_config. Values from assets/base/sections/base.content.ron cargo_intake_section. -->
+<!-- Grammar verified against crates/nova_ship/src/sections/cargo_intake_section.rs (config, trigger, run_cargo_intakes, pull_canisters_to_open_intakes) and crates/nova_scenario/src/lint/ship.rs check_cargo_intake_config. Values from assets/base/sections/base.content.ron cargo_intake_section. -->
 
 ## Mining
 

@@ -11570,7 +11570,10 @@ function initCollapseBudget(host: HTMLElement): void {
 // nonnegative penetration into the trigger box, whatever the door does, and
 // moves every whole item that fits, leaving the rest (take_fitting); a
 // drop is born half a canister deep + capture_gap + CARGO_CANISTER_CLEARANCE
-// 0.05 units (:82) off the face (:602-606).
+// 0.05 units (:82) off the face (:602-606). pull_range 40 m and pull_speed
+// 5 m/s (cargo_intake.rs): through the fully open door a canister whose centre
+// is in front of the face within pull_range, with room for an item, moves
+// straight at the trigger at pull_speed (pull_canisters_to_open_intakes).
 const INTAKE_HEIGHT_M = 20;
 const INTAKE_DEPTH_M = 10;
 const INTAKE_APERTURE_WIDTH_M = 22.2;
@@ -11578,6 +11581,8 @@ const INTAKE_APERTURE_HEIGHT_M = 15.3;
 const INTAKE_DETECTION_M = 40;
 const INTAKE_CAPTURE_GAP_M = 1;
 const INTAKE_EJECT_MPS = 3;
+const INTAKE_PULL_M = 40;
+const INTAKE_PULL_MPS = 5;
 const CANISTER_LENGTH_M = 9.4;
 const CANISTER_SIDE_M = 5.8;
 const INTAKE_BIRTH_M = CANISTER_SIDE_M / 2 + INTAKE_CAPTURE_GAP_M + 0.5;
@@ -11857,15 +11862,13 @@ function initCargoIntakeTake(host: HTMLElement): void {
         } else if (verdict.doorOpens) {
             readout.classList.add("is-warn");
             readout.textContent =
-                `DOOR OPEN, nothing taken yet. The centre is ` +
+                `DOOR OPEN, pulling. The centre is ` +
                 `${meters(centreM, 1)} from the face centre, inside ` +
-                `${INTAKE_DETECTION_M} m. ` +
-                (g <= INTAKE_CAPTURE_GAP_M
-                    ? "The canister is at the face but beside the " +
-                      `${INTAKE_APERTURE_HEIGHT_M} m opening, and a canister ` +
-                      "touching the hull there is not taken."
-                    : `Close the last ` +
-                      `${meters(g - INTAKE_CAPTURE_GAP_M, 1)} to reach the slab.`);
+                `${INTAKE_DETECTION_M} m` +
+                (centreM <= INTAKE_PULL_M
+                    ? `, so once the door is open it pulls the canister ` +
+                      `straight at the opening at ${INTAKE_PULL_MPS} m/s.`
+                    : `, past the ${INTAKE_PULL_M} m pull.`);
         } else if (!room && centreM <= INTAKE_DETECTION_M) {
             readout.classList.add("is-warn");
             readout.textContent =

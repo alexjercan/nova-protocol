@@ -500,13 +500,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                  below it",
             ),
             "A cargo intake takes each whole item in a canister that your hold has room for. The \
-             rest stays in that canister until taken. Fly the intake's door onto the canister; \
-             your hull beside the opening knocks it aside. The pickup sight lines you up.",
+             rest stays in that canister. Bring the intake's door within 40 m of the canister and \
+             the open door pulls it in. The pickup sight lines you up.",
             &[],
             "wiki/sections/cargo-intake#taking-a-canister-in",
             None,
             &[],
-            &["Fly your cargo intake's door onto a canister to take its cargo into your hold."],
+            &["An open cargo intake pulls a canister within 40 m of its door into your hold."],
         ),
         lesson(
             "combat_radar",

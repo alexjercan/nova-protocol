@@ -2766,6 +2766,8 @@ pub(crate) mod fixture {
             aperture_width: Meters(8.0),
             aperture_height: Meters(8.0),
             eject_speed: MetersPerSecond(3.0),
+            pull_range: Meters(40.0),
+            pull_speed: MetersPerSecond(5.0),
         });
         let faces = [Vec3::X, Vec3::NEG_X, Vec3::Y, Vec3::NEG_Y, Vec3::Z];
         block(id, 100.0, 0.0, kind, UVec3::new(3, 2, 1), &faces)

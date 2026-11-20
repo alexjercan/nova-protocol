@@ -1721,7 +1721,7 @@ mod tests {
             socketed(
                 "intake",
                 sockets,
-                r#"CargoIntake((render_mesh: "self://intake.glb#Scene0", canister_mesh: "self://canister.glb#Scene0", door_sound: "self://door.wav", eject_sound: "self://eject.wav", take_sound: "self://take.wav", detection_range: 40.0, capture_gap: 1.0, aperture_width: 8.0, aperture_height: 8.0, maximum_capture_speed: 5.0, eject_speed: 3.0))"#,
+                r#"CargoIntake((render_mesh: "self://intake.glb#Scene0", canister_mesh: "self://canister.glb#Scene0", door_sound: "self://door.wav", eject_sound: "self://eject.wav", take_sound: "self://take.wav", detection_range: 40.0, capture_gap: 1.0, aperture_width: 8.0, aperture_height: 8.0, eject_speed: 3.0, pull_range: 40.0, pull_speed: 5.0))"#,
             )
         };
         let base = vec![

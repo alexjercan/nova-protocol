@@ -382,6 +382,8 @@ mod tests {
                     aperture_width: Meters(14.1),
                     aperture_height: Meters(16.0),
                     eject_speed: MetersPerSecond(3.0),
+                    pull_range: Meters(40.0),
+                    pull_speed: MetersPerSecond(5.0),
                 }),
                 GlobalTransform::from_translation(point),
                 ChildOf(ship),

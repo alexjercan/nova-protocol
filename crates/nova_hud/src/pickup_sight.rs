@@ -858,6 +858,8 @@ mod tests {
                     aperture_width: Meters(22.2),
                     aperture_height: Meters(15.3),
                     eject_speed: MetersPerSecond(3.0),
+                    pull_range: Meters(40.0),
+                    pull_speed: MetersPerSecond(5.0),
                 }),
             ))
             .id();

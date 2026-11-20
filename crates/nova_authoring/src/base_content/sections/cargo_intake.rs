@@ -1,8 +1,8 @@
 //! The cargo intake: a 3x2 hold mouth behind an accordion door.
 //!
-//! Fly slowly past a drifting canister with the door facing it, and the door
-//! folds open and the intake takes every whole item the hold has room for.
-//! The rest stays in the same canister. The Inventory pane's Jettison drops a
+//! Bring the door within reach of a drifting canister, and the door folds
+//! open, pulls the canister in and takes every whole item the hold has room
+//! for. The rest stays in the same canister. The Inventory pane's Jettison drops a
 //! canister out through the same door.
 
 use bevy::prelude::*;
@@ -106,6 +106,10 @@ struct IntakeSpec<'a> {
     /// The clear opening, inside the 30 x 20 m door face.
     aperture_width: Meters,
     aperture_height: Meters,
+    /// How far out the open door pulls a canister the hold has room for.
+    pull_range: Meters,
+    /// How fast a pulled canister closes on the opening.
+    pull_speed: MetersPerSecond,
 }
 
 /// One intake, named for the grade it is built at.
@@ -138,6 +142,8 @@ fn intake_prototype(meshes: &BaseContentAssets, spec: IntakeSpec<'_>) -> Section
             aperture_width: spec.aperture_width,
             aperture_height: spec.aperture_height,
             eject_speed: MetersPerSecond(3.0),
+            pull_range: spec.pull_range,
+            pull_speed: spec.pull_speed,
         }),
     }
 }
@@ -151,12 +157,14 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                 id: CARGO_INTAKE_SECTION_ID,
                 name: "Cargo Intake Section",
                 description: "A hold mouth behind an accordion door. The door \
-                              folds open for a canister within 40 m of it. When \
-                              a canister reaches into the 1 m in front of its \
-                              opening, the intake takes, at any speed, every \
-                              whole item the hold has room for. The rest stays \
-                              in the same canister. Jettison in the Inventory \
-                              pane drops a canister out through the same door.",
+                              folds open for a canister within 40 m of it and \
+                              pulls it in at 5 m/s. When a canister reaches \
+                              into the 1 m in front of its opening, the intake \
+                              takes, at any speed, every whole item the hold \
+                              has room for. The rest stays in the same \
+                              canister. Jettison in the Inventory pane drops a \
+                              canister out through the same door; it is not \
+                              pulled back.",
                 health: CARGO_INTAKE_BASE_HEALTH,
                 advancement: 0.0,
                 draw_weight: 1.0,
@@ -170,6 +178,10 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                 // 15.3 m.
                 aperture_width: Meters(22.2),
                 aperture_height: Meters(15.3),
+                // The whole door range: a canister that opens the door
+                // comes to it, about 8 s from the edge.
+                pull_range: Meters(40.0),
+                pull_speed: MetersPerSecond(5.0),
             },
         ),
         intake_prototype(
@@ -179,9 +191,10 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                 name: "Wide Intake Section",
                 description: "The same door and hold mouth with a wider \
                               trigger: the door opens for a canister within \
-                              60 m, the take reaches 1.5 m out over a 28 x \
-                              18 m opening, and the machinery takes a third \
-                              more damage before it fails.",
+                              60 m and pulls it in at 8 m/s, the take reaches \
+                              1.5 m out over a 28 x 18 m opening, and the \
+                              machinery takes a third more damage before it \
+                              fails.",
                 health: 120.0,
                 advancement: 0.3,
                 draw_weight: 0.6,
@@ -193,6 +206,10 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                 // holds it inside the 30 x 20 m collider face.
                 aperture_width: Meters(28.0),
                 aperture_height: Meters(18.0),
+                // The whole door range again, faster, so the longer pull
+                // takes about as long as the base grade's.
+                pull_range: Meters(60.0),
+                pull_speed: MetersPerSecond(8.0),
             },
         ),
     ]
