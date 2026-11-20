@@ -739,9 +739,24 @@ fn a_window_root_stays_the_window_size_over_a_list_taller_than_the_window() {
 /// A plain button lights its ring outside its box. The first row of a list
 /// stands on the top edge of the viewport, and the last one on its bottom
 /// edge once the list is scrolled to its end: the viewport's clip cut that
-/// side of the ring.
+/// side of the ring. Both scroll lists of the kit are held to it: the scroll
+/// column, and a list pane whose rows scroll in the pane itself.
 #[test]
-fn a_scroll_column_keeps_the_whole_ring_of_its_first_and_last_row() {
+fn a_scroll_list_keeps_the_whole_ring_of_its_first_and_last_row() {
+    the_ring_of_an_edge_row_is_whole("scroll column", scroll_column());
+    the_ring_of_an_edge_row_is_whole(
+        "scrolling list pane",
+        Node {
+            overflow: Overflow::scroll_y(),
+            ..list_pane()
+        },
+    );
+}
+
+/// Three pressed rows in `viewport`, 100 px high over 120 px of rows: the ring
+/// of the first row, and of the last one at the end of the scroll, lies inside
+/// the clip.
+fn the_ring_of_an_edge_row_is_whole(list: &str, viewport: Node) {
     use bevy::{
         asset::AssetPlugin,
         camera::{ComputedCameraValues, RenderTargetInfo},
@@ -801,7 +816,7 @@ fn a_scroll_column_keeps_the_whole_ring_of_its_first_and_last_row() {
         .spawn((
             Node {
                 max_height: px(100),
-                ..scroll_column()
+                ..viewport
             },
             scroll_viewport(),
         ))
@@ -844,11 +859,11 @@ fn a_scroll_column_keeps_the_whole_ring_of_its_first_and_last_row() {
     let (top, _) = ring(&app, rows[0]);
     assert!(
         top < span(&app, rows[0], |_, computed| computed.border_box()).0,
-        "the pressed row lights a ring outside its box"
+        "{list}: the pressed row lights a ring outside its box"
     );
     assert!(
         clip(&app).0 <= top,
-        "the clip {:?} cuts the first row's ring, which starts at {top}",
+        "{list}: the clip {:?} cuts the first row's ring, which starts at {top}",
         clip(&app)
     );
 
@@ -861,7 +876,7 @@ fn a_scroll_column_keeps_the_whole_ring_of_its_first_and_last_row() {
     let (_, bottom) = ring(&app, rows[2]);
     assert!(
         bottom <= clip(&app).1,
-        "the clip {:?} cuts the last row's ring, which ends at {bottom}",
+        "{list}: the clip {:?} cuts the last row's ring, which ends at {bottom}",
         clip(&app)
     );
 }

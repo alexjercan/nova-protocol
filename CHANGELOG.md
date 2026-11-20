@@ -97,7 +97,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A job you drop, and a job whose board slot renews, now takes its hauler, raiders, caller or wreck out of a sector you have left too. Before, they came back with no job when you returned.
 - A tapped burn key no longer leaves the drive hum on for about a second: the hum ends with the plume. The RCS hiss stops within 0.12 s of the last push.
 - The menu duel no longer ends half a second after the first hit: the interceptor breaks the raider as the two ships cross, and the siege torpedo still fires at a winner that has lost its guns.
-- Jobs and Inventory panes: a hovered first row of a list shows its whole outline. Before, the list's top edge cut its top line, and the last row of a scrolled list lost its bottom line.
+- Jobs, Inventory, Scenarios and Load lists: a hovered row on the list's top or bottom edge shows its whole outline. Before, the list's edge cut that line.
 
 ## [0.18.0] - 2026-11-15
 

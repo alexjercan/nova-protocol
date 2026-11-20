@@ -530,6 +530,11 @@ pub(crate) fn window_frame(
                             align_items: AlignItems::Stretch,
                             row_gap: px(density::GAP),
                             padding: UiRect::all(px(density::PANEL_PAD)),
+                            // The padding holds a row's ring. The clip stays
+                            // on the box: the title rule and the frame border
+                            // stand on its edges, and a clip margin would draw
+                            // scrolled rows over them.
+                            overflow_clip_margin: OverflowClipMargin::default(),
                             ..scroll_column()
                         },
                         scroll_viewport(),

@@ -90,6 +90,10 @@ pub fn list_detail_screen(left: impl Bundle, details: impl Bundle) -> impl Bundl
 /// wanted more - measured as a 141..331 px swing purely from the selection. The
 /// split is a property of the SCREEN, not of the selection; the details pane
 /// absorbs all the slack instead.
+///
+/// A caller that lists rows straight in the pane sets its overflow to scroll.
+/// The clip then leaves [`ring_clip_margin`] around the pane, as
+/// [`scroll_column`] does, so the first and the last row keep their whole ring.
 pub fn list_pane() -> Node {
     Node {
         flex_direction: FlexDirection::Column,
@@ -97,6 +101,7 @@ pub fn list_pane() -> Node {
         min_height: px(0),
         flex_grow: 0.0,
         flex_shrink: 0.0,
+        overflow_clip_margin: ring_clip_margin(),
         ..default()
     }
 }
