@@ -189,6 +189,9 @@ mod tests {
         app.add_message::<RadarRetargeted>();
         app.add_message::<LockClearedToast>();
         app.add_message::<RadarDenied>();
+        // `play_consumable_refused_cue` reads the message the sections plugin
+        // owns, which this test does not add.
+        app.add_message::<crate::sections::consumables::ConsumableUsed>();
         // `play_torpedo_closing_tone` reads the ETA that the torpedo section
         // plugin owns, which this test does not add.
         app.init_resource::<crate::sections::torpedo_section::PlayerTorpedoEta>();
