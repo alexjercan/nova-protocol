@@ -30,7 +30,7 @@ pub mod prelude {
 
 use bevy::{platform::collections::HashSet, prelude::*};
 
-use crate::theme::{ActiveUiTheme, UiColorType, UiThemeSystems};
+use crate::theme::{ActiveUiTheme, UiColorType, UiThemeSystems, BORDER_W};
 
 /// The chip's translucent slab fill (`rgba(2,14,8,0.62)` in the demo) - dark
 /// enough to hold text over a bright starfield, sheer enough that the HUD never
@@ -44,10 +44,9 @@ pub const CHIP_FILL_QUIET: Color = Color::srgba(0.008, 0.055, 0.031, 0.5);
 /// The chip border's alpha over its tone colour (demo: `0.34`).
 pub const CHIP_BORDER_ALPHA: f32 = 0.34;
 
-/// The chip corner radius (px): the hard corner the phosphor controls and
-/// panels carry, because a HUD chip is a projected readout, not a physical
-/// panel.
-pub const CHIP_RADIUS: f32 = 2.0;
+/// The chip corner radius (px): square, as the phosphor controls and panels
+/// are, because a HUD chip is a projected readout, not a physical panel.
+pub const CHIP_RADIUS: f32 = 0.0;
 
 /// The chip's default text size (px). The speed chip overrides it upward; the
 /// small labels (`.lab`, `.who`) use [`CHIP_LABEL_FONT`].
@@ -173,7 +172,7 @@ pub fn chip_node() -> Node {
         justify_content: JustifyContent::Center,
         column_gap: Val::Px(8.0),
         padding: UiRect::axes(Val::Px(9.0), Val::Px(4.0)),
-        border: UiRect::all(Val::Px(1.0)),
+        border: UiRect::all(Val::Px(BORDER_W)),
         border_radius: BorderRadius::all(Val::Px(CHIP_RADIUS)),
         ..default()
     }
@@ -455,8 +454,8 @@ mod tests {
         assert_ne!(amber_ink, ink, "a theme that moves `text` moves the ink");
     }
 
-    /// The geometry is a bordered, rounded slab - a chip that lost its border
-    /// is just floating text again.
+    /// The geometry is a bordered slab - a chip that lost its border is just
+    /// floating text again.
     #[test]
     fn chip_geometry_carries_a_hairline_border() {
         let node = chip_node();

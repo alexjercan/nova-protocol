@@ -6,7 +6,7 @@
 
 use bevy::{picking::hover::Hovered, prelude::*, ui_widgets::Button};
 
-use super::{ListRow, ThemedRadius, ThemedText, UiText};
+use super::{metrics::GAP_S, ListRow, ThemedRadius, ThemedText, UiText};
 use crate::theme::{density, UiColorType, BORDER_W};
 
 /// The text of a [`tab`], for a caller that writes a count into it.
@@ -53,12 +53,13 @@ pub fn tab(label: &str, fill: bool) -> impl Bundle {
     )
 }
 
-/// The row a set of [`tab`]s sits in.
+/// The row a set of [`tab`]s sits in, [`GAP_S`] apart. The strip draws no
+/// frame: each tab carries its own line.
 pub fn tab_strip() -> Node {
     Node {
         flex_direction: FlexDirection::Row,
         align_items: AlignItems::Stretch,
-        column_gap: px(4),
+        column_gap: px(GAP_S),
         ..default()
     }
 }

@@ -1059,7 +1059,7 @@ fn card(
         panel(),
     ))
     .with_children(|card| {
-        card.spawn(panel_head(title, &[]));
+        card.spawn(panel_head(title, PanelHeadType::Band, &[]));
         card.spawn(Node {
             flex_grow: 1.0,
             min_height: px(0),

@@ -21,8 +21,8 @@ use nova_ui::{
     theme,
     theme::UiColorType,
     widget::{
-        panel, panel_head, segmented_container, segmented_option_fit, Selected, ThemedFill,
-        ThemedRadius, ThemedText, ThemedTextShadow, UiText,
+        panel, panel_head, segmented_container, segmented_option_fit, PanelHeadType, Selected,
+        ThemedFill, ThemedRadius, ThemedText, ThemedTextShadow, UiText,
     },
 };
 #[cfg(not(target_arch = "wasm32"))]
@@ -135,7 +135,7 @@ pub(crate) fn setup_menu_ui(
                 .with_children(|parent| {
                     parent.spawn((
                         Name::new("Settings Title"),
-                        panel_head("Settings", &["SAVED ON CHANGE"]),
+                        panel_head("Settings", PanelHeadType::Inset, &["SAVED ON CHANGE"]),
                     ));
                     build_settings_tabs(parent, active_settings_tab.0);
                     parent
@@ -213,7 +213,10 @@ pub(crate) fn setup_menu_ui(
                     panel(),
                 ))
                 .with_children(|parent| {
-                    parent.spawn((Name::new("Mods Title"), panel_head("Mods", &["DELTA-9"])));
+                    parent.spawn((
+                        Name::new("Mods Title"),
+                        panel_head("Mods", PanelHeadType::Inset, &["DELTA-9"]),
+                    ));
                     parent.spawn((
                         Name::new("Mods Subtitle"),
                         Text::new("Enable installed mods. Base is always on."),
@@ -319,7 +322,7 @@ pub(crate) fn setup_menu_ui(
                 .with_children(|parent| {
                     parent.spawn((
                         Name::new("Scenarios Title"),
-                        panel_head("Scenarios", &["PICK ONE"]),
+                        panel_head("Scenarios", PanelHeadType::Inset, &["PICK ONE"]),
                     ));
                     parent.spawn((
                         Name::new("Scenarios Subtitle"),
@@ -394,7 +397,7 @@ pub(crate) fn setup_menu_ui(
                 .with_children(|parent| {
                     parent.spawn((
                         Name::new("Load Title"),
-                        panel_head("Load", &["SAVED WORLDS"]),
+                        panel_head("Load", PanelHeadType::Inset, &["SAVED WORLDS"]),
                     ));
 
                     parent.spawn((

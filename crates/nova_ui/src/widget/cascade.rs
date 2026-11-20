@@ -432,8 +432,9 @@ pub struct CascadeSearch {
 /// The narrowest a column draws.
 const COLUMN_MIN_W: f32 = 170.0;
 
-/// A column's inside margin.
-const COLUMN_PAD: f32 = 4.0;
+/// A column's inside margin, and the gap between two of its rows: two
+/// bordered rows never lay their borders side by side.
+const COLUMN_PAD: f32 = density::GAP_S;
 
 /// The mark at the right of a row that opens a submenu. BLACK RIGHT-POINTING
 /// SMALL TRIANGLE.
@@ -498,7 +499,7 @@ pub fn spawn_cascade(commands: &mut Commands, at: Vec2, z: i32, items: Vec<Casca
                     },
                     Node {
                         flex_direction: FlexDirection::Column,
-                        margin: UiRect::top(px(COLUMN_PAD)),
+                        row_gap: px(COLUMN_PAD),
                         ..default()
                     },
                 ));
@@ -514,6 +515,7 @@ fn column_node() -> Node {
         position_type: PositionType::Absolute,
         min_width: px(COLUMN_MIN_W),
         flex_direction: FlexDirection::Column,
+        row_gap: px(COLUMN_PAD),
         padding: UiRect::all(px(COLUMN_PAD)),
         border: UiRect::all(px(BORDER_W)),
         ..default()
@@ -560,7 +562,6 @@ fn spawn_rows(
                     width: percent(100),
                     height: px(BORDER_W),
                     min_height: px(BORDER_W),
-                    margin: UiRect::vertical(px(3)),
                     ..default()
                 },
                 BackgroundColor(Color::NONE),

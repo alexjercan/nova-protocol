@@ -173,6 +173,7 @@ fn debug_hud_ui(world: &mut World) {
         return;
     };
     let mut context = context.clone();
+    square_corners(context.get_mut());
     egui::Window::new("Nova Debug")
         .default_width(440.0)
         .default_height(620.0)
@@ -196,6 +197,30 @@ fn debug_hud_ui(world: &mut World) {
                 egui::CollapsingHeader::new("Raw").show(ui, |ui| raw_ui(world, ui));
             });
         });
+}
+
+/// Square every egui corner (windows, widgets, menus), as the game's own
+/// boxes are. Written once: the styles keep it.
+fn square_corners(context: &egui::Context) {
+    const SQUARE: egui::CornerRadius = egui::CornerRadius::ZERO;
+    if context.global_style().visuals.window_corner_radius == SQUARE {
+        return;
+    }
+    context.all_styles_mut(|style| {
+        let visuals = &mut style.visuals;
+        visuals.window_corner_radius = SQUARE;
+        visuals.menu_corner_radius = SQUARE;
+        let widgets = &mut visuals.widgets;
+        for widget in [
+            &mut widgets.noninteractive,
+            &mut widgets.inactive,
+            &mut widgets.hovered,
+            &mut widgets.active,
+            &mut widgets.open,
+        ] {
+            widget.corner_radius = SQUARE;
+        }
+    });
 }
 
 /// Every entity, resource and asset, through `bevy-inspector-egui`. Each list

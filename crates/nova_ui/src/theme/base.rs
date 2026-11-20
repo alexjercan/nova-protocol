@@ -155,12 +155,11 @@ pub fn phosphor_theme() -> UiThemeConfig {
             highlight: hex("#ffffff"),
             shadow: hex("#000000"),
         },
+        // Square: a phosphor box is a frame drawn on a screen in cell
+        // characters, and a character cell has no round corner.
         metrics: Some(UiMetrics {
-            radius: 2.0,
-            // The same hard corner as a control: a phosphor panel is a drawn
-            // frame on a screen, and a soft card corner beside 2 px buttons
-            // read as two design languages.
-            panel_radius: 2.0,
+            radius: 0.0,
+            panel_radius: 0.0,
         }),
         roles: UiRoles {
             button: Some(phosphor_button(
@@ -278,7 +277,7 @@ pub fn phosphor_theme() -> UiThemeConfig {
             }),
             toggle: Some(ToggleRole {
                 radius: None,
-                knob_radius: 1.0,
+                knob_radius: 0.0,
                 off: state(
                     solid(va(C::Shadow, 0.4)),
                     va(C::Text, 0.35),

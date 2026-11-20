@@ -107,21 +107,61 @@ pub struct PanelHeadRule;
 #[derive(Component)]
 pub struct PanelHeadTag;
 
+/// Where a [`panel_head`] stands in its panel. Either way the title starts on
+/// the left edge of the content under it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PanelHeadType {
+    /// The head spans an unpadded panel ([`panel_node`]) wall to wall, and its
+    /// rule runs from border to border. The title stands
+    /// [`GAP_L`](super::metrics::GAP_L) from the wall, which is the padding of
+    /// the body under it; that padding is the gap under the rule.
+    Band,
+    /// The head stands inside a padded window, on its content edge: no side
+    /// padding and no padding over the title, since the window pads both. The
+    /// content follows [`GAP`](super::metrics::GAP) under the rule; the window
+    /// adds no gap of its own there.
+    Inset,
+}
+
+impl PanelHeadType {
+    /// The head row's padding.
+    fn padding(self) -> UiRect {
+        match self {
+            Self::Band => UiRect::axes(px(GAP_L), px(GAP)),
+            Self::Inset => UiRect::bottom(px(GAP)),
+        }
+    }
+
+    /// The head row's margin: an inset head keeps its content off the rule.
+    fn margin(self) -> UiRect {
+        match self {
+            Self::Band => UiRect::ZERO,
+            Self::Inset => UiRect::bottom(px(GAP)),
+        }
+    }
+}
+
 /// A panel header row: an uppercase title, a rule that fills the row, and one
 /// trailing tag chip per entry of `tags`. Every chip is
-/// [`TAG_H`](super::metrics::TAG_H) high.
-pub fn panel_head(title: &str, tags: &[&str]) -> impl Bundle {
-    head_row(title, None, tags)
+/// [`TAG_H`](super::metrics::TAG_H) high. `place` says whether the head is a
+/// wall-to-wall band or stands inside a padded window.
+pub fn panel_head(title: &str, place: PanelHeadType, tags: &[&str]) -> impl Bundle {
+    head_row(title, None, place, tags)
 }
 
 /// A [`panel_head`] whose title stands in a fixed `title_w` px slot, for a
 /// head whose title changes in place: what stands right of the title keeps
 /// its x whichever title is shown.
-pub fn panel_head_fixed(title: &str, title_w: f32, tags: &[&str]) -> impl Bundle {
-    head_row(title, Some(title_w), tags)
+pub fn panel_head_fixed(
+    title: &str,
+    title_w: f32,
+    place: PanelHeadType,
+    tags: &[&str],
+) -> impl Bundle {
+    head_row(title, Some(title_w), place, tags)
 }
 
-fn head_row(title: &str, title_w: Option<f32>, tags: &[&str]) -> impl Bundle {
+fn head_row(title: &str, title_w: Option<f32>, place: PanelHeadType, tags: &[&str]) -> impl Bundle {
     let title = title.to_uppercase();
     let tags: Vec<String> = tags.iter().map(|tag| tag.to_uppercase()).collect();
     (
@@ -130,7 +170,8 @@ fn head_row(title: &str, title_w: Option<f32>, tags: &[&str]) -> impl Bundle {
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
             column_gap: px(GAP),
-            padding: UiRect::axes(px(GAP_L), px(GAP)),
+            padding: place.padding(),
+            margin: place.margin(),
             border: UiRect::bottom(px(BORDER_W)),
             ..default()
         },
@@ -307,7 +348,10 @@ mod tests {
     #[test]
     fn panel_head_repaints_on_theme_change() {
         let mut app = themed_app(PHOSPHOR_THEME_ID);
-        let head = app.world_mut().spawn(panel_head("Status", &[])).id();
+        let head = app
+            .world_mut()
+            .spawn(panel_head("Status", PanelHeadType::Band, &[]))
+            .id();
         app.update();
 
         let title_of = |app: &mut App, head: Entity| {

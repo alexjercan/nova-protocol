@@ -35,8 +35,22 @@ use crate::theme::{ActiveUiTheme, UiColorType, UiMetric, BORDER_W};
 
 /// The one size scale of the tool surfaces, in logical px at UI scale 1.
 ///
-/// Three text sizes, one control height, three gaps. A theme cannot move any
-/// of these: a value here is layout, and layout is the screen's.
+/// A theme cannot move any of these: a value here is layout, and layout is
+/// the screen's.
+///
+/// The spacing scale. Every gap and padding on a screen is one of these:
+///
+/// | Token | px | Use |
+/// |---|---|---|
+/// | [`GAP_S`](metrics::GAP_S) | 4 | inside a control, tab to tab, chip to chip, list row to list row |
+/// | [`GAP`](metrics::GAP) | 8 | button to button in a stack and in a row, heading to content |
+/// | [`GAP_L`](metrics::GAP_L) | 12 | group to group, panel to panel, card and side-panel padding, actions row to content |
+/// | [`GAP_XL`](metrics::GAP_XL) | 16 | list pane to details pane, interface root padding |
+/// | [`PANEL_PAD_MENU`](metrics::PANEL_PAD_MENU) | 20 | menu window and dialog padding |
+///
+/// The gap between two siblings belongs to their container: a control carries
+/// no margin. [`button_stack`], [`action_row`] and [`group_stack`] are the
+/// containers with the gap built in.
 pub mod metrics {
     /// Every button, field, chip, tab, slider slot and verb row.
     pub const CONTROL_H: f32 = 24.0;
@@ -52,12 +66,19 @@ pub mod metrics {
     pub const BAR_H: f32 = 6.0;
     /// The slider track inside its [`CONTROL_H`] slot.
     pub const SLIDER_TRACK_H: f32 = 10.0;
-    /// Inside a control (icon and label), a chip bar, a tag row.
+    /// Inside a control (icon and label), tab to tab, chip to chip, tag to
+    /// tag, list row to list row.
     pub const GAP_S: f32 = 4.0;
-    /// Between controls in a row, between rows in a block.
+    /// Button to button in a stack and in a row, row to row in a block, a
+    /// heading to its content.
     pub const GAP: f32 = 8.0;
-    /// Between blocks, and a panel's padding.
+    /// Group to group, panel to panel, block to block, the padding of a card
+    /// and of a side panel, an actions row to the content over it.
     pub const GAP_L: f32 = 12.0;
+    /// A list pane to its details pane, and the interface root's padding.
+    pub const GAP_XL: f32 = 16.0;
+    /// The padding of a menu window and of a dialog.
+    pub const PANEL_PAD_MENU: f32 = 20.0;
     /// A control's side padding. Its vertical padding is zero: the height is
     /// fixed.
     pub const PAD_X: f32 = 8.0;
@@ -316,6 +337,44 @@ pub fn control_row(justify: JustifyContent) -> Node {
         justify_content: justify,
         column_gap: px(GAP),
         flex_shrink: 0.0,
+        ..default()
+    }
+}
+
+/// A column of buttons, [`GAP`] apart: a menu's button list, a dialog's
+/// answers. The stack owns the gap, so a button in it carries no margin. Each
+/// button takes the stack's width unless the caller sets `align_items`.
+pub fn button_stack() -> Node {
+    Node {
+        flex_direction: FlexDirection::Column,
+        row_gap: px(GAP),
+        ..default()
+    }
+}
+
+/// A row of buttons, [`GAP`] apart, gathered by `justify`. It wraps, so a
+/// narrow pane drops a button to a second line [`GAP`] under the first
+/// instead of clipping it. For a commit row of any button height; a row of
+/// [`CONTROL_H`] verbs that must stay on one line is a [`verb_row`].
+pub fn action_row(justify: JustifyContent) -> Node {
+    Node {
+        flex_direction: FlexDirection::Row,
+        flex_wrap: FlexWrap::Wrap,
+        align_items: AlignItems::Center,
+        justify_content: justify,
+        column_gap: px(GAP),
+        row_gap: px(GAP),
+        ..default()
+    }
+}
+
+/// A column of groups, [`GAP_L`] apart: the [`button_stack`]s of a menu, the
+/// cards of a pane. A group is closer inside than it is to the next group,
+/// which is what makes it read as one.
+pub fn group_stack() -> Node {
+    Node {
+        flex_direction: FlexDirection::Column,
+        row_gap: px(GAP_L),
         ..default()
     }
 }

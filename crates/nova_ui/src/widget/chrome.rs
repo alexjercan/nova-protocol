@@ -16,7 +16,7 @@ use bevy::{
     ecs::relationship::RelatedSpawner, platform::collections::HashSet, prelude::*, text::TextColor,
 };
 
-use super::UiText;
+use super::{metrics::GAP, UiText};
 use crate::theme::{ActiveUiTheme, OnOff, UiColorType, UiMetric, BORDER_W};
 
 /// Marks a text span whose colour is a theme colour, so it re-tints live.
@@ -283,7 +283,7 @@ pub fn panel_header(text: &str) -> impl Bundle {
         },
         TextColor(Color::NONE),
         Node {
-            margin: UiRect::bottom(px(8)),
+            margin: UiRect::bottom(px(GAP)),
             ..default()
         },
     )
@@ -316,7 +316,7 @@ pub fn separator() -> impl Bundle {
             // An overfull column must not shrink the rule away: the nodes
             // under it would move up by its height.
             min_height: px(BORDER_W),
-            margin: UiRect::vertical(px(8)),
+            margin: UiRect::vertical(px(GAP)),
             ..default()
         },
         BackgroundColor(Color::NONE),

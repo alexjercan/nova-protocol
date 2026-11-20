@@ -256,7 +256,7 @@ fn spawn_pick_popup(
                 Node {
                     width: px(PICK_W),
                     flex_direction: FlexDirection::Column,
-                    row_gap: px(density::GAP),
+                    row_gap: px(density::GAP_S),
                     ..default()
                 },
             ))

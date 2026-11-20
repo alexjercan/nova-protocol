@@ -918,7 +918,7 @@ fn spawn_interface_card(
             card.spawn((
                 InterfacePaneHead,
                 ZIndex(1),
-                panel_head_fixed(pane.label(), TITLE_SLOT_PX, &[]),
+                panel_head_fixed(pane.label(), TITLE_SLOT_PX, PanelHeadType::Band, &[]),
             ))
             .with_children(|head| {
                 tabs = head

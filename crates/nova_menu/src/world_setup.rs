@@ -41,8 +41,8 @@ use nova_ui::{
     theme::UiColorType,
     widget::{
         list_row, panel, panel_head, separator, text_field, ButtonCueType, ButtonVariant,
-        PanelHeadTag, PanelHeadTitle, Selected, TextFieldError, TextFieldSpec, TextFieldValue,
-        ThemedBorder, ThemedRadius, ThemedText, Tooltip, UiText,
+        PanelHeadTag, PanelHeadTitle, PanelHeadType, Selected, TextFieldError, TextFieldSpec,
+        TextFieldValue, ThemedBorder, ThemedRadius, ThemedText, Tooltip, UiText,
     },
 };
 #[cfg(not(target_arch = "wasm32"))]
@@ -311,7 +311,7 @@ pub(crate) fn on_new_game(
                     parent.spawn((
                         Name::new("New Game Title"),
                         WorldSetupHead,
-                        panel_head("New Game", &[WORLD_STEP_TAG]),
+                        panel_head("New Game", PanelHeadType::Inset, &[WORLD_STEP_TAG]),
                     ));
                     parent
                         .spawn((Name::new("World Step"), WorldStep, step_node(Display::Flex)))

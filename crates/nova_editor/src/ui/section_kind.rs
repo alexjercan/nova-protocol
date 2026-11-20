@@ -139,8 +139,8 @@ pub(crate) fn open_section_kind_modal(commands: &mut Commands) {
                             Node {
                                 display: Display::Grid,
                                 grid_template_columns: RepeatedGridTrack::flex(COLUMNS as u16, 1.0),
-                                column_gap: px(density::GAP),
-                                row_gap: px(density::GAP),
+                                column_gap: px(density::GAP_S),
+                                row_gap: px(density::GAP_S),
                                 ..default()
                             },
                         ))
@@ -155,7 +155,7 @@ pub(crate) fn open_section_kind_modal(commands: &mut Commands) {
                             Node {
                                 flex_direction: FlexDirection::Row,
                                 justify_content: JustifyContent::FlexEnd,
-                                column_gap: px(density::GAP),
+                                column_gap: px(density::GAP_S),
                                 ..default()
                             },
                         ))

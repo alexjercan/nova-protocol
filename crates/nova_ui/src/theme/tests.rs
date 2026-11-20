@@ -385,8 +385,34 @@ fn both_base_themes_resolve_completely() {
                 "{id} leaves {color:?} unpainted"
             );
         }
-        assert!(theme.metric(UiMetric::Radius) > 0.0);
     }
+}
+
+/// The base phosphor look has no round box corner: every radius a box reads
+/// from it is zero. The radius fields stay in the format, so the hardware look
+/// and a mod theme still round theirs.
+#[test]
+fn the_phosphor_theme_draws_every_box_corner_square() {
+    let themes = base_ui_themes();
+    let phosphor = resolve_theme(PHOSPHOR_THEME_ID, &themes).expect("phosphor resolves");
+    let radii = [
+        ("control", phosphor.metric(UiMetric::Radius)),
+        ("panel", phosphor.metric(UiMetric::PanelRadius)),
+        ("panel surface", phosphor.panel().radius),
+        ("segmented", phosphor.segmented().radius),
+        ("slider track", phosphor.slider_track().surface.radius),
+        ("checkbox", phosphor.checkbox().radius),
+        ("toggle track", phosphor.toggle().radius),
+        ("toggle knob", phosphor.toggle().knob_radius),
+    ];
+    for (name, radius) in radii {
+        assert_eq!(radius, 0.0, "the phosphor {name} corner is round");
+    }
+    let hardware = resolve_theme(HARDWARE_THEME_ID, &themes).expect("hardware resolves");
+    assert!(
+        hardware.metric(UiMetric::Radius) > 0.0,
+        "the hardware look keeps its moulded corner"
+    );
 }
 
 /// The two shipped looks differ in SHAPE, not only in colour - the blocks/fill

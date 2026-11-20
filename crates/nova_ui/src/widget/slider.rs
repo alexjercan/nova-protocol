@@ -121,7 +121,6 @@ fn spawn_slider_track_children(
                     Node {
                         flex_grow: 1.0,
                         height: percent(100),
-                        border_radius: BorderRadius::all(px(1)),
                         ..default()
                     },
                     BackgroundColor(slider_meter_color(i, fraction, segments, paint)),

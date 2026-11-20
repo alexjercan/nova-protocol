@@ -45,7 +45,10 @@ use nova_ui::{
     theme::{
         base::base_ui_themes, ActiveUiTheme, UiColorType, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID,
     },
-    widget::{ButtonSpec, ThemedFill, ThemedText, UiText},
+    widget::{
+        metrics::{GAP, GAP_L},
+        ButtonSpec, PanelHeadType, ThemedFill, ThemedText, UiText,
+    },
     NovaUiPlugin,
 };
 
@@ -307,7 +310,8 @@ fn rebuild_body(
     });
 }
 
-/// A titled panel with a padded body.
+/// A titled panel with a padded body. The body pads [`GAP_L`], which is the
+/// inset of the band head's title, so the title and the content share an edge.
 fn panel_cell(
     body: &mut ChildSpawnerCommands,
     title: &str,
@@ -315,12 +319,12 @@ fn panel_cell(
     build: impl FnOnce(&mut ChildSpawnerCommands),
 ) {
     body.spawn((panel_node(), panel())).with_children(|cell| {
-        cell.spawn((panel_head(title, tag.as_slice()),));
+        cell.spawn((panel_head(title, PanelHeadType::Band, tag.as_slice()),));
         cell.spawn(Node {
             width: px(320),
             flex_direction: FlexDirection::Column,
-            row_gap: px(10),
-            padding: UiRect::all(px(16)),
+            row_gap: px(GAP),
+            padding: UiRect::all(px(GAP_L)),
             ..default()
         })
         .with_children(build);
@@ -329,8 +333,8 @@ fn panel_cell(
 
 fn buttons_panel(body: &mut ChildSpawnerCommands) {
     panel_cell(body, "Buttons", None, |c| {
-        sub_header(c, "States");
-        c.spawn(flow_row()).with_children(|r| {
+        sub_header(c, "States (button stack)");
+        c.spawn(button_stack()).with_children(|r| {
             r.spawn((
                 button(ButtonSpec::control("Idle").fill()),
                 Name::new(IDLE_BUTTON),
@@ -349,8 +353,8 @@ fn buttons_panel(body: &mut ChildSpawnerCommands) {
             c,
             "Hover for the hover face; selection inverts to dark glyphs.",
         );
-        sub_header(c, "Emphasis");
-        c.spawn(flow_row()).with_children(|r| {
+        sub_header(c, "Emphasis (button stack)");
+        c.spawn(button_stack()).with_children(|r| {
             r.spawn(button(ButtonSpec::control("Primary").primary().fill()));
             r.spawn(button(ButtonSpec::control("Default").fill()));
             r.spawn(button(ButtonSpec::control("Ghost").ghost().fill()));
@@ -364,6 +368,12 @@ fn buttons_panel(body: &mut ChildSpawnerCommands) {
                 .key("Enter")
                 .fill(),
         ));
+        sub_header(c, "Action row");
+        c.spawn(action_row(JustifyContent::FlexEnd))
+            .with_children(|r| {
+                r.spawn(button(ButtonSpec::control("Cancel")));
+                r.spawn(button(ButtonSpec::control("Confirm").primary()));
+            });
     });
 }
 
@@ -402,26 +412,77 @@ fn controls_panel(body: &mut ChildSpawnerCommands, checks: ZooChecks, value: f32
             Hovered::default(),
             observe(on_slider_change),
         ));
-        sub_header(c, "Checks + toggles (click)");
-        c.spawn(flow_row()).with_children(|r| {
-            // Named HERE and not inside `clickable`: the Content panel's list
-            // rows wrap the same ids, and a driven name must resolve to exactly
-            // one entity.
-            r.spawn((clickable(checkbox(checks.0[0]), 0), Name::new(CHECK_FIRST)));
-            r.spawn((clickable(checkbox(checks.0[1]), 1), Name::new(CHECK_SECOND)));
-            r.spawn((clickable(toggle(checks.0[2]), 2), Name::new(TOGGLE_FIRST)));
-            r.spawn((clickable(toggle(checks.0[3]), 3), Name::new(TOGGLE_SECOND)));
+        sub_header(c, "Tabs");
+        c.spawn(tab_strip()).with_children(|strip| {
+            strip.spawn((tab("Scene", false), Selected));
+            strip.spawn(tab("Ship", false));
+            strip.spawn(tab("Events", false));
         });
+        sub_header(c, "Chips");
+        c.spawn(chip_bar()).with_children(|bar| {
+            bar.spawn((chip("Ore", None), Selected));
+            bar.spawn(chip("Parts", None));
+            bar.spawn(chip("Ammo", None));
+        });
+        sub_header(c, "Checks + toggles (click)");
+        c.spawn(control_row(JustifyContent::FlexStart))
+            .with_children(|r| {
+                // Named HERE and not inside `clickable`: the Content panel's list
+                // rows wrap the same ids, and a driven name must resolve to exactly
+                // one entity.
+                r.spawn((clickable(checkbox(checks.0[0]), 0), Name::new(CHECK_FIRST)));
+                r.spawn((clickable(checkbox(checks.0[1]), 1), Name::new(CHECK_SECOND)));
+                r.spawn((clickable(toggle(checks.0[2]), 2), Name::new(TOGGLE_FIRST)));
+                r.spawn((clickable(toggle(checks.0[3]), 3), Name::new(TOGGLE_SECOND)));
+            });
     });
 }
 
 fn content_panel(body: &mut ChildSpawnerCommands, checks: ZooChecks) {
     panel_cell(body, "Content", Some("DELTA-9"), |c| {
-        sub_header(c, "List rows");
-        list_row_entry(c, checks.0[0], "Deep salvage", "v1.2 // nova.labs", 0);
-        list_row_entry(c, checks.0[1], "Hard vacuum", "v0.4 // driftco", 1);
+        sub_header(c, "List rows (scroll column)");
+        c.spawn((scroll_column(), scroll_viewport()))
+            .with_children(|list| {
+                list_row_entry(list, checks.0[0], "Deep salvage", "v1.2 // nova.labs", 0);
+                list_row_entry(list, checks.0[1], "Hard vacuum", "v0.4 // driftco", 1);
+            });
+        sub_header(c, "Tool list rows (scroll column)");
+        c.spawn((scroll_column(), scroll_viewport()))
+            .with_children(|list| {
+                for (name, amount) in [("Iron ore", "120"), ("Hull plate", "8"), ("Coolant", "31")]
+                {
+                    list.spawn(tool_list_row()).with_children(|row| {
+                        row.spawn((
+                            text(name, TextRole::Body),
+                            Node {
+                                flex_grow: 1.0,
+                                ..default()
+                            },
+                        ));
+                        row.spawn(text(amount, TextRole::Value));
+                    });
+                }
+            });
+        sub_header(c, "HUD chips");
+        c.spawn(chip_bar()).with_children(|r| {
+            for (word, tone) in [
+                ("SPD 212", ChipTone::Readout),
+                ("DOCK", ChipTone::Amber),
+                ("LOCK", ChipTone::Threat),
+                ("COMMS", ChipTone::Comms),
+            ] {
+                r.spawn((
+                    text_chip(tone),
+                    Text::new(word),
+                    TextFont {
+                        font_size: FontSize::Px(12.0),
+                        ..default()
+                    },
+                ));
+            }
+        });
         sub_header(c, "Badges");
-        c.spawn(flow_row()).with_children(|r| {
+        c.spawn(chip_bar()).with_children(|r| {
             r.spawn(tag("online", UiColorType::Nominal));
             r.spawn(tag("warn", UiColorType::Accent));
             r.spawn(tag("info", UiColorType::Info));
@@ -598,17 +659,6 @@ fn note(c: &mut ChildSpawnerCommands, text: &str) {
         TextColor(Color::NONE),
         ThemedText::new(UiColorType::TextSecondary),
     ));
-}
-
-fn flow_row() -> Node {
-    Node {
-        flex_direction: FlexDirection::Row,
-        flex_wrap: FlexWrap::Wrap,
-        column_gap: px(8),
-        row_gap: px(8),
-        align_items: AlignItems::Center,
-        ..default()
-    }
 }
 
 // The segmented container + option come from nova_ui (`segmented_container` /

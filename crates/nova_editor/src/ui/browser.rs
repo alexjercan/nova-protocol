@@ -389,7 +389,7 @@ pub(crate) fn spawn_browser(root: &mut RelatedSpawnerCommands<ChildOf>, ship: &S
             height: Val::Auto,
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
-            row_gap: px(density::GAP),
+            row_gap: px(density::GAP_S),
             padding: UiRect {
                 bottom: px(2),
                 ..UiRect::horizontal(px(density::PANEL_PAD))
@@ -442,7 +442,7 @@ pub(crate) fn spawn_browser(root: &mut RelatedSpawnerCommands<ChildOf>, ship: &S
                     Node {
                         flex_shrink: 0.0,
                         align_items: AlignItems::Center,
-                        column_gap: px(density::GAP),
+                        column_gap: px(density::GAP_S),
                         ..default()
                     },
                 ))

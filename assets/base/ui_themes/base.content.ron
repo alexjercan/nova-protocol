@@ -35,8 +35,8 @@
             shadow: "#000000",
         ),
         metrics: Some((
-            radius: 2.0,
-            panel_radius: 2.0,
+            radius: 0.0,
+            panel_radius: 0.0,
         )),
         roles: (
             button: Some((
@@ -665,7 +665,7 @@
             )),
             toggle: Some((
                 radius: None,
-                knob_radius: 1.0,
+                knob_radius: 0.0,
                 off: (
                     fill: Solid((
                         value: Variable(shadow),

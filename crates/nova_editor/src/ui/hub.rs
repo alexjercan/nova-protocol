@@ -345,7 +345,7 @@ fn spawn_new_modal(commands: &mut Commands, template: ScenarioTemplate) {
                             Node {
                                 flex_direction: FlexDirection::Row,
                                 align_items: AlignItems::Stretch,
-                                column_gap: px(density::GAP),
+                                column_gap: px(density::GAP_S),
                                 ..default()
                             },
                         ))
@@ -360,7 +360,7 @@ fn spawn_new_modal(commands: &mut Commands, template: ScenarioTemplate) {
                             Node {
                                 flex_direction: FlexDirection::Row,
                                 justify_content: JustifyContent::FlexEnd,
-                                column_gap: px(density::GAP),
+                                column_gap: px(density::GAP_S),
                                 ..default()
                             },
                         ))

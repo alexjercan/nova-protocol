@@ -11,7 +11,7 @@ use bevy::{
     ui_widgets::Button,
 };
 
-use super::UiText;
+use super::{metrics::MENU_H, UiText};
 use crate::theme::{density, ActiveUiTheme, FieldState, UiColorType, UiMetric, BORDER_W};
 
 const FONT_SIZE: f32 = 14.0;
@@ -137,13 +137,14 @@ pub(super) struct TextFieldErrorDisplay;
 /// Build a themed single-line text field.
 pub fn text_field(spec: TextFieldSpec) -> impl Bundle {
     // A tool field is a control: CONTROL_H high, the tool face. A menu field
-    // keeps the menu face. The horizontal padding is what `caret_for_pointer`
-    // measures a click against, and the face is what `CHARACTER_WIDTH` is
-    // derived from, so neither may move without the other.
+    // is MENU_H high, the height of the menu button beside it, in the menu
+    // face. The horizontal padding is what `caret_for_pointer` measures a
+    // click against, and the face is what `CHARACTER_WIDTH` is derived from,
+    // so neither may move without the other.
     let (height, vertical_pad) = if spec.tool {
         (px(density::CONTROL_H), px(0))
     } else {
-        (px(36), px(7))
+        (px(MENU_H), px(9))
     };
     let (side_pad, font_size) = if spec.tool {
         (TOOL_SIDE_PAD, density::TEXT)

@@ -167,7 +167,7 @@ pub fn list_entry_row() -> impl Bundle {
         min_height: px(density::CONTROL_H),
         flex_direction: FlexDirection::Row,
         align_items: AlignItems::Center,
-        column_gap: px(density::GAP),
+        column_gap: px(density::GAP_S),
         ..default()
     }
 }

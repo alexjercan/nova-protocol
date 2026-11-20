@@ -85,9 +85,10 @@ pub struct UiThemeConfig {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Reflect)]
 #[serde(deny_unknown_fields)]
 pub struct UiMetrics {
-    /// Control corner radius (phosphor is square-ish, hardware moulded).
+    /// Control corner radius (phosphor is square at 0, hardware moulded).
     pub radius: f32,
-    /// Panel corner radius - larger than a control's in both shipped looks.
+    /// Panel corner radius (phosphor is square at 0, hardware larger than its
+    /// control radius).
     pub panel_radius: f32,
 }
 
@@ -640,7 +641,9 @@ pub struct UiRoles {
     pub panel_head: Option<HeadPaint>,
     /// A list row.
     pub list_row: Option<RowRole>,
-    /// A segmented control's recessed container.
+    /// A segmented control's recessed container: its fill and its corner.
+    /// The options carry the control's only line, so the container draws no
+    /// border and this surface's `border` is not painted.
     pub segmented: Option<SurfacePaint>,
     /// A slider track.
     pub slider_track: Option<SliderRole>,

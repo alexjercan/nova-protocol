@@ -9,7 +9,10 @@ use bevy::{
     ui_widgets::{ControlOrientation, Scrollbar, ScrollbarThumb},
 };
 
-use crate::theme::{ActiveUiTheme, UiMetric};
+use crate::{
+    theme::{ActiveUiTheme, UiMetric},
+    widget::metrics::GAP_S,
+};
 
 /// Pixels scrolled per line of wheel movement.
 ///
@@ -170,7 +173,7 @@ pub fn scroll_bar() -> impl Bundle {
             width: px(BAR_W),
             align_self: AlignSelf::Stretch,
             flex_shrink: 0.0,
-            margin: UiRect::left(px(4)),
+            margin: UiRect::left(px(GAP_S)),
             ..default()
         },
         BackgroundColor(Color::NONE),

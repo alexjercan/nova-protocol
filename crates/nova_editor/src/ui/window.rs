@@ -301,7 +301,7 @@ fn spawn_confirm_window(
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
-                    column_gap: px(density::GAP),
+                    column_gap: px(density::GAP_S),
                     padding: UiRect::axes(px(density::PANEL_PAD + 1.0), px(2)),
                     border: UiRect::bottom(px(theme::BORDER_W)),
                     ..default()
@@ -329,7 +329,7 @@ fn spawn_confirm_window(
                 Node {
                     flex_direction: FlexDirection::Column,
                     align_items: AlignItems::Stretch,
-                    row_gap: px(density::GAP),
+                    row_gap: px(density::GAP_S),
                     padding: UiRect::all(px(density::PANEL_PAD)),
                     ..default()
                 },
@@ -485,7 +485,7 @@ pub(crate) fn window_frame(
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
-                    column_gap: px(density::GAP),
+                    column_gap: px(density::GAP_S),
                     padding: UiRect::axes(px(density::PANEL_PAD + 1.0), px(0)),
                     border: UiRect::bottom(px(theme::BORDER_W)),
                     ..default()
@@ -528,7 +528,7 @@ pub(crate) fn window_frame(
                         Name::new(body_name),
                         Node {
                             align_items: AlignItems::Stretch,
-                            row_gap: px(density::GAP),
+                            row_gap: px(density::GAP_S),
                             padding: UiRect::all(px(density::PANEL_PAD)),
                             // The padding holds a row's ring. The clip stays
                             // on the box: the title rule and the frame border

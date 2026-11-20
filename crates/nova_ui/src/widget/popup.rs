@@ -63,7 +63,9 @@ pub fn spawn_popup(
                     top: px(at.y),
                     min_width: px(POPUP_MIN_W),
                     flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(px(4)),
+                    // Two bordered rows never lay their borders side by side.
+                    row_gap: px(density::GAP_S),
+                    padding: UiRect::all(px(density::GAP_S)),
                     border: UiRect::all(px(BORDER_W)),
                     ..default()
                 },

@@ -753,9 +753,9 @@ fn a_scroll_list_keeps_the_whole_ring_of_its_first_and_last_row() {
     );
 }
 
-/// Three pressed rows in `viewport`, 100 px high over 120 px of rows: the ring
-/// of the first row, and of the last one at the end of the scroll, lies inside
-/// the clip.
+/// Three pressed 40 px rows in `viewport`, 100 px high over the rows and the
+/// two row gaps between them: the ring of the first row, and of the last one
+/// at the end of the scroll, lies inside the clip.
 fn the_ring_of_an_edge_row_is_whole(list: &str, viewport: Node) {
     use bevy::{
         asset::AssetPlugin,
@@ -810,7 +810,7 @@ fn the_ring_of_an_edge_row_is_whole(list: &str, viewport: Node) {
             .id()
     };
     let rows = [row(&mut app), row(&mut app), row(&mut app)];
-    // 100 px of viewport over 120 px of rows.
+    // 100 px of viewport over 120 px of rows and their two gaps.
     let pane = app
         .world_mut()
         .spawn((
@@ -867,9 +867,10 @@ fn the_ring_of_an_edge_row_is_whole(list: &str, viewport: Node) {
         clip(&app)
     );
 
+    let end_of_scroll = 3.0 * 40.0 + 2.0 * crate::widget::metrics::GAP_S - 100.0;
     app.world_mut()
         .entity_mut(pane)
-        .insert(ScrollPosition(Vec2::new(0.0, 20.0)));
+        .insert(ScrollPosition(Vec2::new(0.0, end_of_scroll)));
     for _ in 0..4 {
         app.update();
     }

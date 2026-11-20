@@ -263,7 +263,7 @@ fn spawn_field(
         Node {
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: px(density::GAP),
+            column_gap: px(density::GAP_S),
             min_height: px(22),
             ..default()
         },
@@ -283,7 +283,7 @@ fn spawn_field(
             flex_direction: FlexDirection::Row,
             flex_wrap: FlexWrap::Wrap,
             align_items: AlignItems::Center,
-            column_gap: px(density::GAP),
+            column_gap: px(density::GAP_S),
             ..default()
         })
         .with_children(value);
@@ -317,7 +317,7 @@ fn spawn_settings(body: &mut RelatedSpawnerCommands<ChildOf>, modal: &PackageMod
         Node {
             flex_direction: FlexDirection::Row,
             justify_content: JustifyContent::FlexEnd,
-            column_gap: px(density::GAP),
+            column_gap: px(density::GAP_S),
             margin: UiRect::top(px(4)),
             ..default()
         },
@@ -432,7 +432,7 @@ fn spawn_plan(body: &mut RelatedSpawnerCommands<ChildOf>, plan: &PackagePlan) {
         body.spawn((
             Name::new(format!("Package Error {index}")),
             Node {
-                margin: UiRect::left(px(LABEL_W + density::GAP)),
+                margin: UiRect::left(px(LABEL_W + density::GAP_S)),
                 ..default()
             },
             children![words(
@@ -446,7 +446,7 @@ fn spawn_plan(body: &mut RelatedSpawnerCommands<ChildOf>, plan: &PackagePlan) {
         body.spawn((
             Name::new("Package Errors More"),
             Node {
-                margin: UiRect::left(px(LABEL_W + density::GAP)),
+                margin: UiRect::left(px(LABEL_W + density::GAP_S)),
                 ..default()
             },
             children![words(
@@ -573,7 +573,7 @@ fn spawn_done(
         Node {
             flex_direction: FlexDirection::Row,
             justify_content: JustifyContent::FlexEnd,
-            column_gap: px(density::GAP),
+            column_gap: px(density::GAP_S),
             margin: UiRect::top(px(4)),
             ..default()
         },

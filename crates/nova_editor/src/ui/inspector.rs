@@ -859,8 +859,8 @@ pub(crate) fn inspector_panel() -> impl Bundle {
                     width: percent(100),
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::FlexStart,
-                    column_gap: px(density::GAP),
-                    margin: UiRect::bottom(px(density::GAP)),
+                    column_gap: px(density::GAP_S),
+                    margin: UiRect::bottom(px(density::GAP_S)),
                     ..default()
                 },
                 children![
@@ -959,7 +959,7 @@ fn row_shell() -> Node {
         width: percent(100),
         flex_direction: FlexDirection::Row,
         align_items: AlignItems::Center,
-        column_gap: px(density::GAP),
+        column_gap: px(density::GAP_S),
         margin: UiRect::bottom(px(2)),
         ..default()
     }

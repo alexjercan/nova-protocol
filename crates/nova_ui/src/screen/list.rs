@@ -8,7 +8,10 @@ use super::scroll::ScrollViewport;
 use crate::{
     layer::MENU_PANEL_Z,
     theme::BORDER_W,
-    widget::{ring_clip_margin, ThemedSeparator},
+    widget::{
+        metrics::{GAP_L, GAP_S, GAP_XL},
+        ring_clip_margin, ThemedSeparator,
+    },
 };
 
 /// Width of the list pane, as a share of the screen card.
@@ -66,7 +69,12 @@ pub fn overlay_root() -> impl Bundle {
 }
 
 /// The list-beside-details composition: `left` (a [`list_pane`], with or without
-/// a tab row above the list) beside `details` (a [`details_pane`]).
+/// a tab row above the list) beside `details` (a [`details_pane`]), each
+/// [`GAP_XL`] from the rule between them.
+///
+/// It stands right under what is over it, so the gap there is the heading's:
+/// an inset [`panel_head`](crate::widget::panel_head) brings its own. The
+/// footer row under it stands [`GAP_L`] off.
 pub fn list_detail_screen(left: impl Bundle, details: impl Bundle) -> impl Bundle {
     (
         Node {
@@ -75,8 +83,8 @@ pub fn list_detail_screen(left: impl Bundle, details: impl Bundle) -> impl Bundl
             flex_grow: 1.0,
             min_height: px(0),
             min_width: px(0),
-            column_gap: px(16),
-            margin: UiRect::vertical(px(10)),
+            column_gap: px(GAP_XL),
+            margin: UiRect::bottom(px(GAP_L)),
             ..default()
         },
         children![left, details],
@@ -94,9 +102,12 @@ pub fn list_detail_screen(left: impl Bundle, details: impl Bundle) -> impl Bundl
 /// A caller that lists rows straight in the pane sets its overflow to scroll.
 /// The clip then leaves [`ring_clip_margin`] around the pane, as
 /// [`scroll_column`] does, so the first and the last row keep their whole ring.
+///
+/// Its children stand [`GAP_S`] apart, as a [`scroll_column`]'s do.
 pub fn list_pane() -> Node {
     Node {
         flex_direction: FlexDirection::Column,
+        row_gap: px(GAP_S),
         width: percent(LIST_PANE_PERCENT),
         min_height: px(0),
         flex_grow: 0.0,
@@ -110,9 +121,15 @@ pub fn list_pane() -> Node {
 /// lets it shrink below its content height, without which the overflow never
 /// scrolls. Its clip leaves [`ring_clip_margin`] around the box, so a row of
 /// buttons on its top or bottom edge keeps its whole hover and press ring.
+///
+/// Its rows stand [`GAP_S`] apart: the list-row gap, so two bordered rows
+/// never lay their borders side by side. A column that is not a list of rows
+/// (a button stack, a text body, a column of groups) names its own `row_gap`
+/// over this one, and its rows carry no margin of their own.
 pub fn scroll_column() -> Node {
     Node {
         flex_direction: FlexDirection::Column,
+        row_gap: px(GAP_S),
         align_self: AlignSelf::Stretch,
         flex_grow: 1.0,
         min_height: px(0),
@@ -148,7 +165,7 @@ pub fn details_pane() -> impl Bundle {
             flex_grow: 1.0,
             min_height: px(0),
             min_width: px(0),
-            padding: UiRect::left(px(16)),
+            padding: UiRect::left(px(GAP_XL)),
             border: UiRect::left(px(BORDER_W)),
             ..default()
         },

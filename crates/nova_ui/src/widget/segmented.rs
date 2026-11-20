@@ -1,10 +1,14 @@
 //! Segmented controls: the recessed [`segmented_container`] and its ghost
 //! [`segmented_option`] buttons.
+//!
+//! The options carry the control's only line. The container draws its recess
+//! and no border: a border there lay against each option's own and made a
+//! two-pixel frame.
 
 use bevy::{ecs::relationship::RelatedSpawner, platform::collections::HashSet, prelude::*};
 
 use super::{button, metrics::GAP_S, ButtonSpec, Selected};
-use crate::theme::{ActiveUiTheme, BORDER_W};
+use crate::theme::ActiveUiTheme;
 
 /// Marks a [`segmented_container`] so the theme reconciler paints it and
 /// repaints it live. Its OPTIONS are `ThemedButton`s and already follow the
@@ -13,7 +17,8 @@ use crate::theme::{ActiveUiTheme, BORDER_W};
 #[derive(Component)]
 pub struct SegmentedSkin;
 
-/// The bordered/recessed container of a segmented control. Spawn
+/// The recessed container of a segmented control: its options stand
+/// [`GAP_S`] apart, and the control is as high as one option. Spawn
 /// [`segmented_option`]s into it, pairing each with a `ButtonValue<T>` (and
 /// `Selected` on the active one) for a functional settings row, or use the
 /// display-only [`segmented`] convenience.
@@ -22,13 +27,10 @@ pub fn segmented_container() -> impl Bundle {
         Node {
             flex_direction: FlexDirection::Row,
             column_gap: px(GAP_S),
-            padding: UiRect::all(px(0)),
-            border: UiRect::all(px(BORDER_W)),
             align_self: AlignSelf::Start,
             ..default()
         },
         SegmentedSkin,
-        BorderColor::all(Color::NONE),
         BackgroundColor(Color::NONE),
     )
 }
@@ -46,13 +48,10 @@ pub fn segmented_container_wrapping() -> impl Bundle {
             flex_wrap: FlexWrap::Wrap,
             column_gap: px(GAP_S),
             row_gap: px(GAP_S),
-            padding: UiRect::all(px(0)),
-            border: UiRect::all(px(BORDER_W)),
             align_self: AlignSelf::Start,
             ..default()
         },
         SegmentedSkin,
-        BorderColor::all(Color::NONE),
         BackgroundColor(Color::NONE),
     )
 }
@@ -61,7 +60,7 @@ pub fn segmented_container_wrapping() -> impl Bundle {
 /// ride the button reconciler).
 pub(super) fn reconcile_segmented_themes(
     theme: Res<ActiveUiTheme>,
-    mut q: Query<(Entity, &mut Node, &mut BackgroundColor, &mut BorderColor), With<SegmentedSkin>>,
+    mut q: Query<(Entity, &mut Node, &mut BackgroundColor), With<SegmentedSkin>>,
     added: Query<Entity, Added<SegmentedSkin>>,
 ) {
     let restyle_all = theme.is_changed();
@@ -70,13 +69,12 @@ pub(super) fn reconcile_segmented_themes(
         return;
     }
     let paint = theme.segmented();
-    for (entity, mut node, mut bgc, mut border_color) in &mut q {
+    for (entity, mut node, mut bgc) in &mut q {
         if !restyle_all && !just_added.contains(&entity) {
             continue;
         }
         node.border_radius = BorderRadius::all(px(paint.radius));
         *bgc = paint.fill.base.into();
-        border_color.set_all(paint.border);
     }
 }
 

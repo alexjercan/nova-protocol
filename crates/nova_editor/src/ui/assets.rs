@@ -475,7 +475,7 @@ pub(crate) fn spawn_asset_body(pane: &mut RelatedSpawnerCommands<ChildOf>) {
             width: percent(100),
             flex_grow: 1.0,
             min_height: px(0),
-            column_gap: px(density::GAP),
+            column_gap: px(density::GAP_S),
             ..default()
         },
     ))
@@ -520,8 +520,8 @@ pub(crate) fn spawn_asset_body(pane: &mut RelatedSpawnerCommands<ChildOf>) {
                     flex_wrap: FlexWrap::Wrap,
                     align_content: AlignContent::FlexStart,
                     align_items: AlignItems::FlexStart,
-                    column_gap: px(density::GAP),
-                    row_gap: px(density::GAP),
+                    column_gap: px(density::GAP_S),
+                    row_gap: px(density::GAP_S),
                     ..scroll_column()
                 },
                 scroll_viewport(),

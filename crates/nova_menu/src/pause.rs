@@ -26,7 +26,7 @@ use nova_ui::{
     screen::{footer_back_slot, scroll_bar, scroll_column, scroll_viewport},
     theme,
     theme::UiColorType,
-    widget::{panel, panel_head, ButtonVariant, ThemedRadius, ThemedText, UiText},
+    widget::{panel, panel_head, ButtonVariant, PanelHeadType, ThemedRadius, ThemedText, UiText},
 };
 #[cfg(not(target_arch = "wasm32"))]
 use nova_world_base::prelude::WorldSaveSession;
@@ -576,7 +576,7 @@ pub(crate) fn reconcile_pause_overlay(
                 .with_children(|parent| {
                     parent.spawn((
                         Name::new("Pause Settings Title"),
-                        panel_head("Settings", &["SAVED ON CHANGE"]),
+                        panel_head("Settings", PanelHeadType::Inset, &["SAVED ON CHANGE"]),
                     ));
                     build_settings_tabs(parent, active_settings_tab.0);
                     parent

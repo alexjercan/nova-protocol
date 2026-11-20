@@ -323,7 +323,7 @@ pub fn interface_card(
             panel(),
         ))
         .with_children(|card| {
-            card.spawn((ZIndex(1), panel_head(title, &[])))
+            card.spawn((ZIndex(1), panel_head(title, PanelHeadType::Band, &[])))
                 .with_children(|head| {
                     if let Some(clock) = clock {
                         head.spawn(Node {
@@ -384,7 +384,7 @@ pub fn menu_card(
             panel(),
         ))
         .with_children(|card| {
-            card.spawn(panel_head(title, &[tag]));
+            card.spawn(panel_head(title, PanelHeadType::Inset, &[tag]));
             card.spawn(Node {
                 flex_grow: 1.0,
                 min_height: px(0),

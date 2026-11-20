@@ -687,7 +687,7 @@ pub(crate) fn setup_editor_scene(
                             flex_shrink: 0.0,
                             flex_direction: FlexDirection::Column,
                             align_items: AlignItems::Stretch,
-                            row_gap: px(density::GAP),
+                            row_gap: px(density::GAP_S),
                             padding: UiRect::all(px(density::PANEL_PAD)),
                             border: UiRect::right(px(theme::BORDER_W)),
                             ..default()

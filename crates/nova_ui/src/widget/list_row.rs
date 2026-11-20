@@ -27,7 +27,7 @@ pub fn list_row() -> impl Bundle {
             width: percent(100),
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
-            column_gap: px(12),
+            column_gap: px(crate::widget::metrics::GAP_L),
             padding: UiRect::axes(px(13), px(10)),
             border: UiRect::all(px(BORDER_W)),
             ..default()

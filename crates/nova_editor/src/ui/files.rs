@@ -320,7 +320,7 @@ fn spawn_answers(frame: &mut RelatedSpawnerCommands<ChildOf>, kind: &FileWindowK
             Node {
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: px(density::GAP),
+                column_gap: px(density::GAP_S),
                 padding: UiRect::all(px(density::PANEL_PAD)),
                 border: UiRect::top(px(theme::BORDER_W)),
                 ..default()

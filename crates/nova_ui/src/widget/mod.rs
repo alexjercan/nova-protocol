@@ -31,12 +31,13 @@
 /// small layout helpers.
 pub mod prelude {
     pub use super::{
-        amount_row, bar, block, block_header, button, button_on_setting, card, cascade_item, cell,
-        checkbox, checkbox_glyph, chip, chip_bar, close_popups, control_row, divider, icon_button,
-        icon_verb, inspector, key_chip, list_add, list_count, list_editor, list_entry_row,
-        list_picker, list_remove, list_row, list_row_colors, metrics, panel, panel_head,
-        panel_head_fixed, panel_head_tag, panel_header, panel_node, panel_paint, panel_radius,
-        popup_row, preview_frame, ring_clip_margin, search_cascade, segmented, segmented_container,
+        action_row, amount_row, bar, block, block_header, button, button_on_setting, button_stack,
+        card, cascade_item, cell, checkbox, checkbox_glyph, chip, chip_bar, close_popups,
+        control_row, divider, group_stack, icon_button, icon_verb, inspector, key_chip, list_add,
+        list_count, list_editor, list_entry_row, list_picker, list_remove, list_row,
+        list_row_colors, metrics, panel, panel_head, panel_head_fixed, panel_head_tag,
+        panel_header, panel_node, panel_paint, panel_radius, popup_row, preview_frame,
+        ring_clip_margin, search_cascade, segmented, segmented_container,
         segmented_container_wrapping, segmented_option, segmented_option_fit, select, separator,
         slider_meter_color, slider_track, spawn_block, spawn_cascade, spawn_kv, spawn_kv_slot,
         spawn_popup, swatch, tab, tab_strip, tag, text, text_field, text_toned, toggle,
@@ -46,14 +47,14 @@ pub mod prelude {
         CascadeEntry, CascadeItem, CascadeMenu, CascadeNav, CascadeRow, CascadeRowBundle,
         CascadeSearch, DoubleClick, GateTagOf, IconButtonArmed, IconButtonGlyph, IconButtonType,
         KeyChip, KeyChipLabel, ListChoice, ListEditor, ListEntryAdded, ListEntryCounted,
-        ListEntryPicked, ListEntryRemoved, ListRow, PanelHeadTag, PanelHeadTitle, PopupPanel,
-        PopupRoot, PopupRow, RowAlign, SegmentedSkin, Select, SelectChanged, SelectLabel, Selected,
-        Short, SliderBlock, SliderFill, SliderTrack, TabLabel, TextField, TextFieldError,
-        TextFieldFocused, TextFieldSpec, TextFieldSubmitted, TextFieldSystems, TextFieldValue,
-        TextRole, ThemedBorder, ThemedButton, ThemedCheckbox, ThemedFill, ThemedImageTint,
-        ThemedPanel, ThemedPanelHead, ThemedRadius, ThemedSeparator, ThemedSwatch, ThemedTag,
-        ThemedText, ThemedTextShadow, ThemedToggle, Tooltip, TooltipPanel, TreeCaret, TreeRowSpec,
-        UiText, VerbGate, CLOSE_GLYPH, DOUBLE_CLICK_SECS, ICON_BUTTON_PX,
+        ListEntryPicked, ListEntryRemoved, ListRow, PanelHeadTag, PanelHeadTitle, PanelHeadType,
+        PopupPanel, PopupRoot, PopupRow, RowAlign, SegmentedSkin, Select, SelectChanged,
+        SelectLabel, Selected, Short, SliderBlock, SliderFill, SliderTrack, TabLabel, TextField,
+        TextFieldError, TextFieldFocused, TextFieldSpec, TextFieldSubmitted, TextFieldSystems,
+        TextFieldValue, TextRole, ThemedBorder, ThemedButton, ThemedCheckbox, ThemedFill,
+        ThemedImageTint, ThemedPanel, ThemedPanelHead, ThemedRadius, ThemedSeparator, ThemedSwatch,
+        ThemedTag, ThemedText, ThemedTextShadow, ThemedToggle, Tooltip, TooltipPanel, TreeCaret,
+        TreeRowSpec, UiText, VerbGate, CLOSE_GLYPH, DOUBLE_CLICK_SECS, ICON_BUTTON_PX,
     };
 }
 

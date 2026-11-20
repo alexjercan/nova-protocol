@@ -95,7 +95,7 @@ pub fn tree_row(spec: &TreeRowSpec) -> impl Bundle {
             },
             border: UiRect::all(px(BORDER_W)),
             align_items: AlignItems::Center,
-            column_gap: px(4),
+            column_gap: px(density::GAP_S),
             overflow: Overflow::clip(),
             ..default()
         },

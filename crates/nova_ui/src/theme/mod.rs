@@ -82,15 +82,14 @@ pub const ICON: f32 = 44.0;
 pub const BORDER_W: f32 = 1.0;
 
 /// The editor's own spacing, in logical px at UI scale 1. Its control, row and
-/// text sizes are the kit's ([`crate::widget::metrics`]), so the editor and the
-/// interface share one control size.
+/// text sizes and its control gap are the kit's ([`crate::widget::metrics`]),
+/// so the editor and the interface share one control size, and one name has
+/// one value: the editor's gap between two controls is the kit's `GAP_S`.
 pub mod density {
-    pub use crate::widget::metrics::{CONTROL_H, ROW_H, TEXT, TEXT_LABEL};
+    pub use crate::widget::metrics::{CONTROL_H, GAP_S, ROW_H, TEXT, TEXT_LABEL};
 
     /// The inside margin of a panel.
     pub const PANEL_PAD: f32 = 5.0;
-    /// The gap between two controls in a row or a column.
-    pub const GAP: f32 = 4.0;
 }
 
 /// Semantic HUD accents: the meaning-carrying gameplay colours (threat, ally,

@@ -300,7 +300,7 @@ pub(crate) fn spawn_top_bar(root: &mut RelatedSpawnerCommands<ChildOf>) {
                 // verb. The right column's title is the part that gives way.
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: px(density::GAP),
+                column_gap: px(density::GAP_S),
                 ..default()
             },
         ))
@@ -340,7 +340,7 @@ pub(crate) fn spawn_top_bar(root: &mut RelatedSpawnerCommands<ChildOf>) {
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::FlexEnd,
-                column_gap: px(density::GAP),
+                column_gap: px(density::GAP_S),
                 ..default()
             },
         ))
@@ -388,7 +388,7 @@ fn spawn_tool_group(group: &mut RelatedSpawnerCommands<ChildOf>) {
             Node {
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: px(density::GAP),
+                column_gap: px(density::GAP_S),
                 ..default()
             },
         ))
