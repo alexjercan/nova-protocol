@@ -61,15 +61,14 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
   the interface. Likely owner path: Place, then TAB to get back to the
   catalogue, and the interface closes.
 
-## Design proposal (agent, NOT approved)
+## Decisions (owner approved option A, 2026-11-20)
 Keep the full-cover catalogue (owner: the elements look decent; the
 editor shares it). Fix how it opens, returns and closes:
 1. TAB, Ship pane at a refit station: opens and closes the catalogue, as
    in the editor. With a part in hand, TAB puts it away and opens the
    catalogue. Every other pane: TAB closes the interface, as now.
-   (Option B instead: TAB always closes the interface, but the open
-   catalogue and the part in hand come back on reopen; the catalogue
-   gets key C.)
+   (Option B, rejected: TAB always closes the interface, and the open
+   catalogue and the part in hand come back on reopen.)
 2. Place and Swap: the catalogue hides and the part is in hand, as now.
    After an add the part stays in hand. TAB returns to the catalogue on
    the same category, filter and scroll.
