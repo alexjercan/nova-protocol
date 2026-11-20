@@ -22,7 +22,7 @@ use bevy::prelude::*;
 use super::{
     category::{SoundBus, SoundCategoryType},
     mixing::{area_cell, CueThrottle},
-    voice::{AwaitingSink, VoiceMarker},
+    voice::{AwaitingSink, LoopRelease, VoiceMarker},
 };
 
 /// Marks the voice entity behind one [`PlaySound`] one-shot.
@@ -84,15 +84,23 @@ impl PlaySound {
 /// [`SoundBus::Effect`], flat on [`SoundBus::Ui`].
 ///
 /// The owner writes [`Self::intensity`] and [`Self::rate`] each frame; the
-/// category maps the intensity onto its loop dB range. Remove the component,
-/// or despawn the entity, to stop it.
+/// category maps the intensity onto its loop dB range.
+///
+/// The release is the engine's. Write zero on the frame the source idles and
+/// the voice ramps to silence inside
+/// [`LOOP_RELEASE_SECONDS`](super::LOOP_RELEASE_SECONDS). Do not ease the
+/// intensity toward zero: every value above zero plays at least the bottom of
+/// the dB range, so an eased tail holds the loop there until the ease ends.
+/// Remove the component, or despawn the entity, to cut the loop with no
+/// release.
 #[derive(Component, Clone, Debug)]
 pub struct SoundLoop {
     /// The sound to loop.
     pub sound: Handle<AudioSource>,
     /// What kind of loop it is. Must be a loop category.
     pub category: SoundCategoryType,
-    /// How hard the source is working, `0.0..=1.0`. Zero is silent.
+    /// How hard the source is working, `0.0..=1.0`. Zero is an idle source:
+    /// the voice releases to silence.
     pub intensity: f32,
     /// Playback rate, which also shifts pitch. `1.0` is normal.
     pub rate: f32,
@@ -154,6 +162,8 @@ pub struct SoundVoice {
     pub rate: f32,
     /// When it was spawned, in real time: the cap stops the oldest one-shot.
     pub(crate) started: Duration,
+    /// A loop's release ramp. Unused by a one-shot.
+    pub(crate) release: LoopRelease,
 }
 
 /// The repeat-interval budget, keyed by sound and group.
@@ -304,6 +314,7 @@ pub(crate) fn on_play_sound(
             intensity: 1.0,
             rate: 1.0,
             started: now,
+            release: LoopRelease::default(),
         },
         AwaitingSink(now),
     ));
@@ -353,6 +364,7 @@ pub(crate) fn sync_sound_loops(
                     intensity: sound_loop.intensity,
                     rate: sound_loop.rate,
                     started: time.elapsed(),
+                    release: LoopRelease::default(),
                 },
             ))
             .id();

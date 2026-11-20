@@ -9,8 +9,9 @@
 //!
 //! What the engine owns, so no caller re-implements it: the file's loudness
 //! gain, the category level, the bus gain, the distance fade, the stereo
-//! placement, the freeze behind a paused sim, the silence when a scenario
-//! unloads, and the cap on how many positional loops may sound at once.
+//! placement, a loop's release once its source idles, the freeze behind a
+//! paused sim, the silence when a scenario unloads, and the cap on how many
+//! positional loops may sound at once.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -51,6 +52,59 @@ pub const MAX_EFFECT_LOOP_VOICES: usize = 8;
 /// is ranked as if it were this much louder, which is what keeps a tie from
 /// chattering.
 const VOICE_CAP_HYSTERESIS: f32 = 1.15;
+
+/// How long a loop at the top of its category's dB range takes to fall silent
+/// once its owner reports zero intensity, in seconds.
+///
+/// The ramp is one slope for every loop: the whole range over this time. A
+/// quieter loop is silent sooner, so a tapped source never rings longer than a
+/// held one. The time is short so the sound ends with the key that held it,
+/// and not zero because a loop cut from full level on one volume write
+/// clicks.
+pub const LOOP_RELEASE_SECONDS: f32 = 0.12;
+
+/// A loop voice's release: the ramp to silence after its owner's intensity
+/// falls to zero.
+///
+/// The gains here are the loop's intensity gain
+/// ([`SoundCategory::intensity_gain`](super::SoundCategory::intensity_gain)),
+/// so the distance fade, the bus and the master still apply live to a
+/// releasing voice. The default is no release: the voice sounds at its
+/// owner's intensity.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) struct LoopRelease {
+    /// The gain the loop sounded at on the last frame: where a release
+    /// starts.
+    sounded: f32,
+    /// What is left of the ramp. Zero when no release runs.
+    tail: f32,
+}
+
+impl LoopRelease {
+    /// The state one frame of `dt` seconds on, for a loop whose intensity
+    /// maps to the gain `target` this frame.
+    fn step(self, target: f32, dt: f32) -> Self {
+        // An idle source starts the ramp from the gain the loop last sounded
+        // at. A working source lets an older ramp run out under it.
+        let from = if target > 0.0 {
+            self.tail
+        } else {
+            self.tail.max(self.sounded)
+        };
+        let tail = (from - dt / LOOP_RELEASE_SECONDS).max(0.0);
+        Self {
+            sounded: target.max(tail),
+            tail,
+        }
+    }
+
+    /// The gain the loop sounds at this frame: its intensity's `target`, or
+    /// the ramp while that is louder. A source that relights inside its own
+    /// release therefore never steps down.
+    fn gain(self, target: f32) -> f32 {
+        target.max(self.tail)
+    }
+}
 
 /// Marks every engine voice. Required by [`SoundVoice`], so the passes can
 /// keep their pose reads off the voices they move.
@@ -143,8 +197,9 @@ impl VoicePlacement {
     }
 }
 
-/// Mix one category voice: the clip's loudness gain, the category level and
-/// loop intensity, the bus gain, the distance fade and the pan.
+/// Mix one category voice: the clip's loudness gain, the category level, the
+/// loop intensity and its release, the bus gain, the distance fade and the
+/// pan.
 ///
 /// An [`SoundBus::Effect`] voice with no listener or no place is silent: there
 /// is no flat fallback for a sound that happens in the world.
@@ -157,7 +212,7 @@ fn place_sound(
 ) -> VoicePlacement {
     let spec = voice.category.spec();
     let intensity = if voice.looping {
-        spec.intensity_gain(voice.intensity)
+        voice.release.gain(spec.intensity_gain(voice.intensity))
     } else {
         1.0
     };
@@ -284,6 +339,21 @@ pub(super) fn on_add_listener(add: On<Add<SfxListenerMarker>>, mut commands: Com
     commands.entity(add.entity).insert(listener_ears());
 }
 
+/// Run every loop's release ramp one frame. See [`LoopRelease`].
+///
+/// On the real clock: a sink plays on it, and an interface loop plays through
+/// a frozen sim, where the virtual clock stands still.
+pub(super) fn ramp_loop_releases(time: Res<Time<Real>>, mut q_voices: Query<&mut SoundVoice>) {
+    let dt = time.delta_secs();
+    for mut voice in &mut q_voices {
+        if !voice.looping {
+            continue;
+        }
+        let target = voice.category.spec().intensity_gain(voice.intensity);
+        voice.release = voice.release.step(target, dt);
+    }
+}
+
 /// Start every voice that has no player yet.
 ///
 /// A ONE-SHOT that is already inaudible is despawned instead: opening a sink
@@ -406,8 +476,9 @@ pub(super) fn drive_sfx_voices(
     let mut grouped: HashMap<(AssetId<AudioSource>, VoiceGroup), (u8, Vec<LoopRank>)> =
         HashMap::new();
     let mut loose: Vec<LoopRank> = Vec::new();
-    // A loop its owner has turned down to nothing holds its sink instead of
-    // mixing silence, and takes no slot under the cap.
+    // A loop its owner has turned down to nothing, once its release has run
+    // out, holds its sink instead of mixing silence, and takes no slot under
+    // the cap.
     let mut silenced = HashSet::new();
     for (entity, voice, ..) in &q_voices {
         let Some(placement) = place(
@@ -951,6 +1022,108 @@ mod tests {
         );
     }
 
+    /// One frame of the release tests. The first update of an app runs at
+    /// dt 0, so every rig below warms up before it measures.
+    const RELEASE_FRAME: Duration = Duration::from_millis(16);
+
+    /// Hold a loop at full intensity for `held` frames, let it go, and return
+    /// the level it sounded at on the last held frame and on each frame after.
+    fn release_levels(held: usize) -> (f32, Vec<f32>) {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+            RELEASE_FRAME,
+        ));
+        app.init_asset::<AudioSource>();
+        app.add_plugins(crate::NovaSoundPlugin);
+        app.insert_resource(measured());
+        app.world_mut()
+            .spawn((SfxListenerMarker, GlobalTransform::IDENTITY));
+        app.update();
+
+        let owner = app
+            .world_mut()
+            .spawn((
+                GlobalTransform::IDENTITY,
+                SoundLoop {
+                    intensity: 1.0,
+                    ..SoundLoop::new(Handle::default(), SoundCategoryType::Drive)
+                },
+            ))
+            .id();
+        let level = |app: &mut App| {
+            let mut voices = app.world_mut().query::<(&SoundVoice, &VoiceMix)>();
+            voices
+                .iter(app.world())
+                .find(|(voice, _)| voice.place == VoicePlace::Follow(owner))
+                .map_or(0.0, |(_, mix)| if mix.capped { 0.0 } else { mix.level })
+        };
+        for _ in 0..held {
+            app.update();
+        }
+        let sounded = level(&mut app);
+
+        app.world_mut()
+            .get_mut::<SoundLoop>(owner)
+            .expect("the owner keeps its loop")
+            .intensity = 0.0;
+        let after = (0..32)
+            .map(|_| {
+                app.update();
+                level(&mut app)
+            })
+            .collect();
+        (sounded, after)
+    }
+
+    /// The release rule every loop gets: a source that idles is silent within
+    /// [`LOOP_RELEASE_SECONDS`], after one frame of sound as after a long
+    /// hold, and it gets there by a ramp and not on one volume write.
+    #[test]
+    fn a_tapped_loop_is_silent_within_the_release_time() {
+        let frame = RELEASE_FRAME.as_secs_f32();
+        let release_frames = (LOOP_RELEASE_SECONDS / frame).ceil() as usize;
+        for held in [1, 96] {
+            let (sounded, after) = release_levels(held);
+            assert!(sounded > 0.0, "a loop held {held} frames must sound");
+            assert!(
+                after[0] > 0.0 && after[0] < sounded,
+                "held {held}: the release ramps, it does not cut: {sounded} then {after:?}"
+            );
+            assert!(
+                after.windows(2).all(|pair| pair[1] <= pair[0]),
+                "held {held}: a release only falls: {after:?}"
+            );
+            assert!(
+                after[release_frames..].iter().all(|&level| level == 0.0),
+                "held {held}: silent within {LOOP_RELEASE_SECONDS} s of the source idling: \
+                 {after:?}"
+            );
+        }
+    }
+
+    /// A source that relights inside its own release picks up from the ramp:
+    /// the relight's low intensity gain must not step the level down first.
+    #[test]
+    fn a_loop_relit_inside_its_release_does_not_step_down() {
+        let dt = RELEASE_FRAME.as_secs_f32();
+        let released = LoopRelease::default().step(1.0, dt).step(0.0, dt);
+        let ramp = released.gain(0.0);
+        assert!(ramp > 0.5, "one frame into a release from full: {ramp}");
+
+        let relit = released.step(0.2, dt);
+        let level = relit.gain(0.2);
+        assert!(
+            level > 0.2 && level < ramp,
+            "the ramp carries the relight down to its own gain: {level}"
+        );
+        let mut state = relit;
+        for _ in 0..16 {
+            state = state.step(0.2, dt);
+        }
+        assert_eq!(state.gain(0.2), 0.2, "then the source's gain holds");
+    }
+
     fn sound_voice(category: SoundCategoryType, place: VoicePlace) -> SoundVoice {
         SoundVoice {
             sound: Handle::default(),
@@ -961,6 +1134,7 @@ mod tests {
             intensity: 1.0,
             rate: 1.0,
             started: Duration::ZERO,
+            release: LoopRelease::default(),
         }
     }
 

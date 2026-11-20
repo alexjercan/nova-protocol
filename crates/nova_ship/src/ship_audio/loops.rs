@@ -3,9 +3,10 @@
 //!
 //! Each pass only reports how hard its source is working, as a
 //! [`SoundLoop`]'s intensity. Everything after that belongs to `nova_sound`:
-//! the category's level and dB range, the distance fade, the pan, the freeze
-//! behind a paused sim, and the voice caps. A ship's thrusters share one drive
-//! voice through the category's per-ship voice count.
+//! the category's level and dB range, the release once the source idles, the
+//! distance fade, the pan, the freeze behind a paused sim, and the voice caps.
+//! A ship's thrusters share one drive voice through the category's per-ship
+//! voice count.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
@@ -19,21 +20,20 @@ use crate::{
     },
 };
 
-/// How fast a hum's intensity chases its target, in units per second.
-/// Framerate-independent, and slow enough that a throttle change fades rather
-/// than clicks.
+/// How fast a hum's intensity chases the level of a working source, in units
+/// per second. Framerate-independent, and slow enough that a throttle change
+/// fades rather than clicks. An idle source is not eased: see [`ease_hum`].
 const LOOP_SMOOTHING_RATE: f32 = 8.0;
 
-/// Under this, an easing intensity has arrived. Without it a fade toward zero
-/// would write a smaller float every frame for ever.
+/// Under this, an easing intensity has arrived. Without it an ease would
+/// write a float a hair nearer its target every frame for ever.
 const LOOP_SETTLE: f32 = 1e-4;
 
-/// Under this a hum's source is idle and its target is zero.
+/// Under this a hum's source is idle.
 ///
-/// A thruster spools down exponentially and never reaches zero, and any
-/// intensity above zero plays at least the bottom of the category's loop dB
-/// range. Without this floor a ship that closed its throttle would hold its
-/// hum at that level for ever.
+/// Any intensity above zero plays at least the bottom of the category's loop
+/// dB range, so a source that only approaches zero would hold its hum at that
+/// level for ever.
 const HUM_IDLE: f32 = 0.01;
 
 /// `current` eased toward `target` by `alpha` of the gap.
@@ -47,6 +47,10 @@ fn ease(current: f32, target: f32, alpha: f32) -> f32 {
 }
 
 /// Ease `owner`'s hum toward `target`, or start it once the source first works.
+///
+/// An idle source reports zero on the same frame, and the engine's release
+/// ramps the voice out. An intensity eased to zero would hold the loop at the
+/// bottom of its dB range for the whole ease, about a second.
 ///
 /// AUTHORED-OR-SILENT: an owner with no authored loop never gets one. An idle
 /// source never opens a voice at all: a torpedo coasting at zero headroom is
@@ -68,7 +72,11 @@ fn ease_hum(
     let target = if target < HUM_IDLE { 0.0 } else { target };
     match sound_loop {
         Some(mut sound_loop) => {
-            let next = ease(sound_loop.intensity, target, alpha);
+            let next = if target > 0.0 {
+                ease(sound_loop.intensity, target, alpha)
+            } else {
+                0.0
+            };
             if next != sound_loop.intensity {
                 sound_loop.intensity = next;
             }
@@ -87,6 +95,11 @@ fn ease_hum(
 }
 
 /// Drive each thruster's hum from its own throttle.
+///
+/// A drive hums while its plume is lit. The throttle spools down on an
+/// exponential (`FlightSettings::spool_down_rate`), still pushing the hull,
+/// and the plume follows it to its dark step ([`plume_bucket`] 0); the hum
+/// idles on that same step, so it never outlives the flame the player sees.
 ///
 /// A ship's thrusters share one voice: the drive category allows one per
 /// sound per ship, and the loudest thruster holds it.
@@ -107,10 +120,10 @@ pub(super) fn drive_thruster_loops(
 ) {
     let alpha = (time.delta_secs() * LOOP_SMOOTHING_RATE).clamp(0.0, 1.0);
     for (thruster, input, authored, inactive, sound_loop) in &mut q_thrusters {
-        let target = if inactive {
+        let target = if inactive || plume_bucket(input.0) == 0 {
             0.0
         } else {
-            input.0.abs().min(1.0)
+            input.0.min(1.0)
         };
         ease_hum(
             &mut commands,
@@ -224,6 +237,8 @@ pub(super) fn drive_railgun_charge_loops(
 
 #[cfg(test)]
 mod tests {
+    use nova_sound::LOOP_RELEASE_SECONDS;
+
     use super::*;
 
     /// One test frame, long enough that the smoothing moves visibly and short
@@ -312,30 +327,39 @@ mod tests {
     }
 
     #[test]
-    fn a_thruster_that_stops_burning_fades_to_silence() {
+    fn a_throttle_cut_eases_down_and_a_closed_throttle_reports_idle_at_once() {
         let mut app = loop_app();
         let thruster = spawn_burning_thruster(&mut app, 1.0);
         settle(&mut app);
+
+        app.world_mut()
+            .get_mut::<ThrusterSectionInput>(thruster)
+            .unwrap()
+            .0 = 0.4;
+        app.update();
+        let mid = loop_of(&app, thruster).map(|hum| hum.intensity);
+        assert!(
+            mid.is_some_and(|level| level > 0.4 && level < 1.0),
+            "a working drive's intensity must ease down, not cut, got {mid:?}"
+        );
 
         app.world_mut()
             .get_mut::<ThrusterSectionInput>(thruster)
             .unwrap()
             .0 = 0.0;
         app.update();
-        let mid = loop_of(&app, thruster).map(|hum| hum.intensity);
-        assert!(
-            mid.is_some_and(|level| level > 0.0 && level < 1.0),
-            "the intensity must ease down, not cut, got {mid:?}"
+        assert_eq!(
+            loop_of(&app, thruster).map(|hum| hum.intensity),
+            Some(0.0),
+            "an idle drive reports zero the same frame: the release is the engine's"
         );
-
-        settle(&mut app);
-        assert_eq!(loop_of(&app, thruster).map(|hum| hum.intensity), Some(0.0));
     }
 
-    /// The spool-down tail: a closed throttle leaves the input a tiny
-    /// positive number, and the hum must still reach zero.
+    /// The spool-down tail: a closed throttle leaves the input a small
+    /// positive number under the plume's first lit step, and the hum must
+    /// reach zero with the plume.
     #[test]
-    fn a_thruster_spooled_almost_to_zero_falls_silent() {
+    fn a_thruster_spooled_under_its_dark_plume_step_falls_silent() {
         let mut app = loop_app();
         let thruster = spawn_burning_thruster(&mut app, 1.0);
         settle(&mut app);
@@ -343,8 +367,9 @@ mod tests {
         app.world_mut()
             .get_mut::<ThrusterSectionInput>(thruster)
             .unwrap()
-            .0 = 1e-6;
-        settle(&mut app);
+            .0 = 0.03;
+        assert_eq!(plume_bucket(0.03), 0, "0.03 draws the dark plume step");
+        app.update();
         assert_eq!(loop_of(&app, thruster).map(|hum| hum.intensity), Some(0.0));
     }
 
@@ -408,6 +433,201 @@ mod tests {
         let ship = spawn_rcs_ship(&mut app, 0.0);
         settle(&mut app);
         assert!(loop_of(&app, ship).is_none());
+    }
+
+    /// A 16-bit mono WAV of a quarter second of 1 kHz tone: a clip the engine
+    /// can measure, so a voice gets a level.
+    fn tone_wav() -> Vec<u8> {
+        const SAMPLE_RATE: u32 = 48_000;
+        let samples = SAMPLE_RATE / 4;
+        let data_len = samples * 2;
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"RIFF");
+        bytes.extend_from_slice(&(36 + data_len).to_le_bytes());
+        bytes.extend_from_slice(b"WAVEfmt ");
+        bytes.extend_from_slice(&16u32.to_le_bytes());
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.extend_from_slice(&SAMPLE_RATE.to_le_bytes());
+        bytes.extend_from_slice(&(SAMPLE_RATE * 2).to_le_bytes());
+        bytes.extend_from_slice(&2u16.to_le_bytes());
+        bytes.extend_from_slice(&16u16.to_le_bytes());
+        bytes.extend_from_slice(b"data");
+        bytes.extend_from_slice(&data_len.to_le_bytes());
+        for n in 0..samples {
+            let phase = std::f32::consts::TAU * 1000.0 * n as f32 / SAMPLE_RATE as f32;
+            let value = (0.25 * phase.sin() * f32::from(i16::MAX)) as i16;
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
+        bytes
+    }
+
+    /// App rig for what the player HEARS: the hum passes over the whole
+    /// engine, a listener at the origin, and a measured clip to author the
+    /// loops with. Returned warmed up: the first update runs at dt 0, and the
+    /// engine measures a clip the frame after it is added.
+    fn heard_app() -> (App, Handle<AudioSource>) {
+        let mut app = loop_app();
+        app.add_plugins(NovaSoundPlugin);
+        app.world_mut()
+            .spawn((SfxListenerMarker, GlobalTransform::IDENTITY));
+        let clip = app
+            .world_mut()
+            .resource_mut::<Assets<AudioSource>>()
+            .add(AudioSource {
+                bytes: tone_wav().into(),
+            });
+        for _ in 0..3 {
+            app.update();
+        }
+        (app, clip)
+    }
+
+    /// The level the engine mixes `owner`'s loop at this frame. Zero with no
+    /// voice, and zero for a voice the engine holds silent.
+    fn heard(app: &mut App, owner: Entity) -> f32 {
+        let mut voices = app.world_mut().query::<(&SoundVoice, &VoiceMix)>();
+        voices
+            .iter(app.world())
+            .find(|(voice, _)| voice.place == VoicePlace::Follow(owner))
+            .map_or(0.0, |(_, mix)| if mix.capped { 0.0 } else { mix.level })
+    }
+
+    /// Run frames after a source was let go and return how many passed before
+    /// the loop fell silent for good. `frame` advances the source one tick.
+    fn frames_until_silent(app: &mut App, owner: Entity, mut frame: impl FnMut(&mut App)) -> usize {
+        let mut silent_after = 0;
+        for index in 1..=188 {
+            frame(app);
+            if heard(app, owner) > 0.0 {
+                silent_after = index;
+            }
+        }
+        silent_after
+    }
+
+    /// One flight tick and one frame: spool `thruster` toward `throttle` at
+    /// the flight rates, as the burn does, then mix.
+    fn burn_frame(app: &mut App, thruster: Entity, throttle: f32) {
+        let settings = FlightSettings::default();
+        let mut input = app
+            .world_mut()
+            .get_mut::<ThrusterSectionInput>(thruster)
+            .unwrap();
+        input.0 = crate::flight::spool(
+            input.0,
+            throttle,
+            settings.spool_up_rate,
+            settings.spool_down_rate,
+            TEST_FRAME.as_secs_f32(),
+        );
+        app.update();
+    }
+
+    /// Hold the burn key for `held` frames and let go. Returns the seconds
+    /// after the release at which the plume went dark and at which the hum
+    /// fell silent.
+    fn thruster_release(held: usize) -> (f32, f32) {
+        let (mut app, clip) = heard_app();
+        let root = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, GlobalTransform::default()))
+            .id();
+        let thruster = app
+            .world_mut()
+            .spawn((
+                ThrusterSectionMarker,
+                ThrusterSectionInput(0.0),
+                ThrusterSectionLoopSound(Some(AssetRef::from(clip))),
+                GlobalTransform::default(),
+                ChildOf(root),
+            ))
+            .id();
+        let mut loudest = 0.0f32;
+        for _ in 0..held {
+            burn_frame(&mut app, thruster, 1.0);
+            loudest = loudest.max(heard(&mut app, thruster));
+        }
+        assert!(loudest > 0.0, "the burn itself must be heard");
+
+        let mut dark_after = None;
+        let mut index = 0;
+        let silent_after = frames_until_silent(&mut app, thruster, |app| {
+            burn_frame(app, thruster, 0.0);
+            index += 1;
+            let input = app.world().get::<ThrusterSectionInput>(thruster).unwrap().0;
+            if dark_after.is_none() && plume_bucket(input) == 0 {
+                dark_after = Some(index);
+            }
+        });
+        let seconds = |frames: usize| frames as f32 * TEST_FRAME.as_secs_f32();
+        (
+            seconds(dark_after.expect("a closed throttle darkens the plume")),
+            seconds(silent_after + 1),
+        )
+    }
+
+    /// A tap on the burn key must not leave the drive humming. The drive
+    /// spools down by design and the hum follows the plume; past a dark plume
+    /// the engine's release is all that is left.
+    #[test]
+    fn a_tapped_thruster_is_silent_within_the_release_time_of_its_plume_going_dark() {
+        let frame = TEST_FRAME.as_secs_f32();
+        let (dark, silent) = thruster_release(3);
+        assert!(
+            silent <= dark + LOOP_RELEASE_SECONDS + frame,
+            "a tapped drive rang on: plume dark {dark:.3} s after the key, hum silent after \
+             {silent:.3} s"
+        );
+        let (held_dark, held_silent) = thruster_release(96);
+        assert!(
+            held_silent <= held_dark + LOOP_RELEASE_SECONDS + frame,
+            "a held drive rang on: plume dark {held_dark:.3} s after the key, hum silent after \
+             {held_silent:.3} s"
+        );
+        assert!(
+            silent <= held_silent,
+            "a tap must not ring longer than a full burn: {silent:.3} s against {held_silent:.3} s"
+        );
+    }
+
+    /// The RCS burn has no spool: the hiss is silent within the release time
+    /// of the last delivered push, after a two-frame puff as after a long one.
+    #[test]
+    fn a_tapped_rcs_burn_is_silent_within_the_release_time() {
+        let frame = TEST_FRAME.as_secs_f32();
+        for held in [2, 96] {
+            let (mut app, clip) = heard_app();
+            let sounds = ShipFeedbackSounds {
+                rcs_loop: Some(AssetRef::from(clip)),
+                ..Default::default()
+            };
+            let ship = app
+                .world_mut()
+                .spawn((
+                    SpaceshipRootMarker,
+                    GlobalTransform::default(),
+                    RcsBudget {
+                        applied: 1.0,
+                        ..default()
+                    },
+                    sounds,
+                ))
+                .id();
+            let mut loudest = 0.0f32;
+            for _ in 0..held {
+                app.update();
+                loudest = loudest.max(heard(&mut app, ship));
+            }
+            assert!(loudest > 0.0, "the puff itself must be heard");
+
+            app.world_mut().get_mut::<RcsBudget>(ship).unwrap().applied = 0.0;
+            let silent = frames_until_silent(&mut app, ship, App::update) as f32 * frame + frame;
+            assert!(
+                silent <= LOOP_RELEASE_SECONDS + frame,
+                "an RCS burn held {held} frames rang on for {silent:.3} s"
+            );
+        }
     }
 
     /// The base lance's charge sound path.

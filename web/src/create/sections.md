@@ -491,8 +491,8 @@ kind: Thruster((
 - `loop_sound` (optional) - the engine hum this thruster contributes to
   (`dep://base/sounds/thruster_loop.wav` is the base drone); one ship's
   thrusters that share a sound share one voice, held by the thruster at the
-  highest throttle, and its level follows that throttle. An omitted sound hums
-  nothing.
+  highest throttle, and its level follows that throttle. A thruster hums only
+  while its plume is lit. An omitted sound hums nothing.
 - `exhaust` (optional) - custom flame placement and shape. `None` uses the
   standard cone. Write `Some((...))` when fitting exhaust to custom art.
 

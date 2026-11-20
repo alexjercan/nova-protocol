@@ -95,6 +95,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A neutralized player ship that is repaired is back in the fight: enemies target it again. Before, it stayed neutralized and was never targeted again. AI ships stay neutralized.
 - A section destroyed in the same frame its ship's section graph was built no longer stops the game with an "Entity despawned" command error.
 - A job you drop, and a job whose board slot renews, now takes its hauler, raiders, caller or wreck out of a sector you have left too. Before, they came back with no job when you returned.
+- A tapped burn key no longer leaves the drive hum on for about a second: the hum ends with the plume. The RCS hiss stops within 0.12 s of the last push.
 
 ## [0.18.0] - 2026-11-15
 

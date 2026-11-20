@@ -51,8 +51,8 @@
 //! `listener` resolves the listener, `bus` owns the sliders, `master` owns the
 //! master volume and the harness mute, `loudness` measures every clip as it
 //! loads, `mixing` holds the listener marker and the cell grouping the juice
-//! layer shares, `spatial` owns the stereo placement, `voice` owns playback
-//! and the loop cap, and `registry` is the keyed handle bank. Nothing here knows what a ship is - the mapping from
+//! layer shares, `spatial` owns the stereo placement, `voice` owns playback,
+//! the loop release and the loop cap, and `registry` is the keyed handle bank. Nothing here knows what a ship is - the mapping from
 //! gameplay events to sounds is `nova_ship`'s `ship_audio`.
 //!
 //! A crate of its own, below `nova_gameplay`, so a crate that makes a sound
@@ -124,14 +124,17 @@ pub use self::{
     },
     voice::{
         pause_world_voices, resume_world_voices, stop_world_voices, SoundFreeze, VoiceMarker,
-        VoiceMix, MAX_EFFECT_LOOP_VOICES,
+        VoiceMix, LOOP_RELEASE_SECONDS, MAX_EFFECT_LOOP_VOICES,
     },
 };
 use self::{
     loudness::measure_loaded_sounds,
     master::{apply_master_volume, report_harness_mute},
     play::{on_play_sound, on_remove_sound_loop, prune_sound_repeat, sync_sound_loops},
-    voice::{drive_sfx_voices, on_add_listener, retire_unplayable_one_shots, start_sfx_voices},
+    voice::{
+        drive_sfx_voices, on_add_listener, ramp_loop_releases, retire_unplayable_one_shots,
+        start_sfx_voices,
+    },
 };
 
 /// Keys for the game's UI/interface sound effects - engine chrome, like
@@ -294,6 +297,7 @@ impl Plugin for NovaSoundPlugin {
             PostUpdate,
             (
                 sync_sound_loops,
+                ramp_loop_releases,
                 retire_unplayable_one_shots,
                 start_sfx_voices,
                 drive_sfx_voices,
