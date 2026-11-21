@@ -176,9 +176,9 @@ impl SoundCategoryType {
     /// guns sit under the explosions and the railgun, and a ship collapsing is
     /// the loudest thing there is. The levels started from the mix the game
     /// had before equalization, then moved the machinery down past the guns.
-    /// The RCS hiss shares the guns' reference distance and sits 4 dB under
-    /// them at every range, with a narrow loop range, so a light push still
-    /// reads at escort range (300 m). A torpedo's launch and ignition sit
+    /// The RCS hiss shares the guns' reference distance and sits 10 dB under
+    /// them at every range, with a narrow loop range: it runs under most
+    /// flying, so it is a bed, not a cue. A torpedo's launch and ignition sit
     /// under the drive hum that follows them and over the guns, so the start
     /// does not jump out ahead of the flight.
     ///
@@ -208,7 +208,7 @@ impl SoundCategoryType {
             Self::Mining => row(Effect, -14.0, 60.0, 1_500.0, 1, 0.0, 0, None),
             Self::DryFire => row(Effect, -20.0, 20.0, 300.0, 1, 0.0, 0, None),
             Self::Drive => row(Effect, -2.0, 250.0, 6_000.0, 1, 0.0, 2, Some((-18.0, 0.0))),
-            Self::Rcs => row(Effect, -18.0, 200.0, 1_500.0, 1, 0.0, 1, Some((-8.0, 0.0))),
+            Self::Rcs => row(Effect, -24.0, 200.0, 1_500.0, 1, 0.0, 1, Some((-8.0, 0.0))),
             Self::Charge => row(Effect, -6.0, 100.0, 3_000.0, 1, 0.0, 3, Some((-9.0, 0.0))),
             Self::Alarm => row(Ui, -5.0, 0.0, 0.0, 1, 0.0, 0, None),
             Self::Cockpit => row(Ui, -6.0, 0.0, 0.0, 1, 0.0, 0, None),

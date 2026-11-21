@@ -107,6 +107,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - Background music: 10 songs play by situation (menu, cruise, enemies near, combat, docked) with fades and gaps. Pause ducks it.
 - Settings gain a Music slider, and `volume music` sets it. A v0.17 settings file loads its `music_volume` into the slider again.
+- The RCS hiss is 6 dB quieter: about half as loud, and 10 dB under the guns.
 
 ### Fixes
 
