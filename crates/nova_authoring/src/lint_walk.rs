@@ -214,7 +214,7 @@ fn sound_faults(dir: &Path, resources: &[String]) -> Vec<(String, String)> {
         })
         .filter_map(|resource| {
             let fault = match std::fs::read(dir.join(resource)) {
-                Ok(bytes) => measure_clip(&bytes).err()?.to_string(),
+                Ok(bytes) => measure_clip(bytes).err()?.to_string(),
                 Err(error) => format!("cannot be read: {error}"),
             };
             Some((resource.clone(), fault))

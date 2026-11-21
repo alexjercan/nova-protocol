@@ -1,4 +1,4 @@
-//! The two slider-driven tracks and the dB taper every slider goes through.
+//! The slider-driven tracks and the dB taper every slider goes through.
 //!
 //! Owns the per-bus volume resources. The level of a sound is its
 //! [`SoundCategoryType`](super::SoundCategoryType) row; this module only
@@ -80,7 +80,31 @@ impl WorldVolume {
     }
 }
 
-/// Read access to every knob that scales a voice: the two bus sliders and the
+/// The Music slider setting, `0.0..=1.0`. Scales [`SoundBus::Music`].
+#[derive(Resource, Clone, Copy, PartialEq, Debug, Reflect)]
+#[reflect(Resource)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct MusicVolume(pub f32);
+
+impl Default for MusicVolume {
+    fn default() -> Self {
+        Self(1.0)
+    }
+}
+
+impl MusicVolume {
+    /// The clamped setting: what the menu shows and the store saves.
+    pub fn factor(self) -> f32 {
+        self.0.clamp(0.0, 1.0)
+    }
+
+    /// The gain the setting applies, through [`slider_gain`].
+    pub fn gain(self) -> f32 {
+        slider_gain(self.0)
+    }
+}
+
+/// Read access to every knob that scales a voice: the bus sliders and the
 /// master.
 ///
 /// Every resource is optional so an audio-only test rig that never adds
@@ -90,6 +114,7 @@ impl WorldVolume {
 pub struct Mixer<'w> {
     interface: Option<Res<'w, InterfaceVolume>>,
     world: Option<Res<'w, WorldVolume>>,
+    music: Option<Res<'w, MusicVolume>>,
     master: Option<Res<'w, MasterVolume>>,
     mute: Option<Res<'w, HarnessMute>>,
 }
@@ -108,6 +133,7 @@ impl Mixer<'_> {
                 .unwrap_or_default()
                 .gain(),
             SoundBus::Effect => self.world.as_deref().copied().unwrap_or_default().gain(),
+            SoundBus::Music => self.music.as_deref().copied().unwrap_or_default().gain(),
         }
     }
 

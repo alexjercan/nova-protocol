@@ -57,7 +57,8 @@ pub enum SoundAt {
 ///
 /// A category whose bus does not match `at` (a [`SoundBus::Ui`] category in
 /// the world, or an [`SoundBus::Effect`] category at [`SoundAt::Ui`]) is a
-/// programming error: it is logged and dropped. So is a loop category.
+/// programming error: it is logged and dropped. So is a loop category, and a
+/// [`SoundBus::Music`] one.
 #[derive(Event, Clone, Debug)]
 pub struct PlaySound {
     /// The sound to play.
@@ -186,6 +187,9 @@ pub enum SoundRefusal {
     BusMismatch,
     /// A loop category fired as a one-shot.
     LoopAsOneShot,
+    /// A [`SoundBus::Music`] category fired as a cue. Only the
+    /// [`MusicDeck`](super::MusicDeck) plays music.
+    MusicAsCue,
     /// [`SoundAt::Entity`] named an entity with no world pose.
     NoPose,
 }
@@ -229,6 +233,7 @@ pub fn place_one_shot(
         return Err(SoundRefusal::LoopAsOneShot);
     }
     match (category.bus(), at) {
+        (SoundBus::Music, _) => Err(SoundRefusal::MusicAsCue),
         (SoundBus::Ui, SoundAt::Ui) => Ok((VoicePlace::Ui, VoiceGroup::Ui)),
         (SoundBus::Effect, SoundAt::Point(point)) => {
             Ok((VoicePlace::At(point), VoiceGroup::Cell(area_cell(point))))

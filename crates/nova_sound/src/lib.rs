@@ -11,7 +11,7 @@
 //! workspace's sources and fails on a constructor outside this crate. To make
 //! a sound, trigger a [`PlaySound`] (a one-shot) or add a [`SoundLoop`] (a
 //! loop). Interface cues are categories on the [`SoundBus::Ui`] rows, played
-//! with [`PlaySound::ui`].
+//! with [`PlaySound::ui`]. Background music is the [`MusicDeck`]'s.
 //!
 //! # Categories
 //!
@@ -32,6 +32,8 @@
 //!   Ui      (InterfaceVolume)  cockpit and menu cues. Heard flat.
 //!   Effect  (WorldVolume)      every sound in the world, the player's own
 //!                              ship included. Faded and panned.
+//!   Music   (MusicVolume)      the MusicDeck's tracks. Heard flat, through
+//!                              a frozen sim.
 //! ```
 //!
 //! Each slider goes through the dB taper in [`slider_gain`].
@@ -52,8 +54,10 @@
 //! master volume and the harness mute, `loudness` measures every clip as it
 //! loads, `mixing` holds the listener marker and the cell grouping the juice
 //! layer shares, `spatial` owns the stereo placement, `voice` owns playback,
-//! the loop release and the loop cap, and `registry` is the keyed handle bank. Nothing here knows what a ship is - the mapping from
-//! gameplay events to sounds is `nova_ship`'s `ship_audio`.
+//! the loop release and the loop cap, `music` owns the music deck and its
+//! crossfades, and `registry` is the keyed handle bank. Nothing here knows
+//! what a ship is - the mapping from gameplay events to sounds is
+//! `nova_ship`'s `ship_audio`.
 //!
 //! A crate of its own, below `nova_gameplay`, so a crate that makes a sound
 //! does not have to reach gameplay to do it. It depends on bevy, and on the
@@ -79,6 +83,7 @@ mod listener;
 pub mod loudness;
 mod master;
 mod mixing;
+mod music;
 mod play;
 mod registry;
 mod spatial;
@@ -93,16 +98,16 @@ mod voice;
 /// them.
 pub mod prelude {
     pub use super::{
-        sounds_loaded, ClipLoudness, HarnessMute, InterfaceVolume, MasterVolume, NovaSoundPlugin,
-        PlaySound, SfxAudioMarker, SfxListenerMarker, SoundAt, SoundBank, SoundBus,
-        SoundCategoryType, SoundFreeze, SoundListenerAnchor, SoundLoop, SoundLoudness,
-        SoundSystems, SoundVoice, UiSfx, VoiceGroup, VoiceMix, VoicePlace, WorldVolume, MUTE_ENV,
-        UI_SFX_FILES,
+        sounds_loaded, ClipLoudness, HarnessMute, InterfaceVolume, MasterVolume, MusicDeck,
+        MusicDeckStatusType, MusicVoice, MusicVolume, NovaSoundPlugin, PlaySound, SfxAudioMarker,
+        SfxListenerMarker, SoundAt, SoundBank, SoundBus, SoundCategoryType, SoundFreeze,
+        SoundListenerAnchor, SoundLoop, SoundLoudness, SoundSystems, SoundVoice, UiSfx, VoiceGroup,
+        VoiceMix, VoicePlace, WorldVolume, MUTE_ENV, UI_SFX_FILES,
     };
 }
 
 pub use self::{
-    bus::{slider_gain, InterfaceVolume, Mixer, WorldVolume, SLIDER_FLOOR_DB},
+    bus::{slider_gain, InterfaceVolume, Mixer, MusicVolume, WorldVolume, SLIDER_FLOOR_DB},
     category::{db_to_gain, SoundBus, SoundCategory, SoundCategoryType},
     listener::{resolve_hearing, Hearing, SoundListenerAnchor},
     loudness::{
@@ -113,6 +118,7 @@ pub use self::{
         area_cell, cue_group, CueGroup, CueThrottle, SfxListenerMarker, SFX_AREA_CELL,
         SFX_AUDIBLE_THRESHOLD,
     },
+    music::{MusicDeck, MusicDeckStatusType, MusicVoice},
     play::{
         place_one_shot, sound_root, PlaySound, SfxAudioMarker, SoundAt, SoundGroupBoundary,
         SoundLoop, SoundRefusal, SoundRepeat, SoundVoice, VoiceGroup, VoicePlace,
@@ -130,6 +136,7 @@ pub use self::{
 use self::{
     loudness::measure_loaded_sounds,
     master::{apply_master_volume, report_harness_mute},
+    music::{apply_music_requests, drive_music_voices, start_music_voices},
     play::{on_play_sound, on_remove_sound_loop, prune_sound_repeat, sync_sound_loops},
     voice::{
         drive_sfx_voices, on_add_listener, ramp_loop_releases, retire_unplayable_one_shots,
@@ -274,12 +281,15 @@ impl Plugin for NovaSoundPlugin {
         app.init_resource::<HarnessMute>();
         app.init_resource::<InterfaceVolume>();
         app.init_resource::<WorldVolume>();
+        app.init_resource::<MusicVolume>();
+        app.init_resource::<MusicDeck>();
         app.init_resource::<SoundFreeze>();
         app.init_resource::<SoundLoudness>();
         app.init_resource::<SoundRepeat>();
         app.register_type::<MasterVolume>();
         app.register_type::<InterfaceVolume>();
         app.register_type::<WorldVolume>();
+        app.register_type::<MusicVolume>();
         app.register_type::<SfxListenerMarker>();
         app.register_type::<SfxAudioMarker>();
         app.register_type::<SoundListenerAnchor>();
@@ -302,6 +312,12 @@ impl Plugin for NovaSoundPlugin {
                 start_sfx_voices,
                 drive_sfx_voices,
             )
+                .chain()
+                .in_set(SoundSystems),
+        );
+        app.add_systems(
+            PostUpdate,
+            (apply_music_requests, start_music_voices, drive_music_voices)
                 .chain()
                 .in_set(SoundSystems),
         );

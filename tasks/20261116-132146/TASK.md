@@ -29,6 +29,18 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
 2. First tracks with a recorded licence, and a context rule.
 3. Wiki and changelog.
 
+## Progress
+- 2026-11-21, engine groundwork (owner choices not needed): streaming
+  loudness measure off the main thread, `SoundBus::Music` with its
+  `SoundCategoryType::Music` row, `MusicVolume`, `music_volume` in
+  settings.ron, and `MusicDeck` (`play`, `stop`, `duck`, `status`) in
+  `nova_sound`.
+- Next, in the same change as the first tracks: the Music row in the audio
+  settings menu (`VolumeChannel::Music`), the console `volume music` channel
+  and its catalog usage, the wiki `settings.md` and `commands.md` rows, and
+  the changelog entry. They stay out until a track plays, so no player sees a
+  slider that controls nothing.
+
 ## Verification
 - Unit test for the context rule; a live run that plays music on the
   menu and in flight, with the slider muting it.

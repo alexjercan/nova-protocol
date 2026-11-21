@@ -20,9 +20,16 @@
 //! [`SILENT_BELOW_LUFS`], is an authoring error: content lint refuses it, and a
 //! load logs it as an error.
 
-use std::{collections::HashMap, fmt, io::Cursor};
+use std::{
+    collections::{HashMap, VecDeque},
+    fmt,
+    io::Cursor,
+};
 
-use bevy::prelude::*;
+use bevy::{
+    prelude::*,
+    tasks::{block_on, poll_once, AsyncComputeTaskPool, Task},
+};
 use rodio::Source;
 
 /// The loudness every clip is normalized to.
@@ -79,58 +86,69 @@ impl fmt::Display for LoudnessError {
 impl std::error::Error for LoudnessError {}
 
 /// Decode a sound file and measure its clip loudness, in LUFS.
-pub fn measure_clip(bytes: &[u8]) -> Result<f32, LoudnessError> {
-    let decoder = rodio::Decoder::new(Cursor::new(bytes.to_vec()))
+///
+/// The decode streams through [`clip_loudness`], so a four minute track costs
+/// what a click costs in memory. Takes the bytes by value: the decoder reads
+/// them in place, and the engine hands it the loaded asset's shared buffer.
+pub fn measure_clip(bytes: impl AsRef<[u8]> + Send + Sync + 'static) -> Result<f32, LoudnessError> {
+    let decoder = rodio::Decoder::new(Cursor::new(bytes))
         .map_err(|error| LoudnessError::Undecodable(error.to_string()))?;
     let channels = decoder.channels().get();
     let sample_rate = decoder.sample_rate().get();
-    let samples: Vec<f32> = decoder.collect();
-    clip_loudness(&samples, channels, sample_rate)
+    clip_loudness(decoder, channels, sample_rate)
 }
 
 /// The clip loudness of interleaved samples, in LUFS (see the module docs).
+///
+/// One pass over the samples. Memory is the open 400 ms block sums and one
+/// mean square per closed block, plus a copy of the clip while it is shorter
+/// than [`LOOP_SECONDS`]: a short clip is fed again from that copy until the
+/// loop is long enough. A trailing partial frame is dropped.
 pub fn clip_loudness(
-    samples: &[f32],
+    samples: impl IntoIterator<Item = f32>,
     channels: u16,
     sample_rate: u32,
 ) -> Result<f32, LoudnessError> {
-    let channels = usize::from(channels.max(1));
-    let frames = samples.len() / channels;
-    if frames == 0 || sample_rate == 0 {
+    if sample_rate == 0 {
         return Err(LoudnessError::Empty);
     }
+    let channels = usize::from(channels.max(1));
     let rate = f64::from(sample_rate);
     let loop_frames = (LOOP_SECONDS * rate).ceil() as usize;
+    let mut meter = BlockMeter::new(rate, channels);
+    let mut short = Vec::new();
+    let mut frame = Vec::with_capacity(channels);
+    let mut frames = 0;
+    for sample in samples {
+        frame.push(sample);
+        if frame.len() < channels {
+            continue;
+        }
+        meter.feed(&frame);
+        if frames < loop_frames {
+            short.extend_from_slice(&frame);
+        } else if frames == loop_frames {
+            short = Vec::new();
+        }
+        frames += 1;
+        frame.clear();
+    }
+    if frames == 0 {
+        return Err(LoudnessError::Empty);
+    }
+    // One filter state per channel runs across the joins, as it would on a
+    // playing loop.
     let repeats = loop_frames.div_ceil(frames).max(1);
-
-    // The weighted, K-filtered energy of every looped frame. One filter state
-    // per channel runs across the joins, as it would on a playing loop.
-    let mut filters = vec![KWeighting::new(rate); channels];
-    let mut energy = Vec::with_capacity(frames * repeats);
-    for _ in 0..repeats {
-        for frame in samples.chunks_exact(channels) {
-            let mut sum = 0.0;
-            for (channel, (sample, filter)) in frame.iter().zip(&mut filters).enumerate() {
-                let filtered = filter.process(f64::from(*sample));
-                sum += channel_weight(channel, channels) * filtered * filtered;
-            }
-            energy.push(sum);
+    for _ in 1..repeats {
+        for frame in short.chunks_exact(channels) {
+            meter.feed(frame);
         }
     }
+    gated_loudness(&meter.blocks)
+}
 
-    let block = (BLOCK_SECONDS * rate).round() as usize;
-    let step = (STEP_SECONDS * rate).round() as usize;
-    let mut prefix = Vec::with_capacity(energy.len() + 1);
-    prefix.push(0.0);
-    for value in &energy {
-        prefix.push(prefix.last().copied().unwrap_or_default() + value);
-    }
-    let blocks: Vec<f64> = (0..)
-        .map(|index| index * step)
-        .take_while(|start| start + block <= energy.len())
-        .map(|start| (prefix[start + block] - prefix[start]) / block as f64)
-        .collect();
-
+/// The BS.1770 gates over the mean squares of the 400 ms blocks.
+fn gated_loudness(blocks: &[f64]) -> Result<f32, LoudnessError> {
     let absolute: Vec<f64> = blocks
         .iter()
         .copied()
@@ -149,6 +167,63 @@ pub fn clip_loudness(
         return Err(LoudnessError::Silent { lufs: Some(lufs) });
     }
     Ok(lufs)
+}
+
+/// The K-weighted energy of a frame stream, summed into 400 ms blocks that
+/// start every 100 ms.
+///
+/// A block opens on every step and closes once it holds a block of frames.
+/// A block the stream ends inside is never closed, so it does not count.
+struct BlockMeter {
+    filters: Vec<KWeighting>,
+    channels: usize,
+    block: usize,
+    step: usize,
+    /// Frames fed so far.
+    position: usize,
+    /// The start frame and energy sum of every open block, oldest first.
+    open: VecDeque<(usize, f64)>,
+    /// The mean square of every closed block, in order.
+    blocks: Vec<f64>,
+}
+
+impl BlockMeter {
+    fn new(rate: f64, channels: usize) -> Self {
+        let block = ((BLOCK_SECONDS * rate).round() as usize).max(1);
+        let step = ((STEP_SECONDS * rate).round() as usize).max(1);
+        Self {
+            filters: vec![KWeighting::new(rate); channels],
+            channels,
+            block,
+            step,
+            position: 0,
+            open: VecDeque::with_capacity(block.div_ceil(step)),
+            blocks: Vec::new(),
+        }
+    }
+
+    /// Feed one interleaved frame.
+    fn feed(&mut self, frame: &[f32]) {
+        let mut energy = 0.0;
+        for (channel, (sample, filter)) in frame.iter().zip(&mut self.filters).enumerate() {
+            let filtered = filter.process(f64::from(*sample));
+            energy += channel_weight(channel, self.channels) * filtered * filtered;
+        }
+        if self.position % self.step == 0 {
+            self.open.push_back((self.position, 0.0));
+        }
+        for (_, sum) in &mut self.open {
+            *sum += energy;
+        }
+        self.position += 1;
+        while let Some(&(start, sum)) = self.open.front() {
+            if self.position - start < self.block {
+                break;
+            }
+            self.blocks.push(sum / self.block as f64);
+            self.open.pop_front();
+        }
+    }
 }
 
 fn mean(values: &[f64]) -> f64 {
@@ -267,7 +342,8 @@ impl ClipLoudness {
 
 /// The measured loudness of every loaded [`AudioSource`], keyed by asset id.
 ///
-/// Filled by the engine as each clip loads and emptied as it unloads.
+/// Filled by the engine as each clip's measure finishes, a few frames after
+/// it loads, and emptied as it unloads.
 #[derive(Resource, Default, Debug)]
 pub struct SoundLoudness {
     clips: HashMap<AssetId<AudioSource>, ClipLoudness>,
@@ -297,8 +373,18 @@ impl SoundLoudness {
     }
 }
 
+/// A clip's measure, running on the async compute pool.
+type MeasureTask = Task<Result<f32, LoudnessError>>;
+
 /// Measure each [`AudioSource`] as it loads (and again when it reloads), and
 /// forget it when it unloads.
+///
+/// The measure runs on the [`AsyncComputeTaskPool`], so a long clip's decode
+/// stays off the frame. On wasm that pool is the page's one thread: the
+/// decode still lands between two frames, as one stall. A clip enters
+/// [`SoundLoudness`] the frame its task is seen done, and a voice of it waits
+/// until then. A reload replaces the clip's running task, and an unload
+/// drops it, which cancels it.
 ///
 /// A clip that cannot be measured is an authoring error the content lint
 /// refuses; one that reaches a load anyway (a mod built without the lint) is
@@ -312,14 +398,15 @@ pub(crate) fn measure_loaded_sounds(
     sources: Res<Assets<AudioSource>>,
     asset_server: Option<Res<AssetServer>>,
     mut loudness: ResMut<SoundLoudness>,
+    mut pending: Local<HashMap<AssetId<AudioSource>, (String, MeasureTask)>>,
     mut burst: Local<Vec<(String, ClipLoudness)>>,
 ) {
-    let before = burst.len();
     for event in events.read() {
         let id = match *event {
             AssetEvent::Added { id } | AssetEvent::Modified { id } => id,
             AssetEvent::Removed { id } | AssetEvent::Unused { id } => {
                 loudness.clips.remove(&id);
+                pending.remove(&id);
                 continue;
             }
             AssetEvent::LoadedWithDependencies { .. } => continue,
@@ -331,21 +418,36 @@ pub(crate) fn measure_loaded_sounds(
             .as_ref()
             .and_then(|server| server.get_path(id))
             .map_or_else(|| format!("{id}"), |path| path.to_string());
-        match measure_clip(&source.bytes) {
+        let bytes = source.bytes.clone();
+        let task = AsyncComputeTaskPool::get().spawn(async move { measure_clip(bytes) });
+        pending.insert(id, (name, task));
+    }
+
+    let before = burst.len();
+    let mut done = Vec::new();
+    for (id, (name, task)) in pending.iter_mut() {
+        let Some(measure) = block_on(poll_once(task)) else {
+            continue;
+        };
+        done.push(*id);
+        match measure {
             Ok(lufs) => {
                 let clip = ClipLoudness { lufs };
                 trace!(
                     "nova audio: `{name}` measures {lufs:.1} LUFS, gain {:+.1} dB to {LOUDNESS_TARGET_LUFS} LUFS",
                     clip.gain_db()
                 );
-                loudness.clips.insert(id, clip);
-                burst.push((name, clip));
+                loudness.clips.insert(*id, clip);
+                burst.push((std::mem::take(name), clip));
             }
             Err(error) => {
-                loudness.clips.remove(&id);
+                loudness.clips.remove(id);
                 error!("nova audio: `{name}` {error}");
             }
         }
+    }
+    for id in done {
+        pending.remove(&id);
     }
     if burst.len() == before && !burst.is_empty() {
         debug!("nova audio: {}", burst_summary(&mut burst));
@@ -374,6 +476,8 @@ fn burst_summary(burst: &mut [(String, ClipLoudness)]) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use super::*;
 
     /// A 1 kHz sine at `amplitude`, `seconds` long, on `channels` identical
@@ -420,7 +524,7 @@ mod tests {
     #[test]
     fn a_sine_at_a_known_level_measures_that_loudness() {
         for (sample_rate, amplitude) in [(48_000, 0.1), (44_100, 0.1), (44_100, 0.5)] {
-            let lufs = clip_loudness(&sine(amplitude, 1.0, sample_rate, 1), 1, sample_rate)
+            let lufs = clip_loudness(sine(amplitude, 1.0, sample_rate, 1), 1, sample_rate)
                 .expect("a sine is not silent");
             let expected = expected_lufs(amplitude);
             assert!(
@@ -432,8 +536,8 @@ mod tests {
 
     #[test]
     fn a_click_shorter_than_one_block_measures_like_the_long_tone() {
-        let long = clip_loudness(&sine(0.1, 1.0, 44_100, 1), 1, 44_100).unwrap();
-        let click = clip_loudness(&sine(0.1, 0.02, 44_100, 1), 1, 44_100).unwrap();
+        let long = clip_loudness(sine(0.1, 1.0, 44_100, 1), 1, 44_100).unwrap();
+        let click = clip_loudness(sine(0.1, 0.02, 44_100, 1), 1, 44_100).unwrap();
         assert!(
             (long - click).abs() < 0.5,
             "one rule for all lengths: 1 s {long:.2}, 20 ms {click:.2}"
@@ -442,8 +546,8 @@ mod tests {
 
     #[test]
     fn stereo_sums_its_two_channels() {
-        let mono = clip_loudness(&sine(0.1, 1.0, 48_000, 1), 1, 48_000).unwrap();
-        let stereo = clip_loudness(&sine(0.1, 1.0, 48_000, 2), 2, 48_000).unwrap();
+        let mono = clip_loudness(sine(0.1, 1.0, 48_000, 1), 1, 48_000).unwrap();
+        let stereo = clip_loudness(sine(0.1, 1.0, 48_000, 2), 2, 48_000).unwrap();
         assert!(
             (stereo - mono - 3.01).abs() < 0.1,
             "the same tone on both channels is 3 dB louder: {mono:.2} -> {stereo:.2}"
@@ -453,24 +557,27 @@ mod tests {
     #[test]
     fn silence_is_an_error_and_not_a_quiet_sound() {
         assert_eq!(
-            clip_loudness(&vec![0.0; 44_100], 1, 44_100),
+            clip_loudness(vec![0.0; 44_100], 1, 44_100),
             Err(LoudnessError::Silent { lufs: None })
         );
         let faint = sine(0.000_5, 1.0, 44_100, 1);
         assert!(
             matches!(
-                clip_loudness(&faint, 1, 44_100),
+                clip_loudness(faint, 1, 44_100),
                 Err(LoudnessError::Silent { lufs: Some(lufs) }) if lufs < SILENT_BELOW_LUFS
             ),
             "a tone at {:.1} LUFS is below the floor",
             expected_lufs(0.000_5)
         );
-        assert_eq!(clip_loudness(&[], 1, 44_100), Err(LoudnessError::Empty));
+        assert_eq!(
+            clip_loudness(std::iter::empty(), 1, 44_100),
+            Err(LoudnessError::Empty)
+        );
     }
 
     #[test]
     fn a_wav_file_decodes_and_measures() {
-        let lufs = measure_clip(&wav(&sine(0.1, 0.5, 44_100, 1), 44_100)).unwrap();
+        let lufs = measure_clip(wav(&sine(0.1, 0.5, 44_100, 1), 44_100)).unwrap();
         assert!(
             (lufs - expected_lufs(0.1)).abs() < 0.5,
             "the decoded file measures like its samples: {lufs:.2}"
@@ -479,6 +586,85 @@ mod tests {
             measure_clip(b"not a sound file"),
             Err(LoudnessError::Undecodable(_))
         ));
+    }
+
+    /// The reference measure: the whole clip decoded into memory, every
+    /// looped frame's energy kept, and the blocks read off a prefix sum.
+    fn whole_clip_loudness(samples: &[f32], channels: u16, sample_rate: u32) -> f32 {
+        let channels = usize::from(channels.max(1));
+        let frames = samples.len() / channels;
+        let rate = f64::from(sample_rate);
+        let loop_frames = (LOOP_SECONDS * rate).ceil() as usize;
+        let repeats = loop_frames.div_ceil(frames).max(1);
+        let mut filters = vec![KWeighting::new(rate); channels];
+        let mut energy = Vec::with_capacity(frames * repeats);
+        for _ in 0..repeats {
+            for frame in samples.chunks_exact(channels) {
+                let mut sum = 0.0;
+                for (channel, (sample, filter)) in frame.iter().zip(&mut filters).enumerate() {
+                    let filtered = filter.process(f64::from(*sample));
+                    sum += channel_weight(channel, channels) * filtered * filtered;
+                }
+                energy.push(sum);
+            }
+        }
+        let block = (BLOCK_SECONDS * rate).round() as usize;
+        let step = (STEP_SECONDS * rate).round() as usize;
+        let mut prefix = vec![0.0];
+        for value in &energy {
+            prefix.push(prefix.last().copied().unwrap_or_default() + value);
+        }
+        let blocks: Vec<f64> = (0..)
+            .map(|index| index * step)
+            .take_while(|start| start + block <= energy.len())
+            .map(|start| (prefix[start + block] - prefix[start]) / block as f64)
+            .collect();
+        gated_loudness(&blocks).expect("the reference clip is not silent")
+    }
+
+    /// The decode of `bytes`, all of it, with its channel count and rate.
+    fn decoded(bytes: Vec<u8>) -> (Vec<f32>, u16, u32) {
+        let decoder = rodio::Decoder::new(Cursor::new(bytes)).expect("the file decodes");
+        let channels = decoder.channels().get();
+        let sample_rate = decoder.sample_rate().get();
+        (decoder.collect(), channels, sample_rate)
+    }
+
+    #[test]
+    fn streaming_loudness_matches_the_whole_clip_measure() {
+        let sounds = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/base/sounds");
+        let mut measured = 0;
+        for entry in std::fs::read_dir(&sounds).expect("the base sounds are readable") {
+            let path = entry.expect("a directory entry").path();
+            if path.extension().is_none_or(|extension| extension != "wav") {
+                continue;
+            }
+            let bytes = std::fs::read(&path).expect("a base sound is readable");
+            let streamed = measure_clip(bytes.clone()).expect("a base sound measures");
+            let (samples, channels, sample_rate) = decoded(bytes);
+            let reference = whole_clip_loudness(&samples, channels, sample_rate);
+            assert!(
+                (streamed - reference).abs() < 1e-4,
+                "{}: streamed {streamed} LUFS, whole clip {reference} LUFS",
+                path.display()
+            );
+            measured += 1;
+        }
+        assert!(measured > 0, "no base sound under {}", sounds.display());
+
+        // Past the loop length a clip is measured once, with no copy kept: a
+        // stereo tone whose level steps, so the relative gate has work to do.
+        let long: Vec<f32> = sine(0.3, 3.0, 48_000, 2)
+            .into_iter()
+            .chain(sine(0.02, 3.0, 48_000, 2))
+            .chain(sine(0.1, 3.0, 48_000, 2))
+            .collect();
+        let streamed = clip_loudness(long.iter().copied(), 2, 48_000).unwrap();
+        let reference = whole_clip_loudness(&long, 2, 48_000);
+        assert!(
+            (streamed - reference).abs() < 1e-4,
+            "a 9 s clip: streamed {streamed} LUFS, whole clip {reference} LUFS"
+        );
     }
 
     #[test]
@@ -502,14 +688,14 @@ mod tests {
             .add(AudioSource {
                 bytes: wav(&sine(0.1, 0.5, 44_100, 1), 44_100).into(),
             });
-        // The asset event is written in this frame's `PostUpdate`, and read
-        // in the next frame's `Update`.
-        app.update();
-        app.update();
-        let clip = app
-            .world()
-            .resource::<SoundLoudness>()
-            .get(&handle)
+        // The asset event is written in this frame's `PostUpdate` and read in
+        // the next frame's `Update`, which starts the measure on the task
+        // pool. The clip enters the table on a later frame.
+        let clip = (0..10_000)
+            .find_map(|_| {
+                app.update();
+                app.world().resource::<SoundLoudness>().get(&handle)
+            })
             .expect("the clip is measured on load");
         assert!((clip.lufs - expected_lufs(0.1)).abs() < 0.5);
 

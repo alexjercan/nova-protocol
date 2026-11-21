@@ -583,9 +583,9 @@ An interface category plays at `Ui`, heard flat: `UiClick`, `UiTick`,
 `UiConfirm`, `UiError`, `Notice`, `Objective`, `Comms`, `Alarm`, `Cockpit`,
 `CockpitTick`, `Editor`, `Preview`. A world category plays at a `Body`, in the
 world at that body: `Explosion`, `Impact`, `Machinery`, `Pickup` and the other
-one-shot rows. A world category at `Ui`, an interface category at a `Body`, or
-a loop category such as `Drive` is a lint error, and the scenario does not
-load. A `Body` that no live body wears is refused with `unknown_body`.
+one-shot rows. A world category at `Ui`, an interface category at a `Body`, a
+loop category such as `Drive`, or `Music` is a lint error, and the scenario
+does not load. A `Body` that no live body wears is refused with `unknown_body`.
 
 </details>
 

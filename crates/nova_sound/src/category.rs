@@ -13,7 +13,7 @@
 use bevy::prelude::*;
 use nova_events::prelude::Meters;
 
-/// The two mixer tracks. A track's slider is the only per-track control.
+/// The mixer tracks. A track's slider is the only per-track control.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect)]
 pub enum SoundBus {
     /// Sounds that happen in the world: guns, engines, doors, explosions.
@@ -23,6 +23,10 @@ pub enum SoundBus {
     /// Interface and cockpit feedback. Never positional. Scaled by the
     /// Interface slider (`InterfaceVolume`).
     Ui,
+    /// Background music. Never positional, and it plays through a frozen
+    /// sim. Scaled by the Music slider (`MusicVolume`). Only the
+    /// [`MusicDeck`](super::MusicDeck) plays on it.
+    Music,
 }
 
 /// What kind of sound a cue is. Closed: a new kind is a new row in
@@ -94,6 +98,9 @@ pub enum SoundCategoryType {
     Preview,
     /// The terminal's ambient bed. Loop: intensity is on or off.
     TerminalBed,
+    /// A music track, played by the [`MusicDeck`](super::MusicDeck). Not a
+    /// cue: a one-shot or a loop of it is refused.
+    Music,
 }
 
 /// One row of the balance table.
@@ -129,7 +136,7 @@ const FADE_OUT_SHARE: f32 = 0.25;
 
 impl SoundCategoryType {
     /// Every category, for the table checks.
-    pub const ALL: [Self; 30] = [
+    pub const ALL: [Self; 31] = [
         Self::Collapse,
         Self::Explosion,
         Self::HeavyWeapon,
@@ -160,6 +167,7 @@ impl SoundCategoryType {
         Self::Editor,
         Self::Preview,
         Self::TerminalBed,
+        Self::Music,
     ];
 
     /// The balance table.
@@ -178,8 +186,11 @@ impl SoundCategoryType {
     /// at the level of a nearby gun, never over a launch or the drive.
     /// Objective cues are the loudest interface rows because they must read
     /// in a fight; the tick is the quietest because it fires in streams.
+    ///
+    /// Music sits under the guns, so a fight reads over the score. Its two
+    /// voices are the outgoing and the incoming track of a crossfade.
     pub const fn spec(self) -> SoundCategory {
-        use SoundBus::{Effect, Ui};
+        use SoundBus::{Effect, Music, Ui};
         //                      bus     dB     ref m   max m   voices repeat prio loop dB
         match self {
             Self::Collapse => row(Effect, -1.0, 600.0, 10_000.0, 2, 0.10, 0, None),
@@ -212,6 +223,7 @@ impl SoundCategoryType {
             Self::Editor => row(Ui, -9.0, 0.0, 0.0, 1, 0.0, 0, None),
             Self::Preview => row(Ui, -6.0, 0.0, 0.0, 1, 0.0, 0, None),
             Self::TerminalBed => row(Ui, -24.0, 0.0, 0.0, 1, 0.0, 0, Some((0.0, 0.0))),
+            Self::Music => row(Music, -16.0, 0.0, 0.0, 2, 0.0, 0, None),
         }
     }
 
@@ -377,7 +389,9 @@ mod tests {
                     spec.reference.get() > 0.0 && spec.max.get() > spec.reference.get(),
                     "{category:?} needs a reference inside its max"
                 ),
-                SoundBus::Ui => assert!(spec.max.get() == 0.0, "{category:?} is flat feedback"),
+                SoundBus::Ui | SoundBus::Music => {
+                    assert!(spec.max.get() == 0.0, "{category:?} is heard flat");
+                }
             }
             assert!(spec.max_voices > 0, "{category:?} must be able to sound");
         }

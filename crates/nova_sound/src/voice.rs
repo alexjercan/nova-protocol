@@ -5,7 +5,9 @@
 //! `the_engine_is_the_only_place_an_audio_player_is_built`, which reads every
 //! Rust source in the workspace. A category sound is a [`SoundVoice`] the
 //! engine spawns from a [`PlaySound`](super::PlaySound) or a
-//! [`SoundLoop`](super::SoundLoop).
+//! [`SoundLoop`](super::SoundLoop); a music track is a
+//! [`MusicVoice`](super::MusicVoice) the [`MusicDeck`](super::MusicDeck)
+//! spawns, and its player is built here too.
 //!
 //! What the engine owns, so no caller re-implements it: the file's loudness
 //! gain, the category level, the bus gain, the distance fade, the stereo
@@ -106,8 +108,9 @@ impl LoopRelease {
     }
 }
 
-/// Marks every engine voice. Required by [`SoundVoice`], so the passes can
-/// keep their pose reads off the voices they move.
+/// Marks every engine voice. Required by [`SoundVoice`] and
+/// [`MusicVoice`](super::MusicVoice), so the passes can keep their pose reads
+/// off the voices they move.
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct VoiceMarker;
 
@@ -228,10 +231,12 @@ fn place_sound(
 }
 
 /// The `AudioPlayer` bundle for one voice. THE constructor - see the module
-/// doc.
-fn voice_player(
+/// doc. A category loop plays in `Loop` and a one-shot in `Despawn`; a music
+/// track plays in `Once`, so its sink outlives the clip and tells the deck
+/// the track ended.
+pub(crate) fn voice_player(
     handle: &Handle<AudioSource>,
-    looping: bool,
+    mode: PlaybackMode,
     speed: f32,
     spatial: bool,
     gain: f32,
@@ -239,11 +244,7 @@ fn voice_player(
     (
         AudioPlayer(handle.clone()),
         PlaybackSettings {
-            mode: if looping {
-                PlaybackMode::Loop
-            } else {
-                PlaybackMode::Despawn
-            },
+            mode,
             // WITHOUT the master: bevy's `audio_output` multiplies
             // `GlobalVolume` in once at sink creation. Every later write goes
             // through `Mixer::master_gain`, which folds it back in by hand.
@@ -399,7 +400,11 @@ pub(super) fn start_sfx_voices(
         commands.entity(entity).try_insert((
             voice_player(
                 view.handle,
-                view.looping,
+                if view.looping {
+                    PlaybackMode::Loop
+                } else {
+                    PlaybackMode::Despawn
+                },
                 view.speed,
                 view.spatial,
                 placement.gain,

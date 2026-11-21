@@ -1159,6 +1159,9 @@ fn check_action(
                 Some(SoundActionFault::LoopCategory) => Some(format!(
                     "PlaySound category {category:?} is a loop; the action plays a one-shot"
                 )),
+                Some(SoundActionFault::MusicCategory) => Some(format!(
+                    "PlaySound category {category:?} is background music; the action plays a cue"
+                )),
                 Some(SoundActionFault::BusMismatch) if category.bus() == SoundBus::Ui => {
                     Some(format!(
                         "PlaySound category {category:?} is an interface sound; it plays at \

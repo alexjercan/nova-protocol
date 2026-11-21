@@ -10,8 +10,8 @@
 //! category's row in the sound table sets the level, so the action carries no
 //! gain. A [`SoundBus::Ui`] category plays at [`SoundAtConfig::Ui`], heard
 //! flat; a [`SoundBus::Effect`] category plays at [`SoundAtConfig::Body`], in
-//! the world at that body. The lint refuses any other pairing, and a loop
-//! category, so the load refuses them too.
+//! the world at that body. The lint refuses any other pairing, a loop
+//! category and the `Music` category, so the load refuses them too.
 
 use bevy::{audio::AudioSource, prelude::*};
 use nova_events::prelude::*;
@@ -53,6 +53,9 @@ pub struct PlaySoundActionConfig {
 pub enum SoundActionFault {
     /// A loop category in a one-shot action.
     LoopCategory,
+    /// The [`SoundBus::Music`] category: music is the music deck's, not a
+    /// cue.
+    MusicCategory,
     /// A [`SoundBus::Ui`] category at a body, or a [`SoundBus::Effect`]
     /// category at [`SoundAtConfig::Ui`].
     BusMismatch,
@@ -66,6 +69,7 @@ impl PlaySoundActionConfig {
             return Some(SoundActionFault::LoopCategory);
         }
         match (self.category.bus(), &self.at) {
+            (SoundBus::Music, _) => Some(SoundActionFault::MusicCategory),
             (SoundBus::Ui, SoundAtConfig::Ui) | (SoundBus::Effect, SoundAtConfig::Body(_)) => None,
             (SoundBus::Ui, SoundAtConfig::Body(_)) | (SoundBus::Effect, SoundAtConfig::Ui) => {
                 Some(SoundActionFault::BusMismatch)
