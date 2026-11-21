@@ -440,19 +440,137 @@ fn a_hit_cuts_to_combat_at_once_and_a_short_lull_keeps_its_song() {
     let lull = rig.run(14.0, |_| {});
     assert!(lull.is_empty(), "a lull plays on: {lull:?}");
 
+    let combat_song = hit[0].0.clone();
     let after = rig.run(2.0, |_| {});
     assert_eq!(rig.director.context(), MusicContextType::Cruise);
-    assert_eq!(
-        after,
-        vec![MusicCue::Stop {
-            fade: Duration::from_secs(5)
-        }],
-        "combat fades out over 5 s into a gap"
+    assert!(
+        after.is_empty(),
+        "the combat song plays on into the after-fight gap: {after:?}"
     );
+    assert_eq!(rig.director.current(), Some(&combat_song));
     // The fight ended about 1 s into the run, so up to 1 s of the gap is
     // spent.
-    let gap = rig.director.wait().expect("a gap after the fight");
-    assert!((9.0..=20.0).contains(&gap), "{gap}");
+    let pending = rig
+        .director
+        .pending()
+        .expect("a held switch after the fight");
+    assert_eq!(pending.held, MusicContextType::Combat);
+    assert!((9.0..=20.0).contains(&pending.due_secs), "{pending:?}");
+}
+
+fn docked(tick: &mut MusicTick<'_>) {
+    tick.facts.docked_at_station = true;
+}
+
+/// A rig in cruise with its first cruise song playing.
+fn cruising() -> (Rig, MusicSong) {
+    let mut rig = Rig::new();
+    let first = played(&rig.run(41.0, |_| {}));
+    assert_eq!(first.len(), 1, "one cruise song by 41 s");
+    (rig, first[0].0.clone())
+}
+
+#[test]
+fn a_context_change_with_a_gap_keeps_the_playing_song_until_the_gap_ends_then_crossfades() {
+    let (mut rig, cruise_song) = cruising();
+    let dock = rig.tick(docked);
+    assert_eq!(rig.director.context(), MusicContextType::Docked);
+    assert!(dock.is_empty(), "no fade-out at the change: {dock:?}");
+    assert_eq!(rig.director.current(), Some(&cruise_song));
+    let pending = rig.director.pending().expect("a held switch");
+    assert_eq!(pending.held, MusicContextType::Cruise);
+    assert!((10.0..=30.0).contains(&pending.due_secs), "{pending:?}");
+
+    let held = rig.run(pending.due_secs - 0.2, docked);
+    assert!(held.is_empty(), "the cruise song plays on: {held:?}");
+    assert_eq!(rig.director.current(), Some(&cruise_song));
+
+    let switch = rig.run(0.4, docked);
+    assert_eq!(switch.len(), 1, "{switch:?}");
+    let MusicCue::Play { song, fade } = &switch[0] else {
+        panic!("a crossfade, not {switch:?}");
+    };
+    assert!(
+        rig.tracks
+            .playlist(MusicContextType::Docked)
+            .any(|track| *song == MusicSong::Track(track.id.clone())),
+        "a docked song: {song:?}"
+    );
+    assert_eq!(*fade, Duration::from_secs(3), "the docked fade-in");
+    assert_eq!(rig.director.pending(), None);
+}
+
+#[test]
+fn a_song_that_ends_during_the_held_gap_leaves_silence_until_the_gap_ends() {
+    let (mut rig, _) = cruising();
+    rig.tick(docked);
+    let due = rig.director.pending().expect("a held switch").due_secs;
+    rig.run(5.0, docked);
+
+    let ended = rig.tick(|tick| {
+        docked(tick);
+        tick.deck = MusicDeckStatusType::Ended;
+    });
+    assert!(ended.is_empty(), "nothing starts early: {ended:?}");
+    assert_eq!(rig.director.current(), None);
+    assert_eq!(rig.director.pending(), None);
+    let wait = rig.director.wait().expect("the rest of the gap");
+    assert!(
+        (wait - (due - 5.1)).abs() < 0.05,
+        "the gap keeps its end: {wait} of {due}"
+    );
+
+    let silence = rig.run(wait - 0.2, |tick| {
+        docked(tick);
+        tick.deck = MusicDeckStatusType::Ended;
+    });
+    assert!(silence.is_empty(), "{silence:?}");
+    let next = played(&rig.run(0.4, |tick| {
+        docked(tick);
+        tick.deck = MusicDeckStatusType::Ended;
+    }));
+    assert!(
+        matches!(&next[..], [(MusicSong::Track(_), fade)] if *fade == Duration::from_secs(3)),
+        "the docked song after the gap: {next:?}"
+    );
+}
+
+#[test]
+fn combat_still_cuts_in_at_once() {
+    let (mut rig, _) = cruising();
+    rig.tick(docked);
+    assert!(rig.director.pending().is_some());
+    let hit = played(&rig.tick(|tick| {
+        docked(tick);
+        tick.hit = true;
+    }));
+    assert_eq!(rig.director.context(), MusicContextType::Combat);
+    assert!(
+        matches!(&hit[..], [(MusicSong::Track(id), fade)]
+            if id.as_str().starts_with("combat") && *fade == Duration::from_millis(1500)),
+        "into combat over 1.5 s during the held gap: {hit:?}"
+    );
+    assert_eq!(rig.director.pending(), None);
+}
+
+#[test]
+fn changing_back_during_the_gap_keeps_the_song() {
+    let (mut rig, cruise_song) = cruising();
+    rig.run(5.0, docked);
+    assert!(rig.director.pending().is_some());
+
+    let undock = rig.tick(|_| {});
+    assert!(undock.is_empty(), "{undock:?}");
+    assert_eq!(rig.director.context(), MusicContextType::Cruise);
+    assert_eq!(rig.director.pending(), None);
+    assert_eq!(rig.director.wait(), None);
+    assert_eq!(rig.director.current(), Some(&cruise_song));
+
+    let later = rig.run(60.0, |_| {});
+    assert!(later.is_empty(), "the cruise song plays on: {later:?}");
+    let ended = rig.tick(|tick| tick.deck = MusicDeckStatusType::Ended);
+    assert!(played(&ended).is_empty(), "it ends into the cruise gap");
+    assert!(rig.director.wait().is_some());
 }
 
 #[test]

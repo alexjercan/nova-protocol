@@ -223,8 +223,52 @@ struct LeavingSong {
     secs: f32,
 }
 
+/// A switch the director holds back for a gap: the song of `held` plays on
+/// with no fade, and when the gap ends the next song of the director's
+/// situation crossfades in over that situation's fade-in.
+///
+/// The owner asked for this (2026-11-21): where a change of situation would
+/// leave a pause with no music, the song that plays fills the pause.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PendingSwitch {
+    /// The situation whose song plays on through the gap.
+    pub held: MusicContextType,
+    /// The real seconds left until the switch.
+    pub due_secs: f32,
+}
+
+/// The gap a change from `from` to `to` waits before `to`'s first song, in
+/// seconds, or `None` when `to` starts its song at once or plays none.
+///
+/// After a fight, cruise waits [`AFTER_FIGHT_GAP_SECS`]. After a scenario
+/// song, cruise waits its normal gap between songs. Otherwise cruise and
+/// docked wait their entry gap.
+pub fn switch_gap(from: MusicContextType, to: MusicContextType) -> Option<RangeInclusive<f32>> {
+    match (from, to) {
+        (MusicContextType::Threat | MusicContextType::Combat, MusicContextType::Cruise) => {
+            Some(AFTER_FIGHT_GAP_SECS)
+        }
+        (MusicContextType::Scenario, MusicContextType::Cruise) => to.gap_secs(),
+        (_, MusicContextType::Cruise | MusicContextType::Docked) => to.entry_gap_secs(),
+        _ => None,
+    }
+}
+
+/// Whether a song of `from` plays on through the gap of a change, in place
+/// of a fade-out. A flight song does. The menu theme and a scenario's song
+/// end with what they belong to, so they fade out at once.
+pub const fn song_plays_on_through_a_gap(from: MusicContextType) -> bool {
+    matches!(
+        from,
+        MusicContextType::Cruise
+            | MusicContextType::Threat
+            | MusicContextType::Combat
+            | MusicContextType::Docked
+    )
+}
+
 /// The director's state: the situation, the mood, what plays, the silence it
-/// waits out, and one playlist per situation.
+/// waits out or the switch it holds back, and one playlist per situation.
 #[derive(Resource, Debug)]
 pub struct MusicDirector {
     context: MusicContextType,
@@ -232,6 +276,7 @@ pub struct MusicDirector {
     current: Option<MusicSong>,
     leaving: Option<LeavingSong>,
     wait: Option<f32>,
+    pending: Option<PendingSwitch>,
     playlists: HashMap<MusicContextType, MusicPlaylist>,
     ducked: bool,
     stop_fade: Option<Duration>,
@@ -246,6 +291,7 @@ impl Default for MusicDirector {
             current: None,
             leaving: None,
             wait: None,
+            pending: None,
             playlists: HashMap::new(),
             ducked: false,
             stop_fade: None,
@@ -269,15 +315,22 @@ impl MusicDirector {
         self.mood.mood()
     }
 
-    /// The song the director has the deck play, if any.
+    /// The song the director has the deck play, if any. While a switch is
+    /// pending, the song of the situation it left.
     pub fn current(&self) -> Option<&MusicSong> {
         self.current.as_ref()
     }
 
     /// The silence left before the next song, in real seconds, if the
-    /// director waits.
+    /// director waits with no song.
     pub fn wait(&self) -> Option<f32> {
         self.wait
+    }
+
+    /// The switch the director holds back while the last situation's song
+    /// plays on, if any.
+    pub fn pending(&self) -> Option<PendingSwitch> {
+        self.pending
     }
 
     /// Run one frame: read `scenario`'s beats, step the mood, run the rule,
@@ -312,6 +365,7 @@ impl MusicDirector {
                 if scenario.song.take().is_some() {
                     self.stop_fade = Some(fade);
                 } else if self.current.take().is_some() {
+                    self.pending = None;
                     cues.push(MusicCue::Stop { fade });
                     self.wait = self.context.gap_secs().map(|range| draw_gap(range, rng));
                 }
@@ -374,6 +428,25 @@ impl MusicDirector {
         cues: &mut Vec<MusicCue>,
     ) {
         let stop_fade = self.stop_fade.take();
+        // A song held through a gap is a song of the situation it came from:
+        // its fades, and the next gap, follow that situation.
+        let from = self.pending.take().map_or(from, |pending| pending.held);
+        if to == from {
+            info!("nova music: back to {to:?} before the gap ended; its song plays on");
+            return;
+        }
+        if stop_fade.is_none() && self.current.is_some() {
+            if let Some(gap) = switch_gap(from, to).filter(|_| song_plays_on_through_a_gap(from)) {
+                let due_secs = draw_gap(gap, rng);
+                info!("nova music: the {from:?} song plays on {due_secs:.1} s into {to:?}");
+                self.wait = None;
+                self.pending = Some(PendingSwitch {
+                    held: from,
+                    due_secs,
+                });
+                return;
+            }
+        }
         let fade_out = stop_fade.unwrap_or_else(|| secs(from.fade_out_secs()));
         let crossfade = stop_fade.unwrap_or_else(|| secs(crossfade_secs(from, to)));
         self.wait = None;
@@ -420,26 +493,19 @@ impl MusicDirector {
             MusicContextType::Docked => match (returning, &leaving) {
                 (Some(song), _) => self.play(song, crossfade, cues),
                 (None, Some(_)) => self.start(to, crossfade, tick, rng, cues),
-                (None, None) => self.wait = to.entry_gap_secs().map(|r| draw_gap(r, rng)),
+                (None, None) => self.wait = switch_gap(from, to).map(|r| draw_gap(r, rng)),
             },
             MusicContextType::Cruise => {
                 if leaving.is_some() {
                     cues.push(MusicCue::Stop { fade: fade_out });
                 }
-                let gap = match from {
-                    MusicContextType::Threat | MusicContextType::Combat => {
-                        Some(AFTER_FIGHT_GAP_SECS)
-                    }
-                    MusicContextType::Scenario => to.gap_secs(),
-                    _ => to.entry_gap_secs(),
-                };
-                self.wait = gap.map(|range| draw_gap(range, rng));
+                self.wait = switch_gap(from, to).map(|range| draw_gap(range, rng));
             }
         }
     }
 
-    /// Stay in the situation: wait out a silence, or follow a song that
-    /// ended.
+    /// Stay in the situation: play out a held switch, wait out a silence,
+    /// or follow a song that ended.
     fn carry_on(
         &mut self,
         tick: &MusicTick<'_>,
@@ -448,6 +514,22 @@ impl MusicDirector {
         cues: &mut Vec<MusicCue>,
     ) {
         let context = self.context;
+        if let Some(pending) = &mut self.pending {
+            if tick.deck == MusicDeckStatusType::Ended {
+                // The held song ended by itself: the rest of the gap is
+                // silent, and the next song does not start early.
+                self.wait = Some(pending.due_secs);
+                self.pending = None;
+                self.current = None;
+            } else {
+                pending.due_secs -= tick.real_dt;
+                if pending.due_secs <= 0.0 {
+                    self.pending = None;
+                    self.start(context, secs(context.fade_in_secs()), tick, rng, cues);
+                }
+                return;
+            }
+        }
         if let Some(wait) = &mut self.wait {
             *wait -= tick.real_dt;
             if *wait <= 0.0 {

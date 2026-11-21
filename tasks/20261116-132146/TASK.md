@@ -50,6 +50,18 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
 - Track registry is content, generated from a nova_authoring builder;
   every track carries a required licence record.
 - Devlog loop capture leaves music out.
+- 2026-11-21, owner on switching: "I guess the only feedback would be to not
+  switch away from a song instantly when a state changes, but like in the
+  sense of -> if there would be a pause with no music that's when you let me
+  previous song keep playing and when that pause would stop you switch to the
+  new one". Rule: a change to Cruise or Docked does not fade the playing
+  flight song out. It plays on for the gap (cruise entry 20-40 s, docked
+  entry 10-30 s, after a fight 10-20 s), then crossfades with the new
+  situation's fade-in. A song that ends in the gap leaves the rest silent.
+  A change during the gap restarts the gap for the newest situation; a change
+  back to the song's situation cancels the switch. Threat and Combat still
+  switch at once. Silent, the menu theme, scenario songs, `StopMusic` and the
+  pause duck keep their behaviour.
 
 ## Delivery
 1. Music bus, volume slider and settings field.

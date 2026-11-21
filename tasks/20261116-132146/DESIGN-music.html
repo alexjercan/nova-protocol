@@ -268,10 +268,10 @@ pre { margin: 0; padding: var(--s3) var(--s4); font: 13px/1.5 var(--mono); color
         <thead><tr><th>Situation</th><th>Starts when</th><th>Songs</th><th>Fades</th><th>Between songs</th><th class="num">Level</th></tr></thead>
         <tbody>
           <tr><td class="nowrap"><span class="use ctx-menu">Menu</span></td><td>The main menu shows.</td><td>Exploration Theme</td><td>In 3 s. Out 2 s when you start or load a game.</td><td>Loops with no gap.</td><td class="num">-16 dB</td></tr>
-          <tr><td class="nowrap"><span class="use ctx-cruise">Cruise</span></td><td>You fly, no fight, not docked at a station.</td><td>Stellar Cruise, Little Blue Speck, Uncharted</td><td>In 4 s. The first song waits 20-40 s after the world loads or after you undock.</td><td>The song plays to its end. Then 30-120 s of silence, random. Never the same song twice in a row.</td><td class="num">-16 dB</td></tr>
+          <tr><td class="nowrap"><span class="use ctx-cruise">Cruise</span></td><td>You fly, no fight, not docked at a station.</td><td>Stellar Cruise, Little Blue Speck, Uncharted</td><td>In 4 s. The first song waits 20-40 s after the world loads or after you undock. After an undock or a fight, the song that plays goes on through the wait, then crossfades.</td><td>The song plays to its end. Then 30-120 s of silence, random. Never the same song twice in a row.</td><td class="num">-16 dB</td></tr>
           <tr><td class="nowrap"><span class="use ctx-threat">Enemies near</span></td><td>A hostile ship holds its lock on you for 2 s (<code>CombatLock</code> on your ship, the same test as the lock alarm), or a hostile AI is engaging you (<code>AITarget</code> is you and <code>engages()</code>).</td><td>Unseen, Unknown</td><td>Crossfade 3 s.</td><td>No gap. The other threat song follows.</td><td class="num">-16 dB</td></tr>
-          <tr><td class="nowrap"><span class="use ctx-combat">Combat</span></td><td>A hostile hits your ship, or your shot hits a hostile (<code>HealthApplyDamage</code>, owner traced by <code>ProjectileOwner</code>). At once.</td><td>Intense Electronic Action, The Hunter</td><td>Crossfade 1.5 s in. Out 5 s.</td><td>No gap.</td><td class="num">-16 dB</td></tr>
-          <tr><td class="nowrap"><span class="use ctx-docked">Docked</span></td><td>You dock at a station. Docked to a ship is still cruise.</td><td>Ambient Soundtrack, Hidden Nebula</td><td>Crossfade 3 s on dock. Out 4 s on undock.</td><td>10-30 s of silence.</td><td class="num">-16 dB</td></tr>
+          <tr><td class="nowrap"><span class="use ctx-combat">Combat</span></td><td>A hostile hits your ship, or your shot hits a hostile (<code>HealthApplyDamage</code>, owner traced by <code>ProjectileOwner</code>). At once.</td><td>Intense Electronic Action, The Hunter</td><td>Crossfade 1.5 s in. To enemies near, crossfade 5 s. To cruise, the song goes on for 10-20 s, then crossfades.</td><td>No gap.</td><td class="num">-16 dB</td></tr>
+          <tr><td class="nowrap"><span class="use ctx-docked">Docked</span></td><td>You dock at a station. Docked to a ship is still cruise.</td><td>Ambient Soundtrack, Hidden Nebula</td><td>On dock, the song that plays goes on for 10-30 s, then crossfades 3 s. On undock, the docked song goes on for 20-40 s, then crossfades.</td><td>10-30 s of silence.</td><td class="num">-16 dB</td></tr>
           <tr><td class="nowrap">Pause</td><td>Esc menu, command console, debug (<code>PauseStates</code> <code>Paused</code>, <code>Commands</code>, <code>Debug</code>).</td><td>The same song</td><td>Down 8 dB in 0.5 s. Back up in 1 s.</td><td>The song keeps its place.</td><td class="num">-24 dB</td></tr>
           <tr><td class="nowrap">Ship computer</td><td>Tab opens trade, jobs and the ship (<code>PauseStates::Interface</code>).</td><td>The same song</td><td>No change.</td><td>Trade and jobs live here, so a long visit keeps the music.</td><td class="num">-16 dB</td></tr>
           <tr><td class="nowrap">Editor</td><td>Editor and Mod Hub.</td><td>None</td><td>Out 2 s.</td><td>An editor test flight uses the flight rules.</td><td class="num">-</td></tr>
@@ -326,7 +326,8 @@ pre { margin: 0; padding: var(--s3) var(--s4); font: 13px/1.5 var(--mono); color
         </div>
         <ul class="plain">
           <li>A song that already plays is not restarted. If the mood goes back while that song still fades out, the song comes back up.</li>
-          <li>After combat, the cut cruise song does not resume. The next cruise song starts after 10-20 s of quiet.</li>
+          <li>After combat, the cut cruise song does not resume. The combat song plays on for 10-20 s, then a new cruise song crossfades in over 4 s.</li>
+          <li>Where a change would leave a pause with no music (to cruise or docked), the song that plays fills the pause, then crossfades to the new song. If it ends first, the rest of the pause is silent. If the situation changes back during the pause, the song plays on.</li>
           <li>A hit is a hit on your ship or by your ship. A hostile that only flies near you is not a threat.</li>
         </ul>
     </div>
@@ -549,18 +550,18 @@ pre { margin: 0; padding: var(--s3) var(--s4); font: 13px/1.5 var(--mono); color
       lanes: [{ name: "Game", spans: [[0, 8, "Loading"], [8, 140, "Main menu"], [140, 155, "Load"], [155, 225, "Docked"], [225, 930, "Flight"]] }],
       bands: [
         { slug: "exploration-theme", s: 8, e: 142, fi: 3, fo: 2 },
-        { slug: "hidden-nebula", s: 165, e: 229, fi: 4, fo: 4 },
+        { slug: "hidden-nebula", s: 165, e: 259, fi: 4, fo: 4 },
         { slug: "stellar-cruise", s: 255, e: 596, fi: 4, fo: 2 },
         { slug: "little-blue-speck", s: 671, e: 913, fi: 4, fo: 2 }
       ],
-      gaps: [[229, 255, "26 s"], [596, 671, "gap 75 s"]],
+      gaps: [[596, 671, "gap 75 s"]],
       marks: [
         [0, "Game starts. Loading screen: silence."],
         [8, "Main menu shows. The theme fades in over 3 s and loops."],
         [140, "You press New Game. The theme fades out over 2 s. Loading: silence."],
         [155, "World loaded. You start docked at a station. After 10 s a docked song starts."],
-        [225, "You undock. The docked song fades out over 4 s."],
-        [255, "After a 26 s gap the first cruise song fades in."],
+        [225, "You undock. The docked song plays on through a 30 s wait."],
+        [255, "The wait ends. Crossfade 4 s to the first cruise song."],
         [596, "Stellar Cruise ends on its own. 75 s of silence."],
         [671, "Little Blue Speck starts. It is not the song that played last."]
       ]
@@ -574,10 +575,10 @@ pre { margin: 0; padding: var(--s3) var(--s4); font: 13px/1.5 var(--mono); color
       bands: [
         { slug: "uncharted", s: -10, e: 75, fi: 0, fo: 3 },
         { slug: "unseen", s: 72, e: 96.5, fi: 3, fo: 1.5 },
-        { slug: "intense-action", s: 95, e: 188, fi: 1.5, fo: 5 },
+        { slug: "intense-action", s: 95, e: 207, fi: 1.5, fo: 4 },
         { slug: "little-blue-speck", s: 203, e: 310, fi: 4, fo: 0 }
       ],
-      gaps: [[188, 203, "15 s"]],
+      gaps: [],
       marks: [
         [0, "Cruising. Uncharted plays."],
         [40, "A raider shows on radar at 8 km. No lock: no change."],
@@ -586,8 +587,8 @@ pre { margin: 0; padding: var(--s3) var(--s4); font: 13px/1.5 var(--mono); color
         [95, "First hit on your hull: combat at once. Crossfade 1.5 s."],
         [118, "The lock drops for 4 s. Combat holds."],
         [168, "Raider destroyed. That is the last hit."],
-        [183, "15 s with no hit and no lock. The combat song fades out over 5 s."],
-        [203, "After 15 s of quiet, a new cruise song. Uncharted was cut, so it is not picked."]
+        [183, "15 s with no hit and no lock: cruise. The combat song plays on through a 20 s wait."],
+        [203, "The wait ends. Crossfade 4 s to a new cruise song. Uncharted was cut, so it is not picked."]
       ]
     },
     {
@@ -598,18 +599,21 @@ pre { margin: 0; padding: var(--s3) var(--s4); font: 13px/1.5 var(--mono); color
         { name: "Pause", spans: [[140, 170, "Esc"]] }
       ],
       bands: [
-        { slug: "stellar-cruise", s: -10, e: 33, fi: 0, fo: 3 },
-        { slug: "ambient-soundtrack", s: 30, e: 204, fi: 3, fo: 4, duck: [{ s: 140, e: 170, db: -8, fi: 0.5, fo: 1 }] }
+        { slug: "stellar-cruise", s: -10, e: 48, fi: 0, fo: 3 },
+        { slug: "ambient-soundtrack", s: 45, e: 234, fi: 3, fo: 4, duck: [{ s: 140, e: 170, db: -8, fi: 0.5, fo: 1 }] },
+        { slug: "little-blue-speck", s: 230, e: 270, fi: 4, fo: 0 }
       ],
-      gaps: [[204, 260, "cruise gap 30-120 s"]],
+      gaps: [],
       marks: [
         [0, "Cruising. Stellar Cruise plays."],
-        [30, "You dock at a station. Crossfade 3 s to Ambient Soundtrack."],
+        [30, "You dock at a station. Stellar Cruise plays on through a 15 s wait."],
+        [45, "The wait ends. Crossfade 3 s to Ambient Soundtrack."],
         [60, "Tab: the ship computer, to trade. No change."],
         [120, "You close the ship computer."],
         [140, "Esc: pause. The music goes down 8 dB in 0.5 s. The song keeps its place."],
         [170, "You resume. The music comes back up in 1 s."],
-        [200, "You undock. The docked song fades out over 4 s. The cruise gap starts."]
+        [200, "You undock. The docked song plays on through a 30 s wait."],
+        [230, "The wait ends. Crossfade 4 s to Little Blue Speck."]
       ]
     },
     {

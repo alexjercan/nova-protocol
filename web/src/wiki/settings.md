@@ -53,15 +53,21 @@ plays the songs of the first one that is true.
 | Change | Fade |
 | --- | --- |
 | Into combat | 1.5 s |
-| Out of combat | 5 s |
+| Combat to enemies near | 5 s |
 | Between other situations | 3-4 s |
 | Pause menu, NOVA COMMANDS, debug window | the music drops 8 dB |
 | Tab screens | no change |
 
 Between two cruise songs there is 30-120 s of silence, and 10-30 s between two
-docked songs. After a fight, the next cruise song comes after 10-20 s. In a
-fight the next song starts at once. A song never plays twice in a row unless it
-is the only one.
+docked songs. In a fight the next song starts at once. A song never plays twice
+in a row unless it is the only one.
+
+When the situation changes to cruise or docked, the song that plays does not
+stop. It plays on for a short wait, then the new situation's song fades in over
+it: 10-30 s after you dock, 20-40 s after you undock, and 10-20 s after a fight.
+If the old song ends before the wait does, the rest of the wait is silent. If
+the situation changes back during the wait, the song plays on. A fight, enemies
+near, the menu and a mod song change the song at once.
 
 <details class="explain">
 <summary>Show explanation</summary>
