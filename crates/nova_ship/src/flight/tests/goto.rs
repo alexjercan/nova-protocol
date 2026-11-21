@@ -883,3 +883,82 @@ fn a_leg_engaged_before_the_hull_has_mass_is_not_already_complete() {
         "and it must still be flying once the mass lands"
     );
 }
+
+#[test]
+fn a_goto_at_a_target_orbiting_a_planet_arrives_within_the_standoff() {
+    // The target coasts on a circular orbit 400 u from a planet's centre at
+    // 12.2 u/s, falling toward it at 0.37 u/s^2. The ship starts outside the
+    // planet's SOI at rest. Arriving means resting in the target's frame:
+    // inside the standoff, with the target's velocity.
+    let mut app = orbit_app();
+    let fixed_step = app.world().resource::<Time<Fixed>>().timestep();
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(fixed_step));
+    let mu = 60_000.0;
+    spawn_planet(&mut app, 90.0, mu);
+    let (ship, _, _) = spawn_ship(&mut app);
+    app.world_mut().entity_mut(ship).insert((
+        PlayerSpaceshipMarker,
+        Transform::from_xyz(-300.0, 0.0, -450.0),
+    ));
+    let (target, _, _) = spawn_ship(&mut app);
+    let orbit_radius = 400.0;
+    app.world_mut()
+        .entity_mut(target)
+        .insert(Transform::from_xyz(0.0, 0.0, -orbit_radius));
+    settle(&mut app);
+    let orbit_speed = (mu / orbit_radius).sqrt();
+    app.world_mut()
+        .entity_mut(target)
+        .insert(LinearVelocity(Vec3::X * orbit_speed));
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Autopilot::engage(AutopilotAction::Goto { target }));
+
+    let com_of = |app: &App, entity: Entity| {
+        let rotation = app.world().get::<Rotation>(entity).unwrap();
+        let com = app.world().get::<ComputedCenterOfMass>(entity).unwrap().0;
+        position_of(app, entity) + rotation.mul_vec3(com)
+    };
+    let mut released_at = None;
+    for tick in 1..=64 * 240 {
+        app.update();
+        if app.world().get::<Autopilot>(ship).is_none() {
+            released_at = Some(tick);
+            break;
+        }
+    }
+    let gap = com_of(&app, ship).distance(com_of(&app, target))
+        - app.world().get::<HullRadius>(ship).map_or(0.0, |r| **r)
+        - app.world().get::<HullRadius>(target).map_or(0.0, |r| **r);
+    let relative_speed = (velocity_of(&app, ship) - velocity_of(&app, target)).length();
+    let target_radius = position_of(&app, target).length();
+    println!(
+        "released at {released_at:?}; gap {gap} u, relative speed {relative_speed} u/s, target \
+         {target_radius} u from the planet"
+    );
+    let released_at = released_at.expect("the GOTO must arrive at the orbiting target");
+    assert!(
+        (orbit_radius - target_radius).abs() < 10.0,
+        "the target must still be on its orbit"
+    );
+    assert!(
+        released_at as f32 / 64.0 > 10.0,
+        "the leg must have flown, not ended at engage"
+    );
+    let standoff = app.world().resource::<FlightSettings>().arrival_standoff;
+    assert!(
+        gap <= standoff + 1.0,
+        "the ship must rest inside the {standoff} u standoff, gap {gap} u"
+    );
+    assert!(
+        relative_speed < 0.5,
+        "the ship must rest in the target's frame, relative speed {relative_speed} u/s"
+    );
+    assert_eq!(
+        app.world().get::<PlayerAutopilotCompleted>(ship),
+        Some(&PlayerAutopilotCompleted {
+            action: AutopilotAction::Goto { target },
+        }),
+        "the arrival reports its completion"
+    );
+}

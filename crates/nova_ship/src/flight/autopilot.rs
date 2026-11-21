@@ -157,6 +157,15 @@ pub(super) struct ArrivalTarget {
     pub(super) floor: f32,
     /// Where [`Self::goal`] sits on the target.
     pub(super) anchor: ArrivalAnchorType,
+    /// The target's centre-of-mass velocity, world space; zero for a mark.
+    /// A GOTO flies in this frame and arrives at rest in it, so a moving
+    /// target is matched, not left behind.
+    pub(super) velocity: Vec3,
+    /// The wells pull the target as they pull the ship: a dynamic,
+    /// gravity-affected body that is not a well itself. Its frame falls
+    /// with the pull at [`Self::goal`], so the leg plans against the pull
+    /// difference, not the whole pull.
+    pub(super) falls: bool,
 }
 
 /// The point of a target an [`ArrivalTarget::goal`] is measured from.
@@ -540,6 +549,10 @@ pub(super) type ArrivalTargetQuery<'w, 's> = Query<
         &'static GlobalTransform,
         Option<&'static BodyRadius>,
         Option<&'static HullRadius>,
+        Option<&'static LinearVelocity>,
+        Option<&'static RigidBody>,
+        Has<GravityAffected>,
+        Has<GravityWell>,
     ),
 >;
 
@@ -642,7 +655,7 @@ pub(super) fn well_samples(
                 q_target
                     .get(entity)
                     .ok()
-                    .and_then(|(_, _, _, _, r, _)| r.map(|r| **r))
+                    .and_then(|(_, _, _, _, r, ..)| r.map(|r| **r))
                     .unwrap_or(0.0),
             );
             WellSample {
@@ -754,6 +767,10 @@ pub(super) fn arrival_target(
                 target_transform,
                 body_radius,
                 target_hull,
+                target_velocity,
+                rigid_body,
+                gravity_affected,
+                is_well,
             )| {
                 // The LARGEST size the target publishes, AND THE POINT IT WAS
                 // MEASURED FROM. The two travel together or the leg parks
@@ -816,6 +833,12 @@ pub(super) fn arrival_target(
                     radius,
                     floor,
                     anchor,
+                    velocity: target_velocity.map_or(Vec3::ZERO, |v| v.0),
+                    // The bodies `gravity_well_system` pulls, as
+                    // `BallisticTarget::feels_wells` reads them.
+                    falls: rigid_body.is_some_and(RigidBody::is_dynamic)
+                        && gravity_affected
+                        && !is_well,
                 }
             },
         ),
@@ -827,6 +850,8 @@ pub(super) fn arrival_target(
             radius: 0.0,
             floor: 0.0,
             anchor: ArrivalAnchorType::Origin,
+            velocity: Vec3::ZERO,
+            falls: false,
         }),
         _ => None,
     }
@@ -1630,7 +1655,19 @@ pub(super) fn autopilot_step(
     let cruise_cap = env.cruise_cap;
     let rotation = Rotation(body.rotation);
     let com_world = body.center_of_mass;
-    let velocity = body.linear_velocity;
+    // A GOTO flies in its target's frame: every plan below reads the
+    // velocity relative to the target and arrives at rest in that frame, so
+    // the ship matches a moving target instead of chasing where it was. A
+    // target that stands still is the world frame, and every other action
+    // flies in the world frame. `falling_frame` is where a target the wells
+    // pull feels that pull; see `well_pull`.
+    let (frame_velocity, falling_frame) = match (autopilot.action, target) {
+        (AutopilotAction::Goto { .. }, Some(target)) => {
+            (target.velocity, target.falls.then_some(target.goal))
+        }
+        _ => (Vec3::ZERO, None),
+    };
+    let velocity = body.linear_velocity - frame_velocity;
     let mass = body.mass;
     let mover_radius = body.mover_radius;
     let has_telemetry = previous.is_some();
@@ -1793,21 +1830,29 @@ pub(super) fn autopilot_step(
     // (they are few) instead of the ship's DominantWell matters: the flip
     // is usually planned from OUTSIDE the SOI, where the ship has no
     // DominantWell yet but the goal is already deep in one.
+    //
+    // In a falling target's frame each well's pull is the difference
+    // between its pull at the point and at the target: the two fall
+    // together, so only the tidal part moves the ship relative to it.
+    let well_pull = |sample: &WellSample, at: Vec3| -> Vec3 {
+        let well = &sample.well;
+        let offset = sample.position - at;
+        offset.normalize_or_zero()
+            * well_accel(
+                well.mu,
+                offset.length(),
+                well.body_radius,
+                well.soi_radius,
+                gravity_settings.fade_fraction,
+                gravity_settings.surface_margin,
+            )
+    };
     let gravity_along = |rest_point: Vec3, closing_dir: Vec3| -> f32 {
         env.wells
             .iter()
             .map(|sample| {
-                let well = &sample.well;
-                let offset = sample.position - rest_point;
-                let pull = well_accel(
-                    well.mu,
-                    offset.length(),
-                    well.body_radius,
-                    well.soi_radius,
-                    gravity_settings.fade_fraction,
-                    gravity_settings.surface_margin,
-                );
-                (offset.normalize_or_zero() * pull)
+                let frame_pull = falling_frame.map_or(Vec3::ZERO, |at| well_pull(sample, at));
+                (well_pull(sample, rest_point) - frame_pull)
                     .dot(closing_dir)
                     .max(0.0)
             })
@@ -1963,13 +2008,19 @@ pub(super) fn autopilot_step(
     // the pull both bodies share, only the difference across the gap; gated
     // on the whole pull, a hull could never trim on its RCS at an orbiting
     // station.
-    let local_gravity_accel = match (autopilot.action, env.dock) {
-        (AutopilotAction::DockApproach { .. }, Some(dock)) => relative_gravity_accel(
+    //
+    // A GOTO at a target the wells pull flies in that falling frame the same
+    // way.
+    let local_gravity_accel = match (autopilot.action, env.dock, falling_frame) {
+        (AutopilotAction::DockApproach { .. }, Some(dock), _) => relative_gravity_accel(
             env.wells,
             com_world,
             dock.station_bubble.0,
             gravity_settings,
         ),
+        (_, _, Some(frame)) => {
+            relative_gravity_accel(env.wells, com_world, frame, gravity_settings)
+        }
         _ => local_gravity_accel(env.wells, com_world, gravity_settings),
     };
     let desired = match autopilot.action {

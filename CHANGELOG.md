@@ -113,6 +113,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Fixes
 
+- A GOTO at a moving ship now arrives beside it at its speed. Before, a ship orbiting a planet was trailed 550 to 800 m back and never reached, so the GOTO never ended.
 - A neutralized player ship that is repaired is back in the fight: enemies target it again. Before, it stayed neutralized and was never targeted again. AI ships stay neutralized.
 - A section destroyed in the same frame its ship's section graph was built no longer stops the game with an "Entity despawned" command error.
 - A job you drop, and a job whose board slot renews, now takes its hauler, raiders, caller or wreck out of a sector you have left too. Before, they came back with no job when you returned.

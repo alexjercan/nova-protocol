@@ -17,11 +17,6 @@
 //! still is checked by eye only. One fixture: it does not prove every moving
 //! target.
 //!
-//! FIXME: this fixture fails at "wait for the predicted curve". The live GOTO
-//! trails the orbiting hauler and never arrives, so the prediction reaches
-//! `PREDICTION_CAP_SECONDS` and shows no path. Remove this note when the GOTO
-//! arrival closes on a target that falls in a well.
-//!
 //! ```text
 //! NOVA_CAPTURE_DIR=/tmp/goto-moving-target NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
 //!   cargo run --example screenshot_goto_moving_target --features debug

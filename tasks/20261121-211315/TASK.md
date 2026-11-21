@@ -59,8 +59,15 @@ Paths and lines are at HEAD a82db744d, before the change.
 - Found after the change: a GOTO at a target on a circular orbit of a well
   never arrives live. The ship trails 55 to 80 u back for 937 s
   (`~/Pictures/nova-goto-path/orbiting-target-goto-experiment.log`), so the
-  run reaches the cap and no path shows. `screenshot_goto_moving_target`
-  fails on it. Marked `FIXME` at `PREDICTION_CAP_SECONDS`.
+  run reaches the cap and no path shows. Cause: GOTO aimed to rest in the
+  world frame. Fixed: a GOTO now flies in its target's frame (relative
+  velocity, tidal pull for a falling target), so it arrives at the
+  target's velocity. Proof: `a_goto_at_a_target_orbiting_a_planet_*` in
+  `flight/tests/goto.rs` and `flight/tests/prediction.rs`.
+- Static leg end: the flown ship passes the beacon by 83 u in x and turns
+  back to stop 67.5 u off its centre (`loop_predicted_path`, full leg). The
+  prediction matches the flown track within 0.8 u, so the hook is the
+  autopilot's flight, not the line.
 
 ## Delivery
 1. The prediction runs to arrival, not to a fixed horizon, within a

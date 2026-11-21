@@ -981,6 +981,98 @@ fn a_goto_to_a_coasting_target_is_predicted_along_the_target_flight() {
 }
 
 #[test]
+fn a_goto_at_a_target_orbiting_a_planet_is_predicted_to_its_arrival() {
+    // The target coasts on a circular orbit 400 u from a planet's centre at
+    // 12.2 u/s. The leg flies one fixed tick per update to its arrival, and
+    // every published prediction is laid over the live centre of mass at
+    // every fixed tick it spans.
+    let mut app = orbit_app();
+    let fixed_step = app.world().resource::<Time<Fixed>>().timestep();
+    let dt = fixed_step.as_secs_f32();
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(fixed_step));
+    app.add_systems(
+        FixedPostUpdate,
+        predict_flight_path.after(PhysicsSystems::Writeback),
+    );
+    let mu = 60_000.0;
+    spawn_planet(&mut app, 90.0, mu);
+    let (ship, _, _) = spawn_ship(&mut app);
+    app.world_mut().entity_mut(ship).insert((
+        PlayerSpaceshipMarker,
+        Transform::from_xyz(-300.0, 0.0, -450.0),
+    ));
+    let (target, _, _) = spawn_ship(&mut app);
+    let orbit_radius = 400.0;
+    app.world_mut()
+        .entity_mut(target)
+        .insert(Transform::from_xyz(0.0, 0.0, -orbit_radius));
+    settle(&mut app);
+    app.world_mut()
+        .entity_mut(target)
+        .insert(LinearVelocity(Vec3::X * (mu / orbit_radius).sqrt()));
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Autopilot::engage(AutopilotAction::Goto { target }));
+
+    let com_of = |app: &App| {
+        let position = app.world().get::<Position>(ship).unwrap().0;
+        let rotation = app.world().get::<Rotation>(ship).unwrap();
+        let com = app.world().get::<ComputedCenterOfMass>(ship).unwrap().0;
+        rotation.mul_vec3(com) + position
+    };
+    // Index u is the state after update u; index 0 is the engaged state.
+    let mut coms = vec![com_of(&app)];
+    let mut elapsed = vec![app.world().resource::<Time<Fixed>>().elapsed()];
+    let mut predictions: Vec<FlightPrediction> = Vec::new();
+    let mut released_at = None;
+    for update in 1..=64 * 240 {
+        app.update();
+        coms.push(com_of(&app));
+        elapsed.push(app.world().resource::<Time<Fixed>>().elapsed());
+        if let Some(prediction) = app.world().get::<FlightPrediction>(ship) {
+            if predictions
+                .last()
+                .is_none_or(|last| last.seed_time != prediction.seed_time)
+            {
+                predictions.push(prediction.clone());
+            }
+        }
+        if app.world().get::<Autopilot>(ship).is_none() {
+            released_at = Some(update);
+            break;
+        }
+    }
+    let released_at = released_at.expect("the GOTO must arrive at the orbiting target");
+    let first = predictions
+        .first()
+        .expect("the leg must publish a prediction before it arrives");
+    let arrival = coms[released_at - 1];
+    let first_end = *first.points.last().unwrap();
+    println!(
+        "arrived at update {released_at}; {} predictions; the first ends {:?} after {} s, {} u \
+         from the flown arrival",
+        predictions.len(),
+        first.end,
+        first.final_point_time,
+        first_end.distance(arrival)
+    );
+    assert_eq!(first.end, FlightPredictionEndType::Completed);
+    assert!(
+        first_end.distance(arrival) <= 1.0,
+        "the first prediction must end where the leg arrives"
+    );
+    let (max_point_error, max_tick_error) = assert_predictions_follow_the_flown_center_of_mass(
+        "orbiting target",
+        &predictions,
+        &coms,
+        &elapsed,
+        released_at - 1,
+        dt,
+    );
+    println!("max error at points {max_point_error} u, at every tick {max_tick_error} u");
+}
+
+#[test]
 fn a_target_that_changes_course_keeps_the_shown_path_until_a_later_run_replaces_it() {
     // A coasting ship target in flat space, first kicked off its coast, then
     // turned by its own flight computer. While the leg flies the shown path

@@ -46,11 +46,8 @@ use crate::{physics::compute_pd_torque, prelude::*, sections::thruster_section::
 /// `2 * sqrt(166 km / a)`: 120 s at the slowest start hull's 46.3 m/s^2, and
 /// 379 s for a wreck left with a tenth of that thrust. Reaching 1800 s on
 /// 166 km takes less than 0.21 m/s^2.
-///
-/// FIXME: a GOTO at a target on a circular orbit of a well never ends: the
-/// live autopilot trails the target 55 to 80 u back and never settles at the
-/// standoff, so the run reaches this cap and the player sees no path. Remove
-/// this note when the GOTO arrival closes on a target that falls in a well.
+/// A moving target is met at its own velocity, so its leg is about as long as
+/// one to a target at rest.
 pub(super) const PREDICTION_CAP_SECONDS: f32 = 1800.0;
 
 /// Predicted ticks one [`predict_flight_path`] pass advances a run. A pass runs
@@ -772,6 +769,7 @@ pub(super) fn predict_flight_path(
             }
             if let (Some(motion), Some(goal)) = (&run.target_motion, run.target.as_mut()) {
                 goal.goal = motion.predicted.goal(motion.anchor);
+                goal.velocity = motion.predicted.velocity;
             }
             let env = FlightEnvironment {
                 dt,
