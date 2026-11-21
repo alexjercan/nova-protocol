@@ -18,10 +18,6 @@
 //!   the target - scale up, fade out - in the slot's color; the staged
 //!   double tap reads as two distinct pops. Replaces the old text toast
 //!   (the LockOff cue in audio/ is its sound).
-//! - The RADAR SIGHT: a small solid mark in the middle of the screen while a
-//!   radar gesture is ENGAGED, colored by the engaged slot. The radar picks
-//!   the body under the screen centre, so the mark is where the pick looks;
-//!   the hollow box above shows what it found.
 //! - A brief centered red flash when the radar is DENIED (no Lock
 //!   capability; pairs with the deny buzz).
 //!
@@ -43,8 +39,7 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         lock_crosshairs_hud, LockCrosshairsHudMarker, LockCrosshairsHudPlugin,
-        LockUnlatchGhostMarker, RadarCandidateMarker, RadarDenyFlashMarker, RadarSightMarker,
-        TravelCrosshairMarker,
+        LockUnlatchGhostMarker, RadarCandidateMarker, RadarDenyFlashMarker, TravelCrosshairMarker,
     };
 }
 
@@ -86,11 +81,6 @@ const GHOST_COMBAT_PX: f32 = 32.0;
 /// Radar-denied flash: a centered hollow box, red, gone fast.
 const DENY_FLASH_SECONDS: f32 = 0.35;
 
-/// The radar sight's side, px. A mark, not a reticle: the radar box
-/// (`RADAR_BOX_PX`) closes round it when the pick sits dead centre, and a
-/// second box there would draw two nested squares.
-const SIGHT_PX: f32 = 6.0;
-
 /// Marker for the crosshairs layer root.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct LockCrosshairsHudMarker;
@@ -107,10 +97,6 @@ pub struct TravelCrosshairMarker;
 /// Marker for the hollow radar box (the radar-active adornment).
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct RadarCandidateMarker;
-
-/// Marker for the radar sight in the middle of the screen.
-#[derive(Component, Debug, Clone, Reflect)]
-pub struct RadarSightMarker;
 
 /// Marker for the radar box's travel-sweep label (name + distance).
 #[derive(Component, Debug, Clone, Reflect)]
@@ -137,9 +123,8 @@ pub struct RadarDenyFlashMarker {
 }
 
 /// The crosshairs layer: the travel crosshair + the radar box (both
-/// screen-indicator nodes, hidden while their anchors are `None`), the radar
-/// sight and the deny flash. Unlatch ghosts are spawned into this layer at
-/// runtime.
+/// screen-indicator nodes, hidden while their anchors are `None`) and the
+/// deny flash. Unlatch ghosts are spawned into this layer at runtime.
 pub fn lock_crosshairs_hud(target_sprite: Handle<Image>) -> impl Bundle {
     (
         Name::new("LockCrosshairsHUD"),
@@ -193,41 +178,27 @@ pub fn lock_crosshairs_hud(target_sprite: Handle<Image>) -> impl Bundle {
                 )],
             ),
             (
-                Name::new("RadarSight"),
-                RadarSightMarker,
-                centred_box(SIGHT_PX),
-                BackgroundColor(RADAR_TRAVEL_COLOR),
-                Visibility::Hidden,
-            ),
-            (
                 Name::new("RadarDenyFlash"),
                 RadarDenyFlashMarker { remaining: 0.0 },
                 Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Percent(50.0),
+                    top: Val::Percent(50.0),
+                    width: Val::Px(RADAR_BOX_PX),
+                    height: Val::Px(RADAR_BOX_PX),
+                    margin: UiRect {
+                        left: Val::Px(-RADAR_BOX_PX * 0.5),
+                        top: Val::Px(-RADAR_BOX_PX * 0.5),
+                        ..default()
+                    },
                     border: UiRect::all(Val::Px(2.0)),
-                    ..centred_box(RADAR_BOX_PX)
+                    ..default()
                 },
                 BorderColor::all(RADAR_COMBAT_COLOR),
                 Visibility::Hidden,
             ),
         ],
     )
-}
-
-/// A `side` px box centred on the screen, where the radar's pick ray points.
-fn centred_box(side: f32) -> Node {
-    Node {
-        position_type: PositionType::Absolute,
-        left: Val::Percent(50.0),
-        top: Val::Percent(50.0),
-        width: Val::Px(side),
-        height: Val::Px(side),
-        margin: UiRect {
-            left: Val::Px(-side * 0.5),
-            top: Val::Px(-side * 0.5),
-            ..default()
-        },
-        ..default()
-    }
 }
 
 /// The border box needs a real border width on its node; the widget owns
@@ -239,11 +210,11 @@ fn style_radar_box(mut q_box: Query<&mut Node, Added<RadarCandidateMarker>>) {
 }
 
 /// Drives the two-lock crosshair language: the white travel crosshair, the
-/// hollow radar box, the radar sight, the per-tap unlatch ghosts, and the
-/// radar-denied flash. Registers the ghost/flash/sprite types and adds
-/// `style_radar_box`, `drive_travel_crosshair`, `drive_radar_candidate`,
-/// `drive_radar_sight`, `spawn_unlatch_ghosts`, `fade_unlatch_ghosts` and
-/// `flash_radar_deny` in Update within [`super::NovaHudSystems`].
+/// hollow radar box, the per-tap unlatch ghosts, and the radar-denied flash.
+/// Registers the ghost/flash/sprite types and adds `style_radar_box`,
+/// `drive_travel_crosshair`, `drive_radar_candidate`, `spawn_unlatch_ghosts`,
+/// `fade_unlatch_ghosts` and `flash_radar_deny` in Update within
+/// [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct LockCrosshairsHudPlugin;
 
@@ -259,7 +230,6 @@ impl Plugin for LockCrosshairsHudPlugin {
                 style_radar_box,
                 drive_travel_crosshair,
                 drive_radar_candidate,
-                drive_radar_sight,
                 spawn_unlatch_ghosts,
                 fade_unlatch_ghosts,
                 flash_radar_deny,
@@ -346,31 +316,6 @@ fn drive_radar_candidate(
                 label_color.0 = color;
             }
         }
-    }
-}
-
-/// Show the radar sight while a gesture is ENGAGED, in the engaged slot's
-/// color. Inside the tap window nothing renders, like the radar box: a tap is
-/// a clear, not a search.
-fn drive_radar_sight(
-    q_player: Query<Option<&RadarState>, With<PlayerSpaceshipMarker>>,
-    mut q_sight: Query<(&mut Visibility, &mut BackgroundColor), With<RadarSightMarker>>,
-) {
-    let engaged = q_player
-        .iter()
-        .next()
-        .flatten()
-        .and_then(|radar| radar.engaged);
-    for (mut visibility, mut color) in &mut q_sight {
-        let Some(slot) = engaged else {
-            visibility.set_if_neq(Visibility::Hidden);
-            continue;
-        };
-        visibility.set_if_neq(Visibility::Visible);
-        color.set_if_neq(BackgroundColor(match slot {
-            RadarSlot::Combat => RADAR_COMBAT_COLOR,
-            RadarSlot::Travel => RADAR_TRAVEL_COLOR,
-        }));
     }
 }
 
@@ -727,35 +672,6 @@ mod tests {
             world.get_entity(ghost).is_err(),
             "an expired ghost despawns"
         );
-    }
-
-    #[test]
-    fn the_radar_sight_shows_only_while_a_sweep_is_engaged() {
-        let mut world = World::new();
-        let player = world.spawn(PlayerSpaceshipMarker).id();
-        let sight = world
-            .spawn((
-                RadarSightMarker,
-                Visibility::Hidden,
-                BackgroundColor(RADAR_TRAVEL_COLOR),
-            ))
-            .id();
-        let shown = |world: &mut World| {
-            world.run_system_once(drive_radar_sight).unwrap();
-            let entity = world.entity(sight);
-            (*entity.get::<Visibility>().unwrap() == Visibility::Visible)
-                .then(|| *entity.get::<BackgroundColor>().unwrap())
-        };
-
-        assert_eq!(shown(&mut world), None, "no radar, no sight");
-        world.entity_mut(player).insert(RadarState::default());
-        assert_eq!(shown(&mut world), None, "inside the tap window");
-        world.get_mut::<RadarState>(player).unwrap().engaged = Some(RadarSlot::Combat);
-        assert_eq!(shown(&mut world), Some(BackgroundColor(RADAR_COMBAT_COLOR)));
-        world.get_mut::<RadarState>(player).unwrap().engaged = Some(RadarSlot::Travel);
-        assert_eq!(shown(&mut world), Some(BackgroundColor(RADAR_TRAVEL_COLOR)));
-        world.entity_mut(player).remove::<RadarState>();
-        assert_eq!(shown(&mut world), None, "released");
     }
 
     #[test]

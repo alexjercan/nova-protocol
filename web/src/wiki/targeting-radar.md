@@ -21,7 +21,7 @@ Locking is deliberate: there is no passive auto-targeting, except that a GOTO yo
 
 ## Holding to sweep
 
-Hold <kbd>Ctrl</kbd> to run the radar: it picks the body under the **centre of your screen**, re-targeting as you sweep. A small mark at the centre shows while you hold, in the colour of the slot the lock will land in. The pick is the nearest body there: the first hull the centre of the view meets, or a body within about a degree of the centre, so a small far ship is still easy to catch. Aim with the view, not the nose - the camera rides above and behind your hull, so a far target on your nose sits above the centre. A lock is **earned by holding steady** through a short lock-on dwell, not granted the instant you point.
+Hold <kbd>Ctrl</kbd> to run the radar: it picks the body under the **centre of your screen**, re-targeting as you sweep. The pick is the nearest body there: the first hull the centre of the view meets, or a body within about a degree of the centre, so a small far ship is still easy to catch. Aim with the view, not the nose - the camera rides above and behind your hull, so a far target on your nose sits above the centre. A lock is **earned by holding steady** through a short lock-on dwell, not granted the instant you point.
 
 <div class="widget" data-widget="lock-sweep">
 <p>The sweep in numbers: a quarter-second hold threshold separates a sweep from a clearing tap; past it the slot latches from your stance (lowered = white travel lock, raised = red combat lock), and a dwell scaled by range - 0.6 s point-blank stretching to 1.5 s at 20 km - has to fill while you keep the target under the screen centre. Sweeping off resets the dwell; a committed lock sticks until you clear it in stages with taps.</p>
