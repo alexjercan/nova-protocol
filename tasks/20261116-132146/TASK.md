@@ -1,6 +1,6 @@
 # Background music: bus, slider, first licensed tracks
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.19.0, audio
 
