@@ -32,9 +32,24 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
 - Wants a design HTML page with examples of when and how each song plays
   (DESIGN-music.html in this folder) before the build.
 
-## Open decisions (owner)
-- Context set, combat trigger and the mod action shape: shown in
-  DESIGN-music.html for review.
+## Decisions (owner approved DESIGN-music.html recommendations, 2026-11-21)
+- All 10 songs ship: Exploration Theme (menu); Stellar Cruise, Little
+  Blue Speck, Uncharted (cruise); Unseen, Unknown (enemies near); Intense
+  Electronic Action Soundtrack, The Hunter (combat); Ambient Soundtrack,
+  Hidden Nebula (docked). OGG Vorbis q4, about 34 MB.
+- Enemies near: a hostile lock on you held 2 s, or a hostile AI engaging
+  you; ends after 10 s with neither. Combat: at once on a hit on or by
+  your ship; ends after 15 s with no hit.
+- Background: Music category -16 dB; 30-120 s gaps between cruise songs,
+  10-30 s between docked songs; fades 3-4 s, 1.5 s into combat; pause
+  ducks 8 dB; Tab does not duck; editor and Mod Hub are silent.
+- Mods: `PlayMusic` (sound, fade_in, then: Resume|Loop, in_combat:
+  Yield|Keep, all required) and `StopMusic` (fade_out); mods may add
+  tracks to a situation playlist. Mod music is OGG only; other formats
+  are a lint error that shows the ffmpeg command.
+- Track registry is content, generated from a nova_authoring builder;
+  every track carries a required licence record.
+- Devlog loop capture leaves music out.
 
 ## Delivery
 1. Music bus, volume slider and settings field.
