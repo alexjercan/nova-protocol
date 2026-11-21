@@ -1,0 +1,536 @@
+<title>Nova Waypoints Plan</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap">
+<style>
+/* Layout: one instrument-panel column in the game's phosphor colours; square corners; each section is a panel with a title strip; wide tables and mockups scroll in their own frame. */
+:root {
+  color-scheme: dark;
+  --bg: #03060b;
+  --panel: #001304;
+  --raised: #002b0f;
+  --rule: #0d6e35;
+  --ink: #b9ffc9;
+  --ink-hi: #36ff79;
+  --ink-dim: #19a64f;
+  --ink-lit: #d6ffe4;
+  --ink-inverse: #04140a;
+  --accent: #ffb84a;
+  --danger: #ff4e42;
+  --nav: #36c8ff;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 40px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 15px/1.55 var(--sans); }
+.wrap {
+  max-width: 1040px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: var(--s5) var(--s6);
+  display: grid; gap: var(--s6);
+}
+h1, h2, h3 { font-family: var(--mono); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(26px, 5vw, 40px); font-weight: 700; color: var(--ink-hi); letter-spacing: 0.04em; text-transform: uppercase; }
+h1 .cursor { display: inline-block; width: 0.55em; height: 0.9em; background: var(--ink-hi); vertical-align: -0.08em; margin-left: 0.15em; }
+@media (prefers-reduced-motion: no-preference) { h1 .cursor { animation: blink 1.1s steps(1) infinite; } }
+@keyframes blink { 50% { background: transparent; } }
+h2 { font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-inverse); background: var(--ink-hi); padding: 6px 10px; }
+h3 { font-size: 15px; font-weight: 600; color: var(--ink-hi); letter-spacing: 0.02em; }
+p { margin: 0; max-width: 70ch; }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+code { color: var(--ink-lit); }
+section { display: grid; gap: var(--s4); border: 1px solid var(--rule); background: var(--panel); }
+section > h2 { margin: -1px -1px 0; }
+.body { display: grid; gap: var(--s4); padding: 0 var(--s4) var(--s4); min-width: 0; }
+.body > * { min-width: 0; }
+header { display: grid; gap: var(--s3); }
+.lead { font-size: 17px; color: var(--ink-lit); }
+.chips { display: flex; flex-wrap: wrap; gap: var(--s2); list-style: none; padding: 0; margin: 0; }
+.chips li { font: 600 12px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid var(--rule); padding: 6px 8px; color: var(--ink); }
+.chips b { color: var(--ink-hi); font-weight: 700; }
+.note { font-size: 13px; color: var(--ink-dim); }
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--rule); background: var(--bg); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { font: 600 11px/1.3 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; background: var(--panel); }
+td { padding: 8px 10px; border-bottom: 1px solid color-mix(in srgb, var(--rule) 55%, transparent); vertical-align: top; }
+tbody tr:last-child td { border-bottom: 0; }
+td.path { font: 12px/1.45 var(--mono); color: var(--ink-lit); white-space: nowrap; }
+.wide { min-width: 860px; }
+.mid { min-width: 640px; }
+tr.group td { font: 700 11px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-hi); background: color-mix(in srgb, var(--ink-hi) 8%, var(--bg)); border-bottom: 1px solid var(--rule); }
+.split { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s4); }
+@media (min-width: 860px) { .split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.tri { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s4); }
+@media (min-width: 900px) { .tri { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+figure { margin: 0; display: grid; gap: var(--s2); }
+figcaption { font: 12px/1.45 var(--mono); color: var(--ink-dim); }
+figcaption b { color: var(--ink-hi); }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: var(--mono); }
+ul.plain { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; max-width: 72ch; }
+ul.plain li::marker { color: var(--ink-dim); }
+pre { margin: 0; padding: var(--s3) var(--s4); font: 13px/1.5 var(--mono); color: var(--ink-lit); white-space: pre; }
+.tag { font: 700 10px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-inverse); background: var(--accent); padding: 3px 5px; vertical-align: 2px; margin-left: 6px; }
+.tag.dim { background: var(--ink-dim); }
+.decisions { list-style: none; padding: 0; margin: 0; display: grid; gap: 0; border: 1px solid var(--rule); background: var(--bg); counter-reset: d; }
+.decisions > li { counter-increment: d; padding: var(--s3) var(--s4); border-bottom: 1px solid color-mix(in srgb, var(--rule) 55%, transparent); display: grid; gap: 6px; }
+.decisions > li:last-child { border-bottom: 0; }
+.decisions .q { font-weight: 600; color: var(--ink-lit); }
+.decisions .q::before { content: counter(d) ". "; font-family: var(--mono); color: var(--ink-dim); }
+.decisions .opts { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; font-size: 14px; }
+.decisions .opts li::marker { color: var(--ink-dim); }
+.decisions .opts b { font-family: var(--mono); color: var(--ink-hi); font-weight: 600; }
+.decisions .rec { font-size: 14px; }
+.decisions .rec b { font: 700 11px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin-right: 6px; }
+.rule-box { border: 1px solid var(--nav); background: color-mix(in srgb, var(--nav) 6%, var(--bg)); padding: var(--s3) var(--s4); display: grid; gap: 6px; }
+.rule-box h3 { color: var(--nav); }
+.ask { border: 1px solid var(--accent); padding: var(--s3) var(--s4); color: var(--ink-lit); font-weight: 600; }
+</style>
+
+<div class="wrap">
+
+<header>
+  <h1>Nova Waypoints Plan<span class="cursor" aria-hidden="true"></span></h1>
+  <p class="lead">Pick a found station or a cell on the Map chart, press GOTO, and the HUD shows which way it is: a nav chip with its code and distance in metres, pinned to the screen edge with a chevron when it is off screen. The ship flies there. When the station streams in, the normal GOTO takes over with its real predicted path.</p>
+  <ul class="chips">
+    <li>Status <b>Proposal</b></li>
+    <li>Task <b>20261121-210939</b></li>
+    <li>Release <b>v0.19.0</b></li>
+    <li>Code at <b>06813de8d</b></li>
+    <li>Built <b>Nothing yet</b></li>
+  </ul>
+  <p class="note">Owner, 2026-11-21: "some kind of waypointing system, so if I want to 'GOTO' a station or sector that is not loaded we should get some kind of 'directional' hint which is the right way". The word "waypointing" explains the need. This plan adds one chip and opens the Map's GOTO on the chart. It adds no panel, bar, or text line.</p>
+</header>
+
+<section id="today" aria-labelledby="h-today">
+  <h2 id="h-today">What happens today</h2>
+  <div class="body">
+    <p>Today you cannot GOTO a station or cell that is not loaded. No code path accepts one, so you get no hint and no error. Paths are at <code>06813de8d</code>. I read this from the code. I did not run it.</p>
+    <div class="scroll"><table class="wide">
+      <thead><tr><th>Fact</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td>The chart view hides GOTO and Cancel.</td><td class="path">nova_interface/src/map/scene.rs:1233, :1240</td></tr>
+        <tr><td><code>map_input</code> returns before any GOTO while the chart shows ("The chart view selects by its own labels and has nothing to fly to"). The <code>map_goto</code> key does nothing there and gives no cue.</td><td class="path">nova_interface/src/map/scene.rs:422-425</td></tr>
+        <tr><td>The local Map lists live entities only, so an unloaded station has no blip and no GOTO.</td><td class="path">nova_interface/src/map/contacts.rs:352</td></tr>
+        <tr><td>Flight GOTO (G) needs a travel lock on a live entity.</td><td class="path">nova_ship/src/input/player/flight_rig.rs:632-636</td></tr>
+        <tr><td><code>AutopilotAction::Goto</code> holds an <code>Entity</code>. <code>GotoPos</code> holds a <code>Vec3</code>, and its doc says the player input layer never engages it.</td><td class="path">nova_ship/src/flight/state.rs:412-424</td></tr>
+        <tr><td>A GOTO whose target leaves the window loses its entity (frozen and despawned). The autopilot disengages <code>TargetGone</code>. While docked without the helm, the Map reads <code>GOTO LOST</code>.</td><td class="path">nova_ship/src/flight/autopilot.rs:1516<br>nova_interface/src/map/scene.rs:1080</td></tr>
+        <tr><td>The only "which way" for an unloaded found station is the chart grid (7 by 7, reach 3) and the SECTOR block's route text, for example <code>3 cells +X, 2 cells -Z</code>.</td><td class="path">nova_interface/src/map/chart.rs:69, :274, :1148</td></tr>
+        <tr><td>A found station in the chart stores no position. Its position lives only in the frozen ledger record that its cell will thaw from.</td><td class="path">nova_gameplay/src/chart.rs:93-110<br>nova_world/src/frozen.rs:67, :427-489</td></tr>
+        <tr><td>The window is a 5 by 5 by 5 cube of 32 km cells. A chart mark 3 cells out is always unloaded.</td><td class="path">nova_world_base/src/lib.rs:214, :220<br>nova_world/src/streaming.rs:181</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section id="hud" aria-labelledby="h-hud">
+  <h2 id="h-hud">On the HUD</h2>
+  <div class="body">
+    <p>The hint is one nav chip: the target's chart code and the live distance (<code>nova_ui::units::distance</code>, metres below 1 km, else km). It is the beacon chip's shape in nav cyan. The theme sets its corners through <code>chip_node</code>, with no local radius. On screen it stands over the mark. Off screen, or behind the camera, the screen-indicator widget's <code>ClampToEdge</code> pins it 30 px in from the edge and turns the chevron toward the mark. It never breathes or blinks, and it has no other text.</p>
+    <div class="tri">
+      <figure>
+        <svg viewBox="0 0 320 200" role="img" aria-labelledby="m1t">
+          <title id="m1t">On screen: chip over the destination pip, the predicted path curving to it</title>
+          <rect width="320" height="200" fill="#03060b" stroke="#0d6e35"/>
+          <g fill="#19a64f"><circle cx="30" cy="40" r="1"/><circle cx="90" cy="150" r="1"/><circle cx="250" cy="30" r="1"/><circle cx="280" cy="160" r="1"/><circle cx="160" cy="20" r="1"/></g>
+          <g stroke="#36ff79" stroke-width="1.5" fill="none"><path d="M152 100 h-8 M168 100 h8 M160 92 v-8 M160 108 v8"/></g>
+          <path d="M160 190 C 170 150, 200 120, 226 104" stroke="#36c8ff" stroke-width="2" fill="none" stroke-dasharray="1 0" opacity="0.9"/>
+          <rect x="220" y="98" width="12" height="12" fill="none" stroke="#36c8ff" stroke-width="1.5"/>
+          <rect x="182" y="66" width="92" height="20" fill="#001304" stroke="#36c8ff" stroke-width="1"/>
+          <text x="190" y="80" font-size="10" fill="#d6ffe4">STN-4  128.40 km</text>
+          <text x="10" y="190" font-size="8" fill="#19a64f">path = FlightPrediction</text>
+        </svg>
+        <figcaption><b>Pointed, on screen.</b> Chip over the cyan destination pip at the mark. The curve is the ribbon: the real <code>FlightPrediction</code> of the flown leg. It shows only once the prediction lands.</figcaption>
+      </figure>
+      <figure>
+        <svg viewBox="0 0 320 200" role="img" aria-labelledby="m2t">
+          <title id="m2t">Off screen: chip clamped to the left edge with a chevron pointing out</title>
+          <rect width="320" height="200" fill="#03060b" stroke="#0d6e35"/>
+          <g fill="#19a64f"><circle cx="60" cy="30" r="1"/><circle cx="200" cy="150" r="1"/><circle cx="270" cy="60" r="1"/><circle cx="120" cy="170" r="1"/></g>
+          <g stroke="#36ff79" stroke-width="1.5" fill="none"><path d="M152 100 h-8 M168 100 h8 M160 92 v-8 M160 108 v8"/></g>
+          <rect x="0" y="0" width="30" height="200" fill="none" stroke="#0d6e35" stroke-dasharray="2 3" opacity="0.6"/>
+          <path d="M22 120 l-8 -7 l8 -7" stroke="#36c8ff" stroke-width="2.5" fill="none"/>
+          <rect x="30" y="104" width="92" height="20" fill="#001304" stroke="#36c8ff" stroke-width="1"/>
+          <text x="38" y="118" font-size="10" fill="#d6ffe4">STN-4  128.40 km</text>
+          <text x="34" y="96" font-size="8" fill="#19a64f">30 px inset</text>
+        </svg>
+        <figcaption><b>Pointed, off screen.</b> The same chip clamped to the edge, with the chevron toward the mark. There is no line on screen and no arrow trail. The ribbon draws only where the real path is in view.</figcaption>
+      </figure>
+      <figure>
+        <svg viewBox="0 0 320 200" role="img" aria-labelledby="m3t">
+          <title id="m3t">Handed over: the chip rides the live station, travel lock bracket and real path</title>
+          <rect width="320" height="200" fill="#03060b" stroke="#0d6e35"/>
+          <g stroke="#36ff79" stroke-width="1.5" fill="none"><path d="M152 100 h-8 M168 100 h8 M160 92 v-8 M160 108 v8"/></g>
+          <path d="M160 190 C 165 160, 190 135, 214 122" stroke="#36c8ff" stroke-width="2" fill="none"/>
+          <g fill="#19a64f" opacity="0.9"><rect x="214" y="112" width="20" height="8"/><rect x="221" y="106" width="6" height="20"/></g>
+          <g stroke="#d6ffe4" stroke-width="1.5" fill="none"><path d="M206 104 v-6 h6 M242 104 v-6 h-6 M206 130 v6 h6 M242 130 v6 h-6"/></g>
+          <rect x="178" y="72" width="88" height="20" fill="#001304" stroke="#36c8ff" stroke-width="1"/>
+          <text x="186" y="86" font-size="10" fill="#d6ffe4">STN-4  61.20 km</text>
+        </svg>
+        <figcaption><b>Streamed in, real GOTO.</b> The station is live. The GOTO now flies <code>Goto{station}</code> with its own predicted path to arrival. The chip moves onto the entity and stays until arrival.</figcaption>
+      </figure>
+    </div>
+    <div class="rule-box">
+      <h3>Line and hint stay apart</h3>
+      <ul class="plain">
+        <li>Only <code>FlightPrediction</code> draws a line, in the HUD ribbon and the Map route. The waypoint code draws no stroke anywhere.</li>
+        <li>The hint is a chip and a chevron at one point. It never joins the ship to the mark.</li>
+        <li>Before the first prediction lands there is a chip and no line, the same rule as any GOTO today.</li>
+        <li>The chart view draws no route at all. That is the rule today (<code>scene.rs:672</code>), and it stays.</li>
+        <li>Proof: the existing "no route until the prediction lands" test also runs on a waypoint GOTO, and the example asserts zero visible route strokes while <code>FlightPrediction</code> is absent.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="map" aria-labelledby="h-map">
+  <h2 id="h-map">On the Map</h2>
+  <div class="body">
+    <div class="split">
+      <figure>
+        <svg viewBox="0 0 420 300" role="img" aria-labelledby="mm1">
+          <title id="mm1">Chart view: STN-4 three cells out wears the GOTO tag; GOTO and Cancel under the panel</title>
+          <rect width="420" height="300" fill="#03060b" stroke="#0d6e35"/>
+          <g transform="translate(14 14)">
+            <g stroke="#19a64f" stroke-width="0.8" fill="none" opacity="0.8">
+              <path d="M0 0 h266 M0 38 h266 M0 76 h266 M0 114 h266 M0 152 h266 M0 190 h266 M0 228 h266 M0 266 h266"/>
+              <path d="M0 0 v266 M38 0 v266 M76 0 v266 M114 0 v266 M152 0 v266 M190 0 v266 M228 0 v266 M266 0 v266"/>
+            </g>
+            <rect x="40" y="40" width="186" height="186" fill="#36ff79" opacity="0.05"/>
+            <rect x="40" y="40" width="186" height="186" fill="none" stroke="#19a64f" stroke-dasharray="3 3" opacity="0.7"/>
+            <rect x="116" y="116" width="34" height="34" fill="#d6ffe4" opacity="0.16"/>
+            <rect x="78" y="116" width="34" height="34" fill="#36ff79" opacity="0.12"/>
+            <rect x="116" y="78" width="34" height="34" fill="#36ff79" opacity="0.12"/>
+            <path d="M133 127 l6 12 h-12 z" fill="#d6ffe4"/>
+            <rect x="242" y="47" width="10" height="10" fill="#36ff79"/>
+            <text x="255" y="56" font-size="9" fill="#d6ffe4">STN-4</text>
+            <rect x="232" y="28" width="30" height="13" fill="#ffb84a"/>
+            <text x="235" y="38" font-size="9" fill="#04140a" font-weight="700">GOTO</text>
+            <text x="44" y="262" font-size="8" fill="#19a64f">dashed = streamed window (not drawn in game)</text>
+          </g>
+          <g transform="translate(292 14)">
+            <rect width="116" height="272" fill="#001304" stroke="#0d6e35"/>
+            <text x="8" y="18" font-size="10" fill="#36ff79" font-weight="700">STN-4</text>
+            <text x="8" y="32" font-size="8" fill="#b9ffc9">LIVING STATION</text>
+            <text x="8" y="50" font-size="8" fill="#19a64f">Cell</text><text x="40" y="50" font-size="8" fill="#d6ffe4">(3, 0, -3)</text>
+            <text x="8" y="64" font-size="8" fill="#19a64f">Route</text><text x="40" y="64" font-size="8" fill="#d6ffe4">3 +X, 3 -Z</text>
+            <text x="8" y="212" font-size="8" fill="#ffb84a">GOTO STN-4  128.40 km</text>
+            <rect x="8" y="224" width="48" height="20" fill="none" stroke="#36ff79"/>
+            <text x="18" y="238" font-size="9" fill="#36ff79" font-weight="700">GOTO</text>
+            <rect x="60" y="224" width="48" height="20" fill="none" stroke="#36ff79"/>
+            <text x="64" y="238" font-size="9" fill="#36ff79" font-weight="700">Cancel</text>
+          </g>
+        </svg>
+        <figcaption><b>Chart view.</b> GOTO and Cancel now show for a selected Station or Cell mark. The live GOTO target's mark wears the same <code>GOTO</code> tag as the local Map. There is no route stroke. The destination line reads the code and distance.</figcaption>
+      </figure>
+      <div class="body" style="padding:0">
+        <h3>What the Map changes</h3>
+        <ul class="plain">
+          <li><b>Chart GOTO</b> works on a selected <code>Station</code> or <code>Cell</code> mark. Wreck and Job marks keep GOTO hidden, because the owner did not ask for them.</li>
+          <li>A station that is live (in the window) gets a waypoint that is handed over at once: <code>Goto{entity}</code> plus the travel lock.</li>
+          <li>An unloaded station gets <code>GotoPos</code> at its frozen position. A cell gets <code>GotoPos</code> at its centre.</li>
+          <li><b>Chart Cancel</b> shows while a GOTO flies, the same as in the local view.</li>
+          <li><b>Destination line</b> (local and chart): <code>GOTO STN-4  128.40 km</code> while a waypoint flies. <code>GOTO LOST</code> stays for a live-entity GOTO that lost its target.</li>
+          <li><b>Local view</b>: the route draws the <code>GotoPos</code> prediction the same as a GOTO's. The <code>GOTO</code> tag shows only once the target is a plotted contact.</li>
+          <li><b>Refused</b> GOTO (a fault below): the Map's existing deny cue, and no waypoint.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="flow" aria-labelledby="h-flow">
+  <h2 id="h-flow">States</h2>
+  <div class="body">
+    <div class="scroll">
+      <svg viewBox="0 0 900 300" style="min-width:820px" role="img" aria-labelledby="sd">
+        <title id="sd">Waypoint state diagram</title>
+        <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#36ff79"/></marker>
+        <marker id="ahd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ff4e42"/></marker></defs>
+        <g font-size="11">
+          <rect x="10" y="40" width="150" height="62" fill="#001304" stroke="#36ff79"/>
+          <text x="20" y="60" fill="#36ff79" font-weight="700">PICK</text>
+          <text x="20" y="76" fill="#b9ffc9">chart mark + GOTO</text>
+          <text x="20" y="92" fill="#19a64f">waypoint_mark()</text>
+
+          <rect x="200" y="40" width="170" height="62" fill="#001304" stroke="#36c8ff"/>
+          <text x="210" y="60" fill="#36c8ff" font-weight="700">POINTED</text>
+          <text x="210" y="76" fill="#b9ffc9">GotoPos{frozen mark}</text>
+          <text x="210" y="92" fill="#19a64f">chip at point</text>
+
+          <rect x="410" y="40" width="150" height="62" fill="#001304" stroke="#36c8ff"/>
+          <text x="420" y="60" fill="#36c8ff" font-weight="700">STREAMED IN</text>
+          <text x="420" y="76" fill="#b9ffc9">station entity live</text>
+          <text x="420" y="92" fill="#19a64f">hand_off_waypoint</text>
+
+          <rect x="600" y="40" width="150" height="62" fill="#001304" stroke="#36c8ff"/>
+          <text x="610" y="60" fill="#36c8ff" font-weight="700">REAL GOTO</text>
+          <text x="610" y="76" fill="#b9ffc9">Goto{station}</text>
+          <text x="610" y="92" fill="#19a64f">chip on entity</text>
+
+          <rect x="790" y="40" width="100" height="62" fill="#001304" stroke="#36ff79"/>
+          <text x="800" y="60" fill="#36ff79" font-weight="700">ARRIVED</text>
+          <text x="800" y="76" fill="#b9ffc9">rest at port</text>
+          <text x="800" y="92" fill="#19a64f">cleared</text>
+
+          <path d="M160 71 H198" stroke="#36ff79" stroke-width="1.5" marker-end="url(#ah)"/>
+          <path d="M370 71 H408" stroke="#36ff79" stroke-width="1.5" marker-end="url(#ah)"/>
+          <path d="M560 71 H598" stroke="#36ff79" stroke-width="1.5" marker-end="url(#ah)"/>
+          <path d="M750 71 H788" stroke="#36ff79" stroke-width="1.5" marker-end="url(#ah)"/>
+          <text x="164" y="64" fill="#19a64f" font-size="9">Ok</text>
+          <text x="374" y="64" fill="#19a64f" font-size="9">cell live</text>
+
+          <path d="M85 40 C 85 14, 640 14, 670 38" stroke="#36ff79" stroke-width="1" fill="none" stroke-dasharray="4 3" marker-end="url(#ah)"/>
+          <text x="300" y="20" fill="#19a64f" font-size="9">station already live: hand over at once</text>
+
+          <rect x="200" y="200" width="170" height="52" fill="#001304" stroke="#19a64f"/>
+          <text x="210" y="220" fill="#36ff79" font-weight="700">SECTOR</text>
+          <text x="210" y="238" fill="#b9ffc9">GotoPos{cell centre}</text>
+          <path d="M85 102 C 85 226, 150 226, 198 226" stroke="#36ff79" stroke-width="1.5" fill="none" marker-end="url(#ah)"/>
+          <path d="M370 226 C 820 226, 840 160, 840 104" stroke="#36ff79" stroke-width="1.5" fill="none" marker-end="url(#ah)"/>
+          <text x="560" y="220" fill="#19a64f" font-size="9">rest at centre</text>
+
+          <rect x="410" y="130" width="150" height="46" fill="#001304" stroke="#ffb84a"/>
+          <text x="420" y="150" fill="#ffb84a" font-weight="700">CLEARED</text>
+          <text x="420" y="166" fill="#b9ffc9">no waypoint, no chip</text>
+          <path d="M285 102 C 285 150, 350 153, 408 153" stroke="#ffb84a" stroke-width="1" fill="none" marker-end="url(#ah)"/>
+          <path d="M675 102 C 675 150, 620 153, 562 153" stroke="#ffb84a" stroke-width="1" fill="none" marker-end="url(#ah)"/>
+          <text x="590" y="190" fill="#ffb84a" font-size="9">Cancel, G, new order, STOP, ship lost</text>
+
+          <path d="M485 102 V128" stroke="#ff4e42" stroke-width="1" marker-end="url(#ahd)"/>
+          <text x="492" y="120" fill="#ff4e42" font-size="9">cell live, no station: error!</text>
+          <path d="M85 102 C 60 280, 380 285, 470 178" stroke="#ff4e42" stroke-width="1" fill="none" stroke-dasharray="3 3" marker-end="url(#ahd)"/>
+          <text x="130" y="282" fill="#ff4e42" font-size="9">Err: unknown station, no frozen record: error! + deny cue</text>
+        </g>
+      </svg>
+    </div>
+    <p class="note">The stage is not stored. It comes from the autopilot: <code>GotoPos</code> means pointed, and <code>Goto</code> on the station means real GOTO. If the autopilot is anything else, the waypoint is cleared. So Cancel, G, STOP, a new GOTO, and a lost ship clear it, and none of those callers needs an edit.</p>
+  </div>
+</section>
+
+<section id="slice" aria-labelledby="h-slice">
+  <h2 id="h-slice">Slice map</h2>
+  <div class="body">
+    <div class="scroll"><table class="wide">
+      <thead><tr><th>Part</th><th>Path:line</th><th>Today</th><th>Change</th></tr></thead>
+      <tbody>
+        <tr class="group"><td colspan="4">Entry: Map</td></tr>
+        <tr><td><code>MapGotoButton</code>, <code>MapCancelButton</code>, <code>MapGotoMarker</code></td><td class="path">nova_interface/src/map/app.rs:85, :91, :101</td><td>Local view only</td><td>Shown in the chart for Station/Cell marks. The tag sits on the chart target mark.</td></tr>
+        <tr><td><code>map_input</code> GOTO / Cancel</td><td class="path">nova_interface/src/map/scene.rs:303, :394-425, :427-468</td><td>Returns in the chart before GOTO</td><td>The chart branch resolves the mark and inserts the waypoint and autopilot.</td></tr>
+        <tr><td><code>update_map_panel</code> gates + destination line</td><td class="path">nova_interface/src/map/scene.rs:1014, :1070-1082, :1231-1256</td><td>Hidden in the chart. <code>GOTO LOST</code> when off the list.</td><td>Gate by chart mark type. Line reads the waypoint code + distance.</td></tr>
+        <tr><td><code>project_map_route</code></td><td class="path">nova_interface/src/map/scene.rs:645, :672-686</td><td>Matches <code>Goto</code> only</td><td>Also draws a <code>GotoPos</code> prediction. Still the prediction only.</td></tr>
+        <tr><td><code>MapChartMarkType</code>, marks, <code>route_hint</code></td><td class="path">nova_interface/src/map/chart.rs:91, :662-760, :274</td><td>Selection only</td><td>The Station/Cell selection feeds <code>WaypointTargetType</code>.</td></tr>
+        <tr class="group"><td colspan="4">IDs and chart data</td></tr>
+        <tr><td><code>SectorCoord</code>, <code>centre</code>, <code>GeneratedBodyId</code></td><td class="path">nova_events/src/generated.rs:37, :78, :189</td><td>Shared IDs</td><td>Used as is. No new ID.</td></tr>
+        <tr><td><code>Chart</code>, <code>ChartStation</code>, <code>station_code</code>, <code>ChartSectorEdge</code></td><td class="path">nova_gameplay/src/chart.rs:168, :93, :225, :401</td><td>Found stations, no position</td><td>The resolver checks the id here. The chip reads the code.</td></tr>
+        <tr><td><code>FrozenSectors</code>, <code>FrozenBody::id</code>/<code>transform</code></td><td class="path">nova_world/src/frozen.rs:67, :71, :480-489</td><td>The pose a cell thaws from</td><td>The source of an unloaded station's mark.</td></tr>
+        <tr><td>Window, edge</td><td class="path">nova_world/src/streaming.rs:181<br>nova_world_base/src/lib.rs:214, :220</td><td>Cube of radius 2, 32 km</td><td>None</td></tr>
+        <tr><td><code>ChartSectorEdge</code> feed</td><td class="path">nova_world_base/src/chart.rs:77</td><td>Present while a world streams</td><td>A Sector mark needs it.</td></tr>
+        <tr class="group"><td colspan="4">Autopilot</td></tr>
+        <tr><td><code>AutopilotAction::Goto</code> / <code>GotoPos</code></td><td class="path">nova_ship/src/flight/state.rs:404-424</td><td>The player never flies GotoPos</td><td>The player flies <code>GotoPos</code> only under a waypoint. The doc changes.</td></tr>
+        <tr><td><code>arrival_target</code></td><td class="path">nova_ship/src/flight/autopilot.rs:752, :762, :847</td><td>GotoPos rests at the mark</td><td>None. Hand-off happens before the mark (the cell streams in at about 64 km).</td></tr>
+        <tr><td><code>on_autopilot_goto_input</code> (G)</td><td class="path">nova_ship/src/input/player/flight_rig.rs:571, :600-610</td><td>Toggles off <code>Goto</code> only</td><td>Also toggles off <code>GotoPos</code>. The player has it only under a waypoint.</td></tr>
+        <tr><td>Prediction</td><td class="path">nova_ship/src/flight/prediction.rs:600-626</td><td>Runs for <code>Goto</code>, <code>GotoPos</code>, <code>Stop</code></td><td>None</td></tr>
+        <tr><td>Completion events</td><td class="path">nova_scenario/src/loader/trackers.rs:288, :298<br>nova_events/src/lib.rs:362</td><td><code>OnGotoComplete</code> for <code>Goto</code> only</td><td>None. A station waypoint arrives as a <code>Goto</code>.</td></tr>
+        <tr class="group"><td colspan="4">HUD</td></tr>
+        <tr><td>Destination pip</td><td class="path">nova_hud/src/flight_status.rs:331-350, :856-885</td><td>Entity/Point, hidden off screen</td><td>None. It already anchors <code>GotoPos</code>.</td></tr>
+        <tr><td>Anchored nav chip</td><td class="path">nova_hud/src/anchored_chip.rs:90, :109, :261<br>nova_hud/src/beacon_chips.rs:40-44, :74</td><td>Entity-anchored, ClampToEdge + chevron</td><td>New waypoint chip family that reuses the node, label, and chevron bundles. Point or Entity anchor.</td></tr>
+        <tr><td>Screen indicator</td><td class="path">nova_hud/src/screen_indicator.rs:45-52, :131-146</td><td><code>Point</code> anchor exists</td><td>None</td></tr>
+        <tr><td>Edge indicators, objective chips, GOTO cue</td><td class="path">nova_hud/src/edge_indicators.rs:82<br>nova_hud/src/objective_markers.rs:1-15<br>nova_hud/src/keybind_dock.rs:285, :1053</td><td>Combat arrows, gold "do this now", keycap on the lock</td><td>Not used. The nav chip is the right family.</td></tr>
+        <tr><td>Ribbon</td><td class="path">nova_hud/src/holo_instruments.rs (sync_trajectory_ribbon)</td><td>Draws any <code>FlightPrediction</code></td><td>None</td></tr>
+        <tr class="group"><td colspan="4">Save</td></tr>
+        <tr><td><code>SavedAutopilotAction</code>, write, validate, resolve</td><td class="path">nova_world_base/src/save/controls.rs:99-111, :235, :401, :715</td><td><code>GotoPos</code> saved by position</td><td>New <code>waypoint</code> field. Validated against the saved chart.</td></tr>
+        <tr><td><code>WORLD_SAVE_VERSION</code></td><td class="path">nova_world_base/src/save/mod.rs:109, :449</td><td><code>v0.18.0</code>, other versions refused</td><td>Moves with the release. Changelog <b>(breaking)</b>.</td></tr>
+        <tr class="group"><td colspan="4">Docs and proof</td></tr>
+        <tr><td>Wiki</td><td class="path">web/src/wiki/interface.md, web/src/wiki/hud.md</td><td>Other lanes have edits open</td><td>Map chart GOTO, waypoint chip</td></tr>
+        <tr><td>Closest tests</td><td class="path">nova_interface/src/map/tests.rs:773, :1217, :2172</td><td>GOTO set, button, no route before prediction</td><td>Run them on a chart waypoint too.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section id="types" aria-labelledby="h-types">
+  <h2 id="h-types">Proposed types and graph</h2>
+  <div class="body">
+    <div class="scroll"><pre>// crates/nova_gameplay/src/waypoint.rs (new): the lowest crate that the HUD,
+// the Map, the world crate and the save all reach.
+
+/// What a chart GOTO flies to.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum WaypointTargetType {
+    /// A station the chart found, by its generated id.
+    Station(GeneratedBodyId),
+    /// A cell of the streamed world.
+    Sector(SectorCoord),
+}
+
+/// On the player ship while a chart GOTO flies. Valid only beside an
+/// Autopilot GotoPos (pointed) or a Goto on the entity that wears the
+/// station's GeneratedBodyId (handed over); anything else clears it.
+#[derive(Component, Clone, Debug, PartialEq)]
+pub struct Waypoint {
+    pub target: WaypointTargetType,
+}
+
+// crates/nova_world_base/src/waypoint.rs (new)
+pub enum WaypointFault {
+    /// The chart never found this station.
+    UnknownStation(GeneratedBodyId),
+    /// Found, not live, and no frozen record names it.
+    NoFrozenRecord(GeneratedBodyId),
+    /// Its cell is live and placed, and it is not there.
+    MissingAfterStreamIn(GeneratedBodyId),
+}
+
+/// Where a pointed waypoint flies, engine units: the frozen pose of a
+/// station, or a cell centre.
+pub fn waypoint_mark(
+    target: &WaypointTargetType,
+    chart: &Chart,
+    frozen: &FrozenSectors,
+    edge: &ChartSectorEdge,
+) -> Result&lt;Vec3, WaypointFault&gt;;
+
+pub struct WaypointPlugin;      // hand_off_waypoint, clear_stale_waypoint
+pub enum WaypointSystems;       // after NovaWorldSystems (bodies placed),
+                                // before NovaHudSystems reads the chip
+
+// crates/nova_hud/src/waypoint_chip.rs (new)
+pub struct WaypointChipHudPlugin; // one nav chip; anchor Point(GotoPos) or
+                                  // Entity(Goto target); label code + distance</pre></div>
+    <div class="split">
+      <div class="scroll"><pre>BEFORE
+Map chart GOTO   -> hidden (scene.rs:1233)
+                    map_input returns (scene.rs:423)
+Map local GOTO   -> Goto{entity} + TravelLock
+G key            -> TravelLock -> Goto{entity}
+autopilot_system -> FlightPrediction
+                 -> ribbon, Map route (Goto only)
+dest pip         <- Autopilot, Hide off screen</pre></div>
+      <div class="scroll"><pre>AFTER
+Map chart GOTO (Station | Cell)
+  station live -> Waypoint + Goto{entity}
+                  + TravelLock
+  else         -> waypoint_mark(..)
+     Ok(mark)  -> Waypoint + GotoPos{mark}
+     Err(f)    -> error!(f) + deny cue
+hand_off_waypoint (WaypointSystems)
+  station live -> Goto{entity} + TravelLock
+  placed, none -> error! + remove both
+clear_stale_waypoint
+  autopilot no longer matches -> remove
+waypoint chip  <- Waypoint + Autopilot
+                  ClampToEdge + chevron
+ribbon, route  <- FlightPrediction only
+save           <- SavedControls.waypoint</pre></div>
+    </div>
+    <ul class="plain">
+      <li><b>Removed:</b> the blanket chart <code>VerbGate::Hidden</code> for GOTO/Cancel, the chart early return before GOTO, the <code>Goto</code>-only match in <code>project_map_route</code>, and the "player never engages GotoPos" doc. The stale doc that says the interface cannot depend on the world crates (<code>nova_gameplay/src/chart.rs:11-12</code>; <code>nova_interface</code> now depends on <code>nova_world</code> and <code>nova_world_base</code>) is fixed where touched.</li>
+      <li><b>May break:</b> Map tests that expect chart GOTO hidden, the probe snapshot label for a player <code>GotoPos</code> (<code>nova_probe/src/capabilities/snapshot.rs:723</code>), and saves at another version (already refused).</li>
+    </ul>
+  </div>
+</section>
+
+<section id="decisions" aria-labelledby="h-decisions">
+  <h2 id="h-decisions">Decisions</h2>
+  <div class="body">
+    <ol class="decisions">
+      <li>
+        <span class="q">How an unloaded target is addressed, and where the ID lives.</span>
+        <ul class="opts">
+          <li><b>A.</b> <code>WaypointTargetType { Station(GeneratedBodyId), Sector(SectorCoord) }</code> in <code>nova_gameplay</code>, built from the two IDs already in <code>nova_events</code>. Typed and saved as plain data. The HUD can read it.</li>
+          <li><b>B.</b> Move <code>MapChartMarkType</code> down. It brings Wreck and Job, which are UI selection concepts. A Job does not name one place to fly.</li>
+          <li><b>C.</b> An <code>EntityId</code> string. Untyped, with a parse at every reader.</li>
+          <li><b>D.</b> A bare <code>Vec3</code>. It has no identity, so a hand-off is not possible.</li>
+        </ul>
+        <p class="rec"><b>Recommend</b>A. Position source: the frozen ledger record (<code>FrozenSectors</code>), the pose the cell will thaw the station at. Rejected sources: a position copied into <code>ChartStation</code> (a second record that drifts for an orbiting station), regenerating the cell plan (a station layout per request), and the cell centre of <code>id.origin</code> (up to 16 km wrong per axis, the fallback the owner rejects).</p>
+      </li>
+      <li>
+        <span class="q">Is a cross-sector GOTO flown or only pointed?</span>
+        <ul class="opts">
+          <li><b>Flown.</b> The chart GOTO engages <code>GotoPos</code> at the mark. When the station streams in (about 64 km out, its cell enters the window), <code>hand_off_waypoint</code> swaps in <code>Goto{station}</code> and the travel lock. The line is always the real prediction of what the autopilot flies, first to the mark, then to arrival. GOTO means the same thing on every surface. Cost: the player flies <code>GotoPos</code> for the first time, G must toggle it off, and the path changes once at hand-off.</li>
+          <li><b>Pointed.</b> A waypoint and chip only. You fly by hand. No autopilot change and no line before hand-off. Cost: a GOTO button that does not go, and "arrival" needs a new rule (for example, the waypoint turns into the travel lock when the station streams in, then you press G).</li>
+        </ul>
+        <p class="rec"><b>Recommend</b>Flown. The owner said "GOTO". <code>GotoPos</code>, its prediction, its HUD pip, and its save already exist. This is the decision question for the owner.</p>
+      </li>
+      <li>
+        <span class="q">What the hint is, when it shows, and when it clears.</span>
+        <ul class="opts">
+          <li><b>Look:</b> a nav chip (beacon shape, nav cyan, theme corners) with the code and distance (<code>STN-4  128.40 km</code>, <code>(3, 0, -3)  96.00 km</code>). It is edge-clamped 30 px in, with a chevron, off screen and behind the camera.</li>
+          <li><b>Shows:</b> from the chart GOTO press, if <code>waypoint_mark</code> is Ok.</li>
+          <li><b>Hands over:</b> the station entity is live. The chip anchor moves from the point to the entity, and the real GOTO line takes over.</li>
+          <li><b>Clears:</b> arrival (the autopilot completes), Cancel, G, STOP, a new GOTO, or the ship is lost. The rule is one system: the autopilot no longer matches. A station dies as a body (a derelict), so it is still a valid target. A station that is missing when its cell is placed is a fault.</li>
+          <li><b>Scope of the chip:</b> (a) only GOTOs that start unloaded; (b) every chart GOTO; (c) every GOTO, radar included.</li>
+          <li><b>Sector arrival:</b> rest at the cell centre (the <code>GotoPos</code> rule). The other option, STOP on entering the cell, overshoots at cruise speed: braking takes about 80 km on a 160 km leg, and a cell is 32 km.</li>
+        </ul>
+        <p class="rec"><b>Recommend</b>Look and clear rules as above. Chip scope (b): a chart GOTO is a waypoint, and the radar and local GOTO stay as they are. Sector arrival at the centre. The risk that the centre lies in a body is open (see Not verified).</p>
+      </li>
+      <li>
+        <span class="q">What must fail loudly.</span>
+        <ul class="opts">
+          <li><b>Unknown station</b> (not in <code>Chart</code>): <code>error!</code> plus the deny cue from the Map, and a load refusal from a save. The Map offers found stations only, so from the Map this is a defect.</li>
+          <li><b>No frozen record</b> for a found station that is not live: <code>error!</code> plus the deny cue. No cell-centre fallback.</li>
+          <li><b>Missing after stream-in:</b> the cell root is live, no <code>PendingSectorStation</code> remains, and no entity wears the id. <code>error!</code>, then remove the autopilot and the waypoint.</li>
+          <li><b>Reached the mark without a hand-off</b> (a station <code>GotoPos</code> completes): <code>error!</code>. The cell must stream in first.</li>
+          <li><b>Non-finite mark:</b> refused at resolve. The save already refuses a non-finite <code>GotoPos</code> (<code>controls.rs:243</code>).</li>
+          <li><b>No <code>ChartSectorEdge</code></b> (a fixed scene): the chart does not draw, so no GOTO is offered. No silent default edge.</li>
+        </ul>
+        <p class="rec"><b>Recommend</b>All six, each with a unit test on <code>waypoint_mark</code> or the hand-off system.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section id="proof" aria-labelledby="h-proof">
+  <h2 id="h-proof">Proof plan</h2>
+  <div class="body">
+    <h3>Playable example: <code>examples/playable/waypoint_goto_sandbox.rs</code></h3>
+    <p>It boots the open world through <code>editor_app(true, None)</code> and New Game. It has a hand-run mode with no deadline, and a <code>NOVA_AUTOPILOT=1</code> walk with assert steps. It adds a README index row.</p>
+    <ol class="plain">
+      <li>The start station is found (<code>Chart::station_code</code> is <code>STN-1</code>). Move the ship 4 cells out. Assert that the station entity is gone and that <code>FrozenSectors</code> holds its id.</li>
+      <li>Open the Map chart, select the STN-1 mark, and press GOTO. Assert <code>Waypoint{Station}</code>, and <code>GotoPos</code> equal to the frozen transform.</li>
+      <li>Assert that the chip is visible with label <code>STN-1</code> and a distance. Turn the ship away and assert that the chip is clamped and the chevron is shown and points at the mark's projected side.</li>
+      <li>Assert that no route stroke and no ribbon segment shows while <code>FlightPrediction</code> is absent.</li>
+      <li>Fly. On stream-in, assert <code>Goto{station entity}</code>, a travel lock on it, and the chip anchor on <code>Entity</code>.</li>
+      <li>On arrival, assert that <code>Waypoint</code> is removed, the chip is hidden, and <code>OnGotoComplete</code> carries the station id. Judge the probe timeline markers, not the log.</li>
+      <li>Second walk: GOTO a cell 3 cells out. It rests at the centre and the waypoint clears.</li>
+    </ol>
+    <h3>Unit tests</h3>
+    <ul class="plain">
+      <li><code>waypoint_mark</code>: an unknown station, a found station with no record, and a cell centre from <code>ChartSectorEdge</code>.</li>
+      <li><code>clear_stale_waypoint</code>: Cancel, STOP, and a new <code>Goto</code> each remove it. <code>Goto</code> on the station keeps it.</li>
+      <li>Map: chart GOTO is Ready on a Station/Cell mark and Hidden on Wreck/Job. A refused resolve raises the deny cue and sets nothing.</li>
+      <li>Save: a waypoint round-trips. A waypoint that names a station missing from the saved chart is refused.</li>
+    </ul>
+    <h3>Frames</h3>
+    <p>One <code>NOVA_CAPTURE=1</code> frame each: chip on screen, chip clamped off screen, and the chart with the GOTO tag. Lavapipe only, in a sandboxed profile. The owner then plays the hand-run mode.</p>
+  </div>
+</section>
+
+<section id="unverified" aria-labelledby="h-unverified">
+  <h2 id="h-unverified">Not verified</h2>
+  <div class="body">
+    <ul class="plain">
+      <li>Nothing was built or run. "What happens today" is read from the code, not reproduced by a test or a headless run.</li>
+      <li>That every found station out of the window has a <code>FrozenSectors</code> record. Read from <code>frozen.rs</code> and <code>streaming.rs:1175</code>, not tested.</li>
+      <li>Whether an orbiting station thaws where it froze or moves along its orbit. Either way the mark is within its orbit radius, and the hand-off aims at the live body.</li>
+      <li>What <code>GotoPos</code> does when a cell centre lies inside a body (a cluster anchor can sit near a cell centre). <code>NoSafeLeg</code> would log an error and disengage. The example's second walk must find out.</li>
+      <li>Whether station marks more than 3 cells out are selectable in the chart. The marks draw at any cell (<code>chart.rs:662-701</code>), but the grid is 7 by 7.</li>
+      <li>That a New Game's start station is in the chart at the first frame.</li>
+      <li>No compiled check of the proposed types. The waypoint is a component on the player ship, not a world entity, so <code>nova_world</code> freeze and adoption never see it (adoption rules not read in full).</li>
+    </ul>
+  </div>
+</section>
+
+<section id="ask" aria-labelledby="h-ask">
+  <h2 id="h-ask">Decision for you</h2>
+  <div class="body">
+    <p class="ask">Should a GOTO on an unloaded station fly the ship there, with the autopilot heading for the station's last known position and the normal GOTO with the real path taking over when the station streams in? Or should it only point the way while you fly by hand?</p>
+  </div>
+</section>
+
+</div>
