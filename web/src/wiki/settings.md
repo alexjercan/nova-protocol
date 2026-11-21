@@ -45,7 +45,7 @@ plays the songs of the first one that is true.
 | Silence | The first load, the editor and the Mod Hub. | none |
 | Menu | The main menu, with the scenes behind it. | Exploration Theme, again and again |
 | Mod song | A scenario plays its own song. | the scenario's song |
-| Combat | A shot hits your ship, or your shot hits another ship. Ends 15 s after the last hit. | Intense Electronic Action Soundtrack, The Hunter |
+| Combat | A hostile ship's fire hits your ship, or your fire hits a hostile ship. A collision, or a hit between you and a neutral or friendly ship, is not a fight; a ship that fires back at you is hostile. Ends 15 s after the last hit. | Intense Electronic Action Soundtrack, The Hunter |
 | Enemies near | A hostile holds its lock on you for 2 s, or a hostile ship attacks you. Ends 10 s after neither. | Unseen, Unknown |
 | Docked | Your ship is docked at a station. | Ambient Soundtrack, Hidden Nebula |
 | Cruise | Any other flight. | Stellar Cruise, Little Blue Speck, Uncharted |

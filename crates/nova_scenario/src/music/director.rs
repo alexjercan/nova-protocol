@@ -137,8 +137,8 @@ impl ScenarioMusic {
     }
 }
 
-/// Whether a hit on or by the player's ship landed since the director last
-/// looked. Set by [`hear_music_hits`].
+/// Whether a combat hit landed since the director last looked: weapon fire
+/// between the player's ship and a hostile ship. Set by [`hear_music_hits`].
 #[derive(Resource, Debug, Default)]
 pub struct MusicHits(pub bool);
 
@@ -199,7 +199,8 @@ pub struct MusicTick<'a> {
     pub facts: MusicFacts,
     /// Whether a hostile holds its lock on the player or engages the player.
     pub signal: bool,
-    /// Whether a hit on or by the player's ship landed.
+    /// Whether a combat hit landed: weapon fire between the player's ship
+    /// and a hostile one.
     pub hit: bool,
     /// Game seconds since the last frame: the mood's clock, which stops in
     /// a pause.
@@ -774,12 +775,16 @@ pub fn direct_music(
     }
 }
 
-/// Note a hit on the player's ship by another ship, or by the player's ship
-/// on another ship. Only the first hop of the damage event counts, and a hit
-/// on a rock or by a rock is not a fight.
+/// Note a combat hit: weapon fire between the player's ship and a ship
+/// hostile to it, either way. Hostile is [`ship_relation`], the rule the AI's
+/// under-fire memory and the threat signal read, so a civilization the
+/// player turned Enemy or a Neutral answering the player counts, and a
+/// Neutral, a friend or the player's own fleet does not. A ram or a scrape
+/// against a hull or a station is not fire, and a rock blames nobody. Only
+/// the first hop of the damage event counts.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one observer: the attacker walk's four lookups, the player, and the flag"
+    reason = "one observer: the attacker walk's four lookups, the victim's relation, the player, and the flag"
 )]
 pub fn hear_music_hits(
     damage: On<HealthApplyDamage>,
@@ -787,6 +792,7 @@ pub fn hear_music_hits(
     q_allegiance: Query<&Allegiance>,
     q_parent: Query<&ChildOf>,
     q_ship_root: Query<(), With<SpaceshipRootMarker>>,
+    q_retaliation: Query<&RetaliationTarget>,
     q_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut hits: ResMut<MusicHits>,
 ) {
@@ -803,12 +809,25 @@ pub fn hear_music_hits(
         };
         victim = parent;
     }
-    let (attacker, _) =
+    let attacker =
         resolve_damage_attacker(source, &q_owner, &q_allegiance, &q_parent, &q_ship_root);
-    let Some(attacker) = attacker.filter(|attacker| *attacker != victim) else {
+    let Some(shooter) = attacker.ship.filter(|shooter| *shooter != victim) else {
         return;
     };
-    if q_player.contains(victim) || q_player.contains(attacker) {
+    if !attacker.weapon || !(q_player.contains(victim) || q_player.contains(shooter)) {
+        return;
+    }
+    let them = RelationParty {
+        entity: shooter,
+        allegiance: attacker.allegiance.as_ref(),
+        retaliation: q_retaliation.get(shooter).ok(),
+    };
+    let us = RelationParty {
+        entity: victim,
+        allegiance: q_allegiance.get(victim).ok(),
+        retaliation: q_retaliation.get(victim).ok(),
+    };
+    if ship_relation(them, us) == Relation::Hostile {
         hits.0 = true;
     }
 }

@@ -18,8 +18,9 @@ pub const THREAT_HOLD_SECS: f32 = 2.0;
 /// leaves the threat song.
 pub const THREAT_RELEASE_SECS: f32 = 10.0;
 
-/// How long the mood stays [`MusicMoodType::Combat`] after the last hit on
-/// or by the player's ship. A lull between passes keeps the combat song.
+/// How long the mood stays [`MusicMoodType::Combat`] after the last combat
+/// hit: weapon fire between the player's ship and a hostile one. A lull
+/// between passes keeps the combat song.
 pub const COMBAT_RELEASE_SECS: f32 = 15.0;
 
 /// What the music is for: which situation's songs play.
@@ -35,7 +36,7 @@ pub enum MusicContextType {
     Cruise,
     /// A hostile has the player in its lock or is engaging the player.
     Threat,
-    /// Shots land on or from the player's ship.
+    /// Weapon fire lands between the player's ship and a hostile one.
     Combat,
     /// The player's ship is docked at a station.
     Docked,
@@ -127,7 +128,7 @@ pub enum MusicMoodType {
     Calm,
     /// A hostile holds its lock on the player or engages the player.
     Threat,
-    /// Shots land on or from the player's ship.
+    /// Weapon fire lands between the player's ship and a hostile one.
     Combat,
 }
 
@@ -136,7 +137,7 @@ pub enum MusicMoodType {
 ///
 /// ```text
 /// Calm   -> Threat  signal held THREAT_HOLD_SECS
-/// any    -> Combat  a hit, at once
+/// any    -> Combat  a combat hit, at once
 /// Combat -> Threat  COMBAT_RELEASE_SECS with no hit, signal seen within
 ///                   THREAT_RELEASE_SECS
 /// Combat -> Calm    COMBAT_RELEASE_SECS with no hit, no signal for
@@ -168,7 +169,8 @@ impl Default for MusicMood {
 impl MusicMood {
     /// The mood after `dt` seconds in which the threat `signal` (a hostile
     /// lock on the player or a hostile AI engaging the player) was on or
-    /// off, and a `hit` on or by the player's ship landed or not.
+    /// off, and a combat `hit` (weapon fire between the player's ship and a
+    /// hostile one) landed or not.
     #[must_use]
     pub fn step(self, dt: f32, signal: bool, hit: bool) -> Self {
         let (held, since_signal) = if signal {

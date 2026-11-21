@@ -89,8 +89,8 @@ pub(crate) fn on_damage_stamp_player_credit(
     let Some(source) = damage.source else {
         return;
     };
-    let (attacker, _) =
-        resolve_damage_attacker(source, &q_owner, &q_allegiance, &q_parent, &q_ship_root);
+    let attacker =
+        resolve_damage_attacker(source, &q_owner, &q_allegiance, &q_parent, &q_ship_root).ship;
     let Some(attacker) = attacker.filter(|attacker| q_player.contains(*attacker)) else {
         return;
     };

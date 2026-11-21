@@ -93,6 +93,14 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
   device): contexts Silent, Menu, Cruise, Docked, Cruise, Threat, Combat,
   Cruise, Docked; `volume music 0` held the voice at gain 0; the deck held
   `NoOutput`. Not yet heard on a real audio device.
+- 2026-11-21, owner on combat: "if you barely scratch the ship you get the
+  combat music, it's not that ok, it should be specifically for combat
+  encounters". `hear_music_hits` counted any hit between the player and
+  another ship root: a ram, a station scrape, a neutral's or a friend's
+  round. Rule now: a combat hit is weapon fire (a `ProjectileOwner` on the
+  source) between the player and a ship `ship_relation` reads Hostile, the
+  rule of the AI's under-fire memory and the threat signal. One such hit is
+  enough. `resolve_damage_attacker` returns `DamageAttacker` with `weapon`.
 
 ## Verification
 - Unit test for the context rule; a live run that plays music on the

@@ -779,3 +779,166 @@ fn a_track_names_only_situations_with_a_playlist() {
         "no situation"
     );
 }
+
+// --- The hits that start a fight --------------------------------------------
+
+/// A rig with only [`hear_music_hits`], and the player's ship with one
+/// section.
+struct HitRig {
+    app: App,
+    player: Entity,
+    player_section: Entity,
+}
+
+impl HitRig {
+    fn new() -> Self {
+        let mut app = App::new();
+        app.init_resource::<MusicHits>()
+            .add_observer(hear_music_hits);
+        let player = app
+            .world_mut()
+            .spawn((PlayerSpaceshipMarker, RetaliationTarget(None)))
+            .id();
+        let player_section = app.world_mut().spawn(ChildOf(player)).id();
+        Self {
+            app,
+            player,
+            player_section,
+        }
+    }
+
+    /// Another ship root with one section: the root and the section.
+    fn ship(&mut self, allegiance: Allegiance) -> (Entity, Entity) {
+        let root = self
+            .app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, allegiance, RetaliationTarget(None)))
+            .id();
+        let section = self.app.world_mut().spawn(ChildOf(root)).id();
+        (root, section)
+    }
+
+    /// A station root with one section: the root and the section.
+    fn station(&mut self) -> (Entity, Entity) {
+        let (root, section) = self.ship(Allegiance::Neutral);
+        self.app.world_mut().entity_mut(root).insert(StationMarker);
+        (root, section)
+    }
+
+    /// A round `owner` fired, with the side it launched under.
+    fn round(&mut self, owner: Entity) -> Entity {
+        let allegiance = *self
+            .app
+            .world()
+            .get::<Allegiance>(owner)
+            .expect("the shooter has a side");
+        self.app
+            .world_mut()
+            .spawn((ProjectileOwner(owner), allegiance))
+            .id()
+    }
+
+    /// Whether a hit on `target` from `source` starts the combat song.
+    fn hit(&mut self, target: Entity, source: Entity) -> bool {
+        self.app.world_mut().resource_mut::<MusicHits>().0 = false;
+        self.app.world_mut().trigger(HealthApplyDamage {
+            entity: target,
+            source: Some(source),
+            amount: 5.0,
+        });
+        self.app.world().resource::<MusicHits>().0
+    }
+}
+
+#[test]
+fn a_collision_with_a_station_does_not_start_the_combat_song() {
+    let mut rig = HitRig::new();
+    let (_, dock) = rig.station();
+    let player_section = rig.player_section;
+    assert!(
+        !rig.hit(player_section, dock),
+        "the station scrapes the player"
+    );
+    assert!(
+        !rig.hit(dock, player_section),
+        "the player scrapes the station"
+    );
+}
+
+#[test]
+fn a_collision_with_another_ship_does_not_start_the_combat_song() {
+    let mut rig = HitRig::new();
+    let player_section = rig.player_section;
+    for allegiance in [Allegiance::Enemy, Allegiance::Neutral, Allegiance::Player] {
+        let (_, hull) = rig.ship(allegiance);
+        assert!(
+            !rig.hit(player_section, hull),
+            "a {allegiance:?} hull rams the player"
+        );
+        assert!(
+            !rig.hit(hull, player_section),
+            "the player rams a {allegiance:?} hull"
+        );
+    }
+}
+
+#[test]
+fn a_hit_between_the_player_and_a_neutral_ship_does_not_start_the_combat_song() {
+    let mut rig = HitRig::new();
+    let (player, player_section) = (rig.player, rig.player_section);
+    let (hauler, hauler_section) = rig.ship(Allegiance::Neutral);
+    let stray = rig.round(hauler);
+    assert!(!rig.hit(player_section, stray), "a neutral's stray round");
+    let shot = rig.round(player);
+    assert!(
+        !rig.hit(hauler_section, shot),
+        "the player's round on a neutral"
+    );
+}
+
+#[test]
+fn a_hit_between_the_player_and_a_friendly_ship_does_not_start_the_combat_song() {
+    let mut rig = HitRig::new();
+    let (player, player_section) = (rig.player, rig.player_section);
+    let (escort, escort_section) = rig.ship(Allegiance::Player);
+    let stray = rig.round(escort);
+    assert!(!rig.hit(player_section, stray), "the escort's stray round");
+    let shot = rig.round(player);
+    assert!(
+        !rig.hit(escort_section, shot),
+        "the player's round on the escort"
+    );
+}
+
+#[test]
+fn a_hostiles_round_on_the_player_starts_the_combat_song() {
+    let mut rig = HitRig::new();
+    let player_section = rig.player_section;
+    let (raider, _) = rig.ship(Allegiance::Enemy);
+    let round = rig.round(raider);
+    assert!(rig.hit(player_section, round));
+}
+
+#[test]
+fn the_players_round_on_a_hostile_starts_the_combat_song() {
+    let mut rig = HitRig::new();
+    let player = rig.player;
+    let (_, raider_section) = rig.ship(Allegiance::Enemy);
+    let round = rig.round(player);
+    assert!(rig.hit(raider_section, round));
+}
+
+#[test]
+fn a_neutral_that_answers_the_player_fights_with_the_combat_song() {
+    let mut rig = HitRig::new();
+    let (player, player_section) = (rig.player, rig.player_section);
+    let (hauler, hauler_section) = rig.ship(Allegiance::Neutral);
+    rig.app
+        .world_mut()
+        .entity_mut(hauler)
+        .insert(RetaliationTarget(Some(player)));
+    let answer = rig.round(hauler);
+    assert!(rig.hit(player_section, answer), "its round on the player");
+    let shot = rig.round(player);
+    assert!(rig.hit(hauler_section, shot), "the player's round on it");
+}

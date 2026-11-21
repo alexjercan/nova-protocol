@@ -43,8 +43,8 @@ use maneuver::update_combat_flight;
 use mission::interrupt_ai_ship_orders;
 use passive::update_passive_flight;
 use railgun::update_railgun_section_input;
-pub use threat::resolve_damage_attacker;
 use threat::{on_damage_stamp_attacker, on_damage_track_threat, release_retaliation_target};
+pub use threat::{resolve_damage_attacker, DamageAttacker};
 use torpedo::{update_torpedo_section_input, update_torpedo_target_input};
 
 // The allocator that reads the point-defence envelope sits outside the AI
@@ -118,9 +118,10 @@ pub mod prelude {
         AIEngageGrace, AIEngageRange, AIEvade, AIFollow, AILeash, AINonCombatant, AIOrbitDirective,
         AIOrderInterruption, AIPatrolRoute, AIPointDefenseRange, AIPointDefenseTarget, AIPrey,
         AIProvocation, AIRailgun, AISpaceshipMarker, AIStandoffClearance, AITarget, AIThreat,
-        AIWaypointSlack, FrozenAI, LastAttacker, ShipProvoked, SpaceshipAIInputPlugin,
-        AI_FIRE_RANGE_FACTOR, AI_FOLLOW_CLOSING_SPEED, AI_FOLLOW_GAP, AI_STANDOFF_OUTER_EDGE,
-        AI_TORPEDO_MAX_RANGE, LAST_ATTACKER_WINDOW, NEUTRAL_RETALIATION_THRESHOLD,
+        AIWaypointSlack, DamageAttacker, FrozenAI, LastAttacker, ShipProvoked,
+        SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR, AI_FOLLOW_CLOSING_SPEED, AI_FOLLOW_GAP,
+        AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE, LAST_ATTACKER_WINDOW,
+        NEUTRAL_RETALIATION_THRESHOLD,
     };
 }
 

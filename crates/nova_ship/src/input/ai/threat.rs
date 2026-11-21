@@ -224,6 +224,20 @@ impl Default for AIEvade {
     }
 }
 
+/// Who is behind a hit, as [`resolve_damage_attacker`] walks it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DamageAttacker {
+    /// The attacking ship root, or `None` when nobody is to blame (an
+    /// asteroid, debris).
+    pub ship: Option<Entity>,
+    /// The allegiance governing the hit: the projectile's, copied at
+    /// launch, or the rammer's own.
+    pub allegiance: Option<Allegiance>,
+    /// Whether the hit is weapon fire: a round, a torpedo or a blast with a
+    /// [`ProjectileOwner`]. A ram, a scrape or a rock is not.
+    pub weapon: bool,
+}
+
 /// Resolve a damage source (the hitting collider the impact path puts in
 /// `HealthApplyDamage.source`) to the attacking ship root and the
 /// allegiance governing the hit, walking `ChildOf` ancestors: a turret
@@ -232,15 +246,16 @@ impl Default for AIEvade {
 /// With no owner anywhere (a ram), the attacker is the source's own ship
 /// root, if it has one.
 ///
-/// Shared with the kill credit: who beat a hull and who gets the stinger
-/// are one question, so they go through one walk.
+/// Shared with the kill credit and the music: who beat a hull, who gets the
+/// stinger and whether a fight started are one question, so they go through
+/// one walk.
 pub fn resolve_damage_attacker(
     source: Entity,
     q_owner: &Query<&ProjectileOwner>,
     q_allegiance: &Query<&Allegiance>,
     q_parent: &Query<&ChildOf>,
     q_ship_root: &Query<(), With<SpaceshipRootMarker>>,
-) -> (Option<Entity>, Option<Allegiance>) {
+) -> DamageAttacker {
     let mut allegiance = None;
     let mut entity = source;
     loop {
@@ -248,7 +263,11 @@ pub fn resolve_damage_attacker(
             // The projectile copies the shooter's allegiance at launch, so
             // the hit stays classifiable even if the owner died mid-flight.
             let allegiance = allegiance.or_else(|| q_allegiance.get(entity).ok().copied());
-            return (Some(owner), allegiance);
+            return DamageAttacker {
+                ship: Some(owner),
+                allegiance,
+                weapon: true,
+            };
         }
         if allegiance.is_none() {
             allegiance = q_allegiance.get(entity).ok().copied();
@@ -257,8 +276,11 @@ pub fn resolve_damage_attacker(
             // Topmost ancestor, no owner anywhere: a direct body-to-body
             // hit. A ship root is its own attacker; anything else
             // (asteroid, debris) has nobody to blame.
-            let attacker = q_ship_root.get(entity).is_ok().then_some(entity);
-            return (attacker, allegiance);
+            return DamageAttacker {
+                ship: q_ship_root.get(entity).is_ok().then_some(entity),
+                allegiance,
+                weapon: false,
+            };
         };
         entity = parent;
     }
@@ -331,8 +353,8 @@ pub(super) fn on_damage_stamp_attacker(
     let Some(source) = damage.source else {
         return;
     };
-    let (attacker, _) =
-        resolve_damage_attacker(source, &q_owner, &q_allegiance, &q_parent, &q_ship_root);
+    let attacker =
+        resolve_damage_attacker(source, &q_owner, &q_allegiance, &q_parent, &q_ship_root).ship;
     let Some(attacker) = attacker.filter(|attacker| *attacker != ship) else {
         return;
     };
@@ -423,8 +445,11 @@ pub(super) fn on_damage_track_threat(
     let Some(source) = damage.source else {
         return;
     };
-    let (attacker, attacker_allegiance) =
-        resolve_damage_attacker(source, &q_owner, &q_allegiance, &q_parent, &q_ship_root);
+    let DamageAttacker {
+        ship: attacker,
+        allegiance: attacker_allegiance,
+        ..
+    } = resolve_damage_attacker(source, &q_owner, &q_allegiance, &q_parent, &q_ship_root);
     let shooter = attacker.filter(|attacker| *attacker != ship && q_ship_root.contains(*attacker));
     let tracked = shooter.filter(|&shooter| {
         *own_allegiance == Allegiance::Neutral
