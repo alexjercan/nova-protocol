@@ -1,6 +1,6 @@
 # Railgun AI: verify behaviour and remove the stale lance TODO
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.19.0, ai, cleanup
 
@@ -90,3 +90,5 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
   with one AI hull carrying a loaded lance against one parked target hull
   at about 1 km, asserting at least one `RailgunFired` from the AI lance and
   one slug `SurfaceImpact` on the target within a step deadline.
+
+- Owner 2026-11-21: "if it works it's all good". No lance run, no extra proof. Closed.
