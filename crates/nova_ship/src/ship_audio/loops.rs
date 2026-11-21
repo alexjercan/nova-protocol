@@ -464,8 +464,10 @@ mod tests {
 
     /// App rig for what the player HEARS: the hum passes over the whole
     /// engine, a listener at the origin, and a measured clip to author the
-    /// loops with. Returned warmed up: the first update runs at dt 0, and the
-    /// engine measures a clip the frame after it is added.
+    /// loops with. Returned once the clip is in [`SoundLoudness`]: the engine
+    /// measures it on the async compute pool and holds its voices silent
+    /// until then, so a fixed warm-up races the measure and a short burst
+    /// can end before the clip has a level.
     fn heard_app() -> (App, Handle<AudioSource>) {
         let mut app = loop_app();
         app.add_plugins(NovaSoundPlugin);
@@ -477,9 +479,11 @@ mod tests {
             .add(AudioSource {
                 bytes: tone_wav().into(),
             });
-        for _ in 0..3 {
+        let measured = (0..10_000).any(|_| {
             app.update();
-        }
+            app.world().resource::<SoundLoudness>().get(&clip).is_some()
+        });
+        assert!(measured, "the engine measures the rig clip");
         (app, clip)
     }
 
