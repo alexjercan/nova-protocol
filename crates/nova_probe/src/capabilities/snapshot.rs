@@ -45,6 +45,10 @@
 //!   relief they read as, and
 //!   every zone fact read off it. A decoration carries
 //!   `stands_on`, which is the plate under it.
+//! - `camera` - the player's view: the chase camera's `position` and
+//!   `rotation` (looking down its local -Z), or `null` with no player ship.
+//!   The radar picks the body under the centre of this view, so a pilot who
+//!   wants a lock aims this, not the nose.
 //! - `ordnance` - every torpedo and turret round in flight: owner, position,
 //!   velocity, damage, remaining lifetime, target.
 //! - `canisters` - every [`CargoCanister`]: numeric runtime id, position,
@@ -507,6 +511,7 @@ pub fn capture_snapshot(world: &mut World, reason: &str) -> serde_json::Value {
     );
     let ui = ui_block(world);
     let mission = mission_block(world);
+    let camera = camera_block(world);
 
     serde_json::json!({
         "schema": SNAPSHOT_SCHEMA,
@@ -521,11 +526,26 @@ pub fn capture_snapshot(world: &mut World, reason: &str) -> serde_json::Value {
         "ui": ui,
         "mission": mission,
         "ships": ships,
+        "camera": camera,
         "canisters": canisters,
         "beacons": beacons,
         "bodies": bodies,
         "ordnance": ordnance,
     })
+}
+
+/// The player's chase camera pose, last frame's render: the view whose centre
+/// the radar picks by. `null` while no player ship owns the camera.
+fn camera_block(world: &mut World) -> serde_json::Value {
+    let mut cameras = world
+        .query_filtered::<&GlobalTransform, With<nova_ship::prelude::SpaceshipCameraController>>();
+    cameras
+        .iter(world)
+        .next()
+        .map_or(serde_json::Value::Null, |pose| {
+            let (_, rotation, position) = pose.to_scale_rotation_translation();
+            serde_json::json!({ "position": vec3(position), "rotation": quat(rotation) })
+        })
 }
 
 /// What the player is being asked to do, as the HUD would show it: the

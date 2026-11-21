@@ -1,12 +1,13 @@
 //! The player's chase camera and where it points the ship. Derives the camera
 //! mode ([`SpaceshipCameraControlMode`]: normal / free-look / turret) and the
 //! weapons-raised stance ([`WeaponsRaised`]) each frame from held inputs, and
-//! exposes the live look ray ([`ActiveLookRay`]) that targeting and the radar
-//! read to know where the player is aiming right now.
+//! exposes the live look ray ([`ActiveLookRay`]), where the player is steering
+//! from the hull, and the screen-centre ray ([`ScreenCentreRay`]) the radar
+//! and the component fine-lock pick with.
 //!
 //! Touch this module for camera framing and look-input routing. Gameplay
-//! consumers should read [`WeaponsRaised`] / [`ActiveLookRay`], never the raw
-//! camera enum.
+//! consumers should read [`WeaponsRaised`], [`ActiveLookRay`] or
+//! [`ScreenCentreRay`], never the raw camera enum.
 //!
 //! Nova owns the rigs the controller is built on, too: [`chase`], [`skybox`],
 //! [`post`], [`wasd`] and [`wasd_controller`]. The trauma shake rig they
@@ -46,9 +47,10 @@ pub use self::{
     mode::{SpaceshipCameraControlMode, WeaponsRaised},
     resume::{CameraResumeBlend, CameraView, CameraViewFault, ResumedCameraView},
     rig::{
-        ActiveLookRay, SpaceshipCameraController, SpaceshipCameraFreeLookInputMarker,
-        SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker,
-        SpaceshipCameraTurretInputMarker, SpaceshipRotationInputActiveMarker,
+        ActiveLookRay, CentreRay, ScreenCentreRay, SpaceshipCameraController,
+        SpaceshipCameraFreeLookInputMarker, SpaceshipCameraInputMarker,
+        SpaceshipCameraNormalInputMarker, SpaceshipCameraTurretInputMarker,
+        SpaceshipRotationInputActiveMarker,
     },
     zoom::ChaseZoom,
 };
@@ -75,9 +77,9 @@ pub mod prelude {
     pub use super::{
         chase::prelude::*, chase_camera_opening_pose, post::prelude::*, skybox::prelude::*,
         wasd::prelude::*, wasd_controller::prelude::*, ActiveLookRay, CameraAuthorityPlugin,
-        CameraAuthoritySystems, CameraResumeBlend, CameraView, CameraViewFault, ChaseZoom,
-        NovaCameraSystems, ResumedCameraView, SpaceshipCameraControlMode,
-        SpaceshipCameraController, SpaceshipCameraControllerPlugin,
+        CameraAuthoritySystems, CameraResumeBlend, CameraView, CameraViewFault, CentreRay,
+        ChaseZoom, NovaCameraSystems, ResumedCameraView, ScreenCentreRay,
+        SpaceshipCameraControlMode, SpaceshipCameraController, SpaceshipCameraControllerPlugin,
         SpaceshipCameraFreeLookInputMarker, SpaceshipCameraInputMarker,
         SpaceshipCameraNormalInputMarker, SpaceshipCameraTurretInputMarker,
         SpaceshipRotationInputActiveMarker, WeaponsRaised, CAMERA_HULL_CLEARANCE,

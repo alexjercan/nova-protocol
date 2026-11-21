@@ -233,7 +233,7 @@ RCS is a docking aid on top of standard flight. Every ship has it unless a scena
             </td>
         </tr>
         <tr>
-            <td>Radar lock (hold to sweep)</td>
+            <td>Radar lock (hold to sweep the screen centre)</td>
             <td><kbd>Ctrl</kbd> (hold)</td>
             <td>
                 <span

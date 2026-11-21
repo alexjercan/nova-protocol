@@ -4,9 +4,11 @@
 //! - [`TravelLock`] (white crosshair): the nav designation GOTO reads.
 //! - [`CombatLock`] (red crosshair): what guns/torpedoes/focus/inset read.
 //! - Hold CTRL (`RadarHoldInput`, a `Hold` condition) = radar on: the
-//!   picker live-retargets to the best body on the ACTIVE look ray
-//!   ([`ActiveLookRay`](crate::camera::prelude::ActiveLookRay)). At the hold
-//!   THRESHOLD the destination slot is
+//!   picker live-retargets to the nearest body under the SCREEN CENTRE
+//!   ([`ScreenCentreRay`](crate::camera::prelude::ScreenCentreRay)): the
+//!   first pickable hull the camera's centre ray meets, or a body whose
+//!   anchor projects within [`RADAR_PICK_TOLERANCE`] of the centre. Both
+//!   slots pick this way. At the hold THRESHOLD the destination slot is
 //!   latched from the CURRENT raised stance (combat while
 //!   [`WeaponsRaised`](crate::camera::prelude::WeaponsRaised),
 //!   else travel) and written LIVE with the candidate every held frame
@@ -83,6 +85,7 @@ pub use self::{
     component_lock::{ComponentLock, ComponentLockMode},
     contacts::LockFocus,
     gesture::RADAR_TAP_SECS,
+    radar::RADAR_PICK_TOLERANCE,
     sensing::{SensorContact, SensorContacts, SensorRange, AI_SENSOR_RANGE, PLAYER_SENSOR_RANGE},
     state::{
         targeting_state, CombatLock, CombatLockDrop, CombatLockDropped, LockClearedToast,
@@ -100,7 +103,7 @@ pub mod prelude {
         RadarLockAcquired, RadarOccluder, RadarRetargeted, RadarSlot, RadarState, SensorContact,
         SensorContactSystems, SensorContacts, SensorRange, SpaceshipTargetingPlugin,
         SpaceshipTargetingSystems, TargetingSettings, ThreatContacts, TravelLock, WeaponsHot,
-        AI_SENSOR_RANGE, PLAYER_SENSOR_RANGE, RADAR_TAP_SECS,
+        AI_SENSOR_RANGE, PLAYER_SENSOR_RANGE, RADAR_PICK_TOLERANCE, RADAR_TAP_SECS,
     };
 }
 

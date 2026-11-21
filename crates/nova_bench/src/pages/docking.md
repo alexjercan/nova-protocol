@@ -28,8 +28,8 @@ does nothing and reports nothing.
 
 ## Flying it
 
-1. Lock the other ship: hold `targeting.radar_hold` with it near bearing
-   `[0, 0]` until `me.travel_lock` names it, then release.
+1. Lock the other ship: hold `targeting.radar_hold` with its `screen_deg`
+   near `[0, 0]` until `me.travel_lock` names it, then release.
 2. Point the nose down the other port's axis. Turn with
    `camera.camera_rotate` until `align_bearing_deg` reads near `[0, 0]`;
    that is the facing gate, for a port on your bow. Release

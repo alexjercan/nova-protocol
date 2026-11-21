@@ -878,16 +878,17 @@ fn dock_envelope_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin
         .until(and(state_is(GameStates::Playing), player_ship_present()))
         .deadline(30.0)
         .add()
-        .step("settle the scene")
+        .step("settle the scene on the spar")
         .on_enter(raise_the_instruments)
+        .each(keep_centred_on(scenario_object(SPAR_ID)))
         .until(elapsed(1.0))
         .add()
         // The lock is a HOLD, and it happens while the camera is still the
-        // player's own: the radar picks the body nearest the camera's aim ray,
-        // and the sheet's eye is off the quarter where that ray points at
-        // nothing.
+        // player's own: the radar picks the body under the screen centre, and
+        // the sheet's eye is off the quarter where that centre is empty space.
         .step("hold the radar onto the spar")
         .on_enter(press_action("radar_hold"))
+        .each(keep_centred_on(scenario_object(SPAR_ID)))
         .until(elapsed(LOCK_HOLD))
         .add()
         .step("release the radar")

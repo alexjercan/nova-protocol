@@ -44,6 +44,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - PDC-armed start roles (scavenger, bounty hunter, military, pirate) carry 3,000 PDC rounds, up from 1,000.
 - A generated station that sells PDC rounds opens with at least 4,000, up from 2,000, and restocks back to it.
+- Both radar locks (Ctrl) take the nearest body under the screen centre, shown by a small centre mark. Before, an 18-degree cone round the look picked, so a centred target could miss.
 
 ### Ships & Sections
 

@@ -44,7 +44,7 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 
 ## Targeting
 
-- **Radar sweep** - hold <kbd>Ctrl</kbd> to run the radar: it tracks the best body inside an 18-degree cone around your aim and re-targets as you sweep. See [Holding to sweep](../targeting-radar/#holding-to-sweep).
+- **Radar sweep** - hold <kbd>Ctrl</kbd> to run the radar: it picks the nearest body under the centre of your screen and re-targets as you sweep. See [Holding to sweep](../targeting-radar/#holding-to-sweep).
 - **Lock-on dwell** - the short hold a lock has to be earned through. Pointing at something does not lock it; holding steady on it does.
 - **Nav lock / combat lock** - the two lock slots. A lowered (white) stance sweeps a nav lock the autopilot flies to; a raised (red) stance sweeps a combat lock the guns aim at. See [Stances and slots](../targeting-radar/#stances-and-slots).
 - **Stance** - whether your weapons are lowered or raised. It picks which slot a sweep fills, and it is one of the two things that make the weapons hot.

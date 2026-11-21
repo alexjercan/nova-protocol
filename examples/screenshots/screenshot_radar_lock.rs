@@ -98,11 +98,10 @@ fn nav_approach(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioCo
         PLAYER_ID,
         "Player Ship",
         START_POSITION,
-        // Square with the world, NOT nosed at the beacon: the radar picks by
-        // the CAMERA's look ray (`ActiveLookRay`), which opens down world -Z
-        // whatever the hull is doing, and the start offset is chosen so the
-        // beacon sits a few degrees off that ray - inside the 18-degree radar
-        // cone, and clear of the player's own hull in frame.
+        // Square with the world, NOT nosed at the beacon: the script turns the
+        // look onto the beacon before the sweep, because the radar picks the
+        // body under the screen centre, and the start offset keeps the beacon
+        // clear of the player's own hull in frame.
         Quat::IDENTITY,
         SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
@@ -114,18 +113,17 @@ fn nav_approach(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioCo
     // The corridor: big rocks downrange, so the shot has something with
     // parallax in it instead of an empty starfield.
     //
-    // LIFTED OFF THE LOOK RAY, and that is the load-bearing part. The radar
-    // commits to whatever lockable body sits CLOSEST TO THE RAY, and a rock is
-    // as lockable as a beacon; the beacon rides 4.3 degrees up (600 m of start
-    // offset over 8 km), so any rock inside that angle takes the lock instead
-    // and the sweep never designates its subject. A ring centred on the origin
-    // and spread 1.6 km either side of the beacon's plane puts rocks AT the
-    // ray's own height, which is how `hollow_far_1` stole the designation.
+    // LIFTED OFF THE CENTRE RAY, because the radar commits to the NEAREST
+    // lockable body under the screen centre, and a rock is as lockable as a
+    // beacon: any rock between the camera and the beacon takes the lock and
+    // the sweep never designates its subject. A ring centred on the origin and
+    // spread 1.6 km either side of the beacon's plane puts rocks AT the ray's
+    // own height, which is how `hollow_far_1` stole the designation.
     //
     // Centred 2 km up with a 1 km spread, the nearest rock stands 1.6 km above
-    // the ray, and the farthest one it could still be measured against is
-    // 12 km downrange: 7.6 degrees, comfortably outside the beacon's 4.3. The
-    // set is then a property of the geometry rather than of the seed.
+    // the camera-to-beacon line, far outside the pick tolerance at any range
+    // in the set. The set is then a property of the geometry rather than of
+    // the seed.
     let corridor = kit::NearField {
         id_prefix: "hollow_far_",
         count: 26,
@@ -220,8 +218,9 @@ fn radar_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .until(player_ship_present())
         .deadline(30.0)
         .add()
-        .step("settle at the start")
+        .step("settle at the start, looking at the beacon")
         .on_enter(hud_instrument)
+        .each(keep_centred_on(scenario_object(BEACON_ID)))
         .until(elapsed(1.0))
         .add();
 
@@ -232,13 +231,16 @@ fn radar_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
             .add();
     }
 
-    // Weapons lowered, hold CTRL: the nav-slot radar opens and the white NAV
-    // crosshair sweeps onto the beacon downrange. Waiting on the LOCK rather
+    // Weapons lowered, beacon under the screen centre, hold CTRL: the nav-slot
+    // radar opens and the white NAV crosshair sweeps onto the beacon
+    // downrange. The look stays on the beacon for the whole sweep, as a
+    // pilot's would. Waiting on the LOCK rather
     // than on a guessed second - and naming the beacon - so a run that latches
     // a rock instead aborts here and says so.
     script = script
         .step("sweep the nav radar")
         .on_enter(hold_radar)
+        .each(keep_centred_on(scenario_object(BEACON_ID)))
         .until(travel_locked_on_beacon())
         .diagnose(radar_diagnosis)
         .deadline(12.0)
@@ -318,13 +320,13 @@ fn hold_radar(world: &mut World) {
     press_action("radar_hold")(world);
 }
 
-/// Why the sweep has not committed: which slot the hold latched, what the cone
-/// is holding, and how far the dwell on it has charged.
+/// Why the sweep has not committed: which slot the hold latched, what the
+/// screen centre is holding, and how far the dwell on it has charged.
 ///
 /// A stall here has four distinct causes - the gesture never crossed its hold
-/// threshold, the beacon is outside the cone, the raised stance sent the commit
-/// to the combat slot, or the dwell is longer than the deadline - and they read
-/// the same from outside. This tells them apart in the failure line.
+/// threshold, the beacon is off the screen centre, the raised stance sent the
+/// commit to the combat slot, or the dwell is longer than the deadline - and
+/// they read the same from outside. This tells them apart in the failure line.
 #[cfg(feature = "debug")]
 fn radar_diagnosis(world: &World) -> String {
     let Some(player) = player_root_ref(world) else {
@@ -350,8 +352,8 @@ fn radar_diagnosis(world: &World) -> String {
     )
 }
 
-/// Advance once the travel lock is on the beacon (and not on some rock the aim
-/// ray happened to cross).
+/// Advance once the travel lock is on the beacon (and not on some rock the
+/// centre ray happened to cross).
 #[cfg(feature = "debug")]
 fn travel_locked_on_beacon() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(|world: &World| {

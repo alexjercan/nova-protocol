@@ -155,10 +155,10 @@ pub fn ambush_hollow(
         PLAYER_ID,
         "Player Ship",
         Meters3::ZERO,
-        // Square with the world: the radar picks by the CAMERA's look ray
-        // (`ActiveLookRay`), which opens down world -Z whatever the hull is
-        // doing, and the raider is parked a few degrees off that ray - inside
-        // the 18-degree radar cone, and clear of the player's own hull in frame.
+        // Square with the world, with the raider parked a few degrees off the
+        // nose and clear of the player's own hull in frame. The radar picks
+        // the body under the screen centre, so a walk that locks it turns the
+        // look onto it first ([`centre_raider`]).
         Quat::IDENTITY,
         SpaceshipController::Player(PlayerControllerConfig {
             // Without this the trigger is bound to NOTHING: turret bindings are
@@ -607,9 +607,7 @@ pub fn duel_hollow(
         PLAYER_ID,
         "Player Ship",
         Meters3::ZERO,
-        // Square with the world, for the reason `ambush_hollow` gives: the
-        // radar picks by the CAMERA's look ray, which opens down world -Z, and
-        // the raider is parked a few degrees off it.
+        // Square with the world, for the reason `ambush_hollow` gives.
         Quat::IDENTITY,
         SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: turret_bindings(sections, &player_hull.sections),
@@ -1188,10 +1186,10 @@ pub fn hold_station(world: &mut World) {
 /// run.
 ///
 /// Not cosmetic, and not the STOP autopilot: the set's geometry is measured from
-/// a player at the origin, and the radar picks the body nearest the AIM RAY
-/// (`crates/nova_gameplay/src/input/targeting/radar.rs`), so a player a few
-/// hundred meters off station swings the parked raider off the ray and latches
-/// a hostile two kilometers out instead.
+/// a player at the origin, and the radar picks the nearest body under the
+/// screen centre (`crates/nova_ship/src/input/targeting/radar.rs`), so a player
+/// a few hundred meters off station puts another hull or a rock between the
+/// camera and the raider and latches that instead.
 #[cfg(feature = "debug")]
 pub fn pin_player(
     mut player: Query<
@@ -1212,8 +1210,8 @@ pub fn pin_player(
 }
 
 /// Set the raider drifting: slow, and across the line of sight rather than
-/// along it, so it stays on the aim ray the radar picks by while the lock's
-/// distance and closing-speed readouts have something to say.
+/// along it, so the look [`centre_raider`] holds on it barely moves while the
+/// lock's distance and closing-speed readouts have something to say.
 #[cfg(feature = "debug")]
 pub fn nudge_raider(world: &mut World) {
     let Some(raider) = raider_root(world) else {
@@ -1226,6 +1224,15 @@ pub fn nudge_raider(world: &mut World) {
     {
         velocity.0 = Vec3::new(0.35, 0.12, -0.25);
     }
+}
+
+/// A step `each` hook that keeps the raider under the screen centre, so a
+/// radar hold beside it picks the raider: the aim a player makes to lock it.
+/// It turns the player's look rigs, so it aims only while the chase camera is
+/// the view; a posed camera's own centre is what the radar reads then.
+#[cfg(feature = "debug")]
+pub fn centre_raider() -> impl Fn(&mut World, f32, u32) + Send + Sync + 'static {
+    keep_centred_on(scenario_object(RAIDER_ID))
 }
 
 /// Hold the radar gesture. Which slot it latches depends on the stance.

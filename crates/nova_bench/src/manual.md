@@ -62,7 +62,8 @@ All lengths are meters, speeds meters per second, angles degrees.
   `Dock`, `Goto`, `Lock`, `Orbit`, `PointDefense`, `Rcs`, `Stop`. A withheld
   capability does nothing however well you drive it: a tutorial grants them
   one lesson at a time).
-- `contacts`: every other ship. `distance_m`, `bearing_deg`, `closing_mps`
+- `contacts`: every other ship. `distance_m`, `bearing_deg`, `screen_deg`,
+  `closing_mps`
   (positive when the range is shrinking), `allegiance` (`Enemy`, `Player`
   for your own side, `Neutral`), `health`, `defeated`, `weapons_hot`,
   `ai_target` (who it is hunting). A hull that breaks up leaves `contacts`
@@ -111,6 +112,12 @@ All lengths are meters, speeds meters per second, angles degrees.
 `bearing_deg` is `[azimuth, elevation]` from your nose: azimuth positive to
 starboard (right), negative to port (left); elevation positive up. `[0, 0]`
 is dead ahead, `[180, 0]` is dead astern.
+
+`screen_deg` is the same pair measured from the centre of your screen. The
+camera rides above and behind the hull and looks a little down, so the two
+differ: a far contact on the nose reads a few degrees ABOVE the screen
+centre. The radar locks what is at `screen_deg` `[0, 0]`, within about one
+degree. Every record with a `bearing_deg` carries it once the camera is up.
 
 ## Gestures
 
@@ -195,7 +202,8 @@ Targeting:
 
 - `targeting.combat_stance`: hold to raise the weapons. Needed for a combat
   lock and for any trigger to do anything.
-- `targeting.radar_hold`: hold to search along your nose and acquire a lock.
+- `targeting.radar_hold`: hold to search under the centre of the screen and
+  acquire a lock.
   Watch `me.radar.dwell_fill` while you hold.
 - `targeting.radar_clear`: tap to drop the combat lock (a second tap drops
   the travel lock). SAME KEY as `targeting.radar_hold` - a short press

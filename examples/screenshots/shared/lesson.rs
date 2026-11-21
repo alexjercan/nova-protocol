@@ -186,8 +186,8 @@ impl LessonSweep {
 
 /// Pose the camera where the sweep will START, without starting it.
 ///
-/// A producer that has to AIM before it records - a radar sweep picks by the
-/// camera's own look ray - frames the shot with this first, so the beats that
+/// A producer that has to AIM before it records - a radar sweep picks the body
+/// under the centre of the view - frames the shot with this first, so the beats that
 /// aim and the frames that record see the same view and the sweep begins with
 /// no jump.
 pub fn hold_lesson_camera(world: &mut World, sweep: LessonSweep) {
@@ -208,6 +208,20 @@ pub fn sweep_lesson_camera(world: &mut World) {
     };
     pose_camera(world, sweep.position(), sweep.subject);
     world.resource_mut::<LessonSweep>().frame += 1;
+}
+
+/// Hand the view back to the player's chase camera: stop any sweep, then drop
+/// the pinned pose. A walk that takes a lock does it under the chase camera,
+/// because the radar picks the body under the centre of whatever view is up.
+pub fn hand_back_camera(world: &mut World) {
+    world.remove_resource::<LessonSweep>();
+    let camera = {
+        let mut query = world.query_filtered::<Entity, With<ScenarioCameraMarker>>();
+        query.iter(world).next()
+    };
+    if let Some(camera) = camera {
+        world.entity_mut(camera).remove::<ScriptedCameraPose>();
+    }
 }
 
 /// A camera that rides beside the player's hull: the same offset from it in

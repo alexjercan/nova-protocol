@@ -115,6 +115,7 @@ fn combat_hud_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Ga
         .add()
         .step("latch the combat lock")
         .on_enter(hollow::hold_radar)
+        .each(hollow::centre_raider())
         .until(elapsed(1.8))
         .add()
         // Guns live: the player's own turret streams tracers at the locked

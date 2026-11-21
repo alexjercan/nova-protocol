@@ -10,14 +10,16 @@ radar writes depends on the weapons:
 
 ## Acquiring
 
-Put the target near bearing `[0, 0]`, hold `targeting.radar_hold`, and WATCH
+Put the target under the screen centre - `screen_deg` near `[0, 0]`, within
+about one degree - hold `targeting.radar_hold`, and WATCH
 `me.radar` while you hold it:
 
 - `dwell_target` is the contact the acquisition is charging on.
 - `dwell_secs` of `dwell_needed` is how far it has charged; `dwell_fill` is
   the same as a fraction, and is `null` when nothing is charging at all. This
   is the ring a player watches fill.
-- `candidate` is what is under the ray, whether or not it is charging.
+- `candidate` is what is under the screen centre, whether or not it is
+  charging. The nearest body there wins.
 
 The dwell GROWS WITH RANGE, on a curve from 0.6 s point-blank to 1.5 s at
 20 km and beyond: 0.645 s at 1 km and 0.7125 s at 2500 m, about 39 and 43
@@ -27,8 +29,8 @@ holding for a fixed 40 ticks and reading no lock proves nothing - read
 `dwell_fill` instead and hold until it reaches 1, or until
 `combat_lock` / `travel_lock` names the target. A `null` `dwell_fill` means no
 dwell is charging - either the hold has not crossed its threshold yet (the
-first 15 ticks of every hold do nothing but search), or the ray is on nothing
-lockable. `candidate` tells you which: a name means keep holding, `null` means
+first 15 ticks of every hold do nothing but search), or the screen centre is
+on nothing lockable. `candidate` tells you which: a name means keep holding, `null` means
 re-aim. Release once locked; the lock sticks on its own.
 
 `me.radar` is `null` whenever the gesture is not held. Nothing is charging
@@ -36,8 +38,9 @@ then, and nothing is being searched for.
 
 ## When the lock will not take
 
-- Nothing is under the ray. `candidate` is `null`: turn until the target is
-  nearer bearing `[0, 0]`.
+- Nothing is under the screen centre. `candidate` is `null`: turn until the
+  target's `screen_deg` is nearer `[0, 0]`. `bearing_deg` `[0, 0]` is not
+  enough: a far target on the nose sits above the screen centre.
 - A rock is in the way. The radar is a ray and a body stops it. The view says
   so: a body that blocks the line of sight is listed under
   `bodies.in_the_way` with `why` naming the lock it occludes.

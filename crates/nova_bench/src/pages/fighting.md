@@ -2,7 +2,8 @@
 
 The loop is: turn, raise, lock, close, fire, cease.
 
-1. Turn until the hostile is near bearing `[0, 0]`.
+1. Turn until the hostile's `screen_deg` is near `[0, 0]`: the radar locks
+   what is under the screen centre.
 2. Hold `targeting.combat_stance`. In a LATER act, hold
    `targeting.radar_hold` until `me.combat_lock` names the contact, watching
    `me.radar.dwell_fill` while you hold. Release the radar.

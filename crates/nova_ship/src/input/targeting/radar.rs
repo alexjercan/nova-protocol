@@ -1,6 +1,7 @@
-//! The live radar search: while the gesture is open, pick the best body on
-//! the look ray inside the cone and hold it for the dwell that commits it.
+//! The live radar search: while the gesture is open, pick the body under the
+//! screen centre and hold it for the dwell that commits it.
 
+use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
@@ -8,36 +9,40 @@ use nova_gameplay::prelude::*;
 use super::gesture::RadarHoldInput;
 use crate::prelude::*;
 
-/// Half-angle (degrees) of the RADAR cone around the look ray. While the
-/// radar is held, any lockable body within this angle of where the player is
-/// looking is a candidate and the one closest to the ray wins (with
-/// [`RADAR_PICK_HYSTERESIS`]); the wide cone means rough pointing suffices,
-/// no pixel-perfect ray needed.
-const TARGETING_CONE_HALF_ANGLE_DEG: f32 = 18.0;
+/// How far from the screen centre a body may sit and still be under the
+/// crosshair, as a share of the viewport half-height: 24 px on a 1080p
+/// screen, about one degree at the default 45 degree field of view.
+///
+/// A ray alone threads past a skiff a few kilometres out, which is a few
+/// pixels across, so a body whose live anchor projects inside this circle is
+/// picked even when the ray misses its hull. Screen-relative, so the circle is
+/// the same size at every resolution and zoom.
+pub const RADAR_PICK_TOLERANCE: f32 = 0.045;
 
-/// Provisional-candidate hysteresis: while the radar is held,
-/// a challenger only steals the candidate when its angular distance to the
-/// ray (measured as `1 - cos`) is below this fraction of the incumbent's -
-/// otherwise two near-collinear bodies (a torpedo and its launcher) strobe
-/// the candidate and the release commits a coin flip.
-const RADAR_PICK_HYSTERESIS: f32 = 0.75;
+/// The wider circle the current candidate keeps, as a share of the viewport
+/// half-height: twice the pick's. A hand holding a small far body near the
+/// edge of the sight would otherwise drop it for a frame, and dropping the
+/// candidate restarts the dwell.
+const RADAR_HOLD_TOLERANCE: f32 = 2.0 * RADAR_PICK_TOLERANCE;
 
 /// The radar search AND the live lock: while a [`RadarState`] exists (the hold
-/// gesture is active), live-retarget the candidate to the best body on the look
-/// ray, with incumbent hysteresis so two near-collinear bodies do not strobe
-/// the pick. Once the hold crosses its threshold (the action reports `Fired`),
-/// the destination slot is latched from the CURRENT raised stance and written
-/// with the candidate every frame it resolves - the lock is LIVE under the
-/// sweep; releasing merely stops the retargeting. A `None` candidate never
-/// writes (keep-last), so the tap window (pre-Fired) and an empty sweep both
-/// leave the slots alone. Runs inside the pause-gated input set, so a pause
-/// freezes the writes while the release observers still tear the search down.
+/// gesture is active), live-retarget the candidate to the body under the
+/// screen centre ([`radar_pick`]). Once the hold crosses its threshold (the
+/// action reports `Fired`), the destination slot is latched from the CURRENT
+/// raised stance and written with the candidate every frame it resolves - the
+/// lock is LIVE under the sweep; releasing merely stops the retargeting. A
+/// `None` candidate never writes (keep-last), so the tap window (pre-Fired)
+/// and an empty sweep both leave the slots alone. Runs inside the pause-gated
+/// input set, so a pause freezes the writes while the release observers still
+/// tear the search down.
 #[expect(
     clippy::type_complexity,
     reason = "one query term per radar search input"
 )]
 pub(super) fn update_radar_search(
-    look_ray: ActiveLookRay,
+    centre: ScreenCentreRay,
+    spatial: SpatialQuery,
+    q_collider_of: Query<&ColliderOf>,
     time: Res<Time>,
     settings: Res<TargetingSettings>,
     q_hold: Query<&TriggerState, With<Action<RadarHoldInput>>>,
@@ -57,20 +62,38 @@ pub(super) fn update_radar_search(
 ) {
     let hold_fired = q_hold.iter().any(|&state| state == TriggerState::Fired);
     for (raised, contacts, mut radar, mut travel, mut combat) in &mut spaceship {
-        let Some(aim_rotation) = look_ray.rotation() else {
+        let Some(ray) = centre.ray() else {
             continue;
         };
         let origin = contacts.origin;
-        let aim = (aim_rotation * Vec3::NEG_Z).normalize();
+        let combat_pick = radar.engaged == Some(RadarSlot::Combat)
+            || (radar.engaged.is_none() && raised.is_some_and(|raised| raised.0));
+        let is_canister = |entity| q_canisters.contains(entity);
+        // The first hull the ray meets that belongs to a body the radar may
+        // pick. Every other collider - the player's own hull, rounds in
+        // flight, a body out of range - is transparent to the pick.
+        let body_of = |collider| q_collider_of.get(collider).ok().map(|of| of.body);
+        let hull_hit = spatial
+            .cast_ray_predicate(
+                ray.origin,
+                ray.direction,
+                f32::MAX,
+                true,
+                &SpatialQueryFilter::default(),
+                &|collider| {
+                    body_of(collider)
+                        .and_then(|body| contacts.get(body))
+                        .is_some_and(|contact| pickable(contact, combat_pick, is_canister))
+                },
+            )
+            .and_then(|hit| body_of(hit.entity).map(|body| (body, hit.distance)));
         let picked = radar_pick(
             radar.candidate,
-            origin,
-            aim,
-            TARGETING_CONE_HALF_ANGLE_DEG.to_radians().cos(),
+            &ray,
+            hull_hit,
             contacts,
-            radar.engaged == Some(RadarSlot::Combat)
-                || (radar.engaged.is_none() && raised.is_some_and(|raised| raised.0)),
-            |entity| q_canisters.contains(entity),
+            combat_pick,
+            is_canister,
         );
         if radar.candidate != picked {
             radar.candidate = picked;
@@ -159,53 +182,49 @@ pub(super) fn update_radar_search(
     }
 }
 
-/// The radar's pick rule: the body nearest the look ray inside the cone,
-/// except that an incumbent candidate
-/// holds unless the challenger is DECISIVELY nearer the ray - its angular
-/// distance (as `1 - cos`) under [`RADAR_PICK_HYSTERESIS`] of the
-/// incumbent's. Leaving the cone entirely drops the candidate (a release
-/// then commits nothing - the abort gesture).
+/// Whether the radar may offer `contact` at all: it needs the line (you
+/// cannot designate what the radar cannot see), and a combat sweep never
+/// offers a cargo canister.
+fn pickable(contact: &SensorContact, combat: bool, is_canister: impl Fn(Entity) -> bool) -> bool {
+    contact.in_sight && !(combat && is_canister(contact.entity))
+}
+
+/// The radar's pick rule: the NEAREST body under the screen centre.
 ///
-/// Pure so the hysteresis rule is unit-testable.
+/// A body is under it when the centre ray meets its hull (`hull_hit`, the
+/// body and the hit distance, already restricted to [`pickable`] bodies), or
+/// when its live anchor projects within [`RADAR_PICK_TOLERANCE`] of the
+/// centre - [`RADAR_HOLD_TOLERANCE`] for the `current` candidate. Of those,
+/// the one nearest the camera along the ray wins, so a ship crossing in front
+/// of another takes the pick, as it takes the pixels. Nothing under the centre
+/// drops the candidate (a release then commits nothing - the abort gesture).
+///
+/// Pure so the rule is unit-testable; the hull ray is the caller's.
 fn radar_pick(
     current: Option<Entity>,
-    origin: Vec3,
-    aim: Vec3,
-    min_cos: f32,
+    ray: &CentreRay,
+    hull_hit: Option<(Entity, f32)>,
     contacts: &SensorContacts,
     combat: bool,
     is_canister: impl Fn(Entity) -> bool,
 ) -> Option<Entity> {
-    let scored: Vec<(Entity, f32)> = contacts
+    let beside = contacts
         .iter()
+        .filter(|contact| pickable(contact, combat, &is_canister))
         .filter_map(|contact| {
-            // Acquisition needs the line: you cannot designate what the radar
-            // cannot see.
-            if !contact.in_sight || (combat && is_canister(contact.entity)) {
-                return None;
-            }
-            let entity = contact.entity;
-            let to_target = contact.anchor - origin;
-            let distance = to_target.length();
-            if distance < f32::EPSILON {
-                return None;
-            }
-            let cos_angle = to_target.normalize().dot(aim);
-            (cos_angle >= min_cos).then_some((entity, cos_angle))
-        })
-        .collect();
-    let (best, best_cos) = scored
-        .iter()
-        .copied()
-        .max_by(|(_, a), (_, b)| a.total_cmp(b))?;
-    if let Some(current) = current {
-        if let Some(&(_, current_cos)) = scored.iter().find(|(entity, _)| *entity == current) {
-            if best != current && (1.0 - best_cos) >= RADAR_PICK_HYSTERESIS * (1.0 - current_cos) {
-                return Some(current);
-            }
-        }
-    }
-    Some(best)
+            let (along, offset) = ray.screen_offset(contact.anchor)?;
+            let tolerance = if current == Some(contact.entity) {
+                RADAR_HOLD_TOLERANCE
+            } else {
+                RADAR_PICK_TOLERANCE
+            };
+            (offset <= tolerance).then_some((contact.entity, along))
+        });
+    hull_hit
+        .into_iter()
+        .chain(beside)
+        .min_by(|(_, a), (_, b)| a.total_cmp(b))
+        .map(|(entity, _)| entity)
 }
 
 /// The acquisition dwell (seconds) a candidate at `distance` from the ship
@@ -237,14 +256,24 @@ pub(super) fn lock_dwell_secs(distance: f32, modifier: f32, settings: &Targeting
 
 #[cfg(test)]
 mod tests {
-    use avian3d::prelude::*;
     use bevy::ecs::system::RunSystemOnce;
-    use nova_gameplay::test_support::test_items;
+    use nova_gameplay::test_support::{settle, test_items, unfinished_integrity_physics_app};
 
     use super::*;
 
-    fn cone_cos(half_angle_deg: f32) -> f32 {
-        half_angle_deg.to_radians().cos()
+    /// A camera at the origin looking down -Z with the default field of view.
+    fn bore() -> CentreRay {
+        CentreRay {
+            origin: Vec3::ZERO,
+            direction: Dir3::NEG_Z,
+            tan_half_fov: (PerspectiveProjection::default().fov * 0.5).tan(),
+        }
+    }
+
+    /// Where a point `distance` down the bore sits when it projects `offset`
+    /// (a share of the viewport half-height) to the right of the centre.
+    fn off_centre(distance: f32, offset: f32) -> Vec3 {
+        Vec3::new(distance * bore().tan_half_fov * offset, 0.0, -distance)
     }
 
     /// A staged sighting set: what the ship's sensor pass would have
@@ -264,28 +293,41 @@ mod tests {
             .collect()
     }
 
+    fn pick(
+        current: Option<Entity>,
+        hull_hit: Option<(Entity, f32)>,
+        contacts: &SensorContacts,
+    ) -> Option<Entity> {
+        radar_pick(current, &bore(), hull_hit, contacts, false, |_| false)
+    }
+
     #[test]
-    fn radar_picks_the_body_nearest_the_aim_ray() {
-        let origin = Vec3::ZERO;
-        let aim = Vec3::NEG_Z;
-        let near_center = Entity::from_raw_u32(1).unwrap();
-        let off_center = Entity::from_raw_u32(2).unwrap();
-        let candidates = [
-            // ~1.1 deg off axis, far vs ~8.5 deg off axis, near: the
-            // nearer-to-center one wins even though it is further away.
-            (near_center, Vec3::new(2.0, 0.0, -100.0), true),
-            (off_center, Vec3::new(3.0, 0.0, -20.0), true),
-        ];
-        let picked = radar_pick(
-            None,
-            origin,
-            aim,
-            cone_cos(18.0),
-            &seen(candidates),
-            false,
-            |_| false,
+    fn the_nearest_body_under_the_centre_wins() {
+        let near = Entity::from_raw_u32(1).unwrap();
+        let far = Entity::from_raw_u32(2).unwrap();
+        let hull = Entity::from_raw_u32(3).unwrap();
+        let contacts = seen([
+            (far, off_centre(300.0, 0.0), true),
+            (near, off_centre(100.0, 0.03), true),
+            (hull, off_centre(200.0, 0.5), true),
+        ]);
+        assert_eq!(
+            pick(None, None, &contacts),
+            Some(near),
+            "the nearer of two bodies under the sight wins, even a little off \
+             the exact centre"
         );
-        assert_eq!(picked, Some(near_center));
+        assert_eq!(
+            pick(None, Some((hull, 60.0)), &contacts),
+            Some(hull),
+            "a hull the ray meets in front of both takes the pick, though its \
+             centre is far off the sight"
+        );
+        assert_eq!(
+            pick(None, Some((hull, 150.0)), &contacts),
+            Some(near),
+            "and loses it to a body in front of the hit"
+        );
     }
 
     #[test]
@@ -293,219 +335,110 @@ mod tests {
         let canister = Entity::from_raw_u32(1).unwrap();
         let neutral = Entity::from_raw_u32(2).unwrap();
         let contacts = seen([
-            (canister, Vec3::new(0.0, 0.0, -10.0), true),
-            (neutral, Vec3::new(1.0, 0.0, -10.0), true),
+            (canister, off_centre(10.0, 0.0), true),
+            (neutral, off_centre(12.0, 0.0), true),
         ]);
         let pick = |combat| {
-            radar_pick(
-                None,
-                Vec3::ZERO,
-                Vec3::NEG_Z,
-                cone_cos(18.0),
-                &contacts,
-                combat,
-                |entity| entity == canister,
-            )
+            radar_pick(None, &bore(), None, &contacts, combat, |entity| {
+                entity == canister
+            })
         };
         assert_eq!(pick(false), Some(canister));
         assert_eq!(pick(true), Some(neutral));
     }
 
     #[test]
-    fn radar_ignores_bodies_outside_the_cone_or_behind() {
-        let side = [(
-            Entity::from_raw_u32(1).unwrap(),
-            Vec3::new(50.0, 0.0, 0.0),
-            true,
-        )];
+    fn a_body_outside_the_sight_or_behind_the_camera_is_not_picked() {
+        let body = Entity::from_raw_u32(1).unwrap();
+        let at = |anchor| seen([(body, anchor, true)]);
         assert_eq!(
-            radar_pick(
+            pick(
                 None,
-                Vec3::ZERO,
-                Vec3::NEG_Z,
-                cone_cos(18.0),
-                &seen(side),
-                false,
-                |_| false
+                None,
+                &at(off_centre(100.0, 0.9 * RADAR_PICK_TOLERANCE))
+            ),
+            Some(body)
+        );
+        assert_eq!(
+            pick(
+                None,
+                None,
+                &at(off_centre(100.0, 1.1 * RADAR_PICK_TOLERANCE))
             ),
             None,
-            "a body outside the cone must not be picked"
+            "a body just outside the sight is not under the crosshair"
         );
-        let behind = [(
-            Entity::from_raw_u32(1).unwrap(),
-            Vec3::new(0.0, 0.0, 100.0),
-            true,
-        )];
         assert_eq!(
-            radar_pick(
-                None,
-                Vec3::ZERO,
-                Vec3::NEG_Z,
-                cone_cos(18.0),
-                &seen(behind),
-                false,
-                |_| false
-            ),
+            pick(None, None, &at(Vec3::new(0.0, 0.0, 100.0))),
             None,
-            "a body behind the ship must not be picked"
+            "a body behind the camera must not be picked"
         );
-        assert_eq!(
-            radar_pick(
-                None,
-                Vec3::ZERO,
-                Vec3::NEG_Z,
-                cone_cos(18.0),
-                &seen([]),
-                false,
-                |_| false
-            ),
-            None
-        );
+        assert_eq!(pick(None, None, &seen([])), None);
     }
 
-    /// Acquisition needs the line. A body dead on the ray and well inside the
-    /// cone is still not offered while a rock stands in front of it - which is
-    /// the half of the occlusion rule a HELD travel designation is exempt from.
+    /// Acquisition needs the line. A body dead under the centre is still not
+    /// offered while a rock stands in front of it - which is the half of the
+    /// occlusion rule a HELD travel designation is exempt from.
     #[test]
     fn radar_pick_never_offers_a_body_it_cannot_see() {
         let hidden = Entity::from_raw_u32(1).unwrap();
         let clear = Entity::from_raw_u32(2).unwrap();
-        let min_cos = cone_cos(18.0);
-        let behind_cover = [(hidden, Vec3::new(0.0, 0.0, -100.0), false)];
+        let behind_cover = seen([(hidden, off_centre(100.0, 0.0), false)]);
         assert_eq!(
-            radar_pick(
-                None,
-                Vec3::ZERO,
-                Vec3::NEG_Z,
-                min_cos,
-                &seen(behind_cover),
-                false,
-                |_| false
-            ),
+            pick(None, None, &behind_cover),
             None,
-            "a body on the ray but behind cover must not be offered"
+            "a body under the centre but behind cover must not be offered"
         );
         // And it does not shadow the body that IS visible behind it.
-        let mixed = [
-            (hidden, Vec3::new(0.0, 0.0, -100.0), false),
-            (clear, Vec3::new(4.0, 0.0, -100.0), true),
-        ];
+        let mixed = seen([
+            (hidden, off_centre(100.0, 0.0), false),
+            (clear, off_centre(200.0, 0.0), true),
+        ]);
         assert_eq!(
-            radar_pick(
-                None,
-                Vec3::ZERO,
-                Vec3::NEG_Z,
-                min_cos,
-                &seen(mixed),
-                false,
-                |_| false
-            ),
+            pick(None, None, &mixed),
             Some(clear),
             "the nearest VISIBLE body wins, not the nearest body"
         );
         // An incumbent that goes behind cover loses the pick outright.
         assert_eq!(
-            radar_pick(
-                Some(hidden),
-                Vec3::ZERO,
-                Vec3::NEG_Z,
-                min_cos,
-                &seen(behind_cover),
-                false,
-                |_| false,
-            ),
+            pick(Some(hidden), None, &behind_cover),
             None,
-            "hysteresis must not hold a candidate the radar can no longer see"
+            "the hold circle must not keep a candidate the radar can no longer see"
         );
     }
 
-    /// D7: the provisional candidate holds against a marginally-nearer
-    /// challenger and yields to a decisively-nearer one; leaving the cone
-    /// drops it entirely (the release-abort).
+    /// The candidate keeps a wider circle than a fresh pick, so a small far
+    /// body held near the edge of the sight does not strobe off and restart
+    /// the dwell.
     #[test]
-    fn radar_pick_applies_angular_hysteresis() {
-        let a = Entity::from_raw_u32(1).unwrap();
-        let b = Entity::from_raw_u32(2).unwrap();
-        let origin = Vec3::ZERO;
-        let aim = Vec3::NEG_Z;
-        let min_cos = cone_cos(18.0);
-        // a at ~8 deg off-ray, b at ~7.4 deg: nearer, but NOT decisively
-        // ((1-cos7.4) ~ 0.0084 vs 0.75 * (1-cos8) ~ 0.0073).
-        let marginal = [
-            (a, Vec3::new(14.0, 0.0, -100.0), true),
-            (b, Vec3::new(13.0, 0.0, -100.0), true),
-        ];
-        assert_eq!(
-            radar_pick(
-                Some(a),
-                origin,
-                aim,
-                min_cos,
-                &seen(marginal),
-                false,
-                |_| false
-            ),
-            Some(a),
-            "a marginally-nearer challenger must not steal the candidate"
-        );
-        // b dead on the ray: decisive.
-        let decisive = [
-            (a, Vec3::new(14.0, 0.0, -100.0), true),
-            (b, Vec3::new(0.1, 0.0, -100.0), true),
-        ];
-        assert_eq!(
-            radar_pick(
-                Some(a),
-                origin,
-                aim,
-                min_cos,
-                &seen(decisive),
-                false,
-                |_| false
-            ),
-            Some(b),
-            "a decisively-nearer challenger takes the candidate"
-        );
-        // No incumbent: plain nearest wins.
-        assert_eq!(
-            radar_pick(None, origin, aim, min_cos, &seen(marginal), false, |_| {
-                false
-            }),
-            Some(b)
-        );
-        // Cone empty: candidate drops (the abort).
-        let outside = [(a, Vec3::new(100.0, 0.0, 0.0), true)];
-        assert_eq!(
-            radar_pick(Some(a), origin, aim, min_cos, &seen(outside), false, |_| {
-                false
-            }),
-            None
-        );
+    fn the_candidate_keeps_a_wider_circle_than_a_fresh_pick() {
+        let body = Entity::from_raw_u32(1).unwrap();
+        let between = seen([(body, off_centre(500.0, 1.5 * RADAR_PICK_TOLERANCE), true)]);
+        assert_eq!(pick(None, None, &between), None, "too far out to pick");
+        assert_eq!(pick(Some(body), None, &between), Some(body), "but held");
+        let outside = seen([(body, off_centre(500.0, 1.1 * RADAR_HOLD_TOLERANCE), true)]);
+        assert_eq!(pick(Some(body), None, &outside), None, "until it leaves");
     }
 
-    /// Player + faithful split camera rigs (ACTIVE normal rig on -Z, dormant
-    /// turret decoy 90 degrees off - reading the wrong rig fails loudly) with
-    /// an OPEN radar search. Returns (world, player).
+    /// Player with an OPEN radar search, and the player camera at the origin
+    /// looking down -Z, so a body placed straight down -Z is under the screen
+    /// centre. Returns (world, player).
     fn radar_world() -> (World, Entity) {
         let mut world = World::new();
         world.insert_resource(Time::<()>::default());
         world.init_resource::<TargetingSettings>();
-        // The lock scanner's line-of-sight ray reads avian's collider trees.
-        // Empty here, which is the point: these rigs are about the RANGE
-        // model, and nothing in them stands between the ship and a candidate.
+        // The lock scanner's line-of-sight ray and the pick's hull ray read
+        // avian's collider trees. Empty here, which is the point: these rigs
+        // are about the RANGE model and the sight circle, and nothing in them
+        // stands between the ship and a candidate.
         world.init_resource::<avian3d::collider_tree::ColliderTrees>();
         world.init_resource::<Messages<RadarLockAcquired>>();
         world.init_resource::<Messages<RadarRetargeted>>();
         world.spawn((
-            SpaceshipCameraInputMarker,
-            SpaceshipCameraNormalInputMarker,
-            SpaceshipRotationInputActiveMarker,
-            PointRotationOutput(Quat::IDENTITY),
-        ));
-        world.spawn((
-            SpaceshipCameraInputMarker,
-            SpaceshipCameraTurretInputMarker,
-            PointRotationOutput(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)),
+            SpaceshipCameraController,
+            Projection::Perspective(PerspectiveProjection::default()),
+            Transform::IDENTITY,
+            GlobalTransform::IDENTITY,
         ));
         let player = world
             .spawn((
@@ -539,6 +472,129 @@ mod tests {
         world.run_system_once(update_radar_search).unwrap();
     }
 
+    /// Stand the player camera where the Normal chase rig settles it behind a
+    /// small craft at the origin facing -Z: lifted and set back, pitched down
+    /// onto a focus point ahead of the hull. Returns its pose.
+    fn chase_camera(world: &mut World) -> Transform {
+        let pose = chase_camera_opening_pose(Vec3::ZERO, Quat::IDENTITY, 0.0, 1.0);
+        let mut q_camera =
+            world.query_filtered::<(&mut Transform, &mut GlobalTransform), With<SpaceshipCameraController>>();
+        let (mut transform, mut global) = q_camera.single_mut(world).unwrap();
+        *transform = pose;
+        *global = GlobalTransform::from(pose);
+        pose
+    }
+
+    /// A signed body the radar sees from across a combat volume.
+    fn spawn_mark(world: &mut World, at: Vec3) -> Entity {
+        world
+            .spawn((
+                RigidBody::Dynamic,
+                LockSignature(20.0),
+                Transform::from_translation(at),
+            ))
+            .id()
+    }
+
+    /// The owner's report: a target held in the middle of the screen does not
+    /// lock. The chase camera sits above and behind the hull and looks down
+    /// onto a point ahead of it, so the screen centre and the ship's nose are
+    /// two different rays; they cross only at that focus point. 300 u out, the
+    /// body on the nose shows about 140 px above the centre of a 1080p screen.
+    #[test]
+    fn the_body_under_the_screen_centre_wins_over_the_body_on_the_nose() {
+        let (mut world, player) = radar_world();
+        let camera = chase_camera(&mut world);
+        let centred = spawn_mark(&mut world, camera.translation + camera.forward() * 300.0);
+        spawn_mark(&mut world, Vec3::new(0.0, 0.0, -300.0));
+        search(&mut world);
+        assert_eq!(
+            candidate(&mut world, player),
+            Some(centred),
+            "the body under the screen centre is the one the player aims at"
+        );
+    }
+
+    #[test]
+    fn a_body_on_the_nose_but_off_the_screen_centre_is_not_picked() {
+        let (mut world, player) = radar_world();
+        chase_camera(&mut world);
+        spawn_mark(&mut world, Vec3::new(0.0, 0.0, -300.0));
+        search(&mut world);
+        assert_eq!(candidate(&mut world, player), None);
+    }
+
+    /// Close in, the screen centre and the look ray part by tens of degrees:
+    /// a body 50 m ahead of the hull, held in the middle of the screen, sits
+    /// far off the look ray and must still be offered.
+    #[test]
+    fn a_close_body_under_the_screen_centre_is_picked() {
+        let (mut world, player) = radar_world();
+        let camera = chase_camera(&mut world);
+        // 25 u down the centre ray is 5 u ahead of the hull and 2 u above it.
+        let close = spawn_mark(&mut world, camera.translation + camera.forward() * 25.0);
+        search(&mut world);
+        assert_eq!(candidate(&mut world, player), Some(close));
+    }
+
+    /// The pick against a real collider tree: the ray meets a rock's flank
+    /// while the rock's centre projects far outside the sight, and a body
+    /// dead centre behind the rock loses to it - the nearest hull along the
+    /// ray is the one under the crosshair.
+    #[test]
+    fn the_ray_picks_the_nearest_hull_it_meets() {
+        let mut app = unfinished_integrity_physics_app();
+        app.init_resource::<TargetingSettings>();
+        app.init_resource::<Messages<RadarLockAcquired>>();
+        app.init_resource::<Messages<RadarRetargeted>>();
+        app.world_mut().spawn((
+            SpaceshipCameraController,
+            Projection::Perspective(PerspectiveProjection::default()),
+            Transform::IDENTITY,
+        ));
+        let player = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                Transform::IDENTITY,
+                targeting_state(),
+                RadarState::default(),
+            ))
+            .id();
+        // 40 u off the ray at 300 u is about 0.32 of the half-height: the
+        // centre is nowhere near the sight, the 50 u hull is right across it.
+        let rock = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                LockSignature(50.0),
+                Transform::from_xyz(40.0, 0.0, -300.0),
+            ))
+            .id();
+        app.world_mut().spawn((
+            ChildOf(rock),
+            Transform::default(),
+            Collider::sphere(50.0),
+            ColliderDensity(1.0),
+        ));
+        let behind = spawn_mark(app.world_mut(), Vec3::new(0.0, 0.0, -500.0));
+        app.finish();
+        settle(&mut app);
+
+        search(app.world_mut());
+        assert_eq!(candidate(app.world_mut(), player), Some(rock));
+
+        // The rock moves off the line: the body behind it is under the sight.
+        app.world_mut()
+            .get_mut::<Transform>(rock)
+            .unwrap()
+            .translation = Vec3::new(400.0, 0.0, -300.0);
+        settle(&mut app);
+        search(app.world_mut());
+        assert_eq!(candidate(app.world_mut(), player), Some(behind));
+    }
+
     #[test]
     fn canister_is_travel_lockable_past_unsigned_range_but_excluded_from_combat() {
         let (mut world, player) = radar_world();
@@ -557,8 +613,14 @@ mod tests {
                 CargoCanisterRuntimeId(0),
             ))
             .id();
+        // Behind the canister on the same ray: the travel sweep meets the
+        // canister first, the combat sweep looks through it.
         let neutral = world
-            .spawn((RigidBody::Dynamic, Transform::from_xyz(0.4, 0.0, -3.0)))
+            .spawn((
+                RigidBody::Dynamic,
+                LockSignature(1.0),
+                Transform::from_xyz(0.0, 0.0, -12.0),
+            ))
             .id();
         search(&mut world);
         assert!(world
@@ -570,72 +632,6 @@ mod tests {
         world.entity_mut(player).insert(WeaponsRaised(true));
         search(&mut world);
         assert_eq!(candidate(&mut world, player), Some(neutral));
-    }
-
-    #[test]
-    fn radar_cone_originates_at_the_live_structure_anchor() {
-        // A candidate dead ahead of the ANCHOR but 33 degrees off the ROOT
-        // ORIGIN bearing: it is picked only if the cone originates at the
-        // anchor (18 degree half-angle).
-        let (mut world, player) = radar_world();
-        world.entity_mut(player).insert((
-            Transform::from_translation(Vec3::new(10.0, 0.0, 0.0)),
-            ComputedCenterOfMass(Vec3::new(2.0, 0.0, 0.0)),
-        ));
-        let body = world
-            .spawn((
-                RigidBody::Dynamic,
-                LockSignature(20.0),
-                Transform::from_translation(Vec3::new(12.0, 0.0, -3.0)),
-            ))
-            .id();
-
-        search(&mut world);
-        assert_eq!(
-            candidate(&mut world, player),
-            Some(body),
-            "the cone must originate at the anchor, not the root origin"
-        );
-    }
-
-    /// Ray-liveness: the radar follows the ACTIVE rig's live output; the
-    /// decoy turret rig points at the side body from the start, so reading it
-    /// would fail the delivery guard.
-    #[test]
-    fn radar_follows_the_live_active_ray() {
-        let (mut world, player) = radar_world();
-        let side = world
-            .spawn((
-                SpaceshipRootMarker,
-                Allegiance::Neutral,
-                RigidBody::Dynamic,
-                Transform::from_translation(Vec3::new(-100.0, 0.0, 0.0)),
-            ))
-            .id();
-
-        search(&mut world);
-        assert_eq!(
-            candidate(&mut world, player),
-            None,
-            "delivery guard: the side body is outside the cone while looking -Z"
-        );
-
-        let active = world
-            .query_filtered::<Entity, With<SpaceshipRotationInputActiveMarker>>()
-            .iter(&world)
-            .next()
-            .expect("an active rig exists");
-        world
-            .entity_mut(active)
-            .insert(PointRotationOutput(Quat::from_rotation_y(
-                std::f32::consts::FRAC_PI_2,
-            )));
-        search(&mut world);
-        assert_eq!(
-            candidate(&mut world, player),
-            Some(side),
-            "the radar must follow the live active ray"
-        );
     }
 
     #[test]

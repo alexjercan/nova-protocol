@@ -21,16 +21,16 @@ Locking is deliberate: there is no passive auto-targeting, except that a GOTO yo
 
 ## Holding to sweep
 
-Hold <kbd>Ctrl</kbd> to run the radar: it tracks the best body within an 18-degree cone around your aim, re-targeting as you sweep. A lock is **earned by holding steady** through a short lock-on dwell, not granted the instant you point.
+Hold <kbd>Ctrl</kbd> to run the radar: it picks the body under the **centre of your screen**, re-targeting as you sweep. A small mark at the centre shows while you hold, in the colour of the slot the lock will land in. The pick is the nearest body there: the first hull the centre of the view meets, or a body within about a degree of the centre, so a small far ship is still easy to catch. Aim with the view, not the nose - the camera rides above and behind your hull, so a far target on your nose sits above the centre. A lock is **earned by holding steady** through a short lock-on dwell, not granted the instant you point.
 
 <div class="widget" data-widget="lock-sweep">
-<p>The sweep in numbers: a quarter-second hold threshold separates a sweep from a clearing tap; past it the slot latches from your stance (lowered = white travel lock, raised = red combat lock), and a dwell scaled by range - 0.6 s point-blank stretching to 1.5 s at 20 km - has to fill while you keep the target under your aim. Sweeping off resets the dwell; a committed lock sticks until you clear it in stages with taps.</p>
+<p>The sweep in numbers: a quarter-second hold threshold separates a sweep from a clearing tap; past it the slot latches from your stance (lowered = white travel lock, raised = red combat lock), and a dwell scaled by range - 0.6 s point-blank stretching to 1.5 s at 20 km - has to fill while you keep the target under the screen centre. Sweeping off resets the dwell; a committed lock sticks until you clear it in stages with taps.</p>
 </div>
 
 <details class="explain">
 <summary>Show explanation</summary>
 
-The clocks, exactly: the tap/hold threshold is 0.25 s - at or past it the press is a sweep, under it a clearing tap. The slot latches from your stance *at the threshold*, not at the press, so raising weapons a tenth of a second into the hold still lands a combat lock. The dwell then grows linearly with range, from 0.6 s point-blank to 1.5 s at 20 km and beyond; the white ring on the HUD is that dwell filling. Sweeping onto empty space resets the charge; re-designating to a new target starts a fresh dwell while the old lock keeps holding underneath - so you never trade a lock for a maybe. Once a lock commits it sticks; releasing just ends the sweep.
+The clocks, exactly: the tap/hold threshold is 0.25 s - at or past it the press is a sweep, under it a clearing tap. The slot latches from your stance *at the threshold*, not at the press, so raising weapons a tenth of a second into the hold still lands a combat lock. The dwell then grows linearly with range, from 0.6 s point-blank to 1.5 s at 20 km and beyond; the white ring on the HUD is that dwell filling. A target you are charging on keeps a circle twice as wide, so a hand that drifts a little does not restart it. Sweeping onto empty space resets the charge; re-designating to a new target starts a fresh dwell while the old lock keeps holding underneath - so you never trade a lock for a maybe. Once a lock commits it sticks; releasing just ends the sweep.
 
 </details>
 
@@ -61,7 +61,7 @@ Your stance picks the slot the lock lands in:
 
 ## Per-section fine-lock
 
-Hold a combat lock focused for about a second and a half and you can drill into a specific [section](../sections/) of the enemy hull. The fine-lock either **snaps** to whatever your crosshair is on (with hysteresis so it does not flicker) or is **pinned** by manually cycling sections nose-to-tail with the brackets (<kbd>]</kbd> next, <kbd>[</kbd> previous) or D-Pad Right and Left, in any stance, or with the scroll wheel while weapons are raised; a manual pin holds for a couple of seconds. Turrets and the viewfinder both follow the fine-locked section.
+Hold a combat lock focused for about a second and a half and you can drill into a specific [section](../sections/) of the enemy hull. The fine-lock either **snaps** to the section nearest the centre of your screen (with hysteresis so it does not flicker) or is **pinned** by manually cycling sections nose-to-tail with the brackets (<kbd>]</kbd> next, <kbd>[</kbd> previous) or D-Pad Right and Left, in any stance, or with the scroll wheel while weapons are raised; a manual pin holds for a couple of seconds. Turrets and the viewfinder both follow the fine-locked section.
 
 ## Clearing locks
 

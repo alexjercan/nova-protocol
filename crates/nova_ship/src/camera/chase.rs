@@ -57,7 +57,8 @@ use super::{
 /// Glob-import surface for the chase camera rig.
 pub mod prelude {
     pub use super::{
-        shift_chase_cameras, ChaseCamera, ChaseCameraInput, ChaseCameraPlugin, ChaseCameraSystems,
+        chase_rotation_through, shift_chase_cameras, ChaseCamera, ChaseCameraInput,
+        ChaseCameraPlugin, ChaseCameraSystems,
     };
 }
 
@@ -226,6 +227,40 @@ pub fn shift_chase_cameras(world: &mut World, offset: Vec3) {
     }
 }
 
+/// The anchor rotation that puts `point` under the centre of the screen once a
+/// chase camera with this rig, anchored at `anchor`, has settled: the look a
+/// player steers to hold `point` in the middle of the view. Starts from
+/// `from`, so the roll the camera already has is kept.
+///
+/// There is no closed form for a rig with an arbitrary offset, because turning
+/// the anchor also swings the camera round it. Each pass turns the rig by the
+/// angle between the camera's centre ray and the line to `point`; the camera
+/// stands a rig length from the anchor and `point` usually many rig lengths
+/// out, so each pass leaves a small share of the error and a few passes
+/// converge. A `point` inside the rig's own reach converges slower or not at
+/// all, and the result is the last pass.
+pub fn chase_rotation_through(chase: &ChaseCamera, anchor: Vec3, point: Vec3, from: Quat) -> Quat {
+    /// Passes of the fixed-point solve: enough for a point ten rig lengths
+    /// out to settle well inside a pixel.
+    const PASSES: usize = 16;
+    // `chase_camera_update_state_system`'s frame: the rig's own Z counts
+    // FORWARD, so a rig standing behind the hull has a negative one.
+    let frame = |offset: Vec3| Vec3::new(offset.x, offset.y, -offset.z);
+    let mut rotation = from.normalize();
+    for _ in 0..PASSES {
+        let camera = anchor + rotation * frame(chase.offset);
+        let focus = anchor + rotation * frame(chase.focus_offset);
+        let (Some(centre), Some(wanted)) = (
+            (focus - camera).try_normalize(),
+            (point - camera).try_normalize(),
+        ) else {
+            break;
+        };
+        rotation = (Quat::from_rotation_arc(centre, wanted) * rotation).normalize();
+    }
+    rotation
+}
+
 /// Updates the smoothed camera state based on target movement.
 fn chase_camera_update_state_system(
     time: Res<Time>,
@@ -319,4 +354,34 @@ fn apply_camera_resume_blend(
         commands.entity(entity).remove::<CameraResumeBlend>();
     }
     blend.elapsed += time.delta_secs();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The solve lands the point on the settled camera's centre ray, the way
+    /// `chase_camera_sync_transform_system` poses the camera.
+    #[test]
+    fn the_solved_rotation_puts_the_point_under_the_screen_centre() {
+        let chase = ChaseCamera {
+            offset: Vec3::new(0.0, 5.0, -20.0),
+            focus_offset: Vec3::new(0.0, 0.0, 20.0),
+            smoothing: 0.0,
+        };
+        let anchor = Vec3::new(3.0, -2.0, 1.0);
+        let point = Vec3::new(140.0, 60.0, -250.0);
+        let rotation = chase_rotation_through(&chase, anchor, point, Quat::IDENTITY);
+        let camera = anchor + rotation * Vec3::new(0.0, 5.0, 20.0);
+        let pose = Transform::from_translation(camera).looking_at(
+            anchor + rotation * Vec3::new(0.0, 0.0, -20.0),
+            rotation * Vec3::Y,
+        );
+        let off = pose.forward().angle_between((point - camera).normalize());
+        assert!(
+            off.to_degrees() < 0.01,
+            "{} degrees off centre",
+            off.to_degrees()
+        );
+    }
 }

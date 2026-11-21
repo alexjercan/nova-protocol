@@ -197,12 +197,11 @@ mod tests {
     /// Real input -> real `Hold`/`Tap` conditions -> the REAL radar search:
     /// the full gesture e2e on the production flight rig, with
     /// `TimeUpdateStrategy::ManualDuration` driving the clock the conditions
-    /// tick on (50 ms steps: 5 updates = the exact 250 ms threshold) and the
-    /// production split camera rig (ACTIVE normal rig, dormant turret decoy
-    /// 90 degrees off - reading the wrong rig fails loudly) feeding
-    /// `update_radar_search`, which under the live-lock model owns the
-    /// threshold latch and the slot writes. Nothing is stuffed: bodies are
-    /// picked off the real look ray.
+    /// tick on (50 ms steps: 5 updates = the exact 250 ms threshold) and a
+    /// player camera at the origin feeding `update_radar_search`, which under
+    /// the live-lock model owns the threshold latch and the slot writes.
+    /// Nothing is stuffed: bodies are picked off the camera's real centre
+    /// ray.
     fn gesture_app() -> (App, Entity) {
         use bevy::input::InputPlugin;
 
@@ -262,19 +261,13 @@ mod tests {
             },
         );
 
-        // The production split camera rig: the ACTIVE normal rig looks down
-        // -Z; the dormant turret decoy points 90 degrees off so a system
-        // reading the wrong rig picks the wrong bodies and fails loudly.
+        // The player camera looks down -Z from the origin. No transform
+        // propagation runs here, so `aim_look` writes its global pose.
         app.world_mut().spawn((
-            SpaceshipCameraInputMarker,
-            SpaceshipCameraNormalInputMarker,
-            SpaceshipRotationInputActiveMarker,
-            PointRotationOutput(Quat::IDENTITY),
-        ));
-        app.world_mut().spawn((
-            SpaceshipCameraInputMarker,
-            SpaceshipCameraTurretInputMarker,
-            PointRotationOutput(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)),
+            SpaceshipCameraController,
+            Projection::Perspective(PerspectiveProjection::default()),
+            Transform::IDENTITY,
+            GlobalTransform::IDENTITY,
         ));
 
         // A player ship whose computer grants Lock (the default loadout).
@@ -323,17 +316,19 @@ mod tests {
             .id()
     }
 
-    /// Point the ACTIVE normal rig's look ray (identity = -Z).
+    /// Turn the player camera, and with it the screen centre (identity =
+    /// -Z).
     fn aim_look(app: &mut App, rotation: Quat) {
-        let rig = app
+        let camera = app
             .world_mut()
-            .query_filtered::<Entity, With<SpaceshipRotationInputActiveMarker>>()
+            .query_filtered::<Entity, With<SpaceshipCameraController>>()
             .iter(app.world())
             .next()
-            .expect("active rig");
+            .expect("player camera");
+        let pose = Transform::from_rotation(rotation);
         app.world_mut()
-            .entity_mut(rig)
-            .insert(PointRotationOutput(rotation));
+            .entity_mut(camera)
+            .insert((pose, GlobalTransform::from(pose)));
     }
 
     fn press_ctrl(app: &mut App) {

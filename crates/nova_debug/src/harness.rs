@@ -131,7 +131,7 @@ pub use nova_autopilot::{
 use nova_editor::prelude::{EditorPlacement, EditorProbe, EditorTool};
 use nova_events::prelude::{EntityId, Meters3};
 use nova_gameplay::{
-    prelude::{PlayerSpaceshipMarker, SectionMarker, SpaceshipRootMarker},
+    prelude::{PlayerSpaceshipMarker, PointRotationOutput, SectionMarker, SpaceshipRootMarker},
     GameStates,
 };
 use nova_hud::prelude::{HudTier, HudVisibility};
@@ -141,7 +141,10 @@ use nova_scenario::prelude::{
     NovaEventWorld, ScenarioCameraMarker, ScenarioId, ScenarioLoadGate, ScenarioLoaded,
     ScriptedCameraPose, VariableLiteral,
 };
-use nova_ship::prelude::WASDCameraController;
+use nova_ship::prelude::{
+    chase_rotation_through, live_structure_anchor, ChaseCamera, ChaseCameraInput,
+    SpaceshipCameraController, SpaceshipCameraInputMarker, WASDCameraController,
+};
 
 /// Seconds the [`nova_autopilot()`] preset holds `Loading` before exiting. Must
 /// comfortably outlast asset loading (the loader drives `Loading -> Playing` on
@@ -809,6 +812,77 @@ pub fn pose_camera(world: &mut World, position: Meters3, look_at: Meters3) {
     if let Ok(mut entity) = world.get_entity_mut(camera) {
         entity.remove::<WASDCameraController>();
         entity.insert(ScriptedCameraPose { position, look_at });
+    }
+}
+
+/// Turn the player's look rigs so `point` sits under the centre of the screen
+/// once the chase camera settles: the aim a player makes to lock it, since the
+/// radar picks the body under the screen centre.
+///
+/// Writes every look rig's output through [`set_look_rotation`]. In the Normal
+/// stance the hull follows the rig, so this turns the ship too. The chase
+/// camera eases onto it over a few frames, so call it from a step's `each`
+/// hook (see [`keep_centred_on`]) rather than once. A no-op with a warning while there
+/// is no player camera yet.
+pub fn aim_screen_centre_at(world: &mut World, point: Vec3) {
+    let rig = {
+        let mut query = world
+            .query_filtered::<(&ChaseCamera, &ChaseCameraInput), With<SpaceshipCameraController>>();
+        query.iter(world).next().map(|(chase, input)| {
+            chase_rotation_through(chase, input.anchor_pos, point, input.anchor_rot)
+        })
+    };
+    let Some(rotation) = rig else {
+        warn!("aim_screen_centre_at: no player camera present yet");
+        return;
+    };
+    set_look_rotation(world, rotation);
+}
+
+/// Write `rotation` to every player look rig, so the pose holds whichever rig
+/// the stance makes active. In the Normal stance the hull turns after the
+/// rig, so this is also how a script turns the ship.
+pub fn set_look_rotation(world: &mut World, rotation: Quat) {
+    let mut rigs =
+        world.query_filtered::<&mut PointRotationOutput, With<SpaceshipCameraInputMarker>>();
+    for mut output in rigs.iter_mut(world) {
+        output.0 = rotation;
+    }
+}
+
+/// Find the scenario body authored as `id`: the rigid body carrying that
+/// [`EntityId`], which is the root a lock names. The finder
+/// [`keep_centred_on`] takes for a named target.
+pub fn scenario_object(id: &'static str) -> impl Fn(&mut World) -> Option<Entity> + Send + Sync {
+    move |world: &mut World| {
+        let mut query = world.query_filtered::<(Entity, &EntityId), With<RigidBody>>();
+        query
+            .iter(world)
+            .find(|(_, entity_id)| entity_id.0 == id)
+            .map(|(entity, _)| entity)
+    }
+}
+
+/// A step `each` hook that keeps the live structure of the body `find` names
+/// under the screen centre, frame by frame, so a radar hold beside it picks
+/// that body. `find` returning `None` (the body is not spawned yet, or gone)
+/// skips the frame.
+pub fn keep_centred_on(
+    find: impl Fn(&mut World) -> Option<Entity> + Send + Sync + 'static,
+) -> impl Fn(&mut World, f32, u32) + Send + Sync + 'static {
+    move |world: &mut World, _, _| {
+        let Some(body) = find(world) else {
+            return;
+        };
+        let Some(anchor) = world.get::<Transform>(body).map(|transform| {
+            live_structure_anchor(
+                transform,
+                world.get::<avian3d::prelude::ComputedCenterOfMass>(body),
+            )
+        }) else {
+            return;
+        };
+        aim_screen_centre_at(world, anchor);
     }
 }
 

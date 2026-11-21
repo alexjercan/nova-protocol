@@ -56,6 +56,7 @@ import {
     PIERCE_POWER_CEILING,
     PIERCE_POWER_FLOOR,
     pierceWalk,
+    RADAR_PICK_TOLERANCE,
     RADAR_TAP_SECS,
     reachLadder,
     REFERENCE_CLOSING_SPEED,
@@ -97,7 +98,6 @@ import {
     SOUND_FAMILIES,
     SPATIAL_EAR_GAP,
     SPATIAL_EMITTER_RADIUS,
-    TARGETING_CONE_HALF_ANGLE_DEG,
     V0110_PIERCE_LAYER_CAP,
     V0130_COMMAND_ROWS,
     zoneAllows,
@@ -435,10 +435,10 @@ function rustPx(rel: string, name: string): number {
         )
     );
     assert.equal(
-        TARGETING_CONE_HALF_ANGLE_DEG,
+        RADAR_PICK_TOLERANCE,
         rustNumber(
             "crates/nova_ship/src/input/targeting/radar.rs",
-            /const TARGETING_CONE_HALF_ANGLE_DEG: f32 = ([0-9.]+);/
+            /pub const RADAR_PICK_TOLERANCE: f32 = ([0-9.]+);/
         )
     );
 }

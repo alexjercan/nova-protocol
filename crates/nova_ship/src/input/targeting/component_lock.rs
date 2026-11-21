@@ -1,7 +1,6 @@
 //! The component fine-lock: which section of the combat-locked ship the
-//! weapons aim at, snapped to the crosshair or pinned by the cycle keys.
+//! weapons aim at, snapped to the screen centre or pinned by the cycle keys.
 
-use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
@@ -22,7 +21,8 @@ const SNAP_HYSTERESIS: f32 = 0.75;
 /// How the component fine-lock is currently selected.
 #[derive(Debug, Clone, Copy, PartialEq, Default, Reflect)]
 pub enum ComponentLockMode {
-    /// Follow the live section nearest the crosshair ray (with hysteresis).
+    /// Follow the live section nearest the screen-centre ray (with
+    /// hysteresis).
     #[default]
     Snap,
     /// A cycle press chose deliberately; snap is suppressed until `until`
@@ -59,8 +59,8 @@ pub(crate) struct ComponentCycleNextInput;
 pub(crate) struct ComponentCyclePrevInput;
 
 /// Distance from `point` to the ray `(origin, dir)`, with the projection
-/// clamped behind the origin (a point behind the ship measures to the origin
-/// rather than to the ray's backward extension).
+/// clamped behind the origin (a point behind the camera measures to the
+/// origin rather than to the ray's backward extension).
 fn ray_distance(origin: Vec3, dir: Vec3, point: Vec3) -> f32 {
     let to_point = point - origin;
     let along = to_point.dot(dir).max(0.0);
@@ -100,7 +100,9 @@ fn cycle_order(sections: &mut [(Entity, Vec3)]) {
 
 /// Maintain the component fine-lock: valid only while focused on the locked
 /// ship and while the section stays attached; a pin expires by deadline or
-/// with its section; snap follows the crosshair ray otherwise.
+/// with its section; snap follows the screen-centre ray otherwise - the same
+/// ray the radar picks the lock with, so the section under the middle of the
+/// screen is the one selected, in every camera mode.
 #[expect(
     clippy::type_complexity,
     reason = "one query term per component-lock input"
@@ -108,21 +110,13 @@ fn cycle_order(sections: &mut [(Entity, Vec3)]) {
 pub(super) fn update_component_lock(
     time: Res<Time>,
     q_sections: Query<(Entity, &ChildOf, &GlobalTransform), With<SectionMarker>>,
-    // The LIVE look ray (active rig), so the snap follows the crosshair in
-    // every view instead of the turret rig's frozen output.
-    look_ray: ActiveLookRay,
+    centre: ScreenCentreRay,
     mut q_ship: Query<
-        (
-            &Transform,
-            Option<&ComputedCenterOfMass>,
-            &CombatLock,
-            &LockFocus,
-            &mut ComponentLock,
-        ),
+        (&CombatLock, &LockFocus, &mut ComponentLock),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
 ) {
-    for (ship_transform, ship_com, lock, focus, mut component) in &mut q_ship {
+    for (lock, focus, mut component) in &mut q_ship {
         // The component layer only exists while focused on the combat lock.
         let target = match lock.0 {
             Some(target) if focus.focused_on(target) => target,
@@ -161,16 +155,14 @@ pub(super) fn update_component_lock(
         if component.mode != ComponentLockMode::Snap {
             continue;
         }
-        let Some(aim_rotation) = look_ray.rotation() else {
-            // No aim rig (menu states, headless tests): hold the current
-            // selection rather than guessing.
+        let Some(ray) = centre.ray() else {
+            // No player camera (menu states, headless tests): hold the
+            // current selection rather than guessing.
             continue;
         };
-        let origin = live_structure_anchor(ship_transform, ship_com);
-        let dir = (aim_rotation * Vec3::NEG_Z).normalize();
         let candidates: Vec<(Entity, f32)> = sections
             .iter()
-            .map(|&(entity, position)| (entity, ray_distance(origin, dir, position)))
+            .map(|&(entity, position)| (entity, ray_distance(ray.origin, *ray.direction, position)))
             .collect();
         let picked = snap_pick(component.section, &candidates);
         if component.section != picked {
@@ -326,21 +318,17 @@ mod tests {
     }
 
     /// A player combat-locked and focused on a target ship with three
-    /// sections (one dead on the -Z aim ray, two off to the side), faithful
-    /// split rigs. Returns (world, player, [on_ray, near_ray, far_ray]).
+    /// sections (one dead on the -Z screen-centre ray of a camera at the
+    /// origin, two off to the side). Returns (world, player, [on_ray,
+    /// near_ray, far_ray]).
     fn focused_world() -> (World, Entity, [Entity; 3]) {
         let mut world = World::new();
         world.insert_resource(Time::<()>::default());
         world.spawn((
-            SpaceshipCameraInputMarker,
-            SpaceshipCameraNormalInputMarker,
-            SpaceshipRotationInputActiveMarker,
-            PointRotationOutput(Quat::IDENTITY),
-        ));
-        world.spawn((
-            SpaceshipCameraInputMarker,
-            SpaceshipCameraTurretInputMarker,
-            PointRotationOutput(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)),
+            SpaceshipCameraController,
+            Projection::Perspective(PerspectiveProjection::default()),
+            Transform::IDENTITY,
+            GlobalTransform::IDENTITY,
         ));
         let target = world.spawn(SpaceshipRootMarker).id();
         let on_ray = world
@@ -409,10 +397,23 @@ mod tests {
     }
 
     #[test]
-    fn snap_selects_the_section_nearest_the_aim_ray() {
+    fn snap_selects_the_section_nearest_the_screen_centre_ray() {
         let (mut world, player, [on_ray, ..]) = focused_world();
         world.run_system_once(update_component_lock).unwrap();
         assert_eq!(selected(&mut world, player), Some(on_ray));
+    }
+
+    /// The snap reads the camera, not the hull: the ship still faces down
+    /// -Z, but the camera turned onto the far section selects it.
+    #[test]
+    fn snap_follows_the_camera_not_the_hull() {
+        let (mut world, player, [.., far_ray]) = focused_world();
+        let pose = Transform::IDENTITY.looking_at(Vec3::new(10.0, 0.0, -100.0), Vec3::Y);
+        let mut q_camera =
+            world.query_filtered::<&mut GlobalTransform, With<SpaceshipCameraController>>();
+        *q_camera.single_mut(&mut world).unwrap() = GlobalTransform::from(pose);
+        world.run_system_once(update_component_lock).unwrap();
+        assert_eq!(selected(&mut world, player), Some(far_ray));
     }
 
     #[test]
@@ -453,7 +454,7 @@ mod tests {
         ));
 
         // Pinned: the snap must NOT move the selection off near_ray even
-        // though on_ray sits on the aim ray.
+        // though on_ray sits on the screen-centre ray.
         world.run_system_once(update_component_lock).unwrap();
         assert_eq!(selected(&mut world, player), Some(near_ray));
     }

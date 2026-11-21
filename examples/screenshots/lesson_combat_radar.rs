@@ -9,8 +9,8 @@
 //! So the camera does NOT move here. A pose loop needs a sweep to make its
 //! last cell hand back to its first; this one has something happening in it
 //! already, and a camera drifting under an acquisition is one moving thing too
-//! many - it also risks walking the look ray off the candidate, which restarts
-//! the dwell (`nova_ship`'s radar search). A still camera wraps cleanly on its
+//! many - it also risks walking the screen centre off the candidate, which
+//! restarts the dwell (`nova_ship`'s radar search). A still camera wraps cleanly on its
 //! own. The HUD stays up, unlike the scene lessons: the instrument IS the
 //! subject.
 //!
@@ -49,17 +49,16 @@ struct Cli;
 #[cfg(feature = "debug")]
 const LESSON: &str = "combat_radar";
 
-/// What the view looks at: a point far down the player's own bearing, so the
-/// camera sits over its shoulder and the ray it aims the radar along runs out
-/// to where the contact is.
+/// What the view looks at: the contact itself, so it sits under the screen
+/// centre the radar picks by, with the camera over the player's shoulder.
 #[cfg(feature = "debug")]
-const VIEW_SUBJECT: Meters3 = Meters3::new(0.0, 6.0, -250.0);
-/// How far the camera stands off that point. With the subject 250 m ahead this
-/// leaves the camera about 220 m behind the player - four times the corvette's
-/// 55 m bounding radius, so the hull reads whole in the cell instead of
-/// running off its edge.
+const VIEW_SUBJECT: Meters3 = hollow::RAIDER_POSITION;
+/// How far the camera stands off the contact. With the contact 340 m ahead
+/// this leaves the camera about 210 m behind the player - four times the
+/// corvette's 55 m bounding radius, so the hull reads whole in the cell
+/// instead of running off its edge.
 #[cfg(feature = "debug")]
-const VIEW_RANGE: Meters = Meters(460.0);
+const VIEW_RANGE: Meters = Meters(549.0);
 /// How far above the subject the camera rides. High enough to look DOWN on the
 /// player rather than up its exhaust: from behind and level, a corvette under
 /// power is one lit engine bell filling the lower corner.
@@ -68,7 +67,7 @@ const VIEW_HEIGHT: Meters = Meters(70.0);
 /// Centred off the player's shoulder rather than straight down its spine, so
 /// the hull does not stand in front of the contact it marks.
 #[cfg(feature = "debug")]
-const VIEW_BEARING_DEGREES: f32 = 6.0;
+const VIEW_BEARING_DEGREES: f32 = 5.0;
 /// How many cells run before the gesture goes down.
 ///
 /// The sheet has to open on the state BEFORE the act, or a player sees the
@@ -84,8 +83,8 @@ const LEAD_IN_CELLS: u32 = 3;
 /// (see the module docs). The sweep type still drives it, because the camera
 /// has to be written EVERY frame to stay put - a zero arc makes every frame of
 /// that path the same place. It is also what aims the radar: the search picks
-/// by the camera's own look ray, so the view that latches the mark is the view
-/// that records it.
+/// the body under the screen centre, so the view that latches the mark is the
+/// view that records it.
 #[cfg(feature = "debug")]
 fn view() -> LessonSweep {
     LessonSweep::new(
@@ -145,9 +144,9 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
 
 /// Advance once the player has marked THE RAIDER.
 ///
-/// Named rather than "marked anything": the camera is posed down the raider's
-/// own bearing before the sweep opens, so the raider is the body nearest the
-/// look ray, and a run that came back with a rock instead has a mark on
+/// Named rather than "marked anything": the camera is posed on the raider
+/// before the sweep opens, so the raider is the body under the screen centre,
+/// and a run that came back with a rock instead has a mark on
 /// scenery in the one cell the lesson gets. Waiting on the mark - rather than
 /// on a guessed second - is also what keeps an empty sweep from recording a
 /// sheet with no bracket in it.
@@ -182,8 +181,8 @@ fn radar_lesson_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<
         .on_enter(hollow::hold_station)
         .until(elapsed(2.0))
         .add()
-        // Frame FIRST: the radar picks by the camera's look ray, so the shot's
-        // own view is what aims the gesture.
+        // Frame FIRST: the radar picks the body under the screen centre, so
+        // the shot's own view is what aims the gesture.
         .step("raise the instruments and frame the bearing")
         .on_enter(|world: &mut World| {
             hollow::hud_instrument(world);

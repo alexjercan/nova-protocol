@@ -10,8 +10,8 @@
 //! its anchor dies.
 //!
 //! One player ship at the origin facing -Z (with one turret), one uncontrolled
-//! target ship parked dead ahead at z = -150 - inside the aim-assist cone, so
-//! the lock acquires by itself.
+//! target ship parked dead ahead 1.5 km out. The script holds it under the
+//! screen centre while it sweeps, since the radar picks the body there.
 //!
 //! Controls: none needed; fly and look around freely in interactive runs.
 //!
@@ -120,13 +120,17 @@ fn main() -> bevy::app::AppExit {
                 // gesture through the live input pipeline. Raise first, radar a
                 // beat later - the natural human order; at the hold threshold
                 // the radar latches the COMBAT slot and the lock goes live
-                // under the sweep.
+                // under the sweep. The radar picks the body under the screen
+                // centre, so the look stays on the target through both beats,
+                // as a pilot's would.
                 .step("raise the stance")
                 .on_enter(raise_stance)
+                .each(keep_centred_on(scenario_object("target_ship")))
                 .until(elapsed(0.3))
                 .add()
                 .step("hold the radar")
                 .on_enter(hold_radar)
+                .each(keep_centred_on(scenario_object("target_ship")))
                 .until(elapsed(0.6))
                 .add()
                 .step("commit the live lock")
@@ -465,8 +469,7 @@ fn hud_indicators_scenario(game_assets: &GameAssets, sections: &GameSections) ->
             vec![
                 spawn("player_ship", "HUD Test Ship", Meters3::ZERO, player),
                 // Dead ahead (the ship and camera face -Z at spawn), 1.5 km out:
-                // well inside the ship-class lock ceiling (200 km) and the
-                // 18 degree aim cone.
+                // well inside the ship-class lock ceiling (200 km).
                 spawn(
                     "target_ship",
                     "HUD Target Ship",

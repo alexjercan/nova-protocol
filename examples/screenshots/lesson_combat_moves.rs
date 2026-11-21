@@ -33,13 +33,14 @@
 //!
 //! ## What aims what
 //!
-//! The camera here is FRAMING ONLY. Both the radar sweep and the component
-//! snap aim down the player rig's own look ray from the player's own hull
-//! (`ActiveLookRay`, `live_structure_anchor`), and the duel set parks the
-//! player square with the world with the raider a few degrees off its nose.
-//! So a beat may stand the camera anywhere that reads without moving what the
-//! gesture picks - which is what lets the component sheet be shot from 150 m
-//! off the TARGET while the lock it records is swept from 340 m away.
+//! The radar sweep and the component snap both pick by the centre of the
+//! view that is up (`ScreenCentreRay`). So the sweep is taken under the
+//! player's own chase camera with the raider held under the screen centre
+//! (`hollow::centre_raider`), and only then does a beat stand the camera
+//! where the sheet reads - which is what lets the component sheet be shot
+//! from 150 m off the TARGET while the lock it records is swept from 340 m
+//! away. A posed view's centre is what a section snap reads, so the
+//! component framing looks at the target's hull.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - drive the whole script, exit
@@ -62,7 +63,7 @@ mod lesson;
 use bevy::prelude::*;
 use clap::Parser;
 #[cfg(feature = "debug")]
-use lesson::{lesson_profile, sweep_lesson_camera, LessonSweep, LESSON_GRID};
+use lesson::{hand_back_camera, lesson_profile, sweep_lesson_camera, LessonSweep, LESSON_GRID};
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -500,8 +501,13 @@ fn combat_moves_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<
         .add()
         // LOCK A COMPONENT. The stance is up, so the sweep latches the COMBAT
         // slot rather than the nav one, which is what the fine lock hangs off.
+        // The sweep is taken from the chase camera with the raider under the
+        // screen centre, as a pilot takes it; the mount framing is dropped
+        // first, since the radar reads the centre of whatever view is up.
         .step("sweep a combat lock onto the raider")
+        .on_enter(hand_back_camera)
         .on_enter(hollow::hold_radar)
+        .each(hollow::centre_raider())
         .until(the_raider_is_focused())
         .deadline(30.0)
         .add()

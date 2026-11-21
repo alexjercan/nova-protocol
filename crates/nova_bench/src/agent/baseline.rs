@@ -1,5 +1,5 @@
 //! The baseline: a scripted hunter, in process.
-//! Close, raise, lock, fire. It speaks the referee protocol like any other
+//! Close, raise, aim, lock, fire. It speaks the referee protocol like any other
 //! client, so its audit reads the same as pi's.
 
 use serde_json::{json, Value};
@@ -10,6 +10,17 @@ use crate::{game::GameChannel, referee::Referee};
 const CLOSE_TO_M: f64 = 2500.0;
 /// Ticks per act: half a second of world between decisions.
 const ACT_TICKS: u64 = 30;
+/// Aim delta per degree of turn, the figure the manual gives for
+/// `camera.camera_rotate`.
+const AIM_DELTA_PER_DEG: f64 = 27.0;
+/// Share of the screen error one act corrects. Under 1, so a gain that is off
+/// for the raised camera still converges instead of swinging past.
+const AIM_GAIN: f64 = 0.7;
+/// Ticks one act's correction is spread over.
+const AIM_TICKS: u64 = 5;
+/// Screen error, in degrees, the hunter leaves alone: well inside the
+/// radar's pick tolerance of about one degree.
+const AIM_DEADBAND_DEG: f64 = 0.3;
 
 /// Play until the referee ends the run, or until no hostile is left and the
 /// hunter calls `finish`. Returns the stop reason for the front.
@@ -103,7 +114,29 @@ fn decide(view: &Value, seen_hostile: bool) -> Decision {
             want(&format!("section.{id}"), locked);
         }
     }
+    // The radar locks what is under the screen centre, so the hunter puts
+    // the target there for the dwell to charge on.
+    if let Some(aim) = aim_at(target).filter(|_| !locked) {
+        gestures.push(aim);
+    }
     Decision::Act(gestures)
+}
+
+/// The `camera.camera_rotate` aim that walks `target`'s `screen_deg` toward
+/// `[0, 0]`, or `None` when it is already there or the view carries no screen
+/// bearing. Positive delta turns right and pitches down.
+fn aim_at(target: &Value) -> Option<Value> {
+    let screen = target["screen_deg"].as_array()?;
+    let (azimuth, elevation) = (screen.first()?.as_f64()?, screen.get(1)?.as_f64()?);
+    if azimuth.hypot(elevation) <= AIM_DEADBAND_DEG {
+        return None;
+    }
+    let per_tick = AIM_GAIN * AIM_DELTA_PER_DEG / AIM_TICKS as f64;
+    Some(json!({
+        "aim": "camera.camera_rotate",
+        "delta": [azimuth * per_tick, -elevation * per_tick],
+        "ticks": AIM_TICKS,
+    }))
 }
 
 #[cfg(test)]
@@ -159,6 +192,38 @@ mod tests {
                 json!({ "press": "section.turret_port" }),
             ]
         );
+    }
+
+    #[test]
+    fn the_hunter_turns_the_screen_centre_onto_the_target_until_it_locks() {
+        let mut off_centre = view(2000.0, None, &[]);
+        off_centre["contacts"][0]["screen_deg"] = json!([3.0, 2.0]);
+        let Decision::Act(gestures) = decide(&off_centre, true) else {
+            panic!("acts")
+        };
+        let aim = gestures
+            .iter()
+            .find(|gesture| gesture["aim"] == "camera.camera_rotate")
+            .expect("an unlocked target off the screen centre is aimed at");
+        assert!(
+            aim["delta"][0].as_f64().unwrap() > 0.0,
+            "right toward +azimuth"
+        );
+        assert!(
+            aim["delta"][1].as_f64().unwrap() < 0.0,
+            "up toward +elevation"
+        );
+
+        let mut centred = off_centre.clone();
+        centred["contacts"][0]["screen_deg"] = json!([0.1, -0.1]);
+        let mut locked = off_centre.clone();
+        locked["me"]["combat_lock"] = json!("raider_1");
+        for view in [centred, locked] {
+            let Decision::Act(gestures) = decide(&view, true) else {
+                panic!("acts")
+            };
+            assert!(gestures.iter().all(|gesture| gesture.get("aim").is_none()));
+        }
     }
 
     #[test]

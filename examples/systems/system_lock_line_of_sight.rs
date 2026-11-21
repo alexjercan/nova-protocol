@@ -93,12 +93,12 @@ const ROCK_RADIUS: Meters = Meters(30.0);
 const COVER_ON_THE_LINE: Meters3 = Meters3::new(0.0, 0.0, -400.0);
 
 /// Where the cover waits while the sky is clear. Abeam and far off the axis:
-/// outside the aim cone, so it is not a candidate, and nowhere near the
+/// far from the screen centre, so it is not a candidate, and nowhere near the
 /// segment the scanner's ray walks.
 const COVER_OFF_THE_LINE: Meters3 = Meters3::new(1200.0, 0.0, -400.0);
 
-/// Where the target ship parks: dead ahead, inside the ship-class lock ceiling
-/// and inside the aim cone, so a clear sky acquires it without steering.
+/// Where the target ship parks: dead ahead and inside the ship-class lock
+/// ceiling, so a clear sky acquires it once the look is on it.
 const TARGET_AT: Meters3 = Meters3::new(0.0, 0.0, -1_500.0);
 
 /// How long the run gives a held lock to notice the cover that just arrived.
@@ -232,11 +232,13 @@ fn sight_loop_script(script: Script) -> Script {
     script
         .step("raise the weapons on the clear line")
         .on_enter(raise_the_weapons)
+        .each(aim_at_target())
         .until(the_weapons_are_raised())
         .deadline(30.0)
         .add()
         .step("hold the radar on the clear line")
         .on_enter(hold_the_radar)
+        .each(aim_at_target())
         .until(elapsed(1.0))
         .add()
         .step("open the loop on the held lock")
@@ -518,6 +520,15 @@ fn the_weapons_are_raised() -> std::sync::Arc<nova_protocol::nova_debug::harness
     })
 }
 
+/// A step `each` hook that holds the target ship under the screen centre, the
+/// aim a player makes to lock it: the radar picks the body there. The cover
+/// rides the same line when it is on it, so the aim does not choose between
+/// them; line of sight does.
+#[cfg(feature = "debug")]
+fn aim_at_target() -> impl Fn(&mut World, f32, u32) + Send + Sync + 'static {
+    keep_centred_on(scenario_object("target_ship"))
+}
+
 /// Hold the radar: the live gesture, which is the only thing that locks
 /// anything in the deliberate-radar model.
 #[cfg(feature = "debug")]
@@ -647,7 +658,7 @@ fn move_the_cover_off_the_line(world: &mut World) {
         .translation = COVER_OFF_THE_LINE.to_engine();
     // Wipe the tape so the last invariant reads only what happens from here.
     // The rock itself is what the player is holding - it was the pick behind
-    // cover - and it lets go the moment it leaves the aim cone, which is a
+    // cover - and it lets go the moment it moves off the line, which is a
     // drop about the ROCK and not about the target.
     world.resource_mut::<DropsSeen>().0.clear();
     info!("line of sight: cover moved back off the line");
@@ -920,11 +931,13 @@ fn sight_script() -> Script {
     script
         .step("raise the weapons on an empty sky")
         .on_enter(raise_the_weapons)
+        .each(aim_at_target())
         .until(the_weapons_are_raised())
         .deadline(30.0)
         .add()
         .step("hold the radar on an empty sky")
         .on_enter(hold_the_radar)
+        .each(aim_at_target())
         .until(elapsed(1.0))
         .add()
         .step("assert the clear line locks")
@@ -942,11 +955,13 @@ fn sight_script() -> Script {
         .add()
         .step("raise the weapons behind the cover")
         .on_enter(raise_the_weapons)
+        .each(aim_at_target())
         .until(the_weapons_are_raised())
         .deadline(30.0)
         .add()
         .step("hold the radar from behind the cover")
         .on_enter(hold_the_radar)
+        .each(aim_at_target())
         .until(elapsed(1.0))
         .add()
         .step("assert the cover refuses a new lock")
@@ -959,11 +974,13 @@ fn sight_script() -> Script {
         .add()
         .step("raise the weapons on a cleared sky")
         .on_enter(raise_the_weapons)
+        .each(aim_at_target())
         .until(the_weapons_are_raised())
         .deadline(30.0)
         .add()
         .step("hold the radar on a cleared sky")
         .on_enter(hold_the_radar)
+        .each(aim_at_target())
         .until(elapsed(1.0))
         .add()
         .step("assert the cleared line locks again")
@@ -981,6 +998,7 @@ fn sight_script() -> Script {
         .add()
         .step("take a travel designation on the clear line")
         .on_enter(open_the_radar_lowered)
+        .each(aim_at_target())
         .until(elapsed(1.0))
         .add()
         .step("engage the trip")

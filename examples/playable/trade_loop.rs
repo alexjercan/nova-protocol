@@ -14,8 +14,10 @@
 //!
 //! What to do:
 //!
-//! 1. HOLD the radar key on the trader until the lock takes.
-//! 2. press the dock key.
+//! 1. Put the trader in the middle of the screen and HOLD the radar key
+//!    until the lock takes.
+//! 2. look back down the port line, so the hull turns square to the trader,
+//!    and press the dock key.
 //! 3. press TAB and pick Inventory.
 //! 4. click Rations on the trader's side and Confirm: you pay 8 cr.
 //! 5. click Hull plate on your side, pick Sell, Max and Confirm: you earn
@@ -65,6 +67,9 @@ const TENDER_NAME: &str = "Tender";
 /// The trader's name.
 const TRADER_NAME: &str = "Trader";
 
+/// The tender's spawn heading. The trader's port faces it down this line.
+const TENDER_HEADING: Quat = Quat::IDENTITY;
+
 /// Where the trader stands, in meters: straight ahead, turned to face the
 /// tender. Both port faces stand 25 m off their hull's origin, so this leaves
 /// a 5 m face gap, half the capture distance.
@@ -92,6 +97,17 @@ const STEP_DEADLINE: f32 = 20.0;
 /// acquisition dwell, as in `docking_approach`.
 #[cfg(feature = "debug")]
 const LOCK_HOLD: f32 = 3.0;
+
+/// Radians the tender may lie off [`TENDER_HEADING`] when the script presses
+/// dock: half a degree, well inside the port's capture angle, so the dock
+/// does not depend on how far the hull still has to turn.
+#[cfg(feature = "debug")]
+const PORT_LINE_TOLERANCE: f32 = 0.5 * std::f32::consts::PI / 180.0;
+
+/// Radians per second the tender may still be turning at the dock key: the
+/// same half a degree, so the hull has stopped, not only passed the line.
+#[cfg(feature = "debug")]
+const PORT_LINE_SPIN: f32 = 0.5 * std::f32::consts::PI / 180.0;
 
 /// The form's price for the refused Buy: 2 Salvaged parts ask 240 cr.
 #[cfg(feature = "debug")]
@@ -153,7 +169,7 @@ fn trade(game_assets: &GameAssets) -> ScenarioConfig {
         TENDER_ID,
         TENDER_NAME,
         Meters3::ZERO,
-        Quat::IDENTITY,
+        TENDER_HEADING,
         SpaceshipConfig {
             controller: SpaceshipController::Player(PlayerControllerConfig::default()),
             design: ShipDesignSource::Inline(tender()),
@@ -343,6 +359,44 @@ fn check_spawned(world: &mut World) {
     check_ledgers(world, "before the trades", &spawned);
 }
 
+/// The tender's rotation and spin speed, radians per second; `None` before
+/// the player ship spawns.
+#[cfg(feature = "debug")]
+fn tender_pose(world: &World) -> Option<(Quat, f32)> {
+    let mut tender = world.try_query_filtered::<
+        (&Transform, &avian3d::prelude::AngularVelocity),
+        With<PlayerSpaceshipMarker>,
+    >()?;
+    tender
+        .iter(world)
+        .next()
+        .map(|(transform, spin)| (transform.rotation, spin.0.length()))
+}
+
+/// Log how far centring the trader turned the tender off the port line.
+#[cfg(feature = "debug")]
+fn log_tender_turn(world: &mut World) {
+    if let Some((rotation, spin)) = tender_pose(world) {
+        info!(
+            "trade: centring the trader turned the tender {:.2} deg off the port line, \
+             spin {:.2} deg/s",
+            rotation.angle_between(TENDER_HEADING).to_degrees(),
+            spin.to_degrees()
+        );
+    }
+}
+
+/// Advance once the tender lies on [`TENDER_HEADING`] and has stopped turning.
+#[cfg(feature = "debug")]
+fn tender_square_to_the_port_line() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate>
+{
+    std::sync::Arc::new(|world: &World| {
+        tender_pose(world).is_some_and(|(rotation, spin)| {
+            rotation.angle_between(TENDER_HEADING) <= PORT_LINE_TOLERANCE && spin <= PORT_LINE_SPIN
+        })
+    })
+}
+
 /// Advance once the interface shows `pane`.
 #[cfg(feature = "debug")]
 fn the_interface_shows(
@@ -439,17 +493,30 @@ fn trade_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .until(and(state_is(GameStates::Playing), player_ship_present()))
         .deadline(LOAD_DEADLINE)
         .add()
-        .step("settle the chase camera")
+        // The radar picks the body under the screen centre, so the script
+        // aims there first, as a pilot does.
+        .step("settle the chase camera on the trader")
         .on_enter(hide_status_bar)
+        .each(keep_centred_on(scenario_object(TRADER_ID)))
         .until(elapsed(1.0))
         .add()
         .step("hold the radar onto the trader")
         .on_enter(press_action("radar_hold"))
+        .each(keep_centred_on(scenario_object(TRADER_ID)))
         .until(elapsed(LOCK_HOLD))
         .add()
         .step("release the radar")
         .on_enter(release_action("radar_hold"))
         .until(elapsed(0.5))
+        .add()
+        // The hull follows the look, so centring the trader turned the tender
+        // off the port line the scene lays out. Look back down it, as a pilot
+        // does before the dock key, and wait for the hull to come square.
+        .step("look back down the port line")
+        .on_enter(log_tender_turn)
+        .each(|world: &mut World, _, _| set_look_rotation(world, TENDER_HEADING))
+        .until(tender_square_to_the_port_line())
+        .deadline(STEP_DEADLINE)
         .add()
         .step("press the dock key")
         .on_enter(press_action("dock"))

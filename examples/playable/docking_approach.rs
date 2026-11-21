@@ -8,9 +8,10 @@
 //!
 //! What to do:
 //!
-//! 1. HOLD the radar key on the spar until the lock takes. The DOCK chip and
-//!    the docking sight both need a lock - it is how the game knows which
-//!    hull you mean. A tap is the clear, not the lock.
+//! 1. Put the spar in the middle of the screen and HOLD the radar key until
+//!    the lock takes. The DOCK chip and the docking sight both need a lock -
+//!    it is how the game knows which hull you mean. A tap is the clear, not
+//!    the lock.
 //! 2. fly the sight. Two crosses stand across the two port faces, and the line
 //!    between them is the gap. Square the crosses, stand the line up
 //!    perpendicular to them, and the pair is lined up. The line and the
@@ -233,7 +234,10 @@ fn approach_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
         .until(and(state_is(GameStates::Playing), player_ship_present()))
         .deadline(LOAD_DEADLINE)
         .add()
-        .step("settle the chase camera")
+        // The radar picks the body under the screen centre, so the script
+        // aims there first, as a pilot does.
+        .step("settle the chase camera on the spar")
+        .each(keep_centred_on(scenario_object(SPAR_ID)))
         .until(elapsed(1.0))
         .add()
         // A lock is a HOLD, not a tap: the gesture latches a slot past its
@@ -241,6 +245,7 @@ fn approach_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
         // the CLEAR.
         .step("hold the radar onto the spar")
         .on_enter(press_action("radar_hold"))
+        .each(keep_centred_on(scenario_object(SPAR_ID)))
         .until(elapsed(LOCK_HOLD))
         .add()
         .step("release the radar")

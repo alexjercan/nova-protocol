@@ -62,6 +62,74 @@ impl ActiveLookRay<'_, '_> {
     }
 }
 
+/// The ray through the centre of the player camera's view: where a crosshair
+/// drawn in the middle of the screen points. The radar and the component
+/// fine-lock pick with it, so what locks is what the player sees under the
+/// screen centre.
+///
+/// It is NOT the [`ActiveLookRay`]. The chase rigs stand the camera above and
+/// behind the hull and look down onto a focus point ahead of it, so the
+/// look ray from the hull and this ray cross only at that point: a body held
+/// in the middle of the screen sits several degrees off the look ray.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CentreRay {
+    /// The camera's world position.
+    pub origin: Vec3,
+    /// Through the centre of the viewport.
+    pub direction: Dir3,
+    /// `tan(fov_y / 2)` of the camera, which turns an angle off the ray into
+    /// a share of the viewport half-height.
+    pub tan_half_fov: f32,
+}
+
+impl CentreRay {
+    /// How far down the ray `point` lies, world units, and how far from the
+    /// screen centre it projects, as a share of the viewport half-height
+    /// (1.0 is the top edge). `None` for a point at or behind the camera.
+    pub fn screen_offset(&self, point: Vec3) -> Option<(f32, f32)> {
+        let to_point = point - self.origin;
+        let along = to_point.dot(*self.direction);
+        if along <= f32::EPSILON {
+            return None;
+        }
+        let beside = (to_point - *self.direction * along).length();
+        Some((along, beside / (along * self.tan_half_fov)))
+    }
+}
+
+/// Reads the [`CentreRay`] off the player camera.
+///
+/// Gameplay runs in `Update` and the chase camera solves in `PostUpdate`, so
+/// the pose read here is the one the last rendered frame was drawn from:
+/// exactly the picture the player aimed with.
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct ScreenCentreRay<'w, 's> {
+    query: Query<
+        'w,
+        's,
+        (&'static GlobalTransform, &'static Projection),
+        With<SpaceshipCameraController>,
+    >,
+}
+
+impl ScreenCentreRay<'_, '_> {
+    /// The player camera's centre ray, or `None` when there is no player
+    /// camera (menu states, a dead pilot, headless tests without one). Only a
+    /// perspective camera has a field of view to measure the screen with; the
+    /// player camera is always one.
+    pub fn ray(&self) -> Option<CentreRay> {
+        let (transform, projection) = self.query.iter().next()?;
+        let Projection::Perspective(perspective) = projection else {
+            return None;
+        };
+        Some(CentreRay {
+            origin: transform.translation(),
+            direction: transform.forward(),
+            tan_half_fov: (perspective.fov * 0.5).tan(),
+        })
+    }
+}
+
 /// General Marker for the rotation input of the spaceship camera.
 #[derive(Component, Debug, Clone)]
 pub struct SpaceshipCameraInputMarker;

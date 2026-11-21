@@ -52,8 +52,8 @@ pub(super) fn update_chase_camera_input(
 
     // Anchor on the live center of mass, not the root origin: a camera anchored
     // at the origin makes a section-stripped wreck appear to orbit an empty
-    // point in space. The COM lift lives in the shared helper so aim, lock
-    // cones and the camera agree on the anchor. Every real ship root has a
+    // point in space. The COM lift lives in the shared helper so aim, locks
+    // and the camera agree on the anchor. Every real ship root has a
     // `RigidBody`, which requires the component; the None fallback is defensive
     // (marker-only roots in tests).
     camera_input.anchor_pos =

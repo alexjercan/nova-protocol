@@ -127,8 +127,11 @@ fn main() -> bevy::app::AppExit {
                 // writes it under the sweep, and waiting on the component
                 // rather than the clock is what survives llvmpipe stutter,
                 // where a wall-clock window can collapse into a single frame.
+                // The radar picks the body under the screen centre, so the
+                // look stays on the prey for the sweep, as a pilot's would.
                 .step(format!("round {round}: sweep the prey into a combat lock"))
                 .on_enter(beat(press_action("radar_hold"), "beat: radar combat sweep"))
+                .each(keep_centred_on(scenario_object("prey")))
                 .until(combat_lock_live())
                 .deadline(20.0)
                 .add()
@@ -141,13 +144,14 @@ fn main() -> bevy::app::AppExit {
                 .on_enter(lower_stance)
                 .until(elapsed(0.3))
                 .add()
-                // With the prey gone the waypoint is the sweep's only
-                // candidate; same component-not-clock reasoning as above.
+                // The look turns onto the waypoint for the travel sweep; same
+                // component-not-clock reasoning as above.
                 .step(format!(
                     "round {round}: sweep the waypoint into a travel lock"
                 ))
                 .until(travel_lock_live())
                 .on_enter(beat(press_action("radar_hold"), "beat: radar travel sweep"))
+                .each(keep_centred_on(scenario_object("waypoint")))
                 .deadline(20.0)
                 .add()
                 // GOTO with the real key, then wait until the autopilot is
@@ -232,8 +236,7 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             // The shipped fire bindings (the base scenarios map turrets to
             // LMB / RightTrigger2). NOT Space/RightTrigger: both also bind
             // FlightBurnInput in the flight rig, so a held fire key would
-            // burn the main drive too and coast the ship past the beacon,
-            // out of the radar cone.
+            // burn the main drive too and coast the ship past the beacon.
             input_mapping: BTreeMap::from([(
                 "guns".to_string(),
                 vec![
@@ -277,8 +280,8 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                     },
                     kind: ScenarioObjectKind::Spaceship(ship),
                 }),
-                // The prey: dead ahead on the default look ray, lockable
-                // (an unsigned rock is invisible to the radar).
+                // The prey: dead ahead, lockable (an unsigned rock is
+                // invisible to the radar).
                 EventActionConfig::SpawnScenarioObject(fixtures::asteroid(
                     game_assets,
                     "prey",
@@ -288,12 +291,9 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                     Meters(2.5),
                     Some(Meters(10_000.0)),
                 )),
-                // The waypoint: off the boresight (the radar pick is
-                // purely angular, and with the camera above the hull a
-                // FARTHER on-axis object aligns better with the look ray -
-                // collinear placement made the raised sweep lock the beacon
-                // instead of the prey). 14 degrees off keeps it inside the
-                // sweep cone for the nav lock once the prey is gone.
+                // The waypoint: 14 degrees off the boresight, so the prey
+                // and the waypoint are never under the screen centre
+                // together and each sweep has one subject.
                 EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
                     base: BaseScenarioObjectConfig {
                         id: "waypoint".to_string(),

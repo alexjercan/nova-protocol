@@ -3,7 +3,7 @@
 //! `combat_lock_ranges` (how far away a thing can be and still be locked).
 //!
 //! One producer, two stills, because both need the same one-off state: a hull
-//! actually moving, a second hull drifting across the aim ray, and a radar
+//! actually moving, a second hull drifting across the line of sight, and a radar
 //! lock latched onto it. Getting a lock is four beats of walk; spending them
 //! twice to photograph two framings of the same instrument would be the only
 //! difference between two producers.
@@ -32,8 +32,9 @@
 //! ## What is written rather than flown
 //!
 //! The player is pinned on station (`hollow::pin_player`, as every hollow
-//! producer does, because the radar picks by the aim ray and a drifting player
-//! swings the raider off it) and its velocity is then written back
+//! producer does, because the set's geometry is measured from the origin and
+//! a drifting player puts other bodies under the screen centre) and its
+//! velocity is then written back
 //! (`hold_drift`). A pinned hull reads `0.0 m/s`, and a units lesson whose
 //! speed chip is zero teaches nothing about speeds. The raider's own drift is
 //! `hollow::nudge_raider`, which is what gives the lock's closing-speed line
@@ -88,9 +89,8 @@ const DRIFT_SPEED: MetersPerSecond = MetersPerSecond(120.0);
 /// shoulder and above it, looking down its own bearing.
 ///
 /// The subject is a point 120 m ahead of the parked hull rather than the hull
-/// itself, so the camera sits BEHIND the player and the raider it marks is on
-/// the same ray - the radar picks by the camera's look ray, so the view that
-/// takes the lock has to be the view that shows it.
+/// itself, so the camera sits BEHIND the player with the raider it marks in
+/// the same frame.
 #[cfg(feature = "debug")]
 const UNITS_SUBJECT: Meters3 = Meters3::new(0.0, 4.0, -120.0);
 #[cfg(feature = "debug")]
@@ -166,8 +166,8 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
 
 /// Write the player's velocity back after the pin has zeroed it.
 ///
-/// Chained after `pin_player` on purpose: the pin is what keeps the raider on
-/// the aim ray, and it clears the velocity the speed chip reads. Straight down
+/// Chained after `pin_player` on purpose: the pin is what keeps the set's
+/// geometry, and it clears the velocity the speed chip reads. Straight down
 /// the nose, because nothing here is about drift - `start_hud` owns that
 /// claim, and a cone swung off the nose in this shot would be a second thing
 /// to explain.
@@ -248,15 +248,6 @@ fn readouts_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
         })
         .until(elapsed(2.0))
         .add()
-        // Frame FIRST: the radar picks by the camera's look ray, so the close
-        // shot's own view is what aims the gesture.
-        .step("raise the instruments and frame the bearing")
-        .on_enter(|world: &mut World| {
-            hollow::hud_instrument(world);
-            world.insert_resource(units_view());
-        })
-        .until(elapsed(0.5))
-        .add()
         // Weapons UP before the latch, and that is what the shot turns on: a
         // nav lock draws the GOTO affordance under the bracket, and a COMBAT
         // lock draws `DST <range>` and `CLS <closing speed>` beside it. Those
@@ -272,15 +263,26 @@ fn readouts_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
         .on_enter(hollow::raise_stance)
         .until(elapsed(0.5))
         .add()
+        // The lock is taken from the player's own chase camera with the raider
+        // under the screen centre, as a pilot takes it; the close view is
+        // posed only after.
         .step("hold the radar until it marks the raider")
         .on_enter(hollow::hold_radar)
+        .each(hollow::centre_raider())
         .until(the_raider_is_marked())
         .deadline(30.0)
         .add()
         // Releasing stops the RETARGETING and keeps the last candidate, so the
-        // mark survives the camera move the wide shot needs.
-        .step("release, and let the reticle settle")
+        // mark survives the camera moves both shots need.
+        .step("release the radar")
         .on_enter(hollow::release_radar)
+        .until(elapsed(0.2))
+        .add()
+        .step("raise the instruments, frame the bearing and let the reticle settle")
+        .on_enter(|world: &mut World| {
+            hollow::hud_instrument(world);
+            world.insert_resource(units_view());
+        })
         .until(frames(SETTLE_FRAMES))
         .add()
         .step("capture the readouts")

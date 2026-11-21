@@ -90,7 +90,18 @@ const CONCEALMENT_PLANETOID_MU = 20000; // first_shift_stage.rs:50 (u^3/s^2)
 // reference range is still an engine `f32` in world units (state.rs:63-66), so
 // the trainer's contact distances are world units too.
 export const RADAR_TAP_SECS = 0.25; // gesture.rs:20
-export const TARGETING_CONE_HALF_ANGLE_DEG = 18.0; // radar.rs:16
+export const RADAR_PICK_TOLERANCE = 0.045; // radar.rs:20 (share of the viewport half-height)
+// Bevy's default PerspectiveProjection fov (PI / 4, vertical): the view the
+// pick tolerance is turned into degrees against.
+const DEFAULT_VERTICAL_FOV_DEG = 45;
+// The radar pick's half-angle at the default view, about one degree.
+export const RADAR_PICK_HALF_ANGLE_DEG =
+    (Math.atan(
+        RADAR_PICK_TOLERANCE *
+            Math.tan(((DEFAULT_VERTICAL_FOV_DEG / 2) * Math.PI) / 180)
+    ) *
+        180) /
+    Math.PI;
 export const LOCK_DWELL_BASE = 0.6; // state.rs:81
 export const LOCK_DWELL_RANGE_FACTOR = 1.5; // state.rs:82
 export const LOCK_DWELL_REFERENCE_RANGE = 2000; // state.rs:83 (world units)
@@ -4703,8 +4714,9 @@ function initLockSweep(host: HTMLElement): void {
     header(
         host,
         "Radar trainer: earn a lock",
-        `Hold the RADAR key to sweep (a ${TARGETING_CONE_HALF_ANGLE_DEG}-` +
-            `degree half-angle cone around your aim). Past the ` +
+        "Hold the RADAR key to sweep: it picks the body under the centre " +
+            `of your screen, within about ${RADAR_PICK_HALF_ANGLE_DEG.toFixed(0)} ` +
+            "degree of it. Past the " +
             `${RADAR_TAP_SECS}-second tap threshold the slot latches from ` +
             "your stance - lowered writes the white TRAVEL lock, raised " +
             "the red COMBAT lock - then a range-scaled dwell must fill " +
@@ -4727,7 +4739,7 @@ function initLockSweep(host: HTMLElement): void {
         role: "img",
         "aria-label":
             "Radar scope: your ship at the bottom, three contacts at " +
-            "different ranges, the sweep cone around your aim, a dwell " +
+            "different ranges, the narrow pick around the screen centre, a dwell " +
             "ring filling on the candidate, and committed locks drawn as " +
             "a white box or a red diamond.",
     });
@@ -4839,10 +4851,10 @@ function initLockSweep(host: HTMLElement): void {
         "Release early for a tap - that is the staged CLEAR gesture.";
 
     const paint = (): void => {
-        // Cone and ray follow the aimed contact.
+        // The pick and the centre ray follow the aimed contact.
         const c = CONTACTS[aimed];
         const a = (c.bearing * Math.PI) / 180;
-        const half = (TARGETING_CONE_HALF_ANGLE_DEG * Math.PI) / 180;
+        const half = (RADAR_PICK_HALF_ANGLE_DEG * Math.PI) / 180;
         const pt = (ang: number, r: number): string =>
             `${(CX + r * Math.sin(ang)).toFixed(1)} ${(CY - r * Math.cos(ang)).toFixed(1)}`;
         cone.setAttribute(
@@ -5046,12 +5058,13 @@ function initLockSweep(host: HTMLElement): void {
     const note = el(
         "p",
         "widget__note",
-        "Constants are the shipped ones: 18-degree cone half-angle, 0.25 s " +
-            "tap threshold, dwell 0.6 s point-blank stretching to 1.5 s at " +
-            "20 km, staged clearing. " +
+        "Constants are the shipped ones: a pick about one degree round the " +
+            "screen centre, 0.25 s tap threshold, dwell 0.6 s point-blank " +
+            "stretching to 1.5 s at 20 km, staged clearing. " +
             "Candidate picking is simplified to the aim keys; in game the " +
-            "sweep scores whatever is nearest your look ray, with " +
-            "hysteresis. A lock never times out; in game it also drops " +
+            "sweep picks the nearest body under the screen centre - the " +
+            "first hull the centre ray meets, or a body within the pick - " +
+            "and holds a candidate in a circle twice as wide. A lock never times out; in game it also drops " +
             "when the target dies, leaves range, turns non-hostile or goes " +
             "behind cover, which the trainer leaves out."
     );

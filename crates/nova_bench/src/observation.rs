@@ -2,7 +2,8 @@
 //! told. Meters and meters per second throughout (the snapshot speaks
 //! engine units, ten meters each); bearings are azimuth and elevation from
 //! the nose, starboard and up positive, so "turn left three degrees" is a
-//! sentence an agent can act on.
+//! sentence an agent can act on. `screen_deg` is the same pair measured from
+//! the centre of the player's view, which is where the radar picks.
 //!
 //! The view is a PILOT's view, not a census. A scenario can field a hundred
 //! rocks and enumerating them costs more tokens than the rest of the world put
@@ -76,7 +77,7 @@ pub fn condense(snapshot: &Value, held: &BTreeSet<String>, expand: &[String]) ->
     // already requires the same thing, so this is also what keeps the score and
     // the view agreeing about who the player is. `me: None` degrades honestly.
     let me = ships.iter().find(|ship| ship["controller"] == "Player");
-    let frame = me.map(Frame::of);
+    let frame = me.map(|me| Frame::of(me, &snapshot["camera"]));
     let mission = &snapshot["mission"];
     let canisters: Vec<Value> = snapshot["canisters"]
         .as_array()
@@ -702,12 +703,15 @@ fn contact(ship: &Value, frame: Option<&Frame>) -> Value {
 }
 
 /// Add `distance_m` and `bearing_deg` for a world position, when there is a
-/// frame to measure from.
+/// frame to measure from, and `screen_deg` when there is a view too.
 fn range_and_bearing(record: &mut Value, frame: Option<&Frame>, position: [f64; 3]) {
     let Some(frame) = frame else { return };
     let to = sub(position, frame.position);
     record["distance_m"] = json!(round1(length(to) * METERS_PER_UNIT));
     record["bearing_deg"] = json!(bearing(frame, to));
+    if let Some(camera) = &frame.camera {
+        record["screen_deg"] = json!(angles(camera.inverse, sub(position, camera.position)));
+    }
 }
 
 /// The player's frame: where the nose points and how fast the hull moves.
@@ -716,34 +720,58 @@ struct Frame {
     velocity: [f64; 3],
     /// The conjugate of the ship's rotation: world into local.
     inverse: [f64; 4],
+    /// The player's view, when the snapshot carries one.
+    camera: Option<Camera>,
+}
+
+/// The player's chase camera: where the centre of the screen looks from.
+struct Camera {
+    position: [f64; 3],
+    /// The conjugate of the camera's rotation: world into view.
+    inverse: [f64; 4],
 }
 
 impl Frame {
-    fn of(ship: &Value) -> Self {
-        let q = ship["rotation"]
-            .as_array()
-            .filter(|q| q.len() == 4)
-            .map(|q| {
-                [
-                    q[0].as_f64().unwrap_or(0.0),
-                    q[1].as_f64().unwrap_or(0.0),
-                    q[2].as_f64().unwrap_or(0.0),
-                    q[3].as_f64().unwrap_or(1.0),
-                ]
-            })
-            .unwrap_or([0.0, 0.0, 0.0, 1.0]);
+    fn of(ship: &Value, camera: &Value) -> Self {
         Self {
             position: vec3(&ship["position"]),
             velocity: vec3(&ship["linear_velocity"]),
-            inverse: [-q[0], -q[1], -q[2], q[3]],
+            inverse: inverse(&ship["rotation"]),
+            camera: camera.is_object().then(|| Camera {
+                position: vec3(&camera["position"]),
+                inverse: inverse(&camera["rotation"]),
+            }),
         }
     }
+}
+
+/// The conjugate of a snapshot quaternion (x, y, z, w); identity when absent.
+fn inverse(rotation: &Value) -> [f64; 4] {
+    let q = rotation
+        .as_array()
+        .filter(|q| q.len() == 4)
+        .map(|q| {
+            [
+                q[0].as_f64().unwrap_or(0.0),
+                q[1].as_f64().unwrap_or(0.0),
+                q[2].as_f64().unwrap_or(0.0),
+                q[3].as_f64().unwrap_or(1.0),
+            ]
+        })
+        .unwrap_or([0.0, 0.0, 0.0, 1.0]);
+    [-q[0], -q[1], -q[2], q[3]]
 }
 
 /// Azimuth and elevation of a world-frame direction from the nose (-Z
 /// local): azimuth positive to starboard, elevation positive up.
 fn bearing(frame: &Frame, direction: [f64; 3]) -> [f64; 2] {
-    let local = rotate(frame.inverse, direction);
+    angles(frame.inverse, direction)
+}
+
+/// Azimuth and elevation of a world-frame direction in the frame `inverse`
+/// turns the world into, measured from that frame's -Z.
+fn angles(inverse: [f64; 4], direction: [f64; 3]) -> [f64; 2] {
+    let local = rotate(inverse, direction);
     let flat = (local[0] * local[0] + local[2] * local[2]).sqrt();
     // Straight up or down has no azimuth; atan2 on a negative zero says 180.
     let azimuth = if flat < 1e-9 {
@@ -1238,10 +1266,40 @@ mod tests {
             position: [0.0; 3],
             velocity: [0.0; 3],
             inverse: [0.0, -half, 0.0, half],
+            camera: None,
         };
         assert_eq!(bearing(&frame, [-10.0, 0.0, 0.0]), [0.0, 0.0]);
         assert_eq!(bearing(&frame, [0.0, 0.0, -10.0]), [90.0, 0.0]);
         assert_eq!(bearing(&frame, [10.0, 0.0, 0.0])[0].abs(), 180.0);
+    }
+
+    #[test]
+    fn screen_bearings_are_measured_from_the_view_not_the_nose() {
+        // The chase camera rides 10 units up and 40 back, pitched down 10
+        // degrees: a contact on the camera's centre line reads [0, 0] on the
+        // screen while it sits below the nose, and a contact dead on the nose
+        // reads above the screen centre.
+        let pitch = (-10.0f64).to_radians() * 0.5;
+        let frame = Frame {
+            position: [0.0; 3],
+            velocity: [0.0; 3],
+            inverse: [0.0, 0.0, 0.0, 1.0],
+            camera: Some(Camera {
+                position: [0.0, 10.0, 40.0],
+                inverse: [-pitch.sin(), 0.0, 0.0, pitch.cos()],
+            }),
+        };
+        let down = (-10.0f64).to_radians();
+        let centred = [0.0, 10.0 + 300.0 * down.sin(), 40.0 - 300.0 * down.cos()];
+        let mut on_screen = json!({});
+        range_and_bearing(&mut on_screen, Some(&frame), centred);
+        assert_eq!(on_screen["screen_deg"], json!([0.0, 0.0]));
+        assert!(on_screen["bearing_deg"][1].as_f64().unwrap() < 0.0);
+
+        let mut on_nose = json!({});
+        range_and_bearing(&mut on_nose, Some(&frame), [0.0, 0.0, -300.0]);
+        assert_eq!(on_nose["bearing_deg"], json!([0.0, 0.0]));
+        assert!(on_nose["screen_deg"][1].as_f64().unwrap() > 0.0);
     }
 
     /// A body is summarised only when [`is_near`] says no, which needs a
