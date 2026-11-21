@@ -1,6 +1,6 @@
 # Mining: canisters drift to the open intake
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.19.0, mining
 
@@ -294,3 +294,5 @@ Measurement plan:
   `wiki-section-cargo-intake.png`, `mine-sell-taken.png`, the
   `flight_cargo_pickup` lesson loop and its caption.
 - Open until the owner plays it.
+
+- Owner sign-off 2026-11-21: "it works". Closed.
