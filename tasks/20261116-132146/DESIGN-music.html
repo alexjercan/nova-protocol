@@ -1,0 +1,937 @@
+<title>Nova Music Plan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap">
+<style>
+/* Layout: one instrument-panel column in the game's phosphor colours; square corners; each section is a panel with a title strip; wide charts scroll in their own frame. */
+:root {
+  color-scheme: dark;
+  --bg: #03060b;
+  --panel: #001304;
+  --raised: #002b0f;
+  --rule: #0d6e35;
+  --ink: #b9ffc9;
+  --ink-hi: #36ff79;
+  --ink-dim: #19a64f;
+  --ink-lit: #d6ffe4;
+  --ink-inverse: #04140a;
+  --accent: #ffb84a;
+  --danger: #ff4e42;
+  --c-menu: #d6ffe4;
+  --c-cruise: #36ff79;
+  --c-threat: #ffb84a;
+  --c-combat: #ff4e42;
+  --c-docked: #36a3ff;
+  --c-mod: #c77dff;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 40px;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 400 15px/1.55 var(--sans); }
+.wrap {
+  max-width: 1040px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: var(--s5) calc(96px + env(safe-area-inset-bottom, 0px));
+  display: grid; gap: var(--s6);
+}
+h1, h2, h3 { font-family: var(--mono); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(26px, 5vw, 40px); font-weight: 700; color: var(--ink-hi); letter-spacing: 0.04em; text-transform: uppercase; }
+h1 .cursor { display: inline-block; width: 0.55em; height: 0.9em; background: var(--ink-hi); vertical-align: -0.08em; margin-left: 0.15em; }
+@media (prefers-reduced-motion: no-preference) { h1 .cursor { animation: blink 1.1s steps(1) infinite; } }
+@keyframes blink { 50% { background: transparent; } }
+h2 { font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-inverse); background: var(--ink-hi); padding: 6px 10px; }
+h3 { font-size: 15px; font-weight: 600; color: var(--ink-hi); letter-spacing: 0.02em; }
+p { margin: 0; max-width: 68ch; }
+a { color: var(--ink-lit); text-decoration-color: var(--ink-dim); text-underline-offset: 3px; }
+a:hover { color: var(--ink-hi); }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+code { color: var(--ink-lit); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+section { display: grid; gap: var(--s4); border: 1px solid var(--rule); background: var(--panel); }
+section > h2 { margin: -1px -1px 0; }
+.body { display: grid; gap: var(--s4); padding: 0 var(--s4) var(--s4); min-width: 0; }
+.body > * { min-width: 0; }
+header { display: grid; gap: var(--s3); }
+.lead { font-size: 17px; color: var(--ink-lit); }
+.chips { display: flex; flex-wrap: wrap; gap: var(--s2); list-style: none; padding: 0; margin: 0; }
+.chips li { font: 600 12px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid var(--rule); padding: 6px 8px; color: var(--ink); }
+.chips b { color: var(--ink-hi); font-weight: 700; }
+.note { font-size: 13px; color: var(--ink-dim); }
+.legend { display: flex; flex-wrap: wrap; gap: var(--s3); list-style: none; padding: 0; margin: 0; font: 12px var(--mono); }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.sw { width: 14px; height: 10px; border: 1.5px solid var(--c); background: color-mix(in srgb, var(--c) 28%, transparent); display: inline-block; }
+.ctx-menu { --c: var(--c-menu); } .ctx-cruise { --c: var(--c-cruise); } .ctx-threat { --c: var(--c-threat); }
+.ctx-combat { --c: var(--c-combat); } .ctx-docked { --c: var(--c-docked); } .ctx-mod { --c: var(--c-mod); }
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--rule); background: var(--bg); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { font: 600 11px/1.3 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; background: var(--panel); }
+td { padding: 8px 10px; border-bottom: 1px solid color-mix(in srgb, var(--rule) 55%, transparent); vertical-align: top; }
+tbody tr:last-child td { border-bottom: 0; }
+td.num, th.num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+td.nowrap { white-space: nowrap; }
+.wide { min-width: 820px; }
+.mid { min-width: 640px; }
+tr.group td { font: 700 11px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--c); background: color-mix(in srgb, var(--c) 10%, var(--bg)); border-bottom: 1px solid var(--rule); }
+.facts { display: block; font: 12px/1.4 var(--mono); color: var(--ink-dim); margin-top: 2px; }
+.use { font: 600 11px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; color: var(--c, var(--ink-dim)); }
+button { font: 700 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-hi); background: transparent; border: 1px solid var(--ink-dim); padding: 8px 10px; cursor: pointer; border-radius: 0; white-space: nowrap; }
+button:hover { background: var(--raised); color: var(--ink-lit); }
+button[aria-pressed="true"] { background: var(--ink-hi); color: var(--ink-inverse); border-color: var(--ink-hi); }
+button.play::before { content: ""; display: inline-block; width: 0; height: 0; border-style: solid; border-width: 5px 0 5px 8px; border-color: transparent transparent transparent currentColor; margin-right: 6px; vertical-align: -1px; }
+button.play[aria-pressed="true"]::before { border-width: 0; width: 8px; height: 10px; background: currentColor; }
+.theme { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s4); border: 1px solid var(--c-menu); padding: var(--s4); background: var(--bg); }
+@media (min-width: 720px) { .theme { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); } }
+.theme .name { font: 700 22px/1.2 var(--mono); color: var(--c-menu); }
+.theme dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+.theme dt { font: 600 11px/1.7 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); }
+.theme dd { margin: 0; }
+.ladder { list-style: none; counter-reset: step; padding: 0; margin: 0; display: grid; gap: 0; border: 1px solid var(--rule); background: var(--bg); }
+.ladder li { counter-increment: step; display: grid; grid-template-columns: 2.4em minmax(0, 1fr) auto; gap: var(--s3); align-items: baseline; padding: 8px 10px; border-bottom: 1px solid color-mix(in srgb, var(--rule) 55%, transparent); }
+.ladder li:last-child { border-bottom: 0; }
+.ladder li::before { content: counter(step); font: 700 13px var(--mono); color: var(--ink-dim); }
+.ladder .out { font: 600 12px var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--c, var(--ink-dim)); white-space: nowrap; }
+@media (max-width: 520px) { .ladder li { grid-template-columns: 2em minmax(0, 1fr); } .ladder .out { grid-column: 2; } }
+.split { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s4); }
+@media (min-width: 860px) { .split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+ul.plain { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; max-width: 70ch; }
+ul.plain li::marker { color: var(--ink-dim); }
+svg text { font-family: var(--mono); }
+.chart { display: block; }
+.story { display: grid; gap: var(--s3); border-top: 1px solid var(--rule); padding-top: var(--s4); }
+.story:first-of-type { border-top: 0; padding-top: 0; }
+.story-head { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: center; justify-content: space-between; }
+.story-head h3 { flex: 1 1 260px; }
+.beats { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 14px; }
+.beats li { display: grid; grid-template-columns: 4.2em minmax(0, 1fr); gap: var(--s2); }
+.beats time { font-family: var(--mono); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.beats li.now { color: var(--ink-hi); }
+.band { cursor: pointer; }
+.band polygon { fill: var(--c); fill-opacity: 0.22; stroke: var(--c); stroke-width: 1.5; }
+.band.ctx-threat polygon { stroke-dasharray: 6 3; }
+.band.ctx-combat polygon { stroke-width: 2.5; fill-opacity: 0.32; }
+.band.ctx-mod polygon { stroke-dasharray: 2 3; }
+.band:hover polygon, .band:focus-visible polygon { fill-opacity: 0.45; }
+.band:focus { outline: none; }
+.band:focus-visible polygon { stroke: var(--accent); stroke-width: 3; }
+.band text { fill: var(--ink-lit); font-size: 12px; font-weight: 600; pointer-events: none; }
+pre { margin: 0; padding: var(--s3) var(--s4); font: 13px/1.5 var(--mono); color: var(--ink-lit); white-space: pre; }
+.tag { font: 700 10px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-inverse); background: var(--accent); padding: 3px 5px; vertical-align: 2px; margin-left: 6px; }
+.decisions { list-style: none; padding: 0; margin: 0; display: grid; gap: 0; border: 1px solid var(--rule); background: var(--bg); }
+.decisions li { padding: var(--s3) var(--s4); border-bottom: 1px solid color-mix(in srgb, var(--rule) 55%, transparent); display: grid; gap: 4px; }
+.decisions li:last-child { border-bottom: 0; }
+.decisions .q { font-weight: 600; color: var(--ink-lit); }
+.decisions .rec { font-size: 14px; }
+.decisions .rec b { font: 700 11px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin-right: 6px; }
+.deck {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  background: var(--panel); border-top: 1px solid var(--ink-dim);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-top: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+}
+.deck-in { max-width: 1040px; margin: 0 auto; display: flex; gap: var(--s3); align-items: center; }
+.deck-label { font: 700 11px var(--mono); letter-spacing: 0.12em; color: var(--ink-inverse); background: var(--ink-dim); padding: 4px 6px; flex: none; }
+.deck-label.on { background: var(--ink-hi); }
+.deck-status { flex: 1 1 auto; min-width: 0; font: 13px/1.35 var(--mono); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deck-status.err { color: var(--accent); white-space: normal; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+<header>
+  <h1>Nova Music Plan<span class="cursor" aria-hidden="true"></span></h1>
+  <p class="lead">Background music for Nova Protocol. One theme plays on the main menu. Type 42 songs play in flight, and the song changes with what happens to you. This page is a proposal for review before the build.</p>
+  <ul class="chips">
+    <li>Status <b>Proposal</b></li>
+    <li>Songs <b>1 theme + 9 Type 42</b></li>
+    <li>Music level <b>-16 dB</b>, guns <b>-14 dB</b></li>
+    <li>Heard by ear <b>Not yet</b></li>
+  </ul>
+  <p class="note">Each play button plays a 40 s excerpt with 2 s fades. The excerpts are evened to one loudness, as the game evens every clip. Nobody has listened to the Type 42 songs for this plan yet: the picks come from titles, the author's text and machine measures. The excerpts are there so you can judge by ear.</p>
+  <ul class="legend" aria-label="Colour key">
+    <li class="ctx-menu"><span class="sw"></span>Menu</li>
+    <li class="ctx-cruise"><span class="sw"></span>Cruise</li>
+    <li class="ctx-threat"><span class="sw"></span>Enemies near</li>
+    <li class="ctx-combat"><span class="sw"></span>Combat</li>
+    <li class="ctx-docked"><span class="sw"></span>Docked</li>
+    <li class="ctx-mod"><span class="sw"></span>Mod song</li>
+  </ul>
+</header>
+
+<section id="songs" aria-labelledby="h-songs">
+  <h2 id="h-songs">Songs</h2>
+  <div class="body">
+    <div class="theme ctx-menu">
+      <div style="display:grid;gap:10px;min-width:0">
+        <div class="name">Exploration Theme</div>
+        <p>The theme song. It plays on the main menu and loops with no gap.</p>
+        <p class="note">Author's words: "Progressive synth/piano ambience with repeating chord patterns and a subtle aquatic feel. Loops seamlessly: Yes."</p>
+        <div><button class="play" type="button" data-slug="exploration-theme" aria-pressed="false">Play 0:45</button></div>
+      </div>
+      <dl>
+        <dt>By</dt><dd>Cleyton Kauffman</dd>
+        <dt>Licence</dt><dd>CC0 (credit optional)</dd>
+        <dt>Length</dt><dd class="mono">2:14</dd>
+        <dt>Source</dt><dd>ZIP with WAV, OGG, FLAC, 44.1 kHz</dd>
+        <dt>Page</dt><dd><a href="https://opengameart.org/content/exploration-theme" target="_blank" rel="noopener">opengameart.org</a></dd>
+        <dt>Excerpt</dt><dd class="mono">0:05 - 0:50</dd>
+      </dl>
+    </div>
+
+    <h3>Type 42 picks for play</h3>
+    <div class="scroll">
+      <table class="wide">
+        <thead><tr><th></th><th>Song</th><th>Pack</th><th class="num">Length</th><th>Why it fits</th><th class="num">Excerpt</th></tr></thead>
+        <tbody>
+          <tr class="group ctx-cruise"><td colspan="6">Cruise</td></tr>
+          <tr><td><button class="play" type="button" data-slug="stellar-cruise" aria-pressed="false">Play</button></td><td class="nowrap">Stellar Cruise</td><td>Distant</td><td class="num">5:41</td><td>The steadiest song of all 27: it stays at one level. Soft top end, no strong beat. The name fits.<span class="facts">LRA 2.8 LU, beat 0.07, top -47.5 dB, 3.1 starts/s</span></td><td class="num">1:00</td></tr>
+          <tr><td><button class="play" type="button" data-slug="little-blue-speck" aria-pressed="false">Play</button></td><td class="nowrap">Little Blue Speck</td><td>Distant</td><td class="num">4:02</td><td>Steady. The weakest beat in the shortlist. Soft top end.<span class="facts">LRA 4.9 LU, beat 0.05, top -42.6 dB, 3.9 starts/s</span></td><td class="num">0:40</td></tr>
+          <tr><td><button class="play" type="button" data-slug="uncharted" aria-pressed="false">Play</button></td><td class="nowrap">Uncharted</td><td>Distant</td><td class="num">3:32</td><td>Steady, with a light regular pulse that keeps a long flight moving.<span class="facts">LRA 3.7 LU, beat 0.20, top -32.8 dB, 3.7 starts/s</span></td><td class="num">0:40</td></tr>
+          <tr class="group ctx-threat"><td colspan="6">Enemies near</td></tr>
+          <tr><td><button class="play" type="button" data-slug="unseen" aria-pressed="false">Play</button></td><td class="nowrap">Unseen</td><td>Distant</td><td class="num">2:54</td><td>Sparse: the fewest note starts in the pack. A quiet dip near 1:10. The name fits a contact you cannot see yet.<span class="facts">LRA 10.2 LU, beat 0.12, top -27.4 dB, 1.5 starts/s</span></td><td class="num">0:20</td></tr>
+          <tr><td><button class="play" type="button" data-slug="unknown" aria-pressed="false">Play</button></td><td class="nowrap">Unknown</td><td>Distant</td><td class="num">4:18</td><td>Steady and dark, fuller than Unseen. A second song for a long stand-off.<span class="facts">LRA 5.6 LU, beat 0.14, top -39.9 dB, 3.4 starts/s</span></td><td class="num">0:30</td></tr>
+          <tr class="group ctx-combat"><td colspan="6">Combat</td></tr>
+          <tr><td><button class="play" type="button" data-slug="intense-action" aria-pressed="false">Play</button></td><td class="nowrap">Intense Electronic Action Soundtrack</td><td>Single</td><td class="num">2:46</td><td>Author: "A intense electronic track". Clear beat, bright, steady at full level. Short, so it ends before it tires.<span class="facts">LRA 5.9 LU, beat 0.25, top -21.0 dB, 3.6 starts/s</span></td><td class="num">0:30</td></tr>
+          <tr><td><button class="play" type="button" data-slug="the-hunter" aria-pressed="false">Play</button></td><td class="nowrap">The Hunter</td><td>Electronic Soundtracks</td><td class="num">5:36</td><td>Builds from quiet to its loudest part after 4:00. Bright. Gives a long fight a second song.<span class="facts">LRA 7.6 LU, beat 0.12, top -22.5 dB, 1.8 starts/s</span></td><td class="num">2:40</td></tr>
+          <tr class="group ctx-docked"><td colspan="6">Docked at a station</td></tr>
+          <tr><td><button class="play" type="button" data-slug="ambient-soundtrack" aria-pressed="false">Play</button></td><td class="nowrap">Ambient Soundtrack</td><td>Single</td><td class="num">6:59</td><td>Author: "An ambient background track". No clear beat. Rises slowly. Long, so a trade stop seldom hears the end.<span class="facts">LRA 8.8 LU, beat 0.07, top -31.0 dB, 2.8 starts/s</span></td><td class="num">2:00</td></tr>
+          <tr><td><button class="play" type="button" data-slug="hidden-nebula" aria-pressed="false">Play</button></td><td class="nowrap">Hidden Nebula</td><td>Distant</td><td class="num">4:21</td><td>The softest master in the pack, with few note starts: a sparse arrangement. A different colour from Ambient Soundtrack.<span class="facts">LRA 5.6 LU, beat 0.12, top -22.5 dB, 1.9 starts/s</span></td><td class="num">1:00</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Machine measures, ffmpeg and a small script, not a listen. LRA: loudness range in LU; low means the song stays at one level. Beat: how regular the pulse is, 0 to 1, rough. Top: energy above 2 kHz against the whole song; lower is darker and softer. Starts/s: note onsets per second.</p>
+
+    <h3>Every Type 42 track under CC BY 4.0</h3>
+    <p>27 tracks, 1 h 55 min, on 10 OpenGameArt pages. I read the licence field on each page on 2026-11-21: all say CC-BY 4.0. The same songs on <a href="https://type42.bandcamp.com/music" target="_blank" rel="noopener">type42.bandcamp.com</a> say "all rights reserved", so the OpenGameArt copies are the licensed source. Keep the OpenGameArt URL as the licence record.</p>
+    <div class="scroll">
+      <table class="wide">
+        <thead><tr><th>Track</th><th>OpenGameArt page</th><th class="num">Length</th><th>File</th><th class="num">LRA</th><th>Use</th></tr></thead>
+        <tbody>
+          <tr><td>Distant</td><td rowspan="10"><a href="https://opengameart.org/content/distant-sci-fielectronic-music-pack" target="_blank" rel="noopener">Distant - Sci-Fi/Electronic Music Pack</a><span class="facts">2024. "Sci-Fi inspired, electronic/synth background music"</span></td><td class="num">3:44</td><td>WAV</td><td class="num">8.2</td><td><span class="use">Spare: cruise</span></td></tr>
+          <tr><td>Moving</td><td class="num">2:53</td><td>WAV</td><td class="num">12.3</td><td><span class="use">Spare</span></td></tr>
+          <tr><td>Hidden Nebula</td><td class="num">4:21</td><td>WAV</td><td class="num">5.6</td><td><span class="use ctx-docked">Docked</span></td></tr>
+          <tr><td>Uncharted</td><td class="num">3:32</td><td>WAV</td><td class="num">3.7</td><td><span class="use ctx-cruise">Cruise</span></td></tr>
+          <tr><td>Stellar Cruise</td><td class="num">5:41</td><td>WAV</td><td class="num">2.8</td><td><span class="use ctx-cruise">Cruise</span></td></tr>
+          <tr><td>Little Blue Speck</td><td class="num">4:02</td><td>WAV</td><td class="num">4.9</td><td><span class="use ctx-cruise">Cruise</span></td></tr>
+          <tr><td>Unknown</td><td class="num">4:18</td><td>WAV</td><td class="num">5.6</td><td><span class="use ctx-threat">Enemies near</span></td></tr>
+          <tr><td>Far Beyond Those Stars</td><td class="num">3:21</td><td>WAV</td><td class="num">6.0</td><td><span class="use">Spare: cruise</span><span class="facts">beat 0.20, top -35.6 dB</span></td></tr>
+          <tr><td>Unseen</td><td class="num">2:54</td><td>WAV</td><td class="num">10.2</td><td><span class="use ctx-threat">Enemies near</span></td></tr>
+          <tr><td>Moving - Ambient</td><td class="num">2:52</td><td>WAV</td><td class="num">13.9</td><td><span class="use">Spare: docked</span><span class="facts">beat 0.29, top -27.0 dB</span></td></tr>
+          <tr><td>Ambient Soundtrack</td><td><a href="https://opengameart.org/content/ambient-soundtrack" target="_blank" rel="noopener">Ambient Soundtrack</a><span class="facts">2018. "An ambient background track"</span></td><td class="num">6:59</td><td>WAV</td><td class="num">8.8</td><td><span class="use ctx-docked">Docked</span></td></tr>
+          <tr><td>Intense Electronic Action Soundtrack</td><td><a href="https://opengameart.org/content/intense-electronic-action-soundtrack" target="_blank" rel="noopener">Intense Electronic Action Soundtrack</a><span class="facts">2018. "A intense electronic track"</span></td><td class="num">2:46</td><td>MP3 320k</td><td class="num">5.9</td><td><span class="use ctx-combat">Combat</span></td></tr>
+          <tr><td>Evolution</td><td rowspan="5"><a href="https://opengameart.org/content/electronic-soundtracks" target="_blank" rel="noopener">Electronic Soundtracks</a><span class="facts">2019. The rest of the album Ascendance</span></td><td class="num">7:20</td><td>WAV</td><td class="num">12.8</td><td><span class="use">Spare</span></td></tr>
+          <tr><td>New Kind of Hero</td><td class="num">4:43</td><td>WAV</td><td class="num">9.8</td><td><span class="use">Spare</span></td></tr>
+          <tr><td>The Pioneer</td><td class="num">7:14</td><td>WAV</td><td class="num">9.7</td><td><span class="use">Spare</span></td></tr>
+          <tr><td>The Hunter</td><td class="num">5:36</td><td>WAV</td><td class="num">7.6</td><td><span class="use ctx-combat">Combat</span></td></tr>
+          <tr><td>Digitised</td><td class="num">2:49</td><td>WAV</td><td class="num">4.7</td><td><span class="use">Spare: combat</span><span class="facts">strongest beat measured, 0.35; brightest, top -14.7 dB</span></td></tr>
+          <tr><td>Ascendance</td><td><a href="https://opengameart.org/content/ascendance-electronic-soundtrack" target="_blank" rel="noopener">Ascendance (Electronic Soundtrack)</a><span class="facts">2018</span></td><td class="num">5:11</td><td>WAV, MP3</td><td class="num">10.0</td><td><span class="use">Spare</span></td></tr>
+          <tr><td>Electronic Soundtrack (file 101018)</td><td><a href="https://opengameart.org/content/electronic-soundtrack" target="_blank" rel="noopener">Electronic Soundtrack</a><span class="facts">2018. "mostly just messing about with synths"</span></td><td class="num">4:23</td><td>WAV</td><td class="num">10.1</td><td><span class="use">Spare</span></td></tr>
+          <tr><td>Sci-Fi (file scifi)</td><td rowspan="2"><a href="https://opengameart.org/content/sci-fi-electronic-soundtrack" target="_blank" rel="noopener">Sci-Fi Electronic Soundtrack</a><span class="facts">2018. "electronic, sci-fi sounding"</span></td><td class="num">3:50</td><td>MP3 320k</td><td class="num">8.7</td><td><span class="use">Spare</span></td></tr>
+          <tr><td>Space (file space)</td><td class="num">2:40</td><td>MP3 320k</td><td class="num">10.9</td><td><span class="use">Spare</span></td></tr>
+          <tr><td>Heroic Synth Soundtrack</td><td><a href="https://opengameart.org/content/heroic-synth-soundtrack" target="_blank" rel="noopener">Heroic Synth Soundtrack</a><span class="facts">2018. "heroic, synth-heavy"</span></td><td class="num">2:35</td><td>MP3 320k</td><td class="num">9.5</td><td><span class="use">Audition: heroic, may stand out</span></td></tr>
+          <tr><td>Theme 1</td><td rowspan="4"><a href="https://opengameart.org/content/menu-themes-orchestralelectronic-mix" target="_blank" rel="noopener">Menu Themes (Orchestral/Electronic Mix)</a><span class="facts">2018. Menu themes; the menu has its theme</span></td><td class="num">6:04</td><td>MP3 320k</td><td class="num">9.7</td><td><span class="use">Poor fit: orchestral</span></td></tr>
+          <tr><td>Theme 2</td><td class="num">3:08</td><td>MP3 320k</td><td class="num">11.6</td><td><span class="use">Poor fit: orchestral</span></td></tr>
+          <tr><td>Theme 3</td><td class="num">3:16</td><td>MP3 320k</td><td class="num">9.3</td><td><span class="use">Poor fit: orchestral</span></td></tr>
+          <tr><td>Theme 4</td><td class="num">3:58</td><td>MP3 320k</td><td class="num">8.8</td><td><span class="use">Poor fit: orchestral</span></td></tr>
+          <tr><td>Orchestral Action Soundtrack</td><td><a href="https://opengameart.org/content/orchestral-action-soundtrack" target="_blank" rel="noopener">Orchestral Action Soundtrack</a><span class="facts">2018. "A high tempo orchestral track"</span></td><td class="num">4:54</td><td>MP3 320k</td><td class="num">12.0</td><td><span class="use">Poor fit: orchestral</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Lengths and formats from ffprobe on the hosted files. The author asks: "credit Type 42 and let me know by messaging or commenting." Track names with "file" are the upload's file names; the page gives no title.</p>
+  </div>
+</section>
+
+<section id="rules" aria-labelledby="h-rules">
+  <h2 id="h-rules">When each song plays</h2>
+  <div class="body">
+    <h3>The rule, first match wins</h3>
+    <p>The game checks these in order on each frame. It plays the songs of the first line that is true. Pause is not on the list: it lowers whatever plays.</p>
+    <ol class="ladder">
+      <li><span>Loading screen at boot (<code>GameStates::Loading</code>).</span><span class="out">Silence</span></li>
+      <li><span>Main menu (<code>GameStates::MainMenu</code>). Backdrop scenes behind the menu do not count, also when they fight.</span><span class="out ctx-menu">Menu</span></li>
+      <li><span>Editor or Mod Hub: <code>Playing</code>, <code>GameMode::Sandbox</code>, no scenario live.</span><span class="out">Silence</span></li>
+      <li><span>Load gap: <code>Playing</code>, <code>GameMode::NewGame</code>, no scenario yet.</span><span class="out">Keep the song</span></li>
+      <li><span>A scenario started a song with <code>PlayMusic</code> and it still plays. A fight takes over only when the action says <code>in_combat: Yield</code>.</span><span class="out ctx-mod">Mod song</span></li>
+      <li><span>Combat mood is on (see the diagram below).</span><span class="out ctx-combat">Combat</span></li>
+      <li><span>Threat mood is on.</span><span class="out ctx-threat">Enemies near</span></li>
+      <li><span>Your ship is docked at a station: <code>DockedShip</code> on your ship, and its connection has <code>StationDock</code>.</span><span class="out ctx-docked">Docked</span></li>
+      <li><span>Anything else in flight: open world, chapters, lessons, editor test flight.</span><span class="out ctx-cruise">Cruise</span></li>
+    </ol>
+
+    <h3>Situations</h3>
+    <div class="scroll">
+      <table class="wide">
+        <thead><tr><th>Situation</th><th>Starts when</th><th>Songs</th><th>Fades</th><th>Between songs</th><th class="num">Level</th></tr></thead>
+        <tbody>
+          <tr><td class="nowrap"><span class="use ctx-menu">Menu</span></td><td>The main menu shows.</td><td>Exploration Theme</td><td>In 3 s. Out 2 s when you start or load a game.</td><td>Loops with no gap.</td><td class="num">-16 dB</td></tr>
+          <tr><td class="nowrap"><span class="use ctx-cruise">Cruise</span></td><td>You fly, no fight, not docked at a station.</td><td>Stellar Cruise, Little Blue Speck, Uncharted</td><td>In 4 s. The first song waits 20-40 s after the world loads or after you undock.</td><td>The song plays to its end. Then 30-120 s of silence, random. Never the same song twice in a row.</td><td class="num">-16 dB</td></tr>
+          <tr><td class="nowrap"><span class="use ctx-threat">Enemies near</span></td><td>A hostile ship holds its lock on you for 2 s (<code>CombatLock</code> on your ship, the same test as the lock alarm), or a hostile AI is engaging you (<code>AITarget</code> is you and <code>engages()</code>).</td><td>Unseen, Unknown</td><td>Crossfade 3 s.</td><td>No gap. The other threat song follows.</td><td class="num">-16 dB</td></tr>
+          <tr><td class="nowrap"><span class="use ctx-combat">Combat</span></td><td>A hostile hits your ship, or your shot hits a hostile (<code>HealthApplyDamage</code>, owner traced by <code>ProjectileOwner</code>). At once.</td><td>Intense Electronic Action, The Hunter</td><td>Crossfade 1.5 s in. Out 5 s.</td><td>No gap.</td><td class="num">-16 dB</td></tr>
+          <tr><td class="nowrap"><span class="use ctx-docked">Docked</span></td><td>You dock at a station. Docked to a ship is still cruise.</td><td>Ambient Soundtrack, Hidden Nebula</td><td>Crossfade 3 s on dock. Out 4 s on undock.</td><td>10-30 s of silence.</td><td class="num">-16 dB</td></tr>
+          <tr><td class="nowrap">Pause</td><td>Esc menu, command console, debug (<code>PauseStates</code> <code>Paused</code>, <code>Commands</code>, <code>Debug</code>).</td><td>The same song</td><td>Down 8 dB in 0.5 s. Back up in 1 s.</td><td>The song keeps its place.</td><td class="num">-24 dB</td></tr>
+          <tr><td class="nowrap">Ship computer</td><td>Tab opens trade, jobs and the ship (<code>PauseStates::Interface</code>).</td><td>The same song</td><td>No change.</td><td>Trade and jobs live here, so a long visit keeps the music.</td><td class="num">-16 dB</td></tr>
+          <tr><td class="nowrap">Editor</td><td>Editor and Mod Hub.</td><td>None</td><td>Out 2 s.</td><td>An editor test flight uses the flight rules.</td><td class="num">-</td></tr>
+          <tr><td class="nowrap">Lessons, scenarios</td><td>A lesson or chapter is live.</td><td>The flight rules</td><td>As above.</td><td>A scenario can play its own song.</td><td class="num">-16 dB</td></tr>
+          <tr><td class="nowrap"><span class="use ctx-mod">Mod song</span></td><td>A scenario action <code>PlayMusic</code> runs.</td><td>The mod's own file</td><td>The action's <code>fade_in</code>.</td><td><code>then: Resume</code> hands back when the song ends. <code>then: Loop</code> holds until <code>StopMusic</code>.</td><td class="num">-16 dB</td></tr>
+          <tr><td class="nowrap">Loading</td><td>Boot load, and the load between menu and world.</td><td>None</td><td>-</td><td>-</td><td class="num">-</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="display:grid;gap:var(--s3);min-width:0">
+        <h3>Fights do not make the music flap</h3>
+        <p>The mood moves up fast and comes down slowly. A lock that blinks on and off never leaves threat. A short fight blip never cuts a cruise song.</p>
+        <div class="scroll">
+          <svg class="chart" viewBox="0 0 860 240" width="100%" style="min-width:640px;max-width:900px" role="img" aria-label="Mood states: calm, threat, combat, and the timers between them">
+            <defs>
+              <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b9ffc9"></path></marker>
+            </defs>
+            <g fill="none" stroke="#b9ffc9" stroke-width="1.5" marker-end="url(#ah)">
+              <line x1="220" y1="105" x2="328" y2="105"></line>
+              <line x1="330" y1="135" x2="222" y2="135"></line>
+              <line x1="530" y1="105" x2="638" y2="105"></line>
+              <line x1="640" y1="135" x2="532" y2="135"></line>
+              <path d="M120,88 C120,18 740,18 740,88"></path>
+              <path d="M740,152 C740,224 120,224 120,152"></path>
+            </g>
+            <g stroke-width="1.5">
+              <rect x="20" y="90" width="200" height="60" fill="#001304" stroke="#36ff79"></rect>
+              <rect x="330" y="90" width="200" height="60" fill="#001304" stroke="#ffb84a" stroke-dasharray="6 3"></rect>
+              <rect x="640" y="90" width="200" height="60" fill="#001304" stroke="#ff4e42" stroke-width="2.5"></rect>
+            </g>
+            <g font-size="14" font-weight="700" text-anchor="middle">
+              <text x="120" y="116" fill="#36ff79">CALM</text>
+              <text x="430" y="116" fill="#ffb84a">THREAT</text>
+              <text x="740" y="116" fill="#ff4e42">COMBAT</text>
+            </g>
+            <g font-size="11" text-anchor="middle" fill="#19a64f">
+              <text x="120" y="136">cruise or docked songs</text>
+              <text x="430" y="136">Unseen, Unknown</text>
+              <text x="740" y="136">Action, The Hunter</text>
+            </g>
+            <g font-size="11" text-anchor="middle" fill="#d6ffe4">
+              <text x="275" y="98">lock held 2 s</text>
+              <text x="275" y="150">10 s no lock</text>
+              <text x="585" y="98">a hit</text>
+              <text x="585" y="150">15 s no hit,</text>
+              <text x="585" y="163">lock still on</text>
+              <text x="430" y="30">a hit, at once</text>
+              <text x="430" y="234">15 s with no hit and no lock</text>
+            </g>
+          </svg>
+        </div>
+        <ul class="plain">
+          <li>A song that already plays is not restarted. If the mood goes back while that song still fades out, the song comes back up.</li>
+          <li>After combat, the cut cruise song does not resume. The next cruise song starts after 10-20 s of quiet.</li>
+          <li>A hit is a hit on your ship or by your ship. A hostile that only flies near you is not a threat.</li>
+        </ul>
+    </div>
+    <div class="split">
+      <div style="display:grid;gap:var(--s3);min-width:0;align-content:start">
+        <h3>Background, not foreground</h3>
+        <p>Music sits under the guns and under comms. Levels from the sound table, after every clip is evened to one loudness.</p>
+        <div class="scroll">
+          <svg id="levels" class="chart" viewBox="0 0 520 300" width="100%" style="min-width:360px" role="img" aria-label="Sound levels in dB. Music at -16 dB sits under guns at -14 dB."></svg>
+        </div>
+      </div>
+      <div style="display:grid;gap:var(--s3);min-width:0;align-content:start">
+        <ul class="plain">
+          <li>One level for every song. The game evens each song, so a loud combat master does not jump out.</li>
+          <li>About one minute in five of cruise is quiet: songs average 4:25 and gaps 75 s.</li>
+          <li>Long fades: 3-4 s in calm moods. Only the step into combat is quick, 1.5 s.</li>
+          <li>Pause lowers the music by 8 dB. It does not stop it.</li>
+          <li>The Music slider in Settings scales music only. At 0 the song runs silent, so raising the slider brings it back mid-song.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="stories" aria-labelledby="h-stories">
+  <h2 id="h-stories">Play stories</h2>
+  <div class="body">
+    <p>Four examples, drawn to scale. Band height is the music level, so ramps show the fades. Click a band to hear that song. "Play story" runs the story with real crossfades: it plays at real speed near each change and skips ahead 12 times faster where nothing changes. Times are examples.</p>
+    <div id="story-list" style="display:grid;gap:var(--s5)"></div>
+  </div>
+</section>
+
+<section id="mods" aria-labelledby="h-mods">
+  <h2 id="h-mods">Mod music</h2>
+  <div class="body">
+    <p>A mod plays its own song from a scenario event, the same way it plays a sound today with <code>PlaySound</code>. The song is a file in the mod, found with <code>self://</code>. When it ends or stops, the normal rule takes over again.</p>
+    <h3>Scenario actions <span class="tag">Proposal</span></h3>
+    <div class="scroll"><pre>// In a scenario's events. Field names follow PlaySound.
+(
+    name: OnEnter,
+    once: true,
+    filters: [Entity((id: Some("wreck_field"), other_id: Some("player_spaceship")))],
+    actions: [
+        PlayMusic((
+            sound: "self://music/wreck_theme.ogg",
+            fade_in: 3.0,
+            then: Loop,
+            in_combat: Keep,
+        )),
+    ],
+),
+(
+    name: OnDestroyed,
+    once: true,
+    filters: [Entity((id: Some("wreck_guardian")))],
+    actions: [
+        StopMusic((fade_out: 6.0)),
+    ],
+),</pre></div>
+    <div class="scroll">
+      <table class="mid">
+        <thead><tr><th>Field</th><th>Values</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>sound</code></td><td>asset ref, <code>.ogg</code></td><td>The song. Any content sound ref: <code>self://</code> for the mod's file, <code>dep://base/music/...</code> for a base song.</td></tr>
+          <tr><td><code>fade_in</code></td><td>seconds</td><td>The crossfade from what plays now.</td></tr>
+          <tr><td><code>then</code></td><td><code>Resume</code> | <code>Loop</code></td><td><code>Resume</code>: when the song ends, the rule picks the next song after its normal gap. <code>Loop</code>: the song repeats until <code>StopMusic</code> or the scenario ends.</td></tr>
+          <tr><td><code>in_combat</code></td><td><code>Yield</code> | <code>Keep</code></td><td><code>Yield</code>: a fight takes over with combat songs, and the mod song does not come back. <code>Keep</code>: the mod song plays through fights, for a boss theme.</td></tr>
+          <tr><td><code>StopMusic.fade_out</code></td><td>seconds</td><td>Fades the mod song out and hands back to the rule at once. The rule then waits its normal gap.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Every field is required, as in <code>PlaySound</code>. When the scenario ends, its song fades out in 2 s and the menu theme takes over. <code>PlaySound</code> with <code>category: Music</code> stays a lint error: music goes through the music player.</p>
+
+    <h3>Songs for the normal rule <span class="tag">Proposal, optional</span></h3>
+    <p>A mod can also add songs to a situation. The game shuffles the songs of every enabled mod together. The base game adds its own songs the same way.</p>
+    <div class="scroll"><pre>MusicTrack((
+    id: "drifter_cruise_1",
+    sound: "self://music/drifter_cruise_1.ogg",
+    contexts: [Cruise, Docked],
+    licence: CcBy4,
+    credit: "\"Drifter\" by A. Author, CC BY 4.0: https://example.org/drifter",
+)),</pre></div>
+    <p class="note"><code>contexts</code> takes <code>Menu</code>, <code>Cruise</code>, <code>Threat</code>, <code>Combat</code>, <code>Docked</code>. <code>licence</code> is a closed list (<code>Cc0</code>, <code>CcBy3</code>, <code>CcBy4</code>, <code>Own</code>), so the lint fails a song with no licence.</p>
+
+    <h3>File format: OGG Vorbis only</h3>
+    <ul class="plain">
+      <li>The game decodes OGG Vorbis with no extra decoder. A 4 min song at quality 4 is about 3.5 MB.</li>
+      <li>WAV plays, but a 4 min WAV is about 40 MB, in the download and in memory: the game keeps each song's file in memory while it plays. FLAC and MP3 need decoders the game does not build.</li>
+      <li>The lint refuses any other extension and shows the fix. The load refuses what the lint refuses.</li>
+    </ul>
+    <div class="scroll"><pre>error[music_format]: "self://music/wreck_theme.wav" is not OGG Vorbis.
+  Music must be an .ogg file. Convert it:
+    ffmpeg -i wreck_theme.wav -c:a libvorbis -q:a 4 wreck_theme.ogg</pre></div>
+    <p class="note">The lint also measures each song, as it does every sound: a file that does not decode or is silent is an error. <code>PlayMusic</code> in a menu backdrop scene is an error: the menu plays the theme.</p>
+  </div>
+</section>
+
+<section id="credits" aria-labelledby="h-credits">
+  <h2 id="h-credits">Credits</h2>
+  <div class="body">
+    <p>CC BY 4.0 needs the creator's name, the licence with its link, a link to the source, and a note of changes. CC0 needs nothing; we credit it as a courtesy and as the record of where it came from.</p>
+    <div class="scroll"><pre>## Music
+
+- "Exploration Theme" by Cleyton Kauffman, CC0 1.0.
+  https://opengameart.org/content/exploration-theme
+  Changes: transcoded to OGG Vorbis.
+
+- Music by Type 42 - type42.bandcamp.com. Licensed CC BY 4.0:
+  https://creativecommons.org/licenses/by/4.0/
+  Changes: transcoded from WAV or MP3 to OGG Vorbis.
+  - "Stellar Cruise", "Little Blue Speck", "Uncharted", "Unseen",
+    "Unknown", "Hidden Nebula":
+    https://opengameart.org/content/distant-sci-fielectronic-music-pack
+  - "Ambient Soundtrack":
+    https://opengameart.org/content/ambient-soundtrack
+  - "Intense Electronic Action Soundtrack":
+    https://opengameart.org/content/intense-electronic-action-soundtrack
+  - "The Hunter":
+    https://opengameart.org/content/electronic-soundtracks</pre></div>
+    <div class="scroll">
+      <table class="mid">
+        <thead><tr><th>Where</th><th>What</th></tr></thead>
+        <tbody>
+          <tr><td class="nowrap"><code>credits/CREDITS.md</code></td><td>The list above under "Third-party assets". It ships with every build. Also fix the line that says the sounds use no third-party recordings: four CC0 recordings are listed in <code>assets/base/sounds/README.md</code>.</td></tr>
+          <tr><td class="nowrap"><code>credits/licenses/</code></td><td>Add the CC BY 4.0 legal code, and a CC0 file for the theme, one file per source like the others.</td></tr>
+          <tr><td class="nowrap">Music folder README</td><td>One row per file: file, source URL, author, licence, changes. Same shape as the sounds README.</td></tr>
+          <tr><td class="nowrap">Store pages</td><td>Steam and itch.io: "Music by Type 42 (type42.bandcamp.com), CC BY 4.0. Theme: Exploration Theme by Cleyton Kauffman, CC0."</td></tr>
+          <tr><td class="nowrap">Trailers, devlogs</td><td>The same line in the video description.</td></tr>
+          <tr><td class="nowrap">Type 42</td><td>He asks to be told. Post a comment on the pack page, and ask if the songs are in YouTube Content ID.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="decisions" aria-labelledby="h-decisions">
+  <h2 id="h-decisions">Decisions for you</h2>
+  <div class="body">
+    <ul class="decisions">
+      <li><span class="q">What starts "enemies near"?</span><span class="rec"><b>Recommend</b>A hostile lock on you or a hostile AI engaging you, held 2 s. It matches the lock alarm you already hear. The other choice, any hostile within a distance such as 5000 m, also fires for hostiles that only pass by or sit at a station.</span></li>
+      <li><span class="q">Does combat get its own songs?</span><span class="rec"><b>Recommend</b>Yes: Intense Electronic Action and The Hunter, with Digitised as a spare. Threat and combat then sound different, as you asked.</span></li>
+      <li><span class="q">Music in the editor and Mod Hub?</span><span class="rec"><b>Recommend</b>Silence. The editor is a work tool with its own sounds. A test flight uses the flight rules. The other choice is one docked song.</span></li>
+      <li><span class="q">Mod music format?</span><span class="rec"><b>Recommend</b>OGG Vorbis only, with a lint error that shows the ffmpeg command. WAV costs ten times the size.</span></li>
+      <li><span class="q">Can a mod song hold through a fight?</span><span class="rec"><b>Recommend</b>The required <code>in_combat: Yield | Keep</code> field, so the author chooses per song. The other choice: a fight always takes over.</span></li>
+      <li><span class="q">How many songs in the first release?</span><span class="rec"><b>Recommend</b>All 10 (42 min). As OGG quality 4 they measure 34.4 MB, about 31 MB at quality 3. That adds to every release zip and to git history. A 6-song start (theme, 2 cruise, 1 threat, 1 combat, 1 docked) is about 18 MB.</span></li>
+      <li><span class="q">Silence between cruise songs?</span><span class="rec"><b>Recommend</b>30-120 s at random, then tune after a play session.</span></li>
+      <li><span class="q">Pause: lower or stop?</span><span class="rec"><b>Recommend</b>Lower by 8 dB. The Tab ship computer does not lower it.</span></li>
+    </ul>
+    <p class="note">Sources: code map and research in this task folder (MAP-music.md, RESEARCH-music.md). OpenGameArt and Bandcamp pages read on 2026-11-21.</p>
+  </div>
+</section>
+
+</div>
+
+<div class="deck" role="region" aria-label="Player">
+  <div class="deck-in">
+    <span class="deck-label" id="deck-label">Deck</span>
+    <span class="deck-status" id="deck-status" aria-live="polite">Nothing plays. Press a play button or a band.</span>
+    <button type="button" id="deck-stop">Stop</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var TRACKS = {
+    "exploration-theme": { name: "Exploration Theme", by: "Cleyton Kauffman", ctx: "menu" },
+    "stellar-cruise": { name: "Stellar Cruise", by: "Type 42", ctx: "cruise" },
+    "little-blue-speck": { name: "Little Blue Speck", by: "Type 42", ctx: "cruise" },
+    "uncharted": { name: "Uncharted", by: "Type 42", ctx: "cruise" },
+    "unseen": { name: "Unseen", by: "Type 42", ctx: "threat" },
+    "unknown": { name: "Unknown", by: "Type 42", ctx: "threat" },
+    "intense-action": { name: "Intense Electronic Action", by: "Type 42", ctx: "combat" },
+    "the-hunter": { name: "The Hunter", by: "Type 42", ctx: "combat" },
+    "ambient-soundtrack": { name: "Ambient Soundtrack", by: "Type 42", ctx: "docked" },
+    "hidden-nebula": { name: "Hidden Nebula", by: "Type 42", ctx: "docked" }
+  };
+
+  /* ---------- level chart ---------- */
+  var LEVELS = [
+    ["Heavy weapon", -1], ["Drive, full thrust", -2], ["Explosion", -3], ["Objective cue", -5],
+    ["Comms line", -11], ["Impact", -13], ["Guns", -14], ["Interface click", -14],
+    ["Music", -16, "cruise"], ["Machinery", -22], ["Music, paused", -24, "cruise"]
+  ];
+  function el(tag, attrs, text) {
+    var n = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  (function drawLevels() {
+    var svg = document.getElementById("levels");
+    if (!svg) return;
+    var x0 = 150, x1 = 480, top = 14, row = 23, min = -30, max = 0;
+    var X = function (db) { return x0 + (db - min) / (max - min) * (x1 - x0); };
+    var h = top + LEVELS.length * row + 34;
+    svg.setAttribute("viewBox", "0 0 520 " + h);
+    for (var d = min; d <= max; d += 6) {
+      svg.appendChild(el("line", { x1: X(d), x2: X(d), y1: top - 6, y2: top + LEVELS.length * row, stroke: "#0d6e35", "stroke-width": 1, "stroke-dasharray": d === 0 ? "" : "2 4" }));
+      svg.appendChild(el("text", { x: X(d), y: top + LEVELS.length * row + 18, "text-anchor": "middle", "font-size": 11, fill: "#19a64f" }, d + " dB"));
+    }
+    LEVELS.forEach(function (r, i) {
+      var y = top + i * row + row / 2;
+      var music = r[2] === "cruise";
+      var col = music ? "#36ff79" : "#b9ffc9";
+      var g = el("g", {});
+      g.appendChild(el("title", {}, r[0] + ": " + r[1] + " dB"));
+      g.appendChild(el("text", { x: x0 - 10, y: y + 4, "text-anchor": "end", "font-size": 12, fill: music ? "#36ff79" : "#b9ffc9", "font-weight": music ? 700 : 400 }, r[0]));
+      g.appendChild(el("line", { x1: X(min), x2: X(r[1]), y1: y, y2: y, stroke: music ? "#36ff79" : "#19a64f", "stroke-width": music ? 2 : 1, "stroke-opacity": music ? 0.9 : 0.6 }));
+      g.appendChild(el("circle", { cx: X(r[1]), cy: y, r: music ? 6 : 4.5, fill: col, stroke: "#03060b", "stroke-width": 2 }));
+      g.appendChild(el("text", { x: X(r[1]) + 10, y: y + 4, "font-size": 11, fill: "#19a64f" }, String(r[1])));
+      svg.appendChild(g);
+    });
+  })();
+
+  /* ---------- stories ---------- */
+  var STORIES = [
+    {
+      id: "s1", title: "Launch the game, start, fly", len: 930,
+      lanes: [{ name: "Game", spans: [[0, 8, "Loading"], [8, 140, "Main menu"], [140, 155, "Load"], [155, 225, "Docked"], [225, 930, "Flight"]] }],
+      bands: [
+        { slug: "exploration-theme", s: 8, e: 142, fi: 3, fo: 2 },
+        { slug: "hidden-nebula", s: 165, e: 229, fi: 4, fo: 4 },
+        { slug: "stellar-cruise", s: 255, e: 596, fi: 4, fo: 2 },
+        { slug: "little-blue-speck", s: 671, e: 913, fi: 4, fo: 2 }
+      ],
+      gaps: [[229, 255, "26 s"], [596, 671, "gap 75 s"]],
+      marks: [
+        [0, "Game starts. Loading screen: silence."],
+        [8, "Main menu shows. The theme fades in over 3 s and loops."],
+        [140, "You press New Game. The theme fades out over 2 s. Loading: silence."],
+        [155, "World loaded. You start docked at a station. After 10 s a docked song starts."],
+        [225, "You undock. The docked song fades out over 4 s."],
+        [255, "After a 26 s gap the first cruise song fades in."],
+        [596, "Stellar Cruise ends on its own. 75 s of silence."],
+        [671, "Little Blue Speck starts. It is not the song that played last."]
+      ]
+    },
+    {
+      id: "s2", title: "A raider finds you", len: 300,
+      lanes: [
+        { name: "Lock", spans: [[70, 118, "hostile lock"], [122, 168, "lock"]] },
+        { name: "Hits", ticks: [95, 99, 104, 112, 130, 141, 150, 158, 168] }
+      ],
+      bands: [
+        { slug: "uncharted", s: -10, e: 75, fi: 0, fo: 3 },
+        { slug: "unseen", s: 72, e: 96.5, fi: 3, fo: 1.5 },
+        { slug: "intense-action", s: 95, e: 188, fi: 1.5, fo: 5 },
+        { slug: "little-blue-speck", s: 203, e: 310, fi: 4, fo: 0 }
+      ],
+      gaps: [[188, 203, "15 s"]],
+      marks: [
+        [0, "Cruising. Uncharted plays."],
+        [40, "A raider shows on radar at 8 km. No lock: no change."],
+        [70, "The raider locks you. The lock alarm sounds."],
+        [72, "Lock held 2 s: enemies near. Crossfade 3 s to Unseen."],
+        [95, "First hit on your hull: combat at once. Crossfade 1.5 s."],
+        [118, "The lock drops for 4 s. Combat holds."],
+        [168, "Raider destroyed. That is the last hit."],
+        [183, "15 s with no hit and no lock. The combat song fades out over 5 s."],
+        [203, "After 15 s of quiet, a new cruise song. Uncharted was cut, so it is not picked."]
+      ]
+    },
+    {
+      id: "s3", title: "Dock, trade, pause, undock", len: 260,
+      lanes: [
+        { name: "Docked", spans: [[30, 200, "at station"]] },
+        { name: "Tab", spans: [[60, 120, "ship computer"]] },
+        { name: "Pause", spans: [[140, 170, "Esc"]] }
+      ],
+      bands: [
+        { slug: "stellar-cruise", s: -10, e: 33, fi: 0, fo: 3 },
+        { slug: "ambient-soundtrack", s: 30, e: 204, fi: 3, fo: 4, duck: [{ s: 140, e: 170, db: -8, fi: 0.5, fo: 1 }] }
+      ],
+      gaps: [[204, 260, "cruise gap 30-120 s"]],
+      marks: [
+        [0, "Cruising. Stellar Cruise plays."],
+        [30, "You dock at a station. Crossfade 3 s to Ambient Soundtrack."],
+        [60, "Tab: the ship computer, to trade. No change."],
+        [120, "You close the ship computer."],
+        [140, "Esc: pause. The music goes down 8 dB in 0.5 s. The song keeps its place."],
+        [170, "You resume. The music comes back up in 1 s."],
+        [200, "You undock. The docked song fades out over 4 s. The cruise gap starts."]
+      ]
+    },
+    {
+      id: "s4", title: "A mod scenario plays its own song", len: 320,
+      lanes: [
+        { name: "Area", spans: [[60, 320, "in wreck_field"]] },
+        { name: "Lock", spans: [[130, 150, "hostile lock"]] }
+      ],
+      bands: [
+        { slug: "uncharted", s: -10, e: 63, fi: 0, fo: 3 },
+        { slug: "unknown", s: 60, e: 205, fi: 3, fo: 5, mod: "wreck_theme.ogg (excerpt: Unknown)" },
+        { slug: "little-blue-speck", s: 225, e: 330, fi: 4, fo: 0 }
+      ],
+      gaps: [[205, 225, "20 s"]],
+      marks: [
+        [0, "A chapter scenario. Cruising: Uncharted plays."],
+        [60, "You enter wreck_field. OnEnter runs PlayMusic (then: Loop). Crossfade 3 s to the mod song."],
+        [130, "A raider locks you. Enemies near does not override a mod song."],
+        [150, "The raider leaves."],
+        [200, "Objective done. StopMusic (fade_out: 5.0) hands back to the rule."],
+        [225, "The rule picks again: a cruise song after a 20 s gap."]
+      ]
+    }
+  ];
+
+  function mmss(t) {
+    var s = Math.max(0, Math.round(t));
+    var m = Math.floor(s / 60), r = s % 60;
+    return m + ":" + (r < 10 ? "0" : "") + r;
+  }
+  function duckAmount(d, t) {
+    if (t < d.s) return 0;
+    if (t <= d.e) return Math.min(1, (t - d.s) / d.fi);
+    return Math.max(0, 1 - (t - d.e) / d.fo);
+  }
+  function bandGain(b, t) {
+    if (t < b.s || t > b.e) return 0;
+    var g = 1;
+    if (b.fi > 0) g = Math.min(g, (t - b.s) / b.fi);
+    if (b.fo > 0) g = Math.min(g, (b.e - t) / b.fo);
+    g = Math.max(0, Math.min(1, g));
+    if (b.duck) b.duck.forEach(function (d) { g *= Math.pow(10, d.db * duckAmount(d, t) / 20); });
+    return g;
+  }
+
+  var L = 70, R = 16, PX = 1.9;
+  function drawStory(st, host) {
+    var W = Math.max(960, Math.round(st.len * PX) + L + R);
+    var X = function (t) { return L + Math.max(0, Math.min(st.len, t)) / st.len * (W - L - R); };
+    var labelRows = 3, labelH = 15, top = labelRows * labelH + 8;
+    var laneH = 20, musicH = 48;
+    var lanesTop = top;
+    var musicTop = lanesTop + st.lanes.length * (laneH + 6) + 6;
+    var axisY = musicTop + musicH + 8;
+    var H = axisY + 24;
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, class: "chart", role: "group", "aria-label": st.title + ", timeline" });
+
+    // axis
+    var step = st.len <= 320 ? 30 : 60;
+    for (var t = 0; t <= st.len; t += step) {
+      svg.appendChild(el("line", { x1: X(t), x2: X(t), y1: lanesTop - 4, y2: axisY, stroke: "#0d6e35", "stroke-width": 1, "stroke-opacity": 0.5 }));
+      svg.appendChild(el("text", { x: X(t), y: axisY + 15, "text-anchor": "middle", "font-size": 11, fill: "#19a64f" }, mmss(t)));
+    }
+    svg.appendChild(el("line", { x1: L, x2: W - R, y1: axisY, y2: axisY, stroke: "#19a64f", "stroke-width": 1 }));
+
+    // marks with staggered labels
+    var rowEnd = [];
+    st.marks.forEach(function (m, i) {
+      var x = X(m[0]);
+      var label = (i + 1) + " " + mmss(m[0]);
+      var w = label.length * 6.7 + 8;
+      var r = 0;
+      while (r < labelRows - 1 && rowEnd[r] != null && rowEnd[r] > x) r++;
+      rowEnd[r] = x + w;
+      var y = 12 + r * labelH;
+      svg.appendChild(el("line", { x1: x, x2: x, y1: y + 3, y2: axisY, stroke: "#d6ffe4", "stroke-width": 1, "stroke-opacity": 0.45, "stroke-dasharray": "3 3" }));
+      svg.appendChild(el("text", { x: x + 3, y: y, "font-size": 11, fill: "#d6ffe4" }, label));
+    });
+
+    // signal lanes
+    st.lanes.forEach(function (ln, i) {
+      var y = lanesTop + i * (laneH + 6);
+      svg.appendChild(el("text", { x: 4, y: y + 14, "font-size": 11, fill: "#19a64f", "font-weight": 600 }, ln.name.toUpperCase()));
+      svg.appendChild(el("rect", { x: L, y: y, width: W - L - R, height: laneH, fill: "#001304", stroke: "none" }));
+      (ln.spans || []).forEach(function (sp) {
+        var x0 = X(sp[0]), x1 = X(sp[1]);
+        svg.appendChild(el("rect", { x: x0, y: y + 2, width: Math.max(1, x1 - x0), height: laneH - 4, fill: "#002b0f", stroke: "#19a64f", "stroke-width": 1 }));
+        if (sp[2] && x1 - x0 > sp[2].length * 6.6 + 8) svg.appendChild(el("text", { x: x0 + 5, y: y + 14, "font-size": 11, fill: "#b9ffc9" }, sp[2]));
+      });
+      (ln.ticks || []).forEach(function (tk) {
+        svg.appendChild(el("rect", { x: X(tk) - 1.5, y: y + 2, width: 3, height: laneH - 4, fill: "#ff4e42" }));
+      });
+    });
+
+    // music lane
+    svg.appendChild(el("text", { x: 4, y: musicTop + musicH / 2 + 4, "font-size": 11, fill: "#36ff79", "font-weight": 700 }, "MUSIC"));
+    var base = musicTop + musicH;
+    svg.appendChild(el("line", { x1: L, x2: W - R, y1: base, y2: base, stroke: "#19a64f", "stroke-width": 1, "stroke-dasharray": "1 4" }));
+    (st.gaps || []).forEach(function (gp) {
+      var x0 = X(gp[0]), x1 = X(gp[1]);
+      svg.appendChild(el("text", { x: (x0 + x1) / 2, y: base - 6, "text-anchor": "middle", "font-size": 11, fill: "#19a64f" }, gp[2]));
+    });
+    st.bands.forEach(function (b) {
+      var tr = TRACKS[b.slug];
+      var ctx = b.mod ? "mod" : tr.ctx;
+      var s = Math.max(0, b.s), e = Math.min(st.len, b.e);
+      var pts = [X(s) + "," + base];
+      var n = Math.max(8, Math.ceil((e - s) * 2));
+      for (var k = 0; k <= n; k++) {
+        var t = s + (e - s) * k / n;
+        pts.push(X(t).toFixed(1) + "," + (base - (musicH - 4) * bandGain(b, t)).toFixed(1));
+      }
+      pts.push(X(e) + "," + base);
+      var name = b.mod || tr.name;
+      var g = el("g", { class: "band ctx-" + ctx, tabindex: 0, role: "button", "aria-label": "Play excerpt: " + name });
+      g.appendChild(el("title", {}, name + " - click to play"));
+      g.appendChild(el("polygon", { points: pts.join(" ") }));
+      var lx = X(s + (b.fi || 0)) + 5;
+      g.appendChild(el("text", { x: lx, y: musicTop + 18 }, name));
+      g.addEventListener("click", function () { Player.solo(b.slug, name); });
+      g.addEventListener("keydown", function (ev) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); Player.solo(b.slug, name); } });
+      svg.appendChild(g);
+    });
+
+    var head = el("line", { x1: L, x2: L, y1: 0, y2: axisY, stroke: "#ffb84a", "stroke-width": 2 });
+    head.style.display = "none";
+    svg.appendChild(head);
+    host.appendChild(svg);
+    return { X: X, head: head };
+  }
+
+  var storyUi = {};
+  var list = document.getElementById("story-list");
+  STORIES.forEach(function (st, i) {
+    var box = document.createElement("div");
+    box.className = "story";
+    box.id = st.id;
+    var head = document.createElement("div");
+    head.className = "story-head";
+    var h = document.createElement("h3");
+    h.textContent = "Story " + (i + 1) + ": " + st.title;
+    var btn = document.createElement("button");
+    btn.type = "button"; btn.className = "play"; btn.id = "play-" + st.id;
+    btn.setAttribute("aria-pressed", "false");
+    btn.textContent = "Play story";
+    btn.addEventListener("click", function () {
+      if (Player.simStory() === st) Player.stopAll(); else Player.sim(st);
+    });
+    head.appendChild(h); head.appendChild(btn);
+    var frame = document.createElement("div");
+    frame.className = "scroll";
+    var ol = document.createElement("ol");
+    ol.className = "beats";
+    st.marks.forEach(function (m, k) {
+      var li = document.createElement("li");
+      var tm = document.createElement("time");
+      tm.textContent = (k + 1) + " " + mmss(m[0]);
+      var tx = document.createElement("span");
+      tx.textContent = m[1];
+      li.appendChild(tm); li.appendChild(tx);
+      ol.appendChild(li);
+    });
+    box.appendChild(head); box.appendChild(frame); box.appendChild(ol);
+    list.appendChild(box);
+    var d = drawStory(st, frame);
+    storyUi[st.id] = { btn: btn, X: d.X, head: d.head, beats: ol.children, frame: frame };
+  });
+
+  /* ---------- player ---------- */
+  var Player = (function () {
+    var MASTER = 0.85, FAST = 12;
+    var voices = {};
+    var mode = null; // {type:'solo', slug, name} | {type:'sim', story, t, slow}
+    var lastNow = 0, raf = 0;
+    var probe = document.createElement("audio");
+    probe.volume = 0.5;
+    var volumeWorks = Math.abs(probe.volume - 0.5) < 0.01;
+    var label = document.getElementById("deck-label");
+    var status = document.getElementById("deck-status");
+
+    function say(text, err) {
+      status.textContent = text;
+      status.className = "deck-status" + (err ? " err" : "");
+    }
+    function voice(slug) {
+      var v = voices[slug];
+      if (v) return v;
+      var a = document.createElement("audio");
+      a.preload = "auto";
+      a.loop = true;
+      a.src = "audio/" + slug + ".mp3";
+      v = { a: a, cur: 0, tgt: 0, rate: 2, missing: false };
+      a.addEventListener("error", function () {
+        v.missing = true;
+        say("No excerpt file next to this page (audio/" + slug + ".mp3). The plan reads the same without it.", true);
+      });
+      voices[slug] = v;
+      return v;
+    }
+    function apply(v) {
+      var g = Math.sin(Math.max(0, Math.min(1, v.cur)) * Math.PI / 2);
+      if (volumeWorks) { v.a.volume = g * MASTER; v.a.muted = false; }
+      else { v.a.muted = g < 0.5; }
+      if (v.cur <= 0.001 && v.tgt <= 0.001) { if (!v.a.paused) v.a.pause(); }
+    }
+    function start(v, fromTop) {
+      if (v.missing) return;
+      if (fromTop) { try { v.a.currentTime = 0; } catch (e) {} }
+      if (v.a.paused) {
+        var p = v.a.play();
+        if (p && p.catch) p.catch(function () { if (!v.missing) say("The browser blocked playback. Press play again.", true); });
+      }
+    }
+    function setButtons() {
+      document.querySelectorAll("button.play[data-slug]").forEach(function (b) {
+        b.setAttribute("aria-pressed", mode && mode.type === "solo" && mode.slug === b.dataset.slug ? "true" : "false");
+        b.textContent = b.getAttribute("aria-pressed") === "true" ? "Stop" : (b.dataset.slug === "exploration-theme" ? "Play 0:45" : "Play");
+      });
+      STORIES.forEach(function (st) {
+        var ui = storyUi[st.id];
+        var on = !!(mode && mode.type === "sim" && mode.story === st);
+        ui.btn.setAttribute("aria-pressed", on ? "true" : "false");
+        ui.btn.textContent = on ? "Stop story" : "Play story";
+        if (!on) {
+          ui.head.style.display = "none";
+          for (var i = 0; i < ui.beats.length; i++) ui.beats[i].classList.remove("now");
+        }
+      });
+      label.classList.toggle("on", !!mode);
+    }
+    function loop(now) {
+      var dt = lastNow ? Math.min(0.1, (now - lastNow) / 1000) : 0;
+      lastNow = now;
+      var busy = false;
+      if (mode && mode.type === "sim") {
+        var st = mode.story, t = mode.t;
+        var slow = mode.slow.some(function (w) { return t >= w[0] && t <= w[1]; });
+        var speed = slow ? 1 : FAST;
+        mode.t = t + dt * speed;
+        if (mode.t >= st.len) { stopAll(); return; }
+        var playing = [];
+        st.bands.forEach(function (b) {
+          var v = voice(b.slug);
+          var g = bandGain(b, mode.t);
+          if (g > 0 && v.cur === 0 && v.tgt === 0) start(v, true);
+          v.cur = v.tgt = g;
+          apply(v);
+          if (g > 0.02) playing.push((b.mod || TRACKS[b.slug].name) + (b.duck && g < 0.9 && mode.t > b.s + b.fi && mode.t < b.e - b.fo ? " (ducked)" : ""));
+        });
+        var ui = storyUi[st.id];
+        var x = ui.X(mode.t);
+        ui.head.setAttribute("x1", x); ui.head.setAttribute("x2", x);
+        ui.head.style.display = "";
+        var idx = -1;
+        st.marks.forEach(function (m, k) { if (mode.t >= m[0]) idx = k; });
+        for (var i = 0; i < ui.beats.length; i++) ui.beats[i].classList.toggle("now", i === idx);
+        say("Story " + (STORIES.indexOf(st) + 1) + "  " + mmss(mode.t) + (speed > 1 ? "  x" + FAST : "  x1") + "  " + (playing.length ? playing.join(" + ") : "silence"));
+        busy = true;
+      }
+      for (var s in voices) {
+        var v = voices[s];
+        if (mode && mode.type === "sim" && mode.story.bands.some(function (b) { return b.slug === s; })) continue;
+        if (v.cur !== v.tgt) {
+          var stepv = v.rate * dt;
+          v.cur = v.cur < v.tgt ? Math.min(v.tgt, v.cur + stepv) : Math.max(v.tgt, v.cur - stepv);
+          busy = true;
+        }
+        apply(v);
+      }
+      if (mode && mode.type === "solo") busy = true;
+      raf = busy ? requestAnimationFrame(loop) : 0;
+      if (!busy) lastNow = 0;
+    }
+    function kick() { if (!raf) { lastNow = 0; raf = requestAnimationFrame(loop); } }
+    function fadeAllBut(keep, rate) {
+      for (var s in voices) if (s !== keep) { voices[s].tgt = 0; voices[s].rate = rate; }
+    }
+    function solo(slug, name) {
+      if (mode && mode.type === "solo" && mode.slug === slug) { stopAll(); return; }
+      mode = { type: "solo", slug: slug };
+      fadeAllBut(slug, 1 / 0.8);
+      var v = voice(slug);
+      v.cur = 0; v.tgt = 1; v.rate = 1 / 0.6;
+      start(v, true);
+      if (!v.missing) say("Plays: " + (name || TRACKS[slug].name) + " - " + TRACKS[slug].by + ". 40 s excerpt, loops.");
+      setButtons(); kick();
+    }
+    function sim(st) {
+      fadeAllBut(null, 1 / 0.8);
+      var slow = [];
+      st.marks.forEach(function (m) { slow.push([m[0] - 1.5, m[0] + 3]); });
+      st.bands.forEach(function (b) {
+        slow.push([b.s - 0.5, b.s + b.fi + 1]);
+        slow.push([b.e - b.fo - 1, b.e + 0.5]);
+        (b.duck || []).forEach(function (d) { slow.push([d.s - 1, d.s + d.fi + 1.5]); slow.push([d.e - 1, d.e + d.fo + 1.5]); });
+      });
+      st.bands.forEach(function (b) {
+        var v = voice(b.slug);
+        v.cur = v.tgt = 0; apply(v);
+        // Start each voice inside the click, silent, so browsers that need a gesture per element let it play later.
+        if (v.missing) return;
+        v.a.muted = true;
+        var p = v.a.play();
+        if (p && p.then) p.then(function () { if (v.cur === 0 && v.tgt === 0) v.a.pause(); v.a.muted = false; }).catch(function () { v.a.muted = false; });
+      });
+      mode = { type: "sim", story: st, t: 0, slow: slow };
+      setButtons(); kick();
+    }
+    function stopAll() {
+      var was = mode;
+      mode = null;
+      fadeAllBut(null, 1 / 0.8);
+      setButtons();
+      say(was ? "Stopped." : "Nothing plays. Press a play button or a band.");
+      kick();
+    }
+    return { solo: solo, sim: sim, stopAll: stopAll, simStory: function () { return mode && mode.type === "sim" ? mode.story : null; } };
+  })();
+
+  document.querySelectorAll("button.play[data-slug]").forEach(function (b) {
+    b.addEventListener("click", function () { Player.solo(b.dataset.slug); });
+  });
+  document.getElementById("deck-stop").addEventListener("click", function () { Player.stopAll(); });
+})();
+</script>
