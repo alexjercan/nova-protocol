@@ -97,7 +97,7 @@ fn advance_listening(
     time: Res<Time<Real>>,
     assets: Res<AssetServer>,
     mut cycle: ResMut<ListeningCycle>,
-    listener: Query<(&GlobalTransform, &SpatialListener), With<SfxListenerMarker>>,
+    listener: Query<&GlobalTransform, With<SfxListenerMarker>>,
     voices: Query<(Entity, &SoundVoice, &VoiceMix, Option<&SpatialAudioSink>)>,
     mut readout: Single<&mut Text, With<ListeningReadout>>,
 ) {
@@ -123,15 +123,15 @@ fn advance_listening(
         readout.0 = format!("SPATIAL AUDIO ERROR\n{error}");
         return;
     }
-    let Ok((pose, _ears)) = listener.single() else {
+    let Ok(pose) = listener.single() else {
         if now - cycle.since > READY_DEADLINE_SECS {
-            cycle.error = Some("Expected one camera with spatial listener ears".to_string());
+            cycle.error = Some("Expected one listener camera".to_string());
             readout.0 = format!(
                 "SPATIAL AUDIO ERROR\n{}",
                 cycle.error.as_deref().unwrap_or_default()
             );
         } else {
-            readout.0 = "Waiting for camera and spatial listener ears...".to_string();
+            readout.0 = "Waiting for the listener camera...".to_string();
         }
         return;
     };

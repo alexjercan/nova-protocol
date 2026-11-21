@@ -115,6 +115,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A section destroyed in the same frame its ship's section graph was built no longer stops the game with an "Entity despawned" command error.
 - A job you drop, and a job whose board slot renews, now takes its hauler, raiders, caller or wreck out of a sector you have left too. Before, they came back with no job when you returned.
 - A tapped burn key no longer leaves the drive hum on for about a second: the hum ends with the plume. The RCS hiss stops within 0.12 s of the last push.
+- World sounds no longer crackle or jump in level when the camera turns or moves fast, as in a hard turn or a burn. Before, the drive hum and RCS hiss stepped by several dB a frame.
 - The menu duel no longer ends half a second after the first hit: the interceptor breaks the raider as the two ships cross, and the siege torpedo still fires at a winner that has lost its guns.
 - Jobs, Inventory, Scenarios and Load lists: a hovered row on the list's top or bottom edge shows its whole outline. Before, the list's edge cut that line.
 - Parts catalogue: every tile keeps its bottom border. Before, at some window sizes the name strip covered it on a row, often the last one.

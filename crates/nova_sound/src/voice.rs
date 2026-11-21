@@ -33,7 +33,7 @@ use super::{
     loudness::SoundLoudness,
     mixing::{SfxListenerMarker, SFX_AUDIBLE_THRESHOLD},
     play::{SoundLoop, SoundVoice, VoiceGroup, VoicePlace},
-    spatial::{listener_ears, pan_compensation, pan_gains},
+    spatial::{emitter_point, pan_compensation, pan_gains},
 };
 
 /// How many positional LOOPS may sound at once.
@@ -146,7 +146,9 @@ pub struct VoiceMix {
     /// [`pan_gains`] of its bearing, and its spatial sink applies them to the
     /// sum of the sample's channels.
     pub channel_gains: [f32; 2],
-    /// Resolved spatial emitter, or `None` for a flat voice.
+    /// Where the spatial emitter is parked: the bearing at
+    /// [`SPATIAL_EMITTER_RADIUS`](super::SPATIAL_EMITTER_RADIUS) around the
+    /// engine's fixed ears at the origin. `None` for a flat voice.
     pub emitter: Option<Vec3>,
     /// Whether the voice plays through a spatial sink, which sums the
     /// sample's channels before it pans.
@@ -195,7 +197,7 @@ impl VoicePlacement {
             level,
             gain,
             channel_gains: [gain * left, gain * right],
-            emitter: Some(hearing.emitter(bearing)),
+            emitter: Some(emitter_point(bearing)),
         }
     }
 }
@@ -283,14 +285,14 @@ impl<'a> VoiceView<'a> {
 /// The pose reads every pass shares: the listener and the voices' sources.
 type PoseQuery<'w, 's> = Query<'w, 's, &'static GlobalTransform, Without<VoiceMarker>>;
 /// The marked camera.
-type EarsQuery<'w, 's> =
+type CameraQuery<'w, 's> =
     Query<'w, 's, &'static GlobalTransform, (With<SfxListenerMarker>, Without<VoiceMarker>)>;
 /// The player's ship.
 type AnchorQuery<'w, 's> =
     Query<'w, 's, &'static GlobalTransform, (With<SoundListenerAnchor>, Without<VoiceMarker>)>;
 
-fn hearing(q_ears: &EarsQuery, q_anchor: &AnchorQuery) -> Option<Hearing> {
-    resolve_hearing(q_ears.iter().next(), q_anchor.iter().next())
+fn hearing(q_camera: &CameraQuery, q_anchor: &AnchorQuery) -> Option<Hearing> {
+    resolve_hearing(q_camera.iter().next(), q_anchor.iter().next())
 }
 
 /// Mix one voice. `None` while its clip is not measured yet: it waits for
@@ -334,12 +336,6 @@ const ONE_SHOT_SINK_GRACE: Duration = Duration::from_secs(2);
 #[derive(Component)]
 pub(super) struct AwaitingSink(pub(super) Duration);
 
-/// Give the listener camera its ears the moment it is marked, so nothing has to
-/// remember to spawn a [`SpatialListener`] beside the marker.
-pub(super) fn on_add_listener(add: On<Add<SfxListenerMarker>>, mut commands: Commands) {
-    commands.entity(add.entity).insert(listener_ears());
-}
-
 /// Run every loop's release ramp one frame. See [`LoopRelease`].
 ///
 /// On the real clock: a sink plays on it, and an interface loop plays through
@@ -372,11 +368,11 @@ pub(super) fn start_sfx_voices(
     mixer: Mixer,
     loudness: Option<Res<SoundLoudness>>,
     q_new: Query<(Entity, &SoundVoice), Without<AudioPlayer>>,
-    q_ears: EarsQuery,
+    q_camera: CameraQuery,
     q_anchor: AnchorQuery,
     q_pose: PoseQuery,
 ) {
-    let hearing = hearing(&q_ears, &q_anchor);
+    let hearing = hearing(&q_camera, &q_anchor);
     for (entity, voice) in &q_new {
         let view = VoiceView::of(voice);
         if view.world && !view.looping && hearing.is_none() {
@@ -461,7 +457,7 @@ pub(super) fn drive_sfx_voices(
     loudness: Option<Res<SoundLoudness>>,
     freeze: Option<Res<SoundFreeze>>,
     mut sounding: Local<HashSet<Entity>>,
-    q_ears: EarsQuery,
+    q_camera: CameraQuery,
     q_anchor: AnchorQuery,
     q_pose: PoseQuery,
     mut q_voices: Query<
@@ -476,7 +472,7 @@ pub(super) fn drive_sfx_voices(
         With<VoiceMarker>,
     >,
 ) {
-    let hearing = hearing(&q_ears, &q_anchor);
+    let hearing = hearing(&q_camera, &q_anchor);
     let mut placements: HashMap<Entity, VoicePlacement> = HashMap::new();
     let mut grouped: HashMap<(AssetId<AudioSource>, VoiceGroup), (u8, Vec<LoopRank>)> =
         HashMap::new();
@@ -1151,6 +1147,121 @@ mod tests {
             group: VoiceGroup::Cell(cell),
             ..sound_voice(SoundCategoryType::Drive, VoicePlace::At(point))
         }
+    }
+
+    /// The per-ear gains rodio's spatial source applies to an emitter at
+    /// `emitter`, for the ears bevy feeds it: those of the first
+    /// `SpatialListener`, read after propagation as bevy's `EarPositions`
+    /// reads them. A mirror of `rodio::source::Spatial::set_positions` for
+    /// ears anywhere, where [`pan_gains`] assumes the engine's own geometry.
+    fn rodio_ear_gains(world: &mut World, emitter: Vec3) -> [f32; 2] {
+        let mut q_ears = world.query::<(&GlobalTransform, &SpatialListener)>();
+        let (pose, ears) = q_ears.iter(world).next().expect("the app has ears");
+        let left = pose.transform_point(ears.left_ear_offset);
+        let right = pose.transform_point(ears.right_ear_offset);
+        let (left_sq, right_sq) = (
+            left.distance_squared(emitter),
+            right.distance_squared(emitter),
+        );
+        let lean = (left_sq.sqrt() - right_sq.sqrt()) / left.distance(right);
+        [
+            ((lean + 1.0) / 4.0 + 0.5).min(1.0) * (1.0 / left_sq).min(1.0),
+            ((-lean + 1.0) / 4.0 + 0.5).min(1.0) * (1.0 / right_sq).min(1.0),
+        ]
+    }
+
+    /// The chase camera's Normal-stance pose around `ship` at `yaw`: 20.6 u
+    /// behind and 5 u over the hull, looking 20 u past it.
+    fn chase_pose(ship: Vec3, yaw: f32) -> Transform {
+        let turn = Quat::from_rotation_y(yaw);
+        Transform::from_translation(ship + turn * Vec3::new(0.0, 5.0, 20.6))
+            .looking_at(ship + turn * Vec3::new(0.0, 0.0, -20.0), Vec3::Y)
+    }
+
+    /// A fast, uneven mouse swing: degrees of yaw per 16 ms frame.
+    const SWING_DEGREES: [f32; 8] = [6.0, 4.0, 8.0, 5.0, 7.0, 3.0, 9.0, 6.0];
+
+    #[derive(Resource, Default)]
+    struct Swing {
+        yaw: f32,
+        frame: usize,
+    }
+
+    /// Turn the camera like the chase rig does: its `Transform`, in
+    /// `PostUpdate`, before propagation.
+    fn swing_camera(
+        mut swing: ResMut<Swing>,
+        mut q_camera: Query<&mut Transform, With<SfxListenerMarker>>,
+    ) {
+        swing.yaw += SWING_DEGREES[swing.frame % SWING_DEGREES.len()].to_radians();
+        swing.frame += 1;
+        for mut camera in &mut q_camera {
+            *camera = chase_pose(SWING_SHIP, swing.yaw);
+        }
+    }
+
+    /// Far from the origin, where a hull flies.
+    const SWING_SHIP: Vec3 = Vec3::new(2500.0, 0.0, -800.0);
+
+    /// The crackle in a fast camera swing: bevy places the ears from the
+    /// camera's pose AFTER propagation, so ears on the camera stood a frame
+    /// away from the sphere the engine parked every emitter on, and each
+    /// voice's per-ear gain strayed up to 20 dB from its pan. Whatever the
+    /// camera does, rodio must apply the per-ear gains the engine published.
+    #[test]
+    fn rodio_hears_the_published_pan_however_fast_the_camera_swings() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default(), TransformPlugin));
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+            RELEASE_FRAME,
+        ));
+        app.init_asset::<AudioSource>();
+        app.add_plugins(crate::NovaSoundPlugin);
+        app.insert_resource(measured());
+        app.init_resource::<Swing>();
+        app.add_systems(PostUpdate, swing_camera.before(crate::SoundSystems));
+        app.world_mut()
+            .spawn((SfxListenerMarker, chase_pose(SWING_SHIP, 0.0)));
+        let ship = app
+            .world_mut()
+            .spawn((SoundListenerAnchor, Transform::from_translation(SWING_SHIP)))
+            .id();
+        let thruster = app
+            .world_mut()
+            .spawn(Transform::from_translation(SWING_SHIP + Vec3::Z * 3.0))
+            .id();
+        for (owner, category) in [
+            (ship, SoundCategoryType::Rcs),
+            (thruster, SoundCategoryType::Drive),
+        ] {
+            app.world_mut().entity_mut(owner).insert(SoundLoop {
+                intensity: 1.0,
+                ..SoundLoop::new(Handle::default(), category)
+            });
+        }
+
+        let db = |gain: f32| 20.0 * gain.max(1e-9).log10();
+        let mut worst: f32 = 0.0;
+        for _ in 0..(3 * SWING_DEGREES.len()) {
+            app.update();
+            let mut q_voices = app.world_mut().query::<(&GlobalTransform, &VoiceMix)>();
+            let voices: Vec<_> = q_voices
+                .iter(app.world())
+                .map(|(pose, mix)| (pose.translation(), *mix))
+                .collect();
+            assert_eq!(voices.len(), 2, "both loops sound");
+            for (emitter, mix) in voices {
+                let heard = rodio_ear_gains(app.world_mut(), emitter);
+                for ear in 0..2 {
+                    let error = (db(mix.gain * heard[ear]) - db(mix.channel_gains[ear])).abs();
+                    worst = worst.max(error);
+                }
+            }
+        }
+        assert!(
+            worst < 0.01,
+            "rodio's per-ear gains strayed {worst:.2} dB from the published pan"
+        );
     }
 
     /// A table with the default handle's clip measured at the target, so its

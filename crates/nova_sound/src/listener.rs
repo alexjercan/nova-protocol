@@ -12,7 +12,7 @@ use bevy::prelude::*;
 
 #[cfg(doc)]
 use super::mixing::SfxListenerMarker;
-use super::spatial::{emitter_point, local_bearing};
+use super::spatial::local_bearing;
 
 /// Marks the entity the listener stands on: the player's ship.
 ///
@@ -22,23 +22,23 @@ use super::spatial::{emitter_point, local_bearing};
 #[reflect(Component)]
 pub struct SoundListenerAnchor;
 
-/// The listener this frame: the camera's ears and the point it hears from.
+/// The listener this frame: the camera it faces with and the point it hears
+/// from.
 #[derive(Clone, Copy, Debug)]
 pub struct Hearing {
-    /// The camera carrying the bevy `SpatialListener`: the emitter is parked
-    /// around it, so rodio pans from its pose.
-    pub ears: GlobalTransform,
+    /// The camera's pose: bearings are measured in its frame.
+    pub camera: GlobalTransform,
     /// The world point distance is measured from.
     pub at: Vec3,
 }
 
 impl Hearing {
-    /// The listener for a camera at `ears`, standing at `anchor` when there is
+    /// The listener for a camera at `camera`, standing at `anchor` when there is
     /// one and at the camera when there is not.
-    pub fn new(ears: GlobalTransform, anchor: Option<Vec3>) -> Self {
+    pub fn new(camera: GlobalTransform, anchor: Option<Vec3>) -> Self {
         Self {
-            at: anchor.unwrap_or_else(|| ears.translation()),
-            ears,
+            at: anchor.unwrap_or_else(|| camera.translation()),
+            camera,
         }
     }
 
@@ -52,25 +52,20 @@ impl Hearing {
     pub fn bearing(&self, source: Vec3) -> Vec3 {
         let frame = GlobalTransform::from(Transform {
             translation: self.at,
-            rotation: self.ears.rotation(),
+            rotation: self.camera.rotation(),
             scale: Vec3::ONE,
         });
         local_bearing(&frame, source)
     }
-
-    /// Where to park the spatial emitter for a sound on `bearing`.
-    pub fn emitter(&self, bearing: Vec3) -> Vec3 {
-        emitter_point(&self.ears, bearing)
-    }
 }
 
 /// The listener from the camera and anchor poses found this frame. `None`
-/// with no marked camera: there are no ears to pan for.
+/// with no marked camera: there is no frame to pan in.
 pub fn resolve_hearing(
-    ears: Option<&GlobalTransform>,
+    camera: Option<&GlobalTransform>,
     anchor: Option<&GlobalTransform>,
 ) -> Option<Hearing> {
-    ears.map(|ears| Hearing::new(*ears, anchor.map(GlobalTransform::translation)))
+    camera.map(|camera| Hearing::new(*camera, anchor.map(GlobalTransform::translation)))
 }
 
 #[cfg(test)]

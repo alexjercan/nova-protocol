@@ -701,7 +701,7 @@ fn assert_the_burst_reads_as_two_reports(world: &mut World) {
         mine.sound, mine.category
     );
 
-    let listener = listener_pose(world).expect("ship audio: the scenario camera has the ears");
+    let listener = listener_pose(world).expect("ship audio: the scenario camera is the listener");
     let (anchored, anchor) = world
         .try_query_filtered::<(Entity, &GlobalTransform), With<SoundListenerAnchor>>()
         .and_then(|mut query| {
@@ -724,7 +724,7 @@ fn assert_the_burst_reads_as_two_reports(world: &mut World) {
                 report.place
             );
         };
-        let expected = hearing.emitter(hearing.bearing(contact));
+        let expected = nova_protocol::nova_sound::emitter_point(hearing.bearing(contact));
         let placed = world
             .get::<GlobalTransform>(report.voice)
             .unwrap_or_else(|| {

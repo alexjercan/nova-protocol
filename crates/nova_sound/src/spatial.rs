@@ -10,6 +10,18 @@
 //! divides even that split's own loudness back out. Every dB of falloff is
 //! ours.
 //!
+//! The ears stand still. The one bevy `SpatialListener` is an engine entity
+//! ([`sound_ears`]) fixed at the world origin, facing `-Z`, and every emitter
+//! is parked on its bearing around THAT, at [`emitter_point`]. The camera
+//! enters only through the bearing, which the engine resolves in the same
+//! pass that parks the emitter, so rodio pans from exactly the geometry the
+//! engine published in [`VoiceMix`](super::VoiceMix). Ears on the camera
+//! could not: bevy reads their pose after transform propagation and the
+//! engine parks emitters before it, so every frame the camera moved, the
+//! ears had left the sphere the emitters sat on. A fast camera swing then
+//! stepped each voice's per-ear gain by several dB a frame, heard as
+//! crackle.
+//!
 //! The radius is not free. rodio's "difference" term is inverted - it gives the
 //! FAR ear the larger factor - so the correct side only wins because the
 //! `1/d^2` term is steeper, which it stops being once the emitter is far enough
@@ -35,10 +47,15 @@ pub const SPATIAL_EAR_GAP: f32 = 2.0;
 /// crosses the `1/d^2` clamp at distance 1, which flattens the pan to nothing.
 pub const SPATIAL_EMITTER_RADIUS: f32 = 2.5;
 
-/// The listener's ear rig, inserted on whatever carries
-/// [`SfxListenerMarker`](super::SfxListenerMarker).
-pub fn listener_ears() -> SpatialListener {
-    SpatialListener::new(SPATIAL_EAR_GAP)
+/// The engine's ears: the one `SpatialListener` in the app, spawned once by
+/// [`NovaSoundPlugin`](super::NovaSoundPlugin) at the world origin. Nothing
+/// moves it; see the module doc for why it is not the camera.
+pub fn sound_ears() -> impl Bundle {
+    (
+        Name::new("Sound Ears"),
+        SpatialListener::new(SPATIAL_EAR_GAP),
+        Transform::IDENTITY,
+    )
 }
 
 /// The unit direction from the listener to `source`, in LISTENER-LOCAL space
@@ -53,9 +70,9 @@ pub fn local_bearing(listener: &GlobalTransform, source: Vec3) -> Vec3 {
 }
 
 /// The world point to park the emitter at for a source on `bearing`: fixed
-/// radius, true direction.
-pub fn emitter_point(listener: &GlobalTransform, bearing: Vec3) -> Vec3 {
-    listener.transform_point(bearing * SPATIAL_EMITTER_RADIUS)
+/// radius, true direction, around the [`sound_ears`] at the origin.
+pub fn emitter_point(bearing: Vec3) -> Vec3 {
+    bearing * SPATIAL_EMITTER_RADIUS
 }
 
 /// The `(left, right)` gains rodio applies to an emitter parked by
@@ -165,10 +182,9 @@ mod tests {
             GlobalTransform::from(Transform::from_translation(Vec3::new(10.0, -4.0, 25.0)));
         for far in [30.0_f32, 300.0, 3000.0] {
             let source = listener.translation() + Vec3::new(far, 0.0, 0.0);
-            let bearing = local_bearing(&listener, source);
-            let emitter = emitter_point(&listener, bearing);
+            let emitter = emitter_point(local_bearing(&listener, source));
             assert!(
-                (emitter.distance(listener.translation()) - SPATIAL_EMITTER_RADIUS).abs() < 1e-4,
+                (emitter.length() - SPATIAL_EMITTER_RADIUS).abs() < 1e-4,
                 "a source at {far} u must still park the emitter on the sphere"
             );
         }

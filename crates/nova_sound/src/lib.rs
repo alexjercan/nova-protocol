@@ -125,7 +125,7 @@ pub use self::{
     },
     registry::{sounds_loaded, SoundBank},
     spatial::{
-        emitter_point, listener_ears, local_bearing, pan_compensation, pan_gains, SPATIAL_EAR_GAP,
+        emitter_point, local_bearing, pan_compensation, pan_gains, sound_ears, SPATIAL_EAR_GAP,
         SPATIAL_EMITTER_RADIUS,
     },
     voice::{
@@ -138,10 +138,7 @@ use self::{
     master::{apply_master_volume, report_harness_mute},
     music::{apply_music_requests, drive_music_voices, start_music_voices},
     play::{on_play_sound, on_remove_sound_loop, prune_sound_repeat, sync_sound_loops},
-    voice::{
-        drive_sfx_voices, on_add_listener, ramp_loop_releases, retire_unplayable_one_shots,
-        start_sfx_voices,
-    },
+    voice::{drive_sfx_voices, ramp_loop_releases, retire_unplayable_one_shots, start_sfx_voices},
 };
 
 /// Keys for the game's UI/interface sound effects - engine chrome, like
@@ -295,7 +292,9 @@ impl Plugin for NovaSoundPlugin {
         app.register_type::<SoundListenerAnchor>();
         app.register_type::<SoundGroupBoundary>();
 
-        app.add_observer(on_add_listener);
+        // The one `SpatialListener`, fixed at the origin for the life of the
+        // app. Every emitter is parked around it; see `spatial`.
+        app.world_mut().spawn(sound_ears());
         app.add_observer(on_play_sound);
         app.add_observer(on_remove_sound_loop);
 
