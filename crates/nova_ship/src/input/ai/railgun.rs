@@ -1,14 +1,14 @@
 //! AI railgun shots: the commit envelope (bore alignment plus reach) and the
 //! per-gun cadence on top of the lance's own reload.
 //!
-//! DELIBERATELY CRUDE, and recorded as such. The AI does not FLY to make the
-//! shot - it commits when its orbit happens to sweep the bore across a target
-//! it is already fighting. A raider therefore lands the occasional lance hit
-//! and never sets one up, which is the honest half of "the AI may use it".
-//! TODO(20260901-104359): the AI never sets the shot up, only takes the one
-//! its orbit hands it. That task builds the lance run - break the orbit,
-//! roll onto the line, commit, peel off - and replaces this module; delete
-//! it when that lands.
+//! The AI never flies a setup run for the lance. It fires only when its normal
+//! engagement orbit carries the fixed bore across the ship it is fighting and
+//! every gate in [`commit_is_open`] holds: the per-gun cadence has elapsed, the
+//! charge is Ready, the magazine is not empty, the ship engages and is not in
+//! Evade, the target is a ship inside [`AI_RAILGUN_REACH_FACTOR`] of the slug's
+//! reach, the bore is inside that target's hit cone, and the line of fire is
+//! clear. An AI lance hit is therefore one the orbit offers, never one the AI
+//! plans.
 //!
 //! The alignment gate is TIGHT where the torpedo's is loose, and the reason is
 //! the difference between the two weapons: a torpedo turns after launch, so a
