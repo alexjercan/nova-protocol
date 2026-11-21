@@ -22,7 +22,7 @@ pub mod prelude {
 
 /// Game seconds a rescue call takes from the click to the answer. The TAB
 /// interface and the pause menu stop the game clock, so they hold the call.
-pub const RESCUE_SECS: f32 = 60.0;
+pub const RESCUE_SECS: f32 = 20.0;
 
 /// The fee every answered call takes before the sections it rebuilds. Its
 /// own figure: no job reward moves it.

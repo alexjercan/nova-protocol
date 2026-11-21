@@ -91,7 +91,7 @@ A station crafts a Station recipe only at or above its advancement. Rail slugs n
 | Repair kit | 1 kit for 80 HP, spread to the most damaged sections | 10 s | **Use** in the Inventory pane, anywhere |
 | Field rebuild | the lost section's recipe parts from the hold | 5 s a part, 20 s at least | Ship pane, undocked |
 | Station rebuild | the recipe's credits and parts | at once | Ship pane, docked at a station that rebuilds |
-| SOS | a station's bill | 60 s | Ship pane, when stranded |
+| SOS | a station's bill | 20 s | Ship pane, when stranded |
 
 A lost docking port rebuilds in the field from 1 docking collar, 1 actuator pack and 2 section panels, in 20 s. The collar needs an alloy plate, and an alloy plate needs a Craft station: carry one.
 

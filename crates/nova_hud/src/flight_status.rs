@@ -751,7 +751,7 @@ fn drive_mode_chip(
     }
 }
 
-/// The ship's running rescue call and its time left, such as `SOS 42 S`, or
+/// The ship's running rescue call and its time left, such as `SOS 14 S`, or
 /// else its running consumable and its time left, such as `KIT 6 S`, or
 /// else its first running repair job and its share done, below the RCS
 /// chip, such as `REPAIR HULL-3 40%` or `REBUILD DOCK-1 75% +1` with one more

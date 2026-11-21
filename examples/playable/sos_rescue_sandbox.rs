@@ -20,7 +20,7 @@
 //! 2. click Call SOS. The block shows the call, its bar, its time left and
 //!    Cancel;
 //! 3. close Tab. The call runs only while you fly: the chip under the RCS
-//!    chip reads `SOS 42 S`. When it is due, the nearest living station that
+//!    chip reads `SOS 14 S`. When it is due, the nearest living station that
 //!    is not hostile answers: it takes the bill, rebuilds the bridge, a drive
 //!    and the port, moves the ship beside it and docks it.
 //!
