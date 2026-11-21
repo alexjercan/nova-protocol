@@ -20,9 +20,21 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
 - The v0.14 trailer score came from a seeded generator outside the repo and
   "carries no licence" (`tasks/20260909-212954/TASK.md:122-123`).
 
+## Owner picks (2026-11-21)
+- Theme: "Exploration Theme" (Cleyton Kauffman, CC0), "maybe in main
+  menu". Gameplay: Type 42 tracks (CC BY 4.0), "it has a lot of songs so
+  it could add some variety".
+- Situations get their own songs: "if you are in a combat or within
+  enemies we have a different song then when you are simply cruising".
+- "the music is more as background so it shouldn't really bother us".
+- Mods: an event like "play song" with a path to an audio file, so a mod
+  can play its own music.
+- Wants a design HTML page with examples of when and how each song plays
+  (DESIGN-music.html in this folder) before the build.
+
 ## Open decisions (owner)
-- Music source and licence: commissioned, self-made, generated, or CC.
-- Contexts: menu, flight, combat, station; adaptive or plain playlist.
+- Context set, combat trigger and the mod action shape: shown in
+  DESIGN-music.html for review.
 
 ## Delivery
 1. Music bus, volume slider and settings field.
