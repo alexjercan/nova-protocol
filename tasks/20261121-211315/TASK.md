@@ -1,6 +1,6 @@
 # GOTO line: always draw the computed flight path, never a straight line
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.19.0, navigation, hud
 
