@@ -67,6 +67,20 @@ Planned 2026-11-16 from the owner review of the game-feel research doc
   and its catalog usage, the wiki `settings.md` and `commands.md` rows, and
   the changelog entry. They stay out until a track plays, so no player sees a
   slider that controls nothing.
+- 2026-11-21, music delivered: 10 OGG q4 tracks in `assets/base/music/`
+  with their licence records (`credits/CREDITS.md`, `credits/licenses/`,
+  the folder README); the `MusicTrack` content kind built by
+  `nova_authoring` and refused at lint for an unknown situation, a missing
+  file, a non-OGG file (with the `ffmpeg` command) or no licence record;
+  `nova_scenario::music` (context rule, mood hysteresis, director with
+  shuffled playlists, gaps on a forked seeded stream, fades and the pause
+  duck); `PlayMusic` and `StopMusic`; the Music slider, `volume music`,
+  the wiki and creator docs, the changelog, and `music_sandbox`. The WebM
+  sidecar leaves music voices out.
+- 2026-11-21, live walk (`music_sandbox`, Xvfb + lavapipe, no audio
+  device): contexts Silent, Menu, Cruise, Docked, Cruise, Threat, Combat,
+  Cruise, Docked; `volume music 0` held the voice at gain 0; the deck held
+  `NoOutput`. Not yet heard on a real audio device.
 
 ## Verification
 - Unit test for the context rule; a live run that plays music on the

@@ -22,9 +22,12 @@ assets" below:
   (the rest of the interface, plus the cockpit's lock, radar and warning cues)
   and `scripts/gen-world-sfx.py` (guns, ordnance, impacts, destruction, drives
   and handling) over the shared DSP toolkit in `scripts/nova_sfx.py`. No sample
-  libraries and no third-party recordings
-  are involved, so they carry the project's own license; see the README in each
-  directory for what each file is and where its variation lives.
+  libraries are involved, so they carry the project's own license; see the
+  README in each directory for what each file is and where its variation
+  lives. The exceptions are four trimmed CC0 recordings
+  (`torpedo_dud.wav`, `torpedo_intercept.wav`, `torpedo_ignite.wav`,
+  `torpedo_rack.wav`), listed under "Third-party assets" and in the "Recorded
+  (licensed)" table of `assets/base/sounds/README.md`.
 - **3D models** (`assets/base/gltf/*.glb`) - exported from the project's own
   Blender sources in `art/blender/`.
 - **Hull cladding** - no files. A ship's skin is derived from the structure it
@@ -88,6 +91,35 @@ assets" below:
   trademark: the GitHub, itch.io and Steam marks stay their owners' trademarks,
   are used only to name the platform the adjacent link points at beside a
   visible text label, and claim no endorsement or affiliation.
+- **Recorded sound effects** (`assets/base/sounds/torpedo_dud.wav`,
+  `torpedo_intercept.wav`, `torpedo_ignite.wav`, `torpedo_rack.wav`) -
+  trimmed recordings by Kenney, ReadeOnly, gracenew and JPolito, each under
+  CC0 1.0 Universal (public domain). The source of each file and the edit
+  made to it are in the "Recorded (licensed)" table of
+  `assets/base/sounds/README.md`. No attribution is required; credited as a
+  courtesy.
+- **Music** (`assets/base/music/*.ogg`, the songs the game plays in the menu
+  and in flight). Each file is the author's upload transcoded to OGG Vorbis
+  at quality 4, full length, with no other change. The table in
+  `assets/base/music/README.md` lists each file with its source.
+  - "Exploration Theme" by Cleyton Kauffman
+    (https://soundcloud.com/cleytonkauffman), the menu theme, under [CC0 1.0
+    Universal](licenses/Exploration-Theme_CC0-1.0.md) (public domain):
+    https://opengameart.org/content/exploration-theme. No attribution is
+    required; credited as a courtesy.
+  - Music by Type 42 - type42.bandcamp.com. Licensed [CC BY
+    4.0](licenses/Type-42_CC-BY-4.0.md)
+    (https://creativecommons.org/licenses/by/4.0/). Changes: transcoded from
+    WAV or MP3 to OGG Vorbis.
+    - "Stellar Cruise", "Little Blue Speck", "Uncharted", "Unseen",
+      "Unknown", "Hidden Nebula":
+      https://opengameart.org/content/distant-sci-fielectronic-music-pack
+    - "Ambient Soundtrack":
+      https://opengameart.org/content/ambient-soundtrack
+    - "Intense Electronic Action Soundtrack":
+      https://opengameart.org/content/intense-electronic-action-soundtrack
+    - "The Hunter":
+      https://opengameart.org/content/electronic-soundtracks
 - **Iosevka Term font** (`assets/fonts/SGr-IosevkaTerm-Medium.ttf`, the NOVA
   OS terminal typeface) - a build of [Iosevka](https://typeof.net/Iosevka/) by
   Renzhi Li (Belleve Invis), under the [SIL Open Font License

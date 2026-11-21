@@ -121,6 +121,7 @@ fn blank_content(kind: &str, section: Option<&str>) -> Result<Content, String> {
         "recipe" => Content::Recipe(blank()?),
         "consumable" => Content::Consumable(blank()?),
         "encounter" => Content::Encounter(blank()?),
+        "music track" => Content::MusicTrack(blank()?),
         other => return Err(format!("a {other} has no blank")),
     })
 }

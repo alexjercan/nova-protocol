@@ -462,9 +462,9 @@ const WIKI_PAGES = [
         category: "Interface",
         tags: ["ui"],
         summary:
-            "The Settings menu: a master audio volume slider, the Low/Medium/High graphics-quality preset (juice plus low-end visual gating and render scale), and the Controls tab that rebinds every action - reachable from the main menu and the pause menu, remembered across restarts.",
+            "The Settings menu: the Master, Interface, Effects and Music volume sliders, when each song plays (menu, cruise, enemies near, combat, docked), the Low/Medium/High graphics-quality preset (juice plus low-end visual gating and render scale), and the Controls tab that rebinds every action - reachable from the main menu and the pause menu, remembered across restarts.",
         related: ["keybinds", "hud", "flight-autopilot"],
-        headings: ["Audio", "Graphics quality", "Controls"],
+        headings: ["Audio", "Music", "Graphics quality", "Controls"],
     },
     {
         slug: "glossary",

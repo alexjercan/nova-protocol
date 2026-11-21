@@ -118,8 +118,9 @@ pub struct MusicDeck {
 impl MusicDeck {
     /// Crossfade to `track` over `fade`: the current track fades out while
     /// `track` fades in. A track that is already the current one plays on.
-    /// A track still fading out from an earlier crossfade is cut at once, so
-    /// at most two voices sound.
+    /// A `track` that still fades out comes back up from where it is, at its
+    /// place in the song. Any other track still fading out from an earlier
+    /// crossfade is cut at once, so at most two voices sound.
     pub fn play(&mut self, track: Handle<AudioSource>, fade: Duration) {
         self.request = Some(MusicRequest::Play { track, fade });
         self.status = MusicDeckStatusType::Starting;
@@ -233,17 +234,29 @@ pub(crate) fn apply_music_requests(
                 return;
             }
             let rate = rate_over(1.0, fade);
+            let revived = q_voices
+                .iter()
+                .filter(|(_, voice)| voice.sound == track)
+                .max_by_key(|(_, voice)| voice.started)
+                .map(|(entity, _)| entity);
             let mut outgoing: Vec<(Duration, Entity)> = Vec::new();
             for (entity, mut voice) in &mut q_voices {
-                voice.target = 0.0;
+                if Some(entity) == revived {
+                    voice.target = 1.0;
+                } else {
+                    voice.target = 0.0;
+                    outgoing.push((voice.started, entity));
+                }
                 voice.rate = rate;
-                outgoing.push((voice.started, entity));
             }
             outgoing.sort_unstable();
             if let Some((_, older)) = outgoing.split_last() {
                 for (_, entity) in older {
                     commands.entity(*entity).try_despawn();
                 }
+            }
+            if revived.is_some() {
+                return;
             }
             commands.spawn((
                 Name::new("Music"),
@@ -503,6 +516,39 @@ mod tests {
         let after = voices(&mut app);
         assert_eq!(after.len(), 1, "the old track is retired");
         assert!((gain_of(&after, new) - full).abs() < 1e-5);
+    }
+
+    #[test]
+    fn a_track_that_fades_out_comes_back_up_when_played_again() {
+        let (mut app, tracks) = deck_app(2);
+        let (old, new) = (&tracks[0], &tracks[1]);
+        deck(&mut app).play(old.clone(), Duration::ZERO);
+        run(&mut app, 2);
+        let old_voice = {
+            let mut query = app.world_mut().query_filtered::<Entity, With<MusicVoice>>();
+            query.single(app.world()).expect("one music voice")
+        };
+
+        deck(&mut app).play(new.clone(), Duration::from_secs(2));
+        run(&mut app, 5);
+        let dipped = gain_of(&voices(&mut app), old);
+        deck(&mut app).play(old.clone(), Duration::from_secs(2));
+        run(&mut app, 3);
+
+        let after = voices(&mut app);
+        assert_eq!(after.len(), 2, "no third voice: {after:?}");
+        assert!(
+            gain_of(&after, old) > dipped,
+            "the old track rises again from {dipped}"
+        );
+        assert!(
+            app.world().get_entity(old_voice).is_ok(),
+            "it is the same voice, at its place in the song"
+        );
+        run(&mut app, 30);
+        let settled = voices(&mut app);
+        assert_eq!(settled.len(), 1, "the other track is retired");
+        assert_eq!(&settled[0].0, old);
     }
 
     #[test]

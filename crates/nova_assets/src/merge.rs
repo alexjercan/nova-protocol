@@ -2,7 +2,7 @@
 //! order and overlay it by id into the game's registries (`GameSections`,
 //! `GameShipDesigns`, `GameScenarios`, `GameCampaigns`, `GameStyles`,
 //! `GameItems`, `GameStationDesigns`, `GameStartRoles`, `GameTradeProfiles`,
-//! `GameRecipes`, `GameConsumables`, `GameEncounters`), linting the result
+//! `GameRecipes`, `GameConsumables`, `GameEncounters`, `GameMusicTracks`), linting the result
 //! as it goes.
 
 /// Glob-import surface: `use nova_assets::merge::prelude::*` re-exports the
@@ -26,8 +26,9 @@ use nova_gameplay::prelude::{
 };
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
 use nova_scenario::prelude::{
-    GameCampaigns, GameScenarios, GameShipDesigns, GameStartRoles, GameStationDesigns,
-    NewGameStart, ScenarioConfig, ShipDesignPrototype, StartRole, StationDesignPrototype,
+    GameCampaigns, GameMusicTracks, GameScenarios, GameShipDesigns, GameStartRoles,
+    GameStationDesigns, MusicTrackDesign, NewGameStart, ScenarioConfig, ShipDesignPrototype,
+    StartRole, StationDesignPrototype,
 };
 use nova_ship::prelude::*;
 use nova_training::prelude::{Lesson, LessonSeverity, TrainingCatalog};
@@ -215,6 +216,13 @@ pub fn register_bundles(
                     .iter()
                     .filter_map(|item| match item {
                         Content::Encounter(design) => Some(design),
+                        _ => None,
+                    })
+                    .collect(),
+                music_tracks: content
+                    .iter()
+                    .filter_map(|item| match item {
+                        Content::MusicTrack(design) => Some(design),
                         _ => None,
                     })
                     .collect(),
@@ -817,6 +825,7 @@ pub fn register_bundles(
     commands.insert_resource(GameRecipes::new(outcome.recipes));
     commands.insert_resource(GameConsumables::new(outcome.consumables));
     commands.insert_resource(GameEncounters::new(outcome.encounters));
+    commands.insert_resource(GameMusicTracks::new(outcome.music_tracks));
     // The gate above refuses a base that states no table, so a merge over a
     // loaded catalog always has one. Without a catalog nothing was gated and
     // no generated world arms, so there is no trader to price.
@@ -1125,6 +1134,9 @@ pub struct MergeOutcome {
     /// Encounters in registration order, overlaid last-wins by id - so a mod
     /// replaces a base encounter by declaring the same id.
     pub encounters: Vec<EncounterDesign>,
+    /// Music tracks in registration order, overlaid last-wins by id - so a
+    /// mod replaces a base track by declaring the same id.
+    pub music_tracks: Vec<MusicTrackDesign>,
     /// Human-readable messages, one per intra-bundle duplicate id that was
     /// skipped. Empty on clean data.
     pub conflicts: Vec<String>,
@@ -1286,6 +1298,12 @@ fn merge_content_item(item: &Content, into: &mut MergeOutcome) {
             match into.encounters.iter_mut().find(|e| e.id == encounter.id) {
                 Some(existing) => *existing = encounter.clone(),
                 None => into.encounters.push(encounter.clone()),
+            }
+        }
+        Content::MusicTrack(track) => {
+            match into.music_tracks.iter_mut().find(|t| t.id == track.id) {
+                Some(existing) => *existing = track.clone(),
+                None => into.music_tracks.push(track.clone()),
             }
         }
     }

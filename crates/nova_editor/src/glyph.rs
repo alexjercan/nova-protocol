@@ -153,6 +153,8 @@ pub(crate) fn asset_mark(kind: &str) -> &'static str {
         "consumable" => "\u{25fe}",
         // DOTTED CIRCLE - a contact on the scope that nobody has named yet.
         "encounter" => "\u{25cc}",
+        // BEAMED EIGHTH NOTES - a song, apart from a one-shot sound.
+        "music track" => "\u{266b}",
         // SQUARE WITH UPPER RIGHT TO LOWER LEFT FILL - a shaded picture.
         "image" => "\u{25a8}",
         // WHITE DIAMOND CONTAINING BLACK SMALL DIAMOND - a solid seen whole.

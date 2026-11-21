@@ -43,7 +43,7 @@ use maneuver::update_combat_flight;
 use mission::interrupt_ai_ship_orders;
 use passive::update_passive_flight;
 use railgun::update_railgun_section_input;
-pub(crate) use threat::resolve_damage_attacker;
+pub use threat::resolve_damage_attacker;
 use threat::{on_damage_stamp_attacker, on_damage_track_threat, release_retaliation_target};
 use torpedo::{update_torpedo_section_input, update_torpedo_target_input};
 
@@ -114,13 +114,13 @@ pub(super) fn sense_and_pick(world: &mut World) {
 /// The AI behaviour, threat, patrol and target components and `SpaceshipAIInputPlugin`.
 pub mod prelude {
     pub use super::{
-        formation_goal, freeze_ai, thaw_ai, AIBehaviorState, AIEngageGrace, AIEngageRange, AIEvade,
-        AIFollow, AILeash, AINonCombatant, AIOrbitDirective, AIOrderInterruption, AIPatrolRoute,
-        AIPointDefenseRange, AIPointDefenseTarget, AIPrey, AIProvocation, AIRailgun,
-        AISpaceshipMarker, AIStandoffClearance, AITarget, AIThreat, AIWaypointSlack, FrozenAI,
-        LastAttacker, ShipProvoked, SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR,
-        AI_FOLLOW_CLOSING_SPEED, AI_FOLLOW_GAP, AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE,
-        LAST_ATTACKER_WINDOW, NEUTRAL_RETALIATION_THRESHOLD,
+        formation_goal, freeze_ai, resolve_damage_attacker, thaw_ai, AIBehaviorState,
+        AIEngageGrace, AIEngageRange, AIEvade, AIFollow, AILeash, AINonCombatant, AIOrbitDirective,
+        AIOrderInterruption, AIPatrolRoute, AIPointDefenseRange, AIPointDefenseTarget, AIPrey,
+        AIProvocation, AIRailgun, AISpaceshipMarker, AIStandoffClearance, AITarget, AIThreat,
+        AIWaypointSlack, FrozenAI, LastAttacker, ShipProvoked, SpaceshipAIInputPlugin,
+        AI_FIRE_RANGE_FACTOR, AI_FOLLOW_CLOSING_SPEED, AI_FOLLOW_GAP, AI_STANDOFF_OUTER_EDGE,
+        AI_TORPEDO_MAX_RANGE, LAST_ATTACKER_WINDOW, NEUTRAL_RETALIATION_THRESHOLD,
     };
 }
 

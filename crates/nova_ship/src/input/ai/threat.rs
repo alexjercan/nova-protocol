@@ -234,7 +234,7 @@ impl Default for AIEvade {
 ///
 /// Shared with the kill credit: who beat a hull and who gets the stinger
 /// are one question, so they go through one walk.
-pub(crate) fn resolve_damage_attacker(
+pub fn resolve_damage_attacker(
     source: Entity,
     q_owner: &Query<&ProjectileOwner>,
     q_allegiance: &Query<&Allegiance>,

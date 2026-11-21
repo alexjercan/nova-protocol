@@ -363,7 +363,7 @@ pub(super) fn play_threat_lock_cue(
             allegiance: mine,
             retaliation: None,
         };
-        lock.0 == Some(player) && ship_relation(them, us) == Relation::Hostile
+        lock.is_hostile_on(them, us)
     });
     let was = std::mem::replace(&mut *latched, locked);
     if !locked || was {

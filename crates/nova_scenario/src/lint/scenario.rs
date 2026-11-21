@@ -187,12 +187,25 @@ pub fn lint_scenario(
     // leaves the menu draw, and an erroring chapter refuses to start.
     let mut reports_done = false;
     let mut names_successor = false;
+    let mut plays_music = false;
     for action in scenario.events.iter().flat_map(|event| &event.actions) {
         action.walk(&mut |action| match action {
             EventActionConfig::BackdropDone(_) => reports_done = true,
             EventActionConfig::NextScenario(_) => names_successor = true,
+            EventActionConfig::PlayMusic(_) | EventActionConfig::StopMusic(_) => {
+                plays_music = true;
+            }
             _ => {}
         });
+    }
+    // Behind the menu the menu theme plays; the director never hands a
+    // backdrop the deck, so its music beat would be silent on every run.
+    if scenario.role.is_backdrop() && plays_music {
+        issues.push(LintIssue::error(
+            id,
+            "menu backdrop authors PlayMusic or StopMusic; the menu theme plays behind the menu"
+                .to_string(),
+        ));
     }
     if scenario.role.is_backdrop() {
         if !reports_done {
@@ -1078,6 +1091,22 @@ fn collect_declared(action: &EventActionConfig, declared: &mut Declared) {
 /// vocabulary: an action added with a `Names::Object` field is resolved whether
 /// or not anyone writes an arm here. What falls through is an action with
 /// nothing else to check, which is most of them.
+/// A music action's fade must be a finite number of seconds, zero or more.
+fn check_music_fade(
+    action: &str,
+    field: &str,
+    seconds: f32,
+    scenario: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    if !music_fade_is_valid(seconds) {
+        issues.push(LintIssue::error(
+            scenario,
+            format!("{action} {field} {seconds} s is not a fade; it is 0 or more seconds"),
+        ));
+    }
+}
+
 fn check_action(
     action: &EventActionConfig,
     scenario: &str,
@@ -1176,6 +1205,23 @@ fn check_action(
             if let Some(fault) = fault {
                 issues.push(LintIssue::error(scenario, fault));
             }
+        }
+        EventActionConfig::PlayMusic(config) => {
+            match config.sound.path() {
+                Some(path) => {
+                    if let Some(fault) = music_format_fault(path) {
+                        issues.push(LintIssue::error(scenario, format!("PlayMusic: {fault}")));
+                    }
+                }
+                None => issues.push(LintIssue::error(
+                    scenario,
+                    "PlayMusic names no sound file".to_string(),
+                )),
+            }
+            check_music_fade("PlayMusic", "fade_in", config.fade_in, scenario, issues);
+        }
+        EventActionConfig::StopMusic(config) => {
+            check_music_fade("StopMusic", "fade_out", config.fade_out, scenario, issues);
         }
         EventActionConfig::Outcome(config) => {
             if let Some(secs) = config.auto_advance_secs {
@@ -6919,6 +6965,60 @@ mod tests {
             play(SoundCategoryType::Drive, body()),
             1,
             "a loop is not a one-shot"
+        );
+    }
+
+    /// A scenario song must be an `.ogg` file with a real fade, and a menu
+    /// backdrop plays none: the menu theme plays behind the menu.
+    #[test]
+    fn a_music_beat_that_is_not_ogg_or_has_no_real_fade_errors() {
+        let music = |path: &str, fade_in: f32, role: ScenarioRole| {
+            let mut s = scenario(
+                vec![
+                    EventActionConfig::PlayMusic(PlayMusicActionConfig {
+                        sound: nova_gameplay::prelude::AssetRef::from(path.to_string()),
+                        fade_in,
+                        then: MusicThenType::Resume,
+                        in_combat: MusicInCombatType::Yield,
+                    }),
+                    EventActionConfig::StopMusic(StopMusicActionConfig { fade_out: 2.0 }),
+                ],
+                vec![],
+            );
+            s.role = role;
+            let issues = lint_scenario(
+                &s,
+                &sections(&[]),
+                &ships(&[]),
+                &stations(&[]),
+                &known(&[]),
+                &GameItems::default(),
+                &GameStyles::default(),
+                &GameTradeProfiles::default(),
+            );
+            errors(&issues)
+                .iter()
+                .map(|issue| issue.message.clone())
+                .filter(|message| message.contains("Music"))
+                .collect::<Vec<_>>()
+        };
+        let chapter = ScenarioRole::Chapter;
+        assert!(music("self://music/boss.ogg", 2.0, chapter).is_empty());
+
+        let wav = music("self://music/boss.wav", 2.0, chapter);
+        assert_eq!(wav.len(), 1, "{wav:?}");
+        assert!(
+            wav[0].contains("ffmpeg -i boss.wav -c:a libvorbis -q:a 4 boss.ogg"),
+            "{wav:?}"
+        );
+        assert_eq!(music("self://music/boss.ogg", -1.0, chapter).len(), 1);
+        assert_eq!(music("self://music/boss.ogg", f32::NAN, chapter).len(), 1);
+        let backdrop = music("self://music/boss.ogg", 2.0, ScenarioRole::Backdrop);
+        assert!(
+            backdrop
+                .iter()
+                .any(|message| message.contains("menu theme")),
+            "{backdrop:?}"
         );
     }
 

@@ -5,8 +5,8 @@
 //! An armed run pins the clock to one tick per rendered frame and runs far
 //! slower than real time, so there is no live signal to record. Instead, each
 //! [`LoopCaptureFrame`] samples the [`VoiceMix`] the engine resolved for every
-//! playing voice that frame, and [`LoopCaptureEnded`] renders the loop offline
-//! from the loaded sample bytes.
+//! playing voice that frame, except the music deck's songs, and
+//! [`LoopCaptureEnded`] renders the loop offline from the loaded sample bytes.
 //!
 //! The sidecar is version 1 of the format in `content-machine:docs/sfx-sidecar.md`:
 //! a header `{version, loop, fps, frames}`, then `{f, v, gain}` rows with
@@ -34,7 +34,7 @@ use nova_autopilot::loops::{
     LoopCaptureEnded, LoopCaptureFrame, LoopCaptureStarted, LOOP_AUDIO_SAMPLE_RATE,
     LOOP_STAGING_DIR,
 };
-use nova_sound::prelude::VoiceMix;
+use nova_sound::prelude::{MusicVoice, VoiceMix};
 
 /// The version of the sidecar format this writes.
 const SIDECAR_VERSION: u32 = 1;
@@ -250,7 +250,10 @@ fn sample_sidecar(
     frame: On<LoopCaptureFrame>,
     mut sidecar: ResMut<SfxSidecar>,
     assets: Res<AssetServer>,
-    q_voices: Query<(Entity, &AudioPlayer, &VoiceMix)>,
+    // The music deck's songs stay out: a devlog loop is cut and scored
+    // later, and a song under it would be cut mid-phrase and carry its
+    // licence into every video.
+    q_voices: Query<(Entity, &AudioPlayer, &VoiceMix), Without<MusicVoice>>,
 ) {
     let Some(open) = sidecar.open.as_mut() else {
         return;

@@ -16,8 +16,8 @@ use nova_gameplay::prelude::{
 };
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
-    CampaignConfig, ScenarioConfig, ShipDesignPrototype, ShipDesignSource, SpaceshipConfig,
-    SpaceshipSectionConfig, StartRole, StationDesignPrototype,
+    CampaignConfig, MusicTrackDesign, ScenarioConfig, ShipDesignPrototype, ShipDesignSource,
+    SpaceshipConfig, SpaceshipSectionConfig, StartRole, StationDesignPrototype,
 };
 use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
@@ -224,6 +224,20 @@ pub fn build_encounter_content() -> Vec<Content> {
         .collect()
 }
 
+/// The base game's music tracks, in the order the file carries them.
+pub fn build_music_tracks() -> Vec<MusicTrackDesign> {
+    base_content::build().music_tracks
+}
+
+/// The music catalog wrapped as `Content::MusicTrack` items - the shape the
+/// committed `assets/base/music/base.content.ron` file carries.
+pub fn build_music_track_content() -> Vec<Content> {
+    build_music_tracks()
+        .into_iter()
+        .map(Content::MusicTrack)
+        .collect()
+}
+
 /// The base game's trade profiles, in the order the file carries them.
 pub fn build_trade_profiles() -> Vec<TradeProfileDesign> {
     base_content::build().trade_profiles
@@ -319,6 +333,10 @@ pub fn content_files() -> Vec<(String, String)> {
         (
             "base/encounters/base.content.ron".to_string(),
             serialize_content(&build_encounter_content()),
+        ),
+        (
+            "base/music/base.content.ron".to_string(),
+            serialize_content(&build_music_track_content()),
         ),
         (
             "base/sections/base.content.ron".to_string(),

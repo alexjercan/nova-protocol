@@ -2,7 +2,7 @@
 //!
 //! The base game is a built-in mod. This domain owns its scenarios, the
 //! campaign that groups chapter scenarios, items, recipes, consumables,
-//! encounters, start roles, the
+//! encounters, music tracks, start roles, the
 //! price table, trade profiles,
 //! section prototypes,
 //! semantic craft assemblies, and path-based asset refs. Generic authoring
@@ -12,7 +12,8 @@ use nova_gameplay::prelude::{
     ConsumableDesign, EncounterDesign, ItemDesign, PriceTable, RecipeDesign, TradeProfileDesign,
 };
 use nova_scenario::prelude::{
-    CampaignConfig, ScenarioConfig, ShipDesignPrototype, StartRole, StationDesignPrototype,
+    CampaignConfig, MusicTrackDesign, ScenarioConfig, ShipDesignPrototype, StartRole,
+    StationDesignPrototype,
 };
 use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
@@ -24,6 +25,7 @@ pub(crate) mod encounters;
 pub(crate) mod items;
 pub(crate) mod lessons;
 pub(crate) mod market;
+pub(crate) mod music;
 pub(crate) mod recipes;
 pub(crate) mod scenarios;
 pub(crate) mod sections;
@@ -41,6 +43,7 @@ pub(crate) struct BaseContent {
     pub(crate) recipes: Vec<RecipeDesign>,
     pub(crate) consumables: Vec<ConsumableDesign>,
     pub(crate) encounters: Vec<EncounterDesign>,
+    pub(crate) music_tracks: Vec<MusicTrackDesign>,
     pub(crate) sections: Vec<SectionConfig>,
     pub(crate) ships: Vec<ShipDesignPrototype>,
     pub(crate) stations: Vec<StationDesignPrototype>,
@@ -61,6 +64,7 @@ pub(crate) fn build() -> BaseContent {
         recipes: recipes::recipe_catalog(),
         consumables: consumables::consumable_catalog(),
         encounters: encounters::encounter_catalog(),
+        music_tracks: music::music_catalog(),
         sections: sections::section_catalog(&assets),
         ships: ships::ship_catalog(&assets),
         stations: stations::station_catalog(&assets),

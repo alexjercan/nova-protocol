@@ -27,6 +27,7 @@ mod flow;
 mod hold;
 mod jobs;
 mod mission;
+mod music;
 pub(crate) mod registry;
 mod sequence;
 mod ship;
@@ -41,6 +42,7 @@ pub use flow::*;
 pub use hold::*;
 pub use jobs::*;
 pub use mission::*;
+pub use music::*;
 pub use sequence::*;
 pub use ship::*;
 pub use spawn::*;
@@ -354,6 +356,22 @@ registry::scenario_actions! {
         label: "Play Sound",
         category: World,
         stem: "sound",
+        effect: Bookkeeping,
+        inspect: Reflect,
+    },
+    /// Play the scenario's own song in place of the situation's songs.
+    PlayMusic(PlayMusicActionConfig) {
+        label: "Play Music",
+        category: World,
+        stem: "music",
+        effect: Bookkeeping,
+        inspect: Reflect,
+    },
+    /// End the scenario's own song.
+    StopMusic(StopMusicActionConfig) {
+        label: "Stop Music",
+        category: World,
+        stem: "music_stop",
         effect: Bookkeeping,
         inspect: Reflect,
     },

@@ -1,0 +1,112 @@
+[
+    MusicTrack((
+        id: "base/exploration_theme",
+        sound: "self://music/exploration_theme.ogg",
+        contexts: [
+            Menu,
+        ],
+        title: "Exploration Theme",
+        artist: "Cleyton Kauffman",
+        licence: Cc0,
+        credit: "\"Exploration Theme\" by Cleyton Kauffman (https://soundcloud.com/cleytonkauffman), CC0 1.0. Source: https://opengameart.org/content/exploration-theme. Changes: transcoded to OGG Vorbis q4.",
+    )),
+    MusicTrack((
+        id: "base/stellar_cruise",
+        sound: "self://music/stellar_cruise.ogg",
+        contexts: [
+            Cruise,
+        ],
+        title: "Stellar Cruise",
+        artist: "Type 42",
+        licence: CcBy4,
+        credit: "\"Stellar Cruise\" - Music by Type 42 - type42.bandcamp.com. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: https://opengameart.org/content/distant-sci-fielectronic-music-pack. Changes: transcoded to OGG Vorbis q4.",
+    )),
+    MusicTrack((
+        id: "base/little_blue_speck",
+        sound: "self://music/little_blue_speck.ogg",
+        contexts: [
+            Cruise,
+        ],
+        title: "Little Blue Speck",
+        artist: "Type 42",
+        licence: CcBy4,
+        credit: "\"Little Blue Speck\" - Music by Type 42 - type42.bandcamp.com. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: https://opengameart.org/content/distant-sci-fielectronic-music-pack. Changes: transcoded to OGG Vorbis q4.",
+    )),
+    MusicTrack((
+        id: "base/uncharted",
+        sound: "self://music/uncharted.ogg",
+        contexts: [
+            Cruise,
+        ],
+        title: "Uncharted",
+        artist: "Type 42",
+        licence: CcBy4,
+        credit: "\"Uncharted\" - Music by Type 42 - type42.bandcamp.com. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: https://opengameart.org/content/distant-sci-fielectronic-music-pack. Changes: transcoded to OGG Vorbis q4.",
+    )),
+    MusicTrack((
+        id: "base/unseen",
+        sound: "self://music/unseen.ogg",
+        contexts: [
+            Threat,
+        ],
+        title: "Unseen",
+        artist: "Type 42",
+        licence: CcBy4,
+        credit: "\"Unseen\" - Music by Type 42 - type42.bandcamp.com. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: https://opengameart.org/content/distant-sci-fielectronic-music-pack. Changes: transcoded to OGG Vorbis q4.",
+    )),
+    MusicTrack((
+        id: "base/unknown",
+        sound: "self://music/unknown.ogg",
+        contexts: [
+            Threat,
+        ],
+        title: "Unknown",
+        artist: "Type 42",
+        licence: CcBy4,
+        credit: "\"Unknown\" - Music by Type 42 - type42.bandcamp.com. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: https://opengameart.org/content/distant-sci-fielectronic-music-pack. Changes: transcoded to OGG Vorbis q4.",
+    )),
+    MusicTrack((
+        id: "base/intense_electronic_action",
+        sound: "self://music/intense_electronic_action.ogg",
+        contexts: [
+            Combat,
+        ],
+        title: "Intense Electronic Action Soundtrack",
+        artist: "Type 42",
+        licence: CcBy4,
+        credit: "\"Intense Electronic Action Soundtrack\" - Music by Type 42 - type42.bandcamp.com. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: https://opengameart.org/content/intense-electronic-action-soundtrack. Changes: transcoded to OGG Vorbis q4.",
+    )),
+    MusicTrack((
+        id: "base/the_hunter",
+        sound: "self://music/the_hunter.ogg",
+        contexts: [
+            Combat,
+        ],
+        title: "The Hunter",
+        artist: "Type 42",
+        licence: CcBy4,
+        credit: "\"The Hunter\" - Music by Type 42 - type42.bandcamp.com. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: https://opengameart.org/content/electronic-soundtracks. Changes: transcoded to OGG Vorbis q4.",
+    )),
+    MusicTrack((
+        id: "base/ambient_soundtrack",
+        sound: "self://music/ambient_soundtrack.ogg",
+        contexts: [
+            Docked,
+        ],
+        title: "Ambient Soundtrack",
+        artist: "Type 42",
+        licence: CcBy4,
+        credit: "\"Ambient Soundtrack\" - Music by Type 42 - type42.bandcamp.com. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: https://opengameart.org/content/ambient-soundtrack. Changes: transcoded to OGG Vorbis q4.",
+    )),
+    MusicTrack((
+        id: "base/hidden_nebula",
+        sound: "self://music/hidden_nebula.ogg",
+        contexts: [
+            Docked,
+        ],
+        title: "Hidden Nebula",
+        artist: "Type 42",
+        licence: CcBy4,
+        credit: "\"Hidden Nebula\" - Music by Type 42 - type42.bandcamp.com. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: https://opengameart.org/content/distant-sci-fielectronic-music-pack. Changes: transcoded to OGG Vorbis q4.",
+    )),
+]

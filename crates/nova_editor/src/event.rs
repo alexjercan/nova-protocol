@@ -1000,6 +1000,18 @@ impl ActionChoiceExt for ActionChoice {
                 category: nova_sound::prelude::SoundCategoryType::Cockpit,
                 at: SoundAtConfig::Ui,
             }),
+            // A fresh block carries the fades the director uses for a
+            // situation change, so a beat that only names its song sounds
+            // like the rest of the game.
+            ActionChoice::PlayMusic => EventActionConfig::PlayMusic(PlayMusicActionConfig {
+                sound: AssetRef::default(),
+                fade_in: MusicContextType::Cruise.fade_in_secs(),
+                then: MusicThenType::Resume,
+                in_combat: MusicInCombatType::Yield,
+            }),
+            ActionChoice::StopMusic => EventActionConfig::StopMusic(StopMusicActionConfig {
+                fade_out: MusicContextType::Scenario.fade_out_secs(),
+            }),
             ActionChoice::TimerStart => EventActionConfig::TimerStart(TimerStartActionConfig {
                 key: String::new(),
                 seconds: number(10.0),

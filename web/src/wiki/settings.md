@@ -10,14 +10,14 @@ on the web.
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag">Screenshot</span>
         <span class="figure__placeholder-name">assets/wiki-settings.png</span>
-        <span class="figure__placeholder-note">The Settings modal open over the main menu on its Audio tab: the tab bar, the three volume sliders and the Back button.</span>
+        <span class="figure__placeholder-note">The Settings modal open over the main menu on its Audio tab: the tab bar, the four volume sliders and the Back button.</span>
     </div>
     <figcaption class="figure__caption">One Settings modal, reachable from the main menu and the pause menu.</figcaption>
 </figure>
 
 ## Audio
 
-Three draggable sliders, top to bottom. Each shows its level as a whole percent
+Four draggable sliders, top to bottom. Each shows its level as a whole percent
 and takes effect live as you drag. Each step of a slider changes the level by
 the same number of decibels, so the sound fades evenly across the whole travel.
 
@@ -26,13 +26,61 @@ the same number of decibels, so the sound fades evenly across the whole travel.
 | Master | Everything at once. The one control most players ever touch. |
 | Interface | Menu clicks, HUD ticks, the editor and the flight computer - the sounds that come from the cockpit, not from the world. |
 | Effects | The engine hum, weapons, hits, the rocks breaking up - everything out there, your own ship included, heard from your ship at the distance it happens. |
+| Music | The background music. At 0% the songs stay silent. |
 
-Master multiplies the other two, so a track you have turned down stays down
+Master multiplies the other three, so a track you have turned down stays down
 when you raise Master.
 
 Most buttons tick when the pointer reaches them and play a press sound, at the
 Interface level. Most refused presses buzz instead. A disabled button stays
 silent, and the NOVA OS monitor's controls follow its SND switch.
+
+## Music
+
+The game picks its songs from what happens to you. It checks these in order and
+plays the songs of the first one that is true.
+
+| Situation | When | Songs |
+| --- | --- | --- |
+| Silence | The first load, the editor and the Mod Hub. | none |
+| Menu | The main menu, with the scenes behind it. | Exploration Theme, again and again |
+| Mod song | A scenario plays its own song. | the scenario's song |
+| Combat | A shot hits your ship, or your shot hits another ship. Ends 15 s after the last hit. | Intense Electronic Action Soundtrack, The Hunter |
+| Enemies near | A hostile holds its lock on you for 2 s, or a hostile ship attacks you. Ends 10 s after neither. | Unseen, Unknown |
+| Docked | Your ship is docked at a station. | Ambient Soundtrack, Hidden Nebula |
+| Cruise | Any other flight. | Stellar Cruise, Little Blue Speck, Uncharted |
+
+| Change | Fade |
+| --- | --- |
+| Into combat | 1.5 s |
+| Out of combat | 5 s |
+| Between other situations | 3-4 s |
+| Pause menu, NOVA COMMANDS, debug window | the music drops 8 dB |
+| Tab screens | no change |
+
+Between two cruise songs there is 30-120 s of silence, and 10-30 s between two
+docked songs. After a fight, the next cruise song comes after 10-20 s. In a
+fight the next song starts at once. A song never plays twice in a row unless it
+is the only one.
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+A lock that blinks on and off does not change the song: the threat holds for
+10 s after the last lock, and the fight holds for 15 s after the last hit. The
+songs play in a shuffled order, a new shuffle each time every song of the
+situation has played.
+
+Mods add songs to a situation with a `MusicTrack` content row, and a scenario
+plays its own song with the `PlayMusic` and `StopMusic` actions. See
+[Mod files](../../create/mod-files/#music-tracks) and
+[Actions](../../create/actions/#playmusic).
+
+Music: Exploration Theme by Cleyton Kauffman (CC0). Music by Type 42 -
+type42.bandcamp.com, CC BY 4.0. Full credits ship with the game in
+`credits/CREDITS.md`.
+
+</details>
 
 ## Graphics quality
 

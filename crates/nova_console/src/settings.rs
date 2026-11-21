@@ -75,7 +75,7 @@ pub fn window(world: &mut World, value: Option<&str>) -> CommandResult {
 }
 
 /// The mixer channels `volume` addresses, in the order the command prints them.
-const CHANNELS: [&str; 3] = ["master", "effects", "interface"];
+const CHANNELS: [&str; 4] = ["master", "effects", "interface", "music"];
 
 /// `volume` / `volume <channel>` / `volume <channel> <0..1>`.
 pub fn volume(world: &mut World, args: &[String]) -> CommandResult {
@@ -242,6 +242,7 @@ fn read_channel(world: &World, channel: &str) -> Option<f32> {
         "master" => world.get_resource::<MasterVolume>().map(|v| v.factor()),
         "effects" => world.get_resource::<WorldVolume>().map(|v| v.factor()),
         "interface" => world.get_resource::<InterfaceVolume>().map(|v| v.factor()),
+        "music" => world.get_resource::<MusicVolume>().map(|v| v.factor()),
         _ => None,
     }
 }
@@ -251,6 +252,7 @@ fn write_channel(world: &mut World, channel: &str, value: f32) {
         "master" => world.resource_mut::<MasterVolume>().0 = value,
         "effects" => world.resource_mut::<WorldVolume>().0 = value,
         "interface" => world.resource_mut::<InterfaceVolume>().0 = value,
+        "music" => world.resource_mut::<MusicVolume>().0 = value,
         _ => {}
     }
 }
@@ -274,13 +276,14 @@ fn binding_line(world: &World, action: &str) -> String {
 mod tests {
     use super::*;
 
-    /// A mixer with all three channels at half, which is what `volume` reads
+    /// A mixer with all four channels at half, which is what `volume` reads
     /// and writes.
     fn mixer() -> World {
         let mut world = World::new();
         world.insert_resource(MasterVolume(0.5));
         world.insert_resource(WorldVolume(0.5));
         world.insert_resource(InterfaceVolume(0.5));
+        world.insert_resource(MusicVolume(0.5));
         world
     }
 

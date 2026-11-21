@@ -23,9 +23,9 @@ use nova_modding::prelude::{Content, PRICE_TABLE_ID};
 use nova_scenario::prelude::{
     lint_campaign, lint_scenario, lint_ship_design_config, lint_start_role, lint_station_design,
     CampaignConfig, EventActionConfig, GeneratedWorldConfig, KnownSections, KnownShipDesigns,
-    KnownStationDesigns, LintIssue, LintSeverity, ScenarioConfig, ScenarioObjectKind,
-    ScenarioWorldType, SectionSource, ShipDesignPrototype, ShipDesignSource, SpaceshipConfig,
-    SpaceshipController, StartRole, StationDesignPrototype,
+    KnownStationDesigns, LintIssue, LintSeverity, MusicTrackDesign, ScenarioConfig,
+    ScenarioObjectKind, ScenarioWorldType, SectionSource, ShipDesignPrototype, ShipDesignSource,
+    SpaceshipConfig, SpaceshipController, StartRole, StationDesignPrototype,
 };
 use nova_ship::prelude::{
     flight_rig_reserved_sources, shared_section_sources, GameStyles, SectionConfig, ShipStyleConfig,
@@ -71,6 +71,7 @@ struct WalkedBundle {
     recipes: Vec<RecipeDesign>,
     consumables: Vec<ConsumableDesign>,
     encounters: Vec<EncounterDesign>,
+    music_tracks: Vec<MusicTrackDesign>,
     scenarios: Vec<ScenarioConfig>,
     campaigns: Vec<CampaignConfig>,
     lessons: Vec<Lesson>,
@@ -147,6 +148,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
     let mut recipes = Vec::new();
     let mut consumables = Vec::new();
     let mut encounters = Vec::new();
+    let mut music_tracks = Vec::new();
     let mut scenarios = Vec::new();
     let mut campaigns = Vec::new();
     let mut lessons = Vec::new();
@@ -164,6 +166,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
             Content::Recipe(recipe) => recipes.push(recipe.clone()),
             Content::Consumable(consumable) => consumables.push(consumable.clone()),
             Content::Encounter(encounter) => encounters.push(encounter.clone()),
+            Content::MusicTrack(track) => music_tracks.push(track.clone()),
             Content::Scenario(scenario) => scenarios.push(scenario.clone()),
             Content::Campaign(campaign) => campaigns.push(campaign.clone()),
             Content::Lesson(lesson) => lessons.push(lesson.clone()),
@@ -183,6 +186,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         recipes,
         consumables,
         encounters,
+        music_tracks,
         scenarios,
         campaigns,
         lessons,
@@ -1139,6 +1143,7 @@ fn build_report(
             recipes: walked.recipes.iter().collect(),
             consumables: walked.consumables.iter().collect(),
             encounters: walked.encounters.iter().collect(),
+            music_tracks: walked.music_tracks.iter().collect(),
             sections: walked.sections.iter().collect(),
         })
         .collect();
@@ -1459,6 +1464,7 @@ mod tests {
             recipes: Vec::new(),
             consumables: Vec::new(),
             encounters: Vec::new(),
+            music_tracks: Vec::new(),
             scenarios,
             campaigns,
             lessons,

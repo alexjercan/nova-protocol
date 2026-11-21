@@ -71,6 +71,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** A start role's `jobs` is `Mining`, `Salvage`, `Trade`, `Bounty`, `Patrol` or `Raid`. `Combat` is gone and `Trade` has new weights.
 - **(breaking)** Goal kind `StationNetwork` is gone. `CargoRuns(jobs: n)` counts Procure, Supply and Escort hand-ins; `Outlaw(hulls: n)` counts each trading hull you neutralize, at any stance.
 - A UiTheme's `segmented` border colour is no longer painted: the options draw the control's only line. A box takes its corner from the theme's `radius` or `panel_radius`.
+- New content kind `MusicTrack` adds an `.ogg` song to a situation's playlist with its licence. Actions `PlayMusic` and `StopMusic` play a scenario's own song.
 
 ### Interface & HUD
 
@@ -101,6 +102,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Mod editor: top bar buttons stand 4 px apart, list and inspector rows 4 px apart, and modals pad 12 px with their answers 8 px apart and 12 px under the content.
 - Mod editor: Play holds the centre of the top bar in every view with the stage tools right of it, choice rows fit one line, and text fields grow to show every line.
 - **(breaking)** UiTheme drops `metrics.border_width`, the slider `height` and the badge `bracketed`, `padding_x` and `border_width`. Lint refuses a disabled button state that looks live.
+
+### Audio & Visuals
+
+- Background music: 10 songs play by situation (menu, cruise, enemies near, combat, docked) with fades and gaps. Pause ducks it.
+- Settings gain a Music slider, and `volume music` sets it. A v0.17 settings file loads its `music_volume` into the slider again.
 
 ### Fixes
 

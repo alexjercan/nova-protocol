@@ -13,9 +13,9 @@
 //! the merge keeps, since a pack that replaces an item can break a recipe or
 //! a consumable another pack owns. A station recipe of ammo is judged
 //! against the sections the merge keeps, since a pack that raises a weapon's
-//! advancement can put a recipe's floor below it. Encounters are judged
-//! here as well, each on its own, so one walk refuses a pack for every
-//! catalog fault it carries.
+//! advancement can put a recipe's floor below it. Encounters and music
+//! tracks are judged here as well, each on its own, so one walk refuses a
+//! pack for every catalog fault it carries.
 //!
 //! The runtime merge (`register_bundles`) and the `content lint` walk both
 //! call [`item_pack_faults`], so a pack lint passes is a pack the game loads.
@@ -29,6 +29,7 @@ use nova_gameplay::prelude::{
 };
 use nova_mod_format::deps::{transitive_deps, DepGraph};
 use nova_modding::prelude::BASE_MOD_ID;
+use nova_scenario::prelude::{music_track_faults, MusicTrackDesign};
 use nova_ship::prelude::SectionConfig;
 
 /// Glob-import surface: `use nova_assets::items::prelude::*` re-exports the
@@ -52,6 +53,8 @@ pub struct ItemPack<'a> {
     pub consumables: Vec<&'a ConsumableDesign>,
     /// Every encounter it defines, in authored order, repeats included.
     pub encounters: Vec<&'a EncounterDesign>,
+    /// Every music track it defines, in authored order, repeats included.
+    pub music_tracks: Vec<&'a MusicTrackDesign>,
     /// Every section it defines, in authored order: what fires the ammo a
     /// station recipe makes.
     pub sections: Vec<&'a SectionConfig>,
@@ -266,6 +269,19 @@ pub fn item_pack_faults(packs: &[ItemPack<'_>]) -> BTreeMap<String, Vec<String>>
                 );
             }
         }
+        let mut seen = HashSet::new();
+        for track in &pack.music_tracks {
+            for message in music_track_faults(track) {
+                fault(pack.id, message);
+            }
+            let id = track.id.as_str();
+            if !seen.insert(id) {
+                fault(
+                    pack.id,
+                    format!("the music track '{id}' is defined more than once"),
+                );
+            }
+        }
     }
 
     if let Some(base) = packs.iter().find(|pack| pack.id == BASE_MOD_ID) {
@@ -363,6 +379,7 @@ mod tests {
             recipes: Vec::new(),
             consumables: Vec::new(),
             encounters: Vec::new(),
+            music_tracks: Vec::new(),
             sections: Vec::new(),
         }
     }

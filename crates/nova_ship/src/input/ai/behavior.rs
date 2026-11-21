@@ -53,7 +53,7 @@ impl AIBehaviorState {
     /// `Evade` fights it too - the jink only swaps the flight direction,
     /// the guns stay on target. `Retreat` deliberately stubs to Engage
     /// behavior until it is built (see the variant docs).
-    pub(crate) fn engages(&self) -> bool {
+    pub fn engages(&self) -> bool {
         matches!(self, Self::Engage | Self::Evade | Self::Retreat)
     }
 

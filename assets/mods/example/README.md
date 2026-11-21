@@ -67,6 +67,10 @@ binary assets it ships).
   in the open world's encounter draw. It is a `Hail` of weight 1 for any
   hull: a stranded survey boat that calls the player and offers a `Supply`
   job with its one comms line.
+- **A music track** - `example/hidden_nebula_cruise` is a `MusicTrack`: it
+  adds the base song Hidden Nebula to the `Cruise` playlist, with its licence
+  record. A mod that ships its own song puts the `.ogg` file under its folder
+  and lists it in `resources`.
 
 ## Layout
 

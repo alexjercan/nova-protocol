@@ -1716,4 +1716,24 @@
             line: "Survey boat calling any ship. Our stores are empty. Can you spare some?",
         ),
     )),
+    // A `MusicTrack` adds a song to a situation's playlist: `Menu`, `Cruise`,
+    // `Threat`, `Combat` or `Docked`. The file must be `.ogg` (OGG Vorbis);
+    // lint shows the `ffmpeg` command for any other format. `licence` is
+    // `Cc0`, `CcBy3`, `CcBy4` or `Own`, and `credit` is the licence record:
+    // title, artist, licence and, for any licence but `Own`, the source URL.
+    // Every field is required. This row plays a base song in cruise as well;
+    // a mod that ships its own song lists it in `resources` and names it with
+    // `self://`. Reuse a base id such as `base/uncharted` to replace that
+    // track whole.
+    MusicTrack((
+        id: "example/hidden_nebula_cruise",
+        sound: "dep://base/music/hidden_nebula.ogg",
+        contexts: [
+            Cruise,
+        ],
+        title: "Hidden Nebula",
+        artist: "Type 42",
+        licence: CcBy4,
+        credit: "\"Hidden Nebula\" - Music by Type 42 - type42.bandcamp.com. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: https://opengameart.org/content/distant-sci-fielectronic-music-pack. Changes: transcoded to OGG Vorbis q4.",
+    )),
 ]

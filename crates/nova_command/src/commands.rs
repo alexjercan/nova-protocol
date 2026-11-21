@@ -396,16 +396,16 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
     },
     CommandSpec {
         name: "volume",
-        usage: "volume [master|effects|interface [0..1]]",
+        usage: "volume [master|effects|interface|music [0..1]]",
         summary: "Print or change a mixer channel's volume",
         class: CommandClass::Setting,
         arity: CommandArity::Between(0, 2),
         arg_hint: Some("[channel [0..1]]"),
         args: &[
-            CommandArg::Words(&["master", "effects", "interface"]),
+            CommandArg::Words(&["master", "effects", "interface", "music"]),
             CommandArg::Free,
         ],
-        examples: &["volume", "volume master", "volume effects 0.4"],
+        examples: &["volume", "volume master", "volume effects 0.4", "volume music 0"],
     },
     CommandSpec {
         name: "window",

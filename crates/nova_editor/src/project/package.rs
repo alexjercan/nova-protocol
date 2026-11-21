@@ -249,13 +249,14 @@ fn lint_judged(
                     .into_iter()
                     .map(|issue| error(issue.to_string())),
             ),
-            // The item rule judges recipes, consumables and encounters with
-            // every visible pack.
+            // The item rule judges recipes, consumables, encounters and
+            // music tracks with every visible pack.
             Content::Lesson(_)
             | Content::Item(_)
             | Content::Recipe(_)
             | Content::Consumable(_)
-            | Content::Encounter(_) => {}
+            | Content::Encounter(_)
+            | Content::MusicTrack(_) => {}
         }
     }
     if tables > 1 {
@@ -428,6 +429,13 @@ fn item_findings(own: &str, data: &ProjectData, packs: &[VisiblePack]) -> Vec<Pr
                 .iter()
                 .filter_map(|item| match item {
                     Content::Encounter(design) => Some(design),
+                    _ => None,
+                })
+                .collect(),
+            music_tracks: content
+                .iter()
+                .filter_map(|item| match item {
+                    Content::MusicTrack(design) => Some(design),
                     _ => None,
                 })
                 .collect(),

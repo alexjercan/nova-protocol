@@ -57,7 +57,8 @@ use nova_gameplay::prelude::{
 // code keeps importing them from nova_modding.
 pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta, BASE_MOD_ID};
 use nova_scenario::prelude::{
-    CampaignConfig, ScenarioConfig, ShipDesignPrototype, StartRole, StationDesignPrototype,
+    CampaignConfig, MusicTrackDesign, ScenarioConfig, ShipDesignPrototype, StartRole,
+    StationDesignPrototype,
 };
 use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
@@ -209,6 +210,15 @@ pub enum Content {
     /// encounter of one id in a pack fail at lint and refuse the owning mod
     /// at load. A catalog with no encounter is valid: none fires.
     Encounter(EncounterDesign),
+    /// A [`MusicTrackDesign`] - registers into `GameMusicTracks` keyed by
+    /// its id. One song, the situations whose playlists it joins, and the
+    /// licence record it ships under.
+    ///
+    /// A mod adds a song to a playlist by declaring a new id and replaces a
+    /// base one by declaring its id. A file that is not `.ogg`, an empty or
+    /// unsourced credit, a situation with no playlist, and a second track of
+    /// one id in a pack fail at lint and refuse the owning mod at load.
+    MusicTrack(MusicTrackDesign),
 }
 
 /// The fixed [`Content::id`] of the [`Content::PriceTable`] singleton: a
@@ -239,6 +249,7 @@ impl Content {
             Content::Recipe(_) => "recipe",
             Content::Consumable(_) => "consumable",
             Content::Encounter(_) => "encounter",
+            Content::MusicTrack(_) => "music track",
         }
     }
 
@@ -261,6 +272,7 @@ impl Content {
             Content::Recipe(recipe) => recipe.id.as_str(),
             Content::Consumable(consumable) => consumable.item.as_str(),
             Content::Encounter(encounter) => encounter.id.as_str(),
+            Content::MusicTrack(track) => track.id.as_str(),
         }
     }
 

@@ -3,6 +3,7 @@
 //! [`TargetingSettings`] range model, and the messages the HUD reads.
 
 use bevy::prelude::*;
+use nova_gameplay::prelude::{ship_relation, Relation, RelationParty};
 
 use crate::prelude::*;
 
@@ -104,6 +105,16 @@ pub struct TravelLock(pub Option<Entity>);
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
 #[reflect(Component)]
 pub struct CombatLock(pub Option<Entity>);
+
+impl CombatLock {
+    /// Whether this lock, held by `holder`, is a hostile lock on `target`:
+    /// it names `target` and the two read as [`Relation::Hostile`] by
+    /// [`ship_relation`]. The lock alarm and the music's threat test read
+    /// it, so both hear the same lock.
+    pub fn is_hostile_on(&self, holder: RelationParty<'_>, target: RelationParty<'_>) -> bool {
+        self.0 == Some(target.entity) && ship_relation(holder, target) == Relation::Hostile
+    }
+}
 
 /// The radar's destination slot, latched at the hold THRESHOLD from the
 /// raised stance current at that moment. The old press-time latch carried a

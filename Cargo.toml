@@ -126,6 +126,13 @@ name = "encounter_sandbox"
 path = "examples/playable/encounter_sandbox.rs"
 required-features = ["debug"]
 
+# Background music by situation: the menu theme, New Game docked, cruise, an
+# ambush for threat and combat, and the dock again.
+[[example]]
+name = "music_sandbox"
+path = "examples/playable/music_sandbox.rs"
+required-features = ["debug"]
+
 # Buying a parked hull by hand: New Game on a pinned seed, docked at a living
 # generated station with hulls for sale parked at its ports, after one buy so
 # the old ship is parked as the player's own too. The overlay marks each port and hull

@@ -2,9 +2,10 @@
 
 A Nova Protocol mod is a folder that contains one bundle manifest, one or more
 content files, and any art or audio that the mod owns. Content files can define
-fifteen kinds of reusable item: campaigns, scenarios, ship sections, whole
+sixteen kinds of reusable item: campaigns, scenarios, ship sections, whole
 ships, stations, ship skin styles, training lessons, UI themes, items, start
-roles, price tables, trade profiles, recipes, consumables, and encounters.
+roles, price tables, trade profiles, recipes, consumables, encounters, and
+music tracks.
 
 The editor writes this same layout. Open **Sandbox** on the main menu to
 make a mod without hand-editing a file. Its Assets tab shows the items as file
@@ -164,7 +165,7 @@ content is rebalanced, prune the entry.
 ## Content files
 
 Every `*.content.ron` file is a RON list. One file may contain any mix of the
-fifteen item kinds:
+sixteen item kinds:
 
 ```ron
 [
@@ -276,6 +277,15 @@ fifteen item kinds:
             job: Supply,
             line: "Survey boat calling any ship. Our stores are empty. Can you spare some?",
         ),
+    )),
+    MusicTrack((
+        id: "my_mod/drift",
+        sound: "self://music/drift.ogg",
+        contexts: [Cruise],
+        title: "Drift",
+        artist: "Jane Doe",
+        licence: Own,
+        credit: "Drift, made for my_mod by Jane Doe.",
     )),
 ]
 ```
@@ -441,6 +451,61 @@ Lint, then load, refuse a pack whose encounter:
 
 A refused pack is switched off with every pack that depends on it, as for an
 item error. A mod with no encounter is valid.
+
+### Music tracks
+
+<!-- Format and rules: crates/nova_scenario/src/music/catalog.rs
+     (`MusicTrackDesign`, `MusicLicenceType`, `music_track_faults`,
+     `music_format_fault`); situations: crates/nova_scenario/src/music/rule.rs
+     (`MusicContextType`); pack rules: crates/nova_assets/src/items.rs
+     `item_pack_faults`; base: assets/base/music/base.content.ron. -->
+
+A `MusicTrack` adds one song to the playlist of one or more situations. The
+game picks the situation; the [wiki](../../wiki/settings/#music) lists them
+and when each one plays. Its key is `id`. Every field is required.
+
+```ron
+MusicTrack((
+    id: "my_mod/drift",
+    sound: "self://music/drift.ogg",
+    contexts: [Cruise, Docked],
+    title: "Drift",
+    artist: "Jane Doe",
+    licence: CcBy4,
+    credit: "\"Drift\" by Jane Doe, CC BY 4.0, https://example.org/drift",
+)),
+```
+
+| field | meaning |
+|---|---|
+| `id` | the track id, prefixed with your mod id |
+| `sound` | the song: an `.ogg` file, listed in the manifest's `resources` |
+| `contexts` | the situations it plays in: `Menu`, `Cruise`, `Threat` (enemies near), `Combat`, `Docked` |
+| `title` | the song's title |
+| `artist` | who made it |
+| `licence` | `Cc0`, `CcBy3`, `CcBy4`, or `Own` for a song you made |
+| `credit` | the licence record: title, artist, licence and the source URL |
+
+Music must be OGG Vorbis. Convert any other file before you ship it:
+
+```
+ffmpeg -i song.wav -c:a libvorbis -q:a 4 song.ogg
+```
+
+The base game defines ten tracks, `base/exploration_theme` and nine Type 42
+songs (`base/stellar_cruise` and so on). A track with the id of one another
+pack defines replaces it whole. A scenario can also play its own song with
+[`PlayMusic`](../actions/#playmusic).
+
+Lint, then load, refuse a pack whose track:
+
+- has an empty `id`, `title` or `artist`;
+- names no situation, a situation twice, or a situation that is not one of the
+  five;
+- names a file that is not `.ogg`, or a file the manifest does not list;
+- has an empty `credit`, or a `credit` with no source URL for a licence other
+  than `Own`;
+- is defined twice in one pack.
 
 ## The content chapters
 

@@ -3,7 +3,7 @@
 Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - `Name((field: value, ...))`, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 60 at a glance:
+never panics a scenario). All 62 at a glance:
 
 | action | group | what it does |
 |---|---|---|
@@ -22,6 +22,8 @@ never panics a scenario). All 60 at a glance:
 | [`HintEmphasisSet`](#hintemphasisset) | [mission](#mission-story) | pulse one keybind-dock chip gold |
 | [`HintEmphasisClear`](#hintemphasisclear) | [mission](#mission-story) | drop the gold emphasis on one chip |
 | [`PlaySound`](#playsound) | [sound](#sound) | play one authored cue, heard in the cockpit |
+| [`PlayMusic`](#playmusic) | [sound](#sound) | play the scenario's own song in place of the situation's songs |
+| [`StopMusic`](#stopmusic) | [sound](#sound) | end the scenario's own song |
 | [`Sequence`](#sequence) | [pacing](#pacing) | run an ordered list of beats, each behind its own delay or gate |
 | [`Cinematic`](#cinematic) | [pacing](#pacing) | run the same chain as a SCENE the player is allowed to leave |
 | [`CancelCinematic`](#cancelcinematic) | [pacing](#pacing) | end a running scene from the scenario rather than the player |
@@ -586,6 +588,61 @@ world at that body: `Explosion`, `Impact`, `Machinery`, `Pickup` and the other
 one-shot rows. A world category at `Ui`, an interface category at a `Body`, a
 loop category such as `Drive`, or `Music` is a lint error, and the scenario
 does not load. A `Body` that no live body wears is refused with `unknown_body`.
+
+</details>
+
+### PlayMusic
+
+Play the scenario's own song, such as a boss theme or the music under a
+reveal. It replaces the songs the game picks for the situation (see
+[Music](../../wiki/settings/#music)) until it ends, `StopMusic` ends it, or the
+scenario ends.
+
+```ron
+PlayMusic((sound: "self://music/boss.ogg", fade_in: 2.0, then: Loop, in_combat: Keep)),
+PlayMusic((sound: "dep://base/music/unseen.ogg", fade_in: 4.0, then: Resume, in_combat: Yield)),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `sound` | asset ref | required | the song; an `.ogg` file |
+| `fade_in` | seconds | required | the crossfade from the song that plays; `0.0` or more |
+| `then` | `Resume` \| `Loop` | required | at its end: `Resume` hands back to the situation's songs after their normal gap, `Loop` plays it again |
+| `in_combat` | `Yield` \| `Keep` | required | in a fight: `Yield` lets the combat songs take over and the song does not come back, `Keep` plays it through |
+
+Music must be OGG Vorbis. Any other file is a lint error that shows the
+command to convert it:
+
+```
+ffmpeg -i song.wav -c:a libvorbis -q:a 4 song.ogg
+```
+
+A negative or not-a-number fade is a lint error. A menu backdrop
+(`role: Backdrop`) may not author `PlayMusic` or `StopMusic`: the menu theme
+plays behind the menu. A second `PlayMusic` replaces the first, with its own
+fade.
+
+</details>
+
+### StopMusic
+
+End the scenario's own song. The situation's songs come back after their
+normal gap. With no scenario song playing, the song that plays fades out and
+the situation waits its gap.
+
+```ron
+StopMusic((fade_out: 3.0)),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `fade_out` | seconds | required | the fade out; `0.0` or more |
 
 </details>
 

@@ -24,6 +24,9 @@
         "recipes/base.content.ron",
         "consumables/base.content.ron",
         "encounters/base.content.ron",
+        // The songs the music director plays: catalog rows, read by no
+        // other content.
+        "music/base.content.ron",
         "sections/base.content.ron",
         "styles/base.content.ron",
         "ships/base.content.ron",
@@ -318,6 +321,18 @@
         "sounds/turret_fire.wav",
         "sounds/warn_hull.wav",
         "sounds/warn_lock.wav",
+        // The songs of music/base.content.ron: OGG Vorbis, sources and
+        // licences in music/README.md.
+        "music/ambient_soundtrack.ogg",
+        "music/exploration_theme.ogg",
+        "music/hidden_nebula.ogg",
+        "music/intense_electronic_action.ogg",
+        "music/little_blue_speck.ogg",
+        "music/stellar_cruise.ogg",
+        "music/the_hunter.ogg",
+        "music/uncharted.ogg",
+        "music/unknown.ogg",
+        "music/unseen.ogg",
     ],
     meta: (
         name: "Base Game",

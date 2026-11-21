@@ -30,6 +30,8 @@ pub mod loader;
 pub mod marks;
 /// The player's mining beam and the ore canisters it drops.
 pub mod mining;
+/// Background music: the track catalog, the context rule and the director.
+pub mod music;
 /// What an authored string in a config names.
 pub mod names;
 /// Spawnable scenario entities (asteroids, ships, beacons, planets, lights).
@@ -57,10 +59,10 @@ pub mod wreck_cargo;
 pub mod prelude {
     pub use super::{
         actions::prelude::*, events::prelude::*, filters::prelude::*, lint::prelude::*,
-        loader::prelude::*, marks::prelude::*, mining::prelude::*, names::prelude::*,
-        objects::prelude::*, queries::prelude::*, render_scale::prelude::*, resume::prelude::*,
-        syntax::prelude::*, variables::prelude::*, world::prelude::*, wreck_cargo::prelude::*,
-        NovaScenarioPlugin,
+        loader::prelude::*, marks::prelude::*, mining::prelude::*, music::prelude::*,
+        names::prelude::*, objects::prelude::*, queries::prelude::*, render_scale::prelude::*,
+        resume::prelude::*, syntax::prelude::*, variables::prelude::*, world::prelude::*,
+        wreck_cargo::prelude::*, NovaScenarioPlugin,
     };
 }
 
@@ -90,6 +92,7 @@ impl Plugin for NovaScenarioPlugin {
             render: self.render,
         });
         app.add_plugins(wreck_cargo::WreckCargoPlugin);
+        app.add_plugins(music::MusicDirectorPlugin);
 
         // The render-scale lever only means anything with a window/GPU; a
         // headless rig (render == false) has no scenario view to downscale.

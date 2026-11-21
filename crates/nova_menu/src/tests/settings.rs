@@ -1396,6 +1396,7 @@ fn dragging_a_volume_slider_ticks_once_per_detent_and_not_while_it_rests() {
     app.init_resource::<MasterVolume>();
     app.init_resource::<InterfaceVolume>();
     app.init_resource::<WorldVolume>();
+    app.init_resource::<MusicVolume>();
     app.add_observer(on_volume_slider_change);
     let slider = app
         .world_mut()
