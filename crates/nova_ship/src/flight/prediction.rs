@@ -8,10 +8,12 @@
 //! 0.8 does. A GOTO target flies with it as a [`BallisticTarget`]: as avian
 //! moves and turns a body with no input. The predicted centre of mass
 //! therefore matches the flown one for as long as the world the run froze at
-//! its seed holds. Each live tick checks the target against the same coast and
-//! drops a forecast it has left. A moving well, a collision, a docking or a
-//! change to the hull is not predicted; a moving well hides the prediction
-//! instead.
+//! its seed holds. A run flies the leg to its end, wherever that is, so the
+//! path always reaches the arrival point; there is no horizon and nothing
+//! draws past the path. A target that leaves its coast, a collision, a docking
+//! or a change to the hull shows in the next run, seeded as soon as this one
+//! publishes. A moving well is not predicted: it stops the prediction with an
+//! error.
 //!
 //! Engine units throughout, as in the autopilot.
 
@@ -34,58 +36,58 @@ use super::{
 };
 use crate::{physics::compute_pd_torque, prelude::*, sections::thruster_section::engine_direction};
 
-/// How far ahead a prediction flies, seconds.
-const PREDICTION_HORIZON: f32 = 30.0;
+/// The longest leg a run flies before it gives up, seconds. A run that
+/// reaches it publishes nothing and logs an error: a leg that has not ended by
+/// then is a defect to fix, never a reason to draw part of a path.
+///
+/// Far past any leg the game flies. A GOTO target is a loaded body: at most
+/// three 32 km open-world cells out on each axis (two active cells past the
+/// player's own), about 166 km on the diagonal. Rest to rest that leg takes
+/// `2 * sqrt(166 km / a)`: 120 s at the slowest start hull's 46.3 m/s^2, and
+/// 379 s for a wreck left with a tenth of that thrust. Reaching 1800 s on
+/// 166 km takes less than 0.21 m/s^2.
+///
+/// FIXME: a GOTO at a target on a circular orbit of a well never ends: the
+/// live autopilot trails the target 55 to 80 u back and never settles at the
+/// standoff, so the run reaches this cap and the player sees no path. Remove
+/// this note when the GOTO arrival closes on a target that falls in a well.
+pub(super) const PREDICTION_CAP_SECONDS: f32 = 1800.0;
 
 /// Predicted ticks one [`predict_flight_path`] pass advances a run. A pass runs
 /// on each live fixed tick, or on each rendered frame while `Time<Virtual>` is
-/// paused. A run to the 30 s horizon at 64 Hz is 1920 ticks, so it publishes
-/// `1920 / PREDICTED_TICKS_PER_FIXED_TICK` passes after its seed: 16 fixed
-/// updates or paused frames at 120. A leg that ends before the horizon
-/// publishes sooner. A measured 240-tick pass exceeded the approved 1 ms
-/// per-pass bound, so the pass is 120 ticks. A tumbling GOTO target in a well
-/// flown with the run raised the pass about 40%, to a 311 us max on one
-/// pinned slower core of one host. That is not a frame-budget guarantee: a
-/// loaded host measured passes over 1 ms with and without the target.
+/// paused. A run flies its leg to the end, so it publishes
+/// `leg ticks / PREDICTED_TICKS_PER_FIXED_TICK` passes after its seed: at
+/// 64 Hz a 30 s leg after 16 fixed updates or paused frames, a 120 s leg after
+/// 64. The shown path stays until the run replaces it. A measured 240-tick
+/// pass exceeded the approved 1 ms per-pass bound, so the pass is 120 ticks. A
+/// tumbling GOTO target in a well flown with the run raised the pass about
+/// 40%, to a 311 us max on one pinned slower core of one host. That is not a
+/// frame-budget guarantee: a loaded host measured passes over 1 ms with and
+/// without the target.
 const PREDICTED_TICKS_PER_FIXED_TICK: u32 = 120;
 
 /// Predicted ticks between two regular points of a prediction.
 const SAMPLE_TICKS: u32 = 8;
 
-/// How far the live GOTO target's `LinearVelocity` may leave the coast its
-/// forecast flew it on, u/s (0.1 m/s): a burn, a collision or any force the
-/// coast does not model past this makes the forecast a lie.
-const TARGET_UNEXPLAINED_DELTA_V: f32 = 0.01;
-
-/// How far the live GOTO goal may leave the one its forecast flew to, u: the
-/// bound the flown-path proof holds a prediction to. Catches a moved target
-/// and a changed centre of mass.
-const TARGET_GOAL_DEVIATION: f32 = 1.0;
-
-/// How far the live GOTO target's `AngularVelocity` may leave the tumble its
-/// forecast flew it on, rad/s: a flight computer's turn or a collision past
-/// this makes the forecast a lie.
-const TARGET_UNEXPLAINED_ANGULAR_DELTA_V: f32 = 0.01;
-
 /// The path the player's autopilot will fly its GOTO, GotoPos or STOP leg on.
 ///
 /// Flown ahead through the same autopilot step, actuator chain and avian
 /// integration as the live ship, from the ship's state at [`Self::seed_time`];
-/// see the module docs for what the run cannot see. Present only while such a
-/// leg is engaged on an undocked player ship with a live flight computer, a
-/// live engine and a measured mass, and only while every well is at rest and
-/// the live target keeps to the coast its run flew it on. Replaced by each
-/// finished run.
+/// see the module docs for what the run cannot see. Runs from the seed to the
+/// end of the leg: for a GOTO the last point is where the leg arrives. Present
+/// only while such a leg is engaged on an undocked player ship with a live
+/// flight computer, a live engine and a measured mass, and only while every
+/// well is at rest. Replaced by each finished run; a new leg removes it at
+/// once.
 #[derive(Component, Clone, Debug, Reflect)]
 #[reflect(Component)]
 pub struct FlightPrediction {
     /// The flown centre of mass, world space: the seed state first, then one
-    /// point every [`Self::sample_interval`]. When the leg ends between two
-    /// samples, the last point is the state it ends at, at
-    /// [`Self::final_point_time`].
+    /// point every [`Self::sample_interval`], and last the state the leg ends
+    /// at, at [`Self::final_point_time`].
     pub points: Vec<Vec3>,
     /// The first point at or after the tick the leg starts braking. `None`
-    /// when the leg does not brake inside the prediction.
+    /// when the leg does not brake.
     pub flip_index: Option<usize>,
     /// The `Time<Fixed>` elapsed time of the seed state, `points[0]`.
     pub seed_time: Duration,
@@ -108,20 +110,69 @@ pub enum FlightPredictionEndType {
     ParkedIntoOrbit,
     /// The autopilot disengages before the leg arrives.
     Disengaged,
-    /// The leg still flies at the prediction horizon. The path stops there; it
-    /// is not drawn on to the goal.
-    Horizon,
+}
+
+/// Reduce a polyline to at most `max` vertices, keeping its ends and its
+/// sharpest bends: starting from the two ends, repeatedly keep the vertex that
+/// lies furthest from the chord between its kept neighbours (top-N
+/// Ramer-Douglas-Peucker). It works in world space, so the pick depends only
+/// on the points: one path always draws one line, and the kept bends do not
+/// change while a camera moves. A polyline already within `max` is returned
+/// whole.
+///
+/// The drawn GOTO line on the Map and in the HUD both decimate a
+/// [`FlightPrediction`] with it. A leg flown to its arrival has thousands of
+/// points, so each span keeps its furthest vertex: a pick searches only the
+/// two spans it splits.
+pub fn decimate_path(points: &[Vec3], max: usize) -> Vec<Vec3> {
+    if points.len() <= max.max(2) {
+        return points.to_vec();
+    }
+    let furthest = |a: usize, b: usize| {
+        let chord = points[b] - points[a];
+        let length_squared = chord.length_squared();
+        (a + 1..b)
+            .map(|i| {
+                let offset = points[i] - points[a];
+                let deviation = if length_squared <= f32::EPSILON {
+                    offset.length()
+                } else {
+                    offset
+                        .reject_from_normalized(chord / length_squared.sqrt())
+                        .length()
+                };
+                (i, deviation)
+            })
+            .max_by(|x, y| x.1.total_cmp(&y.1))
+    };
+    let mut kept = vec![0, points.len() - 1];
+    // The furthest vertex of the span from `kept[k]` to `kept[k + 1]`.
+    let mut spans = vec![furthest(0, points.len() - 1)];
+    while kept.len() < max {
+        let Some((span, index)) = spans
+            .iter()
+            .enumerate()
+            .filter_map(|(span, pick)| pick.map(|pick| (span, pick)))
+            .max_by(|x, y| x.1 .1.total_cmp(&y.1 .1))
+            .map(|(span, (index, _))| (span, index))
+        else {
+            break;
+        };
+        kept.insert(span + 1, index);
+        spans[span] = furthest(kept[span], index);
+        spans.insert(span + 1, furthest(index, kept[span + 2]));
+    }
+    kept.into_iter().map(|i| points[i]).collect()
 }
 
 /// The player ship's prediction run. Each [`predict_flight_path`] pass advances
-/// it until it ends and is published as a [`FlightPrediction`]. A published
-/// run stays with its points taken and its leg kept until the next pass
-/// reseeds it: a reseed for the same leg keeps the published path visible until
-/// the new run replaces it, and a different leg removes the path at once. A
-/// failed non-finite run instead keeps empty points and no published path.
-/// Neither run reseeds for the same leg on the frozen fixed tick. A run whose
-/// live target leaves its coast reseeds, and a published path whose own seed's
-/// target does is removed.
+/// it until its leg ends and it is published as a [`FlightPrediction`]. A
+/// published run stays with its points taken and its leg kept until the next
+/// pass reseeds it: a reseed for the same leg keeps the published path visible
+/// until the new run replaces it, and a different leg removes the path at
+/// once. A failed run (non-finite, or past [`PREDICTION_CAP_SECONDS`]) instead
+/// keeps empty points and no published path. Neither run reseeds for the same
+/// leg on the frozen fixed tick.
 #[derive(Component)]
 pub(super) struct FlightPredictionRun {
     /// The leg the run was seeded for. A different engaged leg restarts it.
@@ -139,9 +190,6 @@ pub(super) struct FlightPredictionRun {
     /// The GOTO target flown with the run; `None` for GotoPos, STOP and a
     /// target that avian does not move.
     target_motion: Option<TargetMotion>,
-    /// The published path's target, flown from that path's seed at the live
-    /// rate; `None` while no path with a flown target is published.
-    shown_target: Option<ExpectedTarget>,
     /// The telemetry the last predicted tick published.
     telemetry: Option<ManeuverTelemetry>,
     /// The wells the autopilot reads, frozen at the seed.
@@ -164,13 +212,13 @@ pub(super) struct FlightPredictionRun {
     /// What the mover is permitted to do.
     capabilities: ShipCapabilities,
     /// Predicted ticks flown.
-    ticks: u32,
+    pub(super) ticks: u32,
     /// The first predicted tick whose state the leg brakes from.
     braking_tick: Option<u32>,
     /// See [`FlightPrediction::seed_time`].
     seed_time: Duration,
     /// See [`FlightPrediction::points`].
-    points: Vec<Vec3>,
+    pub(super) points: Vec<Vec3>,
 }
 
 /// A GOTO target as avian moves it with no input: it coasts and tumbles. A
@@ -179,9 +227,9 @@ pub(super) struct FlightPredictionRun {
 /// `gravity_well_system`; a kinematic body keeps its velocities.
 ///
 /// It assumes a body with no damping, `GravityScale`, `LockedAxes` or speed
-/// cap, and no contact or joint. The live checks see a departure only after
-/// it happens, so a shown path does not foresee a later burn, turn or
-/// collision of its target.
+/// cap, and no contact or joint. A shown path does not foresee a later burn,
+/// turn or collision of its target; the next run, seeded when it publishes,
+/// starts from the target's new course.
 /// `a_goto_to_a_coasting_target_is_predicted_along_the_target_flight` checks
 /// the coast against flown paths.
 #[derive(Clone, Copy)]
@@ -256,25 +304,13 @@ impl BallisticTarget {
     }
 }
 
-/// A GOTO target flown from one seed at the live fixed rate: the coast the
-/// live target is checked against.
-#[derive(Clone, Copy)]
-struct ExpectedTarget {
-    /// Where the leg's [`ArrivalTarget::goal`] sits on the target.
-    anchor: ArrivalAnchorType,
-    /// The target at [`Self::time`].
-    body: BallisticTarget,
-    /// The `Time<Fixed>` elapsed time [`Self::body`] is flown to.
-    time: Duration,
-}
-
 /// The GOTO target flown with a prediction run.
 #[derive(Clone, Copy)]
 struct TargetMotion {
     /// The target at the predicted tick.
     predicted: BallisticTarget,
-    /// The target at the live tick, from the run's seed.
-    expected: ExpectedTarget,
+    /// Where the leg's [`ArrivalTarget::goal`] sits on the target.
+    anchor: ArrivalAnchorType,
 }
 
 /// One fixed tick of the live chain after [`autopilot_step`] for an undocked
@@ -449,17 +485,14 @@ fn integrate_avian_substeps(
 
 /// Advances the player ship's [`FlightPredictionRun`] by up to
 /// [`PREDICTED_TICKS_PER_FIXED_TICK`] ticks and publishes it as a
-/// [`FlightPrediction`] when it ends; seeds a run from the ship's state when
-/// none is in progress for the engaged leg or the last one is published. The
-/// published path stays until the next run for the same leg replaces it; a
-/// different leg removes it at the reseed. A non-finite run keeps a failed
-/// empty-points seed and removes the published path. Removes both when the
-/// ship leaves the scope [`FlightPrediction`] documents.
-///
-/// Each pass first flies the GOTO target of the published path and of the run
-/// to the live tick. A live target more than [`TARGET_UNEXPLAINED_DELTA_V`],
-/// [`TARGET_UNEXPLAINED_ANGULAR_DELTA_V`] or [`TARGET_GOAL_DEVIATION`] off one
-/// removes that path or reseeds that run.
+/// [`FlightPrediction`] when its leg ends; seeds a run from the ship's state
+/// when none is in progress for the engaged leg or the last one is published.
+/// The published path stays until the next run for the same leg replaces it;
+/// a different leg removes it at the reseed. A run that goes non-finite or
+/// flies [`PREDICTION_CAP_SECONDS`] without its leg ending logs an error, keeps
+/// a failed empty-points seed and removes the published path; so does a
+/// moving well. Removes both when the ship leaves the scope
+/// [`FlightPrediction`] documents.
 ///
 /// Runs in `FixedPostUpdate` after avian's writeback, so the seed is the state
 /// the next live tick starts from: this tick's pose, velocities, actuator
@@ -529,10 +562,10 @@ pub(super) fn predict_flight_path(
             Has<GravityWell>,
         )>,
     ),
-    // Ships whose non-finite prediction is already logged, so the error is
-    // said once per leg, not at the fixed rate; then the scratch buffers of
-    // the well pull.
-    (mut nonfinite, mut candidates, mut pulls): (
+    // Ships whose failed prediction is already logged, so the error is said
+    // once per leg, not at the fixed rate; then the scratch buffers of the
+    // well pull.
+    (mut failed, mut candidates, mut pulls): (
         Local<EntityHashSet>,
         Local<Vec<(Entity, f32, Vec3)>>,
         Local<Vec<(Entity, f32)>>,
@@ -558,7 +591,7 @@ pub(super) fn predict_flight_path(
         (telemetry, (standoff_override, avoid_margin), cruise_cap, hull_radius),
         (rcs_budget, rcs_intent),
         (dominant_well, gravity_affected, is_well, docked),
-        (mut run, published),
+        (run, published),
     ) in &mut q_ship
     {
         let hide = |commands: &mut Commands| {
@@ -579,7 +612,7 @@ pub(super) fn predict_flight_path(
         });
         let Some(autopilot) = autopilot.filter(|_| !docked && dt > 0.0 && mass.value() > 0.0)
         else {
-            nonfinite.remove(&ship);
+            failed.remove(&ship);
             hide(&mut commands);
             continue;
         };
@@ -641,71 +674,27 @@ pub(super) fn predict_flight_path(
                 .any(|engine| engine_direction(pose.1, &engine.mount).is_some());
         let goal_gone =
             matches!(autopilot.action, AutopilotAction::Goto { .. }) && target.is_none();
-        if !flies || goal_gone || wells_move {
-            nonfinite.remove(&ship);
+        if !flies || goal_gone {
+            failed.remove(&ship);
+            hide(&mut commands);
+            continue;
+        }
+        // Every shipped well is static. One that moves is a body the run
+        // cannot fly, and a path through frozen wells would be a lie.
+        if wells_move {
+            if failed.insert(ship) {
+                error!(
+                    "predict_flight_path: a gravity well near {ship:?} moves, which the \
+                     prediction does not model; showing no predicted path"
+                );
+            }
             hide(&mut commands);
             continue;
         }
 
-        // A live target off the coast a forecast flew it on, each forecast
-        // flown from its own seed: the published path's, then the run's.
-        let mut run_departed = false;
-        if let (Some(run), Some((live, goal))) = (run.as_mut(), target_body.zip(target.as_ref())) {
-            if run.action == autopilot.action {
-                let now = time.elapsed();
-                // Only a fixed tick moves the targets: a paused frame leaves
-                // the run, a failed seed included, unwritten.
-                if run.shown_target.is_some_and(|shown| shown.time < now)
-                    || run
-                        .target_motion
-                        .is_some_and(|motion| motion.expected.time < now)
-                {
-                    let run: &mut FlightPredictionRun = run;
-                    let mut fly = |expected: &mut ExpectedTarget| {
-                        while expected.time < now {
-                            expected.body.step(
-                                &run.gravity_wells,
-                                &gravity_settings,
-                                substeps,
-                                avian_gravity.0,
-                                &mut candidates,
-                                &mut pulls,
-                            );
-                            expected.time += time.timestep();
-                        }
-                    };
-                    if let Some(shown) = run.shown_target.as_mut() {
-                        fly(shown);
-                    }
-                    if let Some(motion) = run.target_motion.as_mut() {
-                        fly(&mut motion.expected);
-                    }
-                }
-                let departed = |expected: &ExpectedTarget| {
-                    live.velocity.distance(expected.body.velocity) > TARGET_UNEXPLAINED_DELTA_V
-                        || live
-                            .angular_velocity
-                            .distance(expected.body.angular_velocity)
-                            > TARGET_UNEXPLAINED_ANGULAR_DELTA_V
-                        || goal.goal.distance(expected.body.goal(expected.anchor))
-                            > TARGET_GOAL_DEVIATION
-                };
-                if run.shown_target.as_ref().is_some_and(departed) {
-                    run.shown_target = None;
-                    commands.entity(ship).remove::<FlightPrediction>();
-                }
-                run_departed = run
-                    .target_motion
-                    .as_ref()
-                    .is_some_and(|motion| departed(&motion.expected));
-            }
-        }
-
         let mut seeded = None;
         let run = match run {
-            Some(run)
-                if run.action == autopilot.action && !run.points.is_empty() && !run_departed =>
-            {
+            Some(run) if run.action == autopilot.action && !run.points.is_empty() => {
                 run.into_inner()
             }
             stale => {
@@ -713,7 +702,6 @@ pub(super) fn predict_flight_path(
                     .as_ref()
                     .is_some_and(|run| run.action == autopilot.action);
                 if same_leg
-                    && !run_departed
                     && (stale.as_ref().is_some_and(|run| {
                         run.points.is_empty() && run.seed_time == time.elapsed()
                     }) || published.is_some_and(|path| path.seed_time == time.elapsed()))
@@ -737,18 +725,8 @@ pub(super) fn predict_flight_path(
                         .zip(target.as_ref())
                         .map(|(body, goal)| TargetMotion {
                             predicted: body,
-                            expected: ExpectedTarget {
-                                anchor: goal.anchor,
-                                body,
-                                time: time.elapsed(),
-                            },
+                            anchor: goal.anchor,
                         });
-                // The published path stays for the same leg until this run
-                // replaces it, so its target keeps being checked.
-                let shown_target = stale
-                    .as_ref()
-                    .filter(|_| same_leg)
-                    .and_then(|run| run.shown_target);
                 let seed = FlightPredictionRun {
                     action: autopilot.action,
                     autopilot: *autopilot,
@@ -758,7 +736,6 @@ pub(super) fn predict_flight_path(
                     mass: *mass,
                     target,
                     target_motion,
-                    shown_target,
                     telemetry: telemetry.copied(),
                     wells,
                     gravity_wells,
@@ -784,12 +761,17 @@ pub(super) fn predict_flight_path(
             }
         };
 
-        let horizon_ticks = (PREDICTION_HORIZON / dt).round() as u32;
+        let cap_ticks = (PREDICTION_CAP_SECONDS / dt).round() as u32;
         let mut end = None;
         let mut finite = true;
+        let mut capped = false;
         for _ in 0..PREDICTED_TICKS_PER_FIXED_TICK {
+            if run.ticks >= cap_ticks {
+                capped = true;
+                break;
+            }
             if let (Some(motion), Some(goal)) = (&run.target_motion, run.target.as_mut()) {
-                goal.goal = motion.predicted.goal(motion.expected.anchor);
+                goal.goal = motion.predicted.goal(motion.anchor);
             }
             let env = FlightEnvironment {
                 dt,
@@ -875,22 +857,25 @@ pub(super) fn predict_flight_path(
             if run.ticks % SAMPLE_TICKS == 0 {
                 run.points.push(run.body.center_of_mass);
             }
-            if run.ticks >= horizon_ticks {
-                end = Some(FlightPredictionEndType::Horizon);
-                break;
-            }
         }
 
-        if !finite {
-            if nonfinite.insert(ship) {
-                error!(
-                    "predict_flight_path: the predicted flight of {ship:?} went non-finite \
-                     {} ticks after its seed; hiding the prediction",
-                    run.ticks
-                );
+        if !finite || capped {
+            if failed.insert(ship) {
+                if capped {
+                    error!(
+                        "predict_flight_path: the predicted {:?} leg of {ship:?} did not end in \
+                         {PREDICTION_CAP_SECONDS} s; showing no predicted path",
+                        run.action
+                    );
+                } else {
+                    error!(
+                        "predict_flight_path: the predicted flight of {ship:?} went non-finite \
+                         {} ticks after its seed; showing no predicted path",
+                        run.ticks
+                    );
+                }
             }
             run.points.clear();
-            run.shown_target = None;
             if let Some(seed) = seeded {
                 commands.entity(ship).insert(seed);
             }
@@ -917,7 +902,6 @@ pub(super) fn predict_flight_path(
             final_point_time: run.ticks as f32 * dt,
             end,
         };
-        run.shown_target = run.target_motion.map(|motion| motion.expected);
         commands.entity(ship).insert(prediction);
         if let Some(seed) = seeded {
             commands.entity(ship).insert(seed);

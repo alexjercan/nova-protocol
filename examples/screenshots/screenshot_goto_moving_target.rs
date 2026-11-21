@@ -1,7 +1,6 @@
 //! screenshot_goto_moving_target: a GOTO at a hauler that coasts on a circular
 //! orbit of a planetoid, shot on the HUD and on the Map to show the forecast
-//! curving with a moving, well-pulled target and the dim guide running on to
-//! the hauler's live position.
+//! curving with a moving, well-pulled target to where it meets the hauler.
 //!
 //! The production prediction (`nova_ship::flight::prediction`), the holo
 //! ribbon (`nova_hud::holo_instruments`) and the Map route
@@ -17,6 +16,11 @@
 //! The Map route strokes are crate-private to `nova_interface`, so the Map
 //! still is checked by eye only. One fixture: it does not prove every moving
 //! target.
+//!
+//! FIXME: this fixture fails at "wait for the predicted curve". The live GOTO
+//! trails the orbiting hauler and never arrives, so the prediction reaches
+//! `PREDICTION_CAP_SECONDS` and shows no path. Remove this note when the GOTO
+//! arrival closes on a target that falls in a well.
 //!
 //! ```text
 //! NOVA_CAPTURE_DIR=/tmp/goto-moving-target NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
@@ -67,8 +71,8 @@ const TARGET_START: Meters3 = Meters3::new(0.0, 0.0, -4_000.0);
 /// How long the scene settles before the walk engages anything.
 #[cfg(feature = "debug")]
 const SETTLE_SECS: f32 = 0.5;
-/// Real-seconds backstop for the first forecast and guide: the predictor runs
-/// its 30 s horizon in passes of 120 ticks, and a software-rendered frame can
+/// Real-seconds backstop for the first forecast: the predictor flies the leg
+/// to its arrival in passes of 120 ticks, and a software-rendered frame can
 /// take seconds.
 #[cfg(feature = "debug")]
 const PREDICTION_DEADLINE_SECS: f32 = 120.0;
@@ -102,7 +106,7 @@ const FOLLOW_HORIZON_SECS: f32 = 4.0;
 #[cfg(feature = "debug")]
 const SNAPSHOT_INTERVAL_SECS: f32 = 2.0;
 /// Forecast snapshots the flown window must take: forecasts keep publishing
-/// while the hauler coasts, so the target checks do not hide the path.
+/// while the hauler coasts.
 #[cfg(feature = "debug")]
 const SNAPSHOTS_MIN: u32 = 3;
 
@@ -398,42 +402,51 @@ fn assert_target_coasts_in_well(world: &mut World) {
     );
 }
 
-/// The ribbon on the player ship: at least one curve segment, exactly one
-/// guide segment, and nothing hidden.
+/// The ribbon on the player ship: at least one segment, nothing hidden, and
+/// its far end on the prediction's last point - where the leg arrives.
 #[cfg(feature = "debug")]
 fn assert_ribbon(world: &mut World) {
     let player =
         ring::player_root(world).expect("screenshot_goto_moving_target: the player is present");
-    let (mut curve, mut guide, mut hidden) = (0u32, 0u32, 0u32);
-    let mut segments = world.query::<(&TrajectoryRibbonSegment, &Visibility)>();
-    for (segment, visibility) in segments.iter(world) {
+    let arrival = *world
+        .get::<FlightPrediction>(player)
+        .expect("screenshot_goto_moving_target: the player has a FlightPrediction")
+        .points
+        .last()
+        .expect("screenshot_goto_moving_target: a prediction has points");
+    let (mut drawn, mut hidden, mut end) = (0u32, 0u32, None);
+    let mut segments = world.query::<(&TrajectoryRibbonSegment, &Transform, &Visibility)>();
+    for (segment, transform, visibility) in segments.iter(world) {
         if segment.ship != player {
             continue;
         }
-        if segment.guide {
-            guide += 1;
-        } else {
-            curve += 1;
-        }
+        drawn += 1;
         if *visibility == Visibility::Hidden {
             hidden += 1;
         }
+        let far =
+            transform.translation + transform.rotation.mul_vec3(Vec3::Y) * transform.scale.y * 0.5;
+        if end.is_none_or(|(index, _)| segment.index > index) {
+            end = Some((segment.index, far));
+        }
     }
+    let end = end.map(|(_, far)| far);
     info!(
-        "screenshot_goto_moving_target: ribbon has {curve} curve, {guide} guide, {hidden} hidden \
-         segment(s)"
+        "screenshot_goto_moving_target: ribbon has {drawn} segment(s), {hidden} hidden, ends \
+         {:?} off the predicted arrival",
+        end.map(|far| far.distance(arrival))
     );
     assert!(
-        curve >= 1,
-        "screenshot_goto_moving_target: the ribbon drew no curve segment"
-    );
-    assert_eq!(
-        guide, 1,
-        "screenshot_goto_moving_target: the ribbon must draw exactly one guide segment"
+        drawn >= 1,
+        "screenshot_goto_moving_target: the ribbon drew no segment"
     );
     assert_eq!(
         hidden, 0,
         "screenshot_goto_moving_target: a ribbon segment is hidden"
+    );
+    assert!(
+        end.is_some_and(|far| far.distance(arrival) < 0.01),
+        "screenshot_goto_moving_target: the ribbon must end on the predicted arrival"
     );
 }
 
@@ -460,8 +473,8 @@ fn assert_bend(world: &mut World) {
         .fold(0.0_f32, f32::max);
     info!(
         "screenshot_goto_moving_target: drawn curve bends {bend:.1} units off the chord to the \
-         hauler, ends {:?}",
-        prediction.end
+         hauler, ends {:?} after {:.1} s",
+        prediction.end, prediction.final_point_time
     );
     assert!(
         bend >= BEND_MIN.to_engine(),
@@ -566,15 +579,13 @@ fn moving_target_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin
                 world
                     .try_query::<&TrajectoryRibbonSegment>()
                     .is_some_and(|mut segments| {
-                        segments
-                            .iter(world)
-                            .any(|segment| segment.ship == player && segment.guide)
+                        segments.iter(world).any(|segment| segment.ship == player)
                     })
             })
         }) as Arc<Predicate>,
     );
     let script = script
-        .step("wait for the predicted curve and guide")
+        .step("wait for the predicted curve")
         .until(leg_under_way)
         .deadline(PREDICTION_DEADLINE_SECS)
         .add()

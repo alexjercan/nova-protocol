@@ -4,17 +4,14 @@
 //!
 //! - **Trajectory ribbon**: the part of the leg's [`FlightPrediction`] the
 //!   ship has not flown yet, as thin cylinder segments from the rendered
-//!   centre of mass. The curve stops where the prediction stops: at the end of
-//!   the leg or at the prediction horizon. A GOTO adds one dim straight guide
-//!   from the end of the curve, or from the ship with no curve, to the live
-//!   target, so a fresh GOTO and a forecast that stops short both point at the
-//!   target. The guide is dim because the autopilot does not fly that line.
+//!   centre of mass to the point the leg ends at. It is only ever the
+//!   predicted path: with no prediction there is no ribbon.
 //! - **Flip gate**: a ring at the predicted flip point, perpendicular to the
 //!   predicted path, sized to fly through, until the leg first brakes.
 
 use std::time::Duration;
 
-use avian3d::prelude::{ComputedCenterOfMass, Position};
+use avian3d::prelude::ComputedCenterOfMass;
 use bevy::{light::NotShadowCaster, prelude::*};
 use nova_events::units::prelude::*;
 use nova_gameplay::markers::prelude::*;
@@ -33,15 +30,10 @@ pub mod prelude {
 /// Ribbon segment tube radius, world units.
 const RIBBON_RADIUS: f32 = 0.06;
 
-/// Most segments the ribbon's predicted curve draws. A 30 s prediction has
-/// about 240 points; the ribbon keeps its sharpest bends and drops the rest,
-/// so the entity count stays bounded. The GOTO guide is one segment more.
+/// Most segments the ribbon draws. A leg predicted to its arrival has eight
+/// points a second; the ribbon keeps its sharpest bends and drops the rest,
+/// so the entity count stays bounded.
 const RIBBON_SEGMENTS: usize = 60;
-
-/// Alpha of the ribbon's GOTO guide, against `NAV_CYAN`'s own on the curve.
-/// The same dim as the map's guide stroke, so both views tell the straight
-/// line apart from the predicted path in one way.
-const GUIDE_ALPHA: f32 = 0.3;
 
 /// How far outside the hull's own physical envelope the flip gate's mouth
 /// stands.
@@ -67,9 +59,6 @@ pub struct TrajectoryRibbonSegment {
     pub ship: Entity,
     /// Segment index along the path (0 = from the ship).
     pub index: usize,
-    /// This segment is the GOTO guide to the target, not part of the predicted
-    /// curve. A pooled segment changes role as the curve grows or shrinks.
-    pub guide: bool,
 }
 
 /// The flip gate of an engaged leg.
@@ -93,8 +82,6 @@ pub(crate) struct HoloAssets {
     /// the tube is an indicator width.
     gate_mesh: Option<(f32, Handle<Mesh>)>,
     material: Option<Handle<StandardMaterial>>,
-    /// The ribbon's GOTO guide style: `material` at [`GUIDE_ALPHA`].
-    guide_material: Option<Handle<StandardMaterial>>,
 }
 
 impl HoloAssets {
@@ -125,22 +112,17 @@ impl HoloAssets {
     pub(crate) fn material(
         &mut self,
         materials: &mut Assets<StandardMaterial>,
-        is_guide: bool,
     ) -> Handle<StandardMaterial> {
-        let (slot, base_color) = if is_guide {
-            (&mut self.guide_material, NAV_CYAN.with_alpha(GUIDE_ALPHA))
-        } else {
-            (&mut self.material, NAV_CYAN)
-        };
-        slot.get_or_insert_with(|| {
-            materials.add(StandardMaterial {
-                base_color,
-                alpha_mode: AlphaMode::Blend,
-                unlit: true,
-                ..default()
+        self.material
+            .get_or_insert_with(|| {
+                materials.add(StandardMaterial {
+                    base_color: NAV_CYAN,
+                    alpha_mode: AlphaMode::Blend,
+                    unlit: true,
+                    ..default()
+                })
             })
-        })
-        .clone()
+            .clone()
     }
 }
 
@@ -195,54 +177,11 @@ fn is_ahead(prediction: &FlightPrediction, now: Duration, index: usize) -> bool 
     point_time > flown
 }
 
-/// Reduce a polyline to at most `max` vertices, keeping its ends and its
-/// sharpest bends: starting from the two ends, repeatedly keep the vertex that
-/// lies furthest from the chord between its kept neighbours (top-N
-/// Ramer-Douglas-Peucker). The pick depends only on the points, so one path
-/// always gives one ribbon. A polyline already within `max` is returned whole.
-fn decimate_path(points: &[Vec3], max: usize) -> Vec<Vec3> {
-    if points.len() <= max.max(2) {
-        return points.to_vec();
-    }
-    let deviation = |i: usize, a: usize, b: usize| {
-        let chord = points[b] - points[a];
-        let offset = points[i] - points[a];
-        let length_squared = chord.length_squared();
-        if length_squared <= f32::EPSILON {
-            offset.length()
-        } else {
-            offset
-                .reject_from_normalized(chord / length_squared.sqrt())
-                .length()
-        }
-    };
-    let mut kept = vec![0, points.len() - 1];
-    while kept.len() < max {
-        let Some((at, index, _)) = kept
-            .windows(2)
-            .enumerate()
-            .filter_map(|(at, pair)| {
-                (pair[0] + 1..pair[1])
-                    .map(|i| (at + 1, i, deviation(i, pair[0], pair[1])))
-                    .max_by(|a, b| a.2.total_cmp(&b.2))
-            })
-            .max_by(|a, b| a.2.total_cmp(&b.2))
-        else {
-            break;
-        };
-        kept.insert(at, index);
-    }
-    kept.into_iter().map(|i| points[i]).collect()
-}
-
 /// Own the ribbon: one thin segment per span of the path from the rendered
 /// ship through the prediction points still ahead of it, decimated to at most
-/// [`RIBBON_SEGMENTS`] pooled segments, then for a GOTO one guide segment on
-/// to the target's live pose. The guide draws with or without a prediction,
-/// also while a target changing course or spin or a moving well holds the
-/// prediction back. A target that no longer resolves gets no guide rather than
-/// a guessed end. Updated every frame (the ship end moves every tick),
-/// despawned when the ship has neither a prediction nor a GOTO guide.
+/// [`RIBBON_SEGMENTS`] pooled segments. The ribbon is the predicted path and
+/// nothing else: a ship with no prediction, or with every point flown, has no
+/// ribbon. Updated every frame (the ship end moves every tick).
 fn sync_trajectory_ribbon(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -257,65 +196,36 @@ fn sync_trajectory_ribbon(
             Entity,
             &Transform,
             Option<&ComputedCenterOfMass>,
-            &Autopilot,
-            Option<&FlightPrediction>,
+            &FlightPrediction,
         ),
         (
             With<PlayerSpaceshipMarker>,
             Without<TrajectoryRibbonSegment>,
         ),
     >,
-    q_target: Query<(Option<&GlobalTransform>, Option<&Position>)>,
-    mut q_segment: Query<(
-        Entity,
-        &mut TrajectoryRibbonSegment,
-        &mut Transform,
-        &mut MeshMaterial3d<StandardMaterial>,
-    )>,
+    mut q_segment: Query<(Entity, &TrajectoryRibbonSegment, &mut Transform)>,
 ) {
     let now = time.elapsed();
-    let path = q_ship.iter().next().and_then(
-        |(ship, transform, center_of_mass, autopilot, prediction)| {
-            let ahead = prediction.into_iter().flat_map(|prediction| {
-                prediction
-                    .points
-                    .iter()
-                    .enumerate()
-                    .filter(move |&(index, _)| is_ahead(prediction, now, index))
-                    .map(|(_, point)| *point)
-            });
-            let mut points = decimate_path(
+    let path = q_ship
+        .iter()
+        .next()
+        .and_then(|(ship, transform, center_of_mass, prediction)| {
+            let ahead = prediction
+                .points
+                .iter()
+                .enumerate()
+                .filter(|&(index, _)| is_ahead(prediction, now, index))
+                .map(|(_, point)| *point);
+            let points = decimate_path(
                 &std::iter::once(live_structure_anchor(transform, center_of_mass))
                     .chain(ahead)
                     .collect::<Vec<_>>(),
                 RIBBON_SEGMENTS + 1,
             );
-            let curve = points.len() - 1;
-            let end = points[curve];
-            // The target's rendered pose, as the destination marker draws it;
-            // raw Position for a target without one. A target already at the
-            // path's end has no direction to guide along.
-            let target = match autopilot.action {
-                AutopilotAction::Goto { target } => q_target
-                    .get(target)
-                    .ok()
-                    .and_then(|(global, position)| {
-                        global
-                            .map(GlobalTransform::translation)
-                            .or(position.map(|position| position.0))
-                    })
-                    .filter(|target| {
-                        let length = target.distance(end);
-                        length.is_finite() && length > f32::EPSILON
-                    }),
-                _ => None,
-            };
-            points.extend(target);
-            (points.len() > 1).then_some((ship, points, curve))
-        },
-    );
+            (points.len() > 1).then_some((ship, points))
+        });
 
-    let Some((ship, points, curve)) = path else {
+    let Some((ship, points)) = path else {
         for (entity, ..) in &q_segment {
             commands.entity(entity).despawn();
         }
@@ -324,34 +234,26 @@ fn sync_trajectory_ribbon(
 
     let wanted = points.len() - 1;
     let mut present = vec![false; wanted];
-    for (entity, mut segment, mut transform, mut material) in &mut q_segment {
+    for (entity, segment, mut transform) in &mut q_segment {
         if segment.ship != ship || segment.index >= wanted {
             commands.entity(entity).despawn();
             continue;
         }
         present[segment.index] = true;
         *transform = segment_transform(points[segment.index], points[segment.index + 1]);
-        // Without the swap a segment that changed role keeps the other
-        // role's style.
-        let guide = segment.index == curve;
-        if segment.guide != guide {
-            segment.guide = guide;
-            material.0 = assets.material(&mut materials, guide);
-        }
     }
     for (index, _) in present
         .iter()
         .enumerate()
         .filter(|(_, in_place)| !**in_place)
     {
-        let guide = index == curve;
         commands.spawn((
             Name::new("TrajectoryRibbonSegment"),
             crate::HudTier::Instrument,
-            TrajectoryRibbonSegment { ship, index, guide },
+            TrajectoryRibbonSegment { ship, index },
             Mesh3d(assets.segment_mesh(&mut meshes)),
             NotShadowCaster,
-            MeshMaterial3d(assets.material(&mut materials, guide)),
+            MeshMaterial3d(assets.material(&mut materials)),
             segment_transform(points[index], points[index + 1]),
             Visibility::Visible,
         ));
@@ -442,7 +344,7 @@ fn sync_flip_gate(
             FlipGateMarker { ship },
             Mesh3d(mesh),
             NotShadowCaster,
-            MeshMaterial3d(assets.material(&mut materials, false)),
+            MeshMaterial3d(assets.material(&mut materials)),
             Transform::from_translation(flip).with_rotation(rotation),
             Visibility::Visible,
         ));
@@ -451,6 +353,7 @@ fn sync_flip_gate(
 
 #[cfg(test)]
 mod tests {
+    use avian3d::prelude::Position;
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
@@ -500,8 +403,7 @@ mod tests {
                 // Published every fixed tick in production; the gate is sized
                 // from it, so the fixture carries it too.
                 HullEnvelopeRadius(SKIFF_ENVELOPE),
-                // A STOP leg has no target, so its ribbon is the prediction
-                // alone; a test flies a GOTO by replacing it.
+                // A test flies a GOTO by replacing it.
                 Autopilot::engage(AutopilotAction::Stop),
                 prediction,
             ))
@@ -526,9 +428,9 @@ mod tests {
             .collect()
     }
 
-    /// The ribbon runs through `vertices`; with `guide` its last segment is
-    /// the GOTO guide and every other one is curve, in role and in style.
-    fn assert_ribbon(world: &mut World, vertices: &[Vec3], guide: bool) {
+    /// The ribbon runs through `vertices` and nothing else, every segment in
+    /// the one ribbon style.
+    fn assert_ribbon(world: &mut World, vertices: &[Vec3]) {
         let segments = ribbon(world);
         assert_eq!(segments.len(), vertices.len() - 1, "segments {segments:?}");
         for ((from, to), pair) in segments.iter().zip(vertices.windows(2)) {
@@ -539,15 +441,11 @@ mod tests {
                 pair[1]
             );
         }
-        let assets = world.resource::<HoloAssets>();
-        let (curve, dim) = (assets.material.clone(), assets.guide_material.clone());
+        let style = world.resource::<HoloAssets>().material.clone();
         for (segment, material) in world
             .query::<(&TrajectoryRibbonSegment, &MeshMaterial3d<StandardMaterial>)>()
             .iter(world)
         {
-            let want = guide && segment.index == segments.len() - 1;
-            assert_eq!(segment.guide, want, "segment {} role", segment.index);
-            let style = if want { &dim } else { &curve };
             assert_eq!(
                 Some(&material.0),
                 style.as_ref(),
@@ -583,9 +481,9 @@ mod tests {
 
     /// The ribbon starts at the rendered centre of mass, because every
     /// prediction point is a centre of mass, then follows the points the ship
-    /// has not reached, ends at the last one, and goes with the prediction.
-    /// A GOTO adds a dim guide to the live target at once, with or without a
-    /// prediction, and drops it when the target no longer resolves.
+    /// has not reached, ends at the last one, and goes with the prediction. A
+    /// GOTO draws nothing until its first prediction lands, then exactly the
+    /// predicted path: never a line to the target.
     #[test]
     fn the_ribbon_draws_the_unflown_prediction_from_the_rendered_centre_of_mass() {
         let mut world = holo_world();
@@ -602,7 +500,7 @@ mod tests {
         // The seed point is where the ship already is.
         let mut vertices = vec![rendered];
         vertices.extend_from_slice(&BENDING_PATH[1..]);
-        assert_ribbon(&mut world, &vertices, false);
+        assert_ribbon(&mut world, &vertices);
 
         // Two and a half samples on, the ship has flown past points 1 and 2.
         world
@@ -611,16 +509,11 @@ mod tests {
         world.run_system_once(sync_trajectory_ribbon).unwrap();
         world.run_system_once(sync_trajectory_ribbon).unwrap();
         let curve = [rendered, BENDING_PATH[3], BENDING_PATH[4]];
-        assert_ribbon(&mut world, &curve, false);
+        assert_ribbon(&mut world, &curve);
 
-        // A STOP with no prediction has no ribbon: STOP has no target to
-        // guide to.
+        // A fresh GOTO with no prediction yet draws nothing, wherever its
+        // target is.
         world.entity_mut(ship).remove::<FlightPrediction>();
-        world.run_system_once(sync_trajectory_ribbon).unwrap();
-        assert!(ribbon(&mut world).is_empty());
-
-        // A fresh GOTO guides to its target before any prediction, and the
-        // guide follows the target's rendered pose as it moves.
         let target = world
             .spawn(GlobalTransform::from_translation(Vec3::new(
                 40.0, 0.0, -120.0,
@@ -630,76 +523,53 @@ mod tests {
             .entity_mut(ship)
             .insert(Autopilot::engage(AutopilotAction::Goto { target }));
         world.run_system_once(sync_trajectory_ribbon).unwrap();
-        assert_ribbon(&mut world, &[rendered, Vec3::new(40.0, 0.0, -120.0)], true);
-        let moved = Vec3::new(44.0, 0.0, -124.0);
-        world
-            .entity_mut(target)
-            .insert(GlobalTransform::from_translation(moved));
-        world.run_system_once(sync_trajectory_ribbon).unwrap();
-        assert_ribbon(&mut world, &[rendered, moved], true);
-
-        // A target on the rendered ship has no direction, so no guide.
-        world
-            .entity_mut(target)
-            .insert(GlobalTransform::from_translation(rendered));
         world.run_system_once(sync_trajectory_ribbon).unwrap();
         assert!(ribbon(&mut world).is_empty());
-        world
-            .entity_mut(target)
-            .insert(GlobalTransform::from_translation(moved));
-        world.run_system_once(sync_trajectory_ribbon).unwrap();
 
-        // With a prediction the curve leads and the guide runs on from its
-        // end to the target; the first segment turns from guide to curve.
+        // The first prediction lands: the ribbon is that path alone.
         world
             .entity_mut(ship)
             .insert(prediction(BENDING_PATH.to_vec(), None));
         world.run_system_once(sync_trajectory_ribbon).unwrap();
         world.run_system_once(sync_trajectory_ribbon).unwrap();
-        assert_ribbon(
-            &mut world,
-            &[rendered, BENDING_PATH[3], BENDING_PATH[4], moved],
-            true,
-        );
+        assert_ribbon(&mut world, &curve);
 
-        // A target that no longer resolves gets no guessed end.
-        world.despawn(target);
+        // Every point flown: nothing ahead, nothing drawn.
+        world
+            .resource_mut::<Time<Fixed>>()
+            .advance_by(Duration::from_secs_f32(2.0 * SAMPLE_INTERVAL));
         world.run_system_once(sync_trajectory_ribbon).unwrap();
         world.run_system_once(sync_trajectory_ribbon).unwrap();
-        assert_ribbon(&mut world, &curve, false);
+        assert!(ribbon(&mut world).is_empty());
     }
 
-    /// A full 30 s prediction has hundreds of points; the ribbon draws at most
-    /// [`RIBBON_SEGMENTS`] of them and keeps its ends and its corner, and the
-    /// GOTO guide is one segment more, from the curve's end to the target.
+    /// A leg predicted to its arrival has thousands of points; the ribbon
+    /// draws at most [`RIBBON_SEGMENTS`] of them and keeps its ends and its
+    /// corner, and ends at the path's last point.
     #[test]
     fn the_ribbon_keeps_its_ends_and_bends_within_its_segment_cap() {
         let mut world = holo_world();
-        let corner = Vec3::new(0.0, 0.0, -199.0);
-        let points: Vec<Vec3> = (0..400)
+        let corner = Vec3::new(0.0, 0.0, -1999.0);
+        let points: Vec<Vec3> = (0..4000)
             .map(|i| match i {
-                0..200 => Vec3::new(0.0, 0.0, -(i as f32)),
-                _ => corner + Vec3::X * (i - 199) as f32,
+                0..2000 => Vec3::new(0.0, 0.0, -(i as f32)),
+                _ => corner + Vec3::X * (i - 1999) as f32,
             })
             .collect();
         let end = *points.last().unwrap();
         let ship = spawn_ship(&mut world, prediction(points, None));
-        // A target with only a physics pose still guides.
-        let goal = Vec3::new(600.0, 0.0, -400.0);
-        let target = world.spawn(Position(goal)).id();
+        let target = world.spawn(GlobalTransform::from_translation(end)).id();
         world
             .entity_mut(ship)
             .insert(Autopilot::engage(AutopilotAction::Goto { target }));
 
         world.run_system_once(sync_trajectory_ribbon).unwrap();
         let segments = ribbon(&mut world);
-        assert_eq!(segments.len(), RIBBON_SEGMENTS + 1);
+        assert_eq!(segments.len(), RIBBON_SEGMENTS);
         assert!(segments[0].0.distance(Vec3::ZERO) < 1e-4);
-        assert!(segments[RIBBON_SEGMENTS - 1].1.distance(end) < 1e-4);
         assert!(
-            segments[RIBBON_SEGMENTS].0.distance(end) < 1e-4
-                && segments[RIBBON_SEGMENTS].1.distance(goal) < 1e-4,
-            "the guide runs from the curve's end to the target"
+            segments[RIBBON_SEGMENTS - 1].1.distance(end) < 1e-4,
+            "the ribbon ends at the path's last point"
         );
         assert!(
             segments.iter().any(|(_, to)| to.distance(corner) < 1e-4),

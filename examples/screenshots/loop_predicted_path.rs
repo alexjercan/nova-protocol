@@ -10,8 +10,9 @@
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - fly the leg, check the bend
 //!   and the followed curve, exit clean, recording nothing.
-//! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also write the `news-0150-predicted-path`
-//!   webm loop (staged under `NOVA_CAPTURE_DIR`).
+//! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also write a HUD still and a Map
+//!   still of the whole predicted leg, then the `news-0150-predicted-path`
+//!   webm loop (all staged under `NOVA_CAPTURE_DIR`).
 //!
 //! Capture (windowed, real GPU):
 //! ```text
@@ -31,6 +32,8 @@ use bevy::prelude::*;
 use clap::Parser;
 #[cfg(feature = "debug")]
 use nova_protocol::nova_debug::harness::Predicate;
+#[cfg(feature = "debug")]
+use nova_protocol::nova_interface::pane::InterfacePaneType;
 use nova_protocol::prelude::*;
 
 #[derive(Parser)]
@@ -44,6 +47,10 @@ struct Cli;
 
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "news-0150-predicted-path";
+#[cfg(feature = "debug")]
+const HUD_SHOT: &str = "predicted-path-hud.png";
+#[cfg(feature = "debug")]
+const MAP_SHOT: &str = "predicted-path-map.png";
 
 const PLAYER_ID: &str = "path_player";
 const BEACON_ID: &str = "path_beacon";
@@ -53,8 +60,8 @@ const BEACON_ID: &str = "path_beacon";
 const START: Meters3 = Meters3::new(-4_000.0, 0.0, 2_500.0);
 /// The leg's target: with [`START`], an 8 km leg whose chord passes 2.5 km
 /// from the well's centre - inside the pull, clear of the 940.5 m surface, and
-/// long enough to outrun the 30 s prediction horizon, so the dim guide draws
-/// past the end of the curve.
+/// longer than 30 s, so the drawn path is predicted well past what one
+/// 30 s look ahead would reach. An objective marker plots it on the Map.
 const BEACON: Meters3 = Meters3::new(4_000.0, 0.0, 2_500.0);
 /// Radar signature; the same ratio [`ring::BEACON_SIGNATURE`] uses, so the
 /// lock bracket reads at scale.
@@ -63,11 +70,21 @@ const BEACON_SIGNATURE: Meters = Meters(400.0);
 /// How long the scene settles before the walk engages anything.
 #[cfg(feature = "debug")]
 const SETTLE_SECS: f32 = 0.5;
-/// Real-seconds backstop for the predicted curve and guide to appear: the
-/// predictor runs its 30 s horizon in passes of 120 ticks, so a cold seed
-/// takes several frames even on a software-rendered GPU.
+/// Real-seconds backstop for the predicted curve to appear: the predictor
+/// flies the leg to its arrival in passes of 120 ticks, so a cold seed takes
+/// tens of frames, each seconds long on a software-rendered GPU.
 #[cfg(feature = "debug")]
-const PREDICTION_DEADLINE_SECS: f32 = 30.0;
+const PREDICTION_DEADLINE_SECS: f32 = 120.0;
+/// Frames the leg camera eases before the HUD still.
+#[cfg(feature = "debug")]
+const HUD_SETTLE_FRAMES: u32 = 10;
+/// Frames the Map pane renders before its still: its offscreen scene builds
+/// over frames.
+#[cfg(feature = "debug")]
+const MAP_SETTLE_FRAMES: u32 = 20;
+/// Real-seconds backstop for a still to land once it is requested.
+#[cfg(feature = "debug")]
+const SHOT_DEADLINE_SECS: f32 = 60.0;
 /// Recorded frames: the loop profile's 30 fps makes this 15 s, comfortably
 /// under the 600-frame cap and long enough to show the curve bending and the
 /// ship following it.
@@ -179,7 +196,14 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
             once: false,
             filters: vec![],
             actions: [
-                vec![ring::planetoid(), player, beacon],
+                vec![
+                    ring::planetoid(),
+                    player,
+                    beacon,
+                    EventActionConfig::ObjectiveMarkerAttach(
+                        ObjectiveMarkerAttachActionConfig::new(BEACON_ID, "SURVEY"),
+                    ),
+                ],
                 ThreePointRig::around("photo", Meters3::ZERO, 1.0).actions(),
             ]
             .concat(),
@@ -302,6 +326,19 @@ fn snapshot_ready() -> Arc<Predicate> {
     })
 }
 
+/// The interface is up on `pane`.
+#[cfg(feature = "debug")]
+fn the_interface_shows(pane: InterfacePaneType) -> Arc<Predicate> {
+    Arc::new(move |world: &World| {
+        world
+            .get_resource::<State<PauseStates>>()
+            .is_some_and(|pause| *pause.get() == PauseStates::Interface)
+            && world
+                .get_resource::<InterfacePaneType>()
+                .is_some_and(|shown| *shown == pane)
+    })
+}
+
 /// Perpendicular distance of `point` from the chord `a -> b`, falling back to
 /// the distance to `a` for a degenerate chord. Shared by [`assert_bend`] and
 /// [`assert_flew_curve`]: one measure, the drawn curve and the flown track.
@@ -315,38 +352,48 @@ fn perpendicular_distance(point: Vec3, a: Vec3, b: Vec3) -> f32 {
     (point - a).reject_from_normalized(chord / length).length()
 }
 
-/// The ribbon on the player ship: at least one curve segment, exactly one
-/// guide segment, and nothing hidden.
+/// The ribbon on the player ship: at least one segment, nothing hidden, and
+/// its far end on the prediction's last point - where the leg arrives.
 #[cfg(feature = "debug")]
 fn assert_ribbon(world: &mut World) {
     let player = ring::player_root(world).expect("loop_predicted_path: the player ship is present");
-    let (mut curve, mut guide, mut hidden) = (0u32, 0u32, 0u32);
-    let mut segments = world.query::<(&TrajectoryRibbonSegment, &Visibility)>();
-    for (segment, visibility) in segments.iter(world) {
+    let arrival = *world
+        .get::<FlightPrediction>(player)
+        .expect("loop_predicted_path: the player has a FlightPrediction")
+        .points
+        .last()
+        .expect("loop_predicted_path: a prediction has points");
+    let (mut drawn, mut hidden, mut end) = (0u32, 0u32, None);
+    let mut segments = world.query::<(&TrajectoryRibbonSegment, &Transform, &Visibility)>();
+    for (segment, transform, visibility) in segments.iter(world) {
         if segment.ship != player {
             continue;
         }
-        if segment.guide {
-            guide += 1;
-        } else {
-            curve += 1;
-        }
+        drawn += 1;
         if *visibility == Visibility::Hidden {
             hidden += 1;
         }
+        let far =
+            transform.translation + transform.rotation.mul_vec3(Vec3::Y) * transform.scale.y * 0.5;
+        if end.is_none_or(|(index, _)| segment.index > index) {
+            end = Some((segment.index, far));
+        }
     }
+    let end = end.map(|(_, far)| far);
     info!(
-        "loop_predicted_path: ribbon has {curve} curve, {guide} guide, {hidden} hidden segment(s)"
+        "loop_predicted_path: ribbon has {drawn} segment(s), {hidden} hidden, ends {:?} off the \
+         predicted arrival",
+        end.map(|far| far.distance(arrival))
     );
     assert!(
-        curve >= 1,
-        "loop_predicted_path: the ribbon drew no curve segment"
-    );
-    assert_eq!(
-        guide, 1,
-        "loop_predicted_path: the ribbon must draw exactly one guide segment"
+        drawn >= 1,
+        "loop_predicted_path: the ribbon drew no segment"
     );
     assert_eq!(hidden, 0, "loop_predicted_path: a ribbon segment is hidden");
+    assert!(
+        end.is_some_and(|far| far.distance(arrival) < 0.01),
+        "loop_predicted_path: the ribbon must end on the predicted arrival"
+    );
 }
 
 /// The drawn curve's max perpendicular distance off the chord from its own
@@ -369,7 +416,23 @@ fn assert_bend(world: &mut World) {
         .iter()
         .map(|&point| perpendicular_distance(point, chord_start, beacon_position))
         .fold(0.0_f32, f32::max);
-    info!("loop_predicted_path: drawn curve bends {bend:.1} units off the chord to the beacon");
+    let arrival = *prediction.points.last().unwrap();
+    info!(
+        "loop_predicted_path: drawn curve bends {bend:.1} units off the chord to the beacon; \
+         the leg is predicted {:?} after {:.1} s, {:.1} units from the beacon",
+        prediction.end,
+        prediction.final_point_time,
+        arrival.distance(beacon_position)
+    );
+    assert_eq!(
+        prediction.end,
+        FlightPredictionEndType::Completed,
+        "loop_predicted_path: the path must run to the arrival"
+    );
+    assert!(
+        prediction.final_point_time > 30.0,
+        "loop_predicted_path: the leg must outlast 30 s"
+    );
     assert!(
         bend >= BEND_MIN.to_engine(),
         "loop_predicted_path: the drawn curve only bent {bend:.1} units, short of the {:.1} unit \
@@ -488,15 +551,13 @@ fn path_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
                 world
                     .try_query::<&TrajectoryRibbonSegment>()
                     .is_some_and(|mut segments| {
-                        segments
-                            .iter(world)
-                            .any(|segment| segment.ship == player && segment.guide)
+                        segments.iter(world).any(|segment| segment.ship == player)
                     })
             })
         }) as Arc<Predicate>,
     );
-    script
-        .step("wait for the predicted curve and guide")
+    let script = script
+        .step("wait for the predicted curve")
         .until(leg_under_way)
         .deadline(PREDICTION_DEADLINE_SECS)
         .add()
@@ -505,7 +566,7 @@ fn path_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .on_enter(assert_bend)
         .until(frames(1))
         .add()
-        .step("chase the ship down the curve")
+        .step("frame the leg for the HUD still")
         .on_enter(|world: &mut World| {
             ring::chase(
                 world,
@@ -514,27 +575,64 @@ fn path_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
                 Meters(70.0),
                 Meters(400.0),
             );
-            loop_start(world, LOOP_NAME);
-            let player =
-                ring::player_root(world).expect("loop_predicted_path: the player ship is present");
-            world.entity_mut(player).insert(TrackTrace::default());
         })
-        .until(frames(1))
+        .until(frames(HUD_SETTLE_FRAMES))
         .add()
-        .step("wait for the first forecast snapshot")
-        .until(snapshot_ready())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("fly the curve")
-        .until(frames(RECORD_FRAMES))
-        .add()
-        .step("check the flown curve")
-        .on_enter(assert_flew_curve)
-        .until(frames(1))
-        .add()
-        .step("close the predicted-path loop")
-        .on_enter(|world: &mut World| loop_end(world, LOOP_NAME))
-        .until(loop_written(LOOP_NAME))
-        .deadline(LOOP_CLOSE_DEADLINE_SECS)
-        .add()
+        .step("shoot the HUD")
+        .on_enter(|world: &mut World| shoot(world, HUD_SHOT))
+        .until(shot_written(HUD_SHOT))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add();
+    let script = tap(
+        script,
+        "the interface key",
+        "interface_toggle",
+        the_interface_shows(InterfacePaneType::Map),
+    )
+    .step("settle the map")
+    .until(frames(MAP_SETTLE_FRAMES))
+    .add()
+    .step("shoot the map")
+    .on_enter(|world: &mut World| shoot(world, MAP_SHOT))
+    .until(shot_written(MAP_SHOT))
+    .deadline(SHOT_DEADLINE_SECS)
+    .add();
+    tap(
+        script,
+        "the interface key again",
+        "interface_toggle",
+        resource_where::<State<PauseStates>>(|pause| *pause.get() == PauseStates::Unpaused),
+    )
+    .step("chase the ship down the curve")
+    .on_enter(|world: &mut World| {
+        ring::chase(
+            world,
+            Meters(60.0),
+            Meters(160.0),
+            Meters(70.0),
+            Meters(400.0),
+        );
+        loop_start(world, LOOP_NAME);
+        let player =
+            ring::player_root(world).expect("loop_predicted_path: the player ship is present");
+        world.entity_mut(player).insert(TrackTrace::default());
+    })
+    .until(frames(1))
+    .add()
+    .step("wait for the first forecast snapshot")
+    .until(snapshot_ready())
+    .deadline(BEAT_DEADLINE_SECS)
+    .add()
+    .step("fly the curve")
+    .until(frames(RECORD_FRAMES))
+    .add()
+    .step("check the flown curve")
+    .on_enter(assert_flew_curve)
+    .until(frames(1))
+    .add()
+    .step("close the predicted-path loop")
+    .on_enter(|world: &mut World| loop_end(world, LOOP_NAME))
+    .until(loop_written(LOOP_NAME))
+    .deadline(LOOP_CLOSE_DEADLINE_SECS)
+    .add()
 }

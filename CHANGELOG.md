@@ -103,6 +103,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Mod editor: Play holds the centre of the top bar in every view with the stage tools right of it, choice rows fit one line, and text fields grow to show every line.
 - **(breaking)** UiTheme drops `metrics.border_width`, the slider `height` and the badge `bracketed`, `padding_x` and `border_width`. Lint refuses a disabled button state that looks live.
 - While Ctrl is held, a translucent white lock-on square at the screen centre shows where the radar picks. It closes in on the press and breathes while held.
+- The GOTO line on the HUD and Map is the predicted flight to where the leg arrives, however long. Before, it ended 30 s out and a dim straight guide ran on to the target.
 
 ### Audio & Visuals
 

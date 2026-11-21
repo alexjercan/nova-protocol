@@ -2003,8 +2003,7 @@ fn predict(app: &mut App, ship: Entity, points: Vec<Vec3>, end: FlightPrediction
 
 /// The route starts at the player blip and runs through the projected
 /// prediction points still ahead of the ship, dropping those `Time<Fixed>` has
-/// flown past, then a dim guide runs from the last point ahead to the target
-/// blip. It draws again after the map closes and reopens, at 2x scale, and
+/// flown past, and ends at the last one. It draws again after the map closes and reopens, at 2x scale, and
 /// across a resize while another contact is selected, and the `GOTO` tag
 /// stays on the target.
 #[test]
@@ -2020,7 +2019,7 @@ fn the_goto_route_draws_the_predicted_path_from_the_ship_blip() {
         &mut app,
         player,
         points.clone(),
-        FlightPredictionEndType::Horizon,
+        FlightPredictionEndType::Completed,
     );
 
     // Close and reopen: the selection does not survive, the GOTO does.
@@ -2042,12 +2041,9 @@ fn the_goto_route_draws_the_predicted_path_from_the_ship_blip() {
     let expected = |app: &mut App, ahead: &[Vec3]| {
         let mut ends = vec![blip_centre(app, player)];
         ends.extend(ahead.iter().map(|point| map_px(app, *point)));
-        let mut strokes = ends
-            .windows(2)
+        ends.windows(2)
             .map(|pair| (pair[0], pair[1], 0.8))
-            .collect::<Vec<_>>();
-        strokes.push((*ends.last().unwrap(), blip_centre(app, raider), 0.3));
-        strokes
+            .collect::<Vec<_>>()
     };
     lay_out_map(&mut app, viewport, UVec2::new(1600, 1200), true);
     project_map_route_nodes(&mut app);
@@ -2118,76 +2114,87 @@ fn the_goto_route_strokes_stay_inside_a_zoomed_viewport() {
     assert!(drawn > 500.0, "the crossing stays drawn: {drawn} px");
 }
 
-/// A prediction that reaches its horizon short of the target ends where it
-/// ends, and only the dim guide runs on from there to the target blip, under
-/// the `GOTO` tag.
+/// A long curved prediction - a GOTO flown to its arrival, thousands of
+/// points - draws exactly its decimated points from the player blip to the
+/// arrival point: no stroke runs on to the target blip.
 #[test]
-fn a_horizon_route_continues_as_a_dim_guide_to_the_target() {
+fn the_goto_route_is_the_decimated_predicted_path_and_nothing_else() {
     let (mut app, player, raider, viewport) = goto_route_app();
-    let points = vec![
-        Vec3::ZERO,
-        Vec3::new(2.0, 0.0, -8.0),
-        Vec3::new(3.0, 0.0, -20.0),
-    ];
+    // 2001 points bowing 20 u off the line from the player at the origin to
+    // (0, 0, -46), 4 u short of the raider at (0, 0, -50): the standoff the
+    // leg stops at.
+    let points: Vec<Vec3> = (0..=2000)
+        .map(|i| {
+            let t = i as f32 / 2000.0;
+            Vec3::new(20.0 * (t * std::f32::consts::PI).sin(), 0.0, -46.0 * t)
+        })
+        .collect();
     predict(
         &mut app,
         player,
         points.clone(),
-        FlightPredictionEndType::Horizon,
+        FlightPredictionEndType::Completed,
     );
     lay_out_map(&mut app, viewport, UVec2::new(1600, 1200), true);
     project_map_route_nodes(&mut app);
 
-    let ends = [
-        blip_centre(&app, player),
-        map_px(&mut app, points[1]),
-        map_px(&mut app, points[2]),
-    ];
+    // The seed point is where the ship is now, so the blip stands in for it.
+    let decimated = decimate_path(&points, MAP_ROUTE_SEGMENTS + 1);
+    assert_eq!(decimated.len(), MAP_ROUTE_SEGMENTS + 1);
+    let mut ends = vec![blip_centre(&app, player)];
+    ends.extend(decimated[1..].iter().map(|point| map_px(&mut app, *point)));
+    let expected: Vec<_> = ends
+        .windows(2)
+        .map(|pair| (pair[0], pair[1], 0.8))
+        .collect();
+    assert_strokes(&mut app, &expected);
     let raider_blip = blip_centre(&app, raider);
-    assert_strokes(
-        &mut app,
-        &[
-            (ends[0], ends[1], 0.8),
-            (ends[1], ends[2], 0.8),
-            (ends[2], raider_blip, 0.3),
-        ],
+    let arrival = map_px(&mut app, *points.last().unwrap());
+    assert!(
+        arrival.distance(raider_blip) > 5.0,
+        "the arrival stands off the target blip"
     );
     assert!(
-        ends[2].distance(raider_blip) > 20.0,
-        "the horizon falls short"
-    );
-    assert_eq!(
-        goto_tag(&mut app),
-        (tag_on(raider_blip), Visibility::Inherited)
+        route_strokes(&mut app)
+            .iter()
+            .all(|(_, to, _)| to.distance(raider_blip) > 1.0),
+        "no stroke runs to the target blip"
     );
 }
 
-/// A fresh GOTO with no prediction draws the dim guide from the player blip to
-/// the target at once, and it follows a moving target. A prediction turns the
-/// pooled strokes back into the path; one flown past its off-grid final point
-/// falls back to the guide from the blip, not from the flown point. The tag
-/// stays on the live GOTO target; a cancelled GOTO, or another order with a
+/// A fresh GOTO draws no route until its first prediction lands, however its
+/// target moves, then exactly the predicted path. A prediction flown past its
+/// off-grid final point, or removed, draws nothing again. The tag stays on the
+/// live GOTO target throughout; a cancelled GOTO, or another order with a
 /// prediction of its own, draws neither, and the travel lock outlives the
 /// GOTO.
 #[test]
-fn the_goto_guide_draws_without_a_prediction_and_hides_without_a_goto() {
+fn a_goto_draws_no_route_until_its_prediction_lands() {
     let (mut app, player, raider, viewport) = goto_route_app();
     lay_out_map(&mut app, viewport, UVec2::new(1600, 1200), true);
     project_map_route_nodes(&mut app);
-    let guide = |app: &mut App| (blip_centre(app, player), blip_centre(app, raider), 0.3);
-    let fresh = guide(&mut app);
-    assert_strokes(&mut app, &[fresh]);
+    assert_eq!(route_strokes(&mut app), [], "no prediction, no route");
+    let fresh = blip_centre(&app, raider);
+    assert_eq!(
+        goto_tag(&mut app),
+        (tag_on(fresh), Visibility::Inherited),
+        "the tag marks the target at once"
+    );
 
     app.world_mut()
         .entity_mut(raider)
         .insert(GlobalTransform::from(Transform::from_xyz(20.0, 0.0, -40.0)));
     project_map_route_nodes(&mut app);
-    let moved = guide(&mut app);
+    let raider_blip = blip_centre(&app, raider);
     assert!(
-        moved.1.distance(fresh.1) > 20.0,
+        raider_blip.distance(fresh) > 20.0,
         "the target moves on screen"
     );
-    assert_strokes(&mut app, &[moved]);
+    assert_eq!(
+        route_strokes(&mut app),
+        [],
+        "a moving target draws no route"
+    );
 
     let points = vec![Vec3::ZERO, Vec3::new(0.0, 0.0, -10.0)];
     predict(
@@ -2198,8 +2205,7 @@ fn the_goto_guide_draws_without_a_prediction_and_hides_without_a_goto() {
     );
     project_map_route_nodes(&mut app);
     let (blip, end) = (blip_centre(&app, player), map_px(&mut app, points[1]));
-    let raider_blip = blip_centre(&app, raider);
-    assert_strokes(&mut app, &[(blip, end, 0.8), (end, raider_blip, 0.3)]);
+    assert_strokes(&mut app, &[(blip, end, 0.8)]);
 
     // The leg ends at 0.0625 s, between two samples. Past that tick the end
     // point is flown although its grid time, 0.125 s, is still ahead.
@@ -2211,8 +2217,7 @@ fn the_goto_guide_draws_without_a_prediction_and_hides_without_a_goto() {
         .resource_mut::<Time<Fixed>>()
         .advance_by(std::time::Duration::from_millis(70));
     project_map_route_nodes(&mut app);
-    let flown = guide(&mut app);
-    assert_strokes(&mut app, &[flown]);
+    assert_eq!(route_strokes(&mut app), [], "a flown path draws nothing");
     assert_eq!(
         goto_tag(&mut app),
         (tag_on(raider_blip), Visibility::Inherited),
@@ -2223,7 +2228,7 @@ fn the_goto_guide_draws_without_a_prediction_and_hides_without_a_goto() {
         .entity_mut(player)
         .remove::<FlightPrediction>();
     project_map_route_nodes(&mut app);
-    assert_strokes(&mut app, &[flown]);
+    assert_eq!(route_strokes(&mut app), []);
     assert_eq!(
         goto_tag(&mut app),
         (tag_on(raider_blip), Visibility::Inherited),
@@ -2256,20 +2261,6 @@ fn the_goto_guide_draws_without_a_prediction_and_hides_without_a_goto() {
         Some(&TravelLock(Some(raider))),
         "the travel lock outlives the GOTO"
     );
-}
-
-#[test]
-fn decimate_route_keeps_the_ends_and_the_sharpest_bend_within_the_cap() {
-    let corner = Vec3::new(120.0, 0.0, 0.0);
-    let points: Vec<Vec3> = (0..120)
-        .map(|i| Vec3::new(i as f32, 0.0, 0.0))
-        .chain((0..120).map(|i| corner + Vec3::new(0.0, 0.0, -(i as f32))))
-        .collect();
-    let kept = decimate_route(&points, MAP_ROUTE_SEGMENTS + 1);
-    assert_eq!(kept.len(), MAP_ROUTE_SEGMENTS + 1);
-    assert_eq!(kept.first(), points.first());
-    assert_eq!(kept.last(), points.last());
-    assert!(kept.contains(&corner), "the corner survives: {kept:?}");
 }
 
 /// LMB is the contact-SELECT click (the blip `Button` widget's Primary

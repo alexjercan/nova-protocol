@@ -365,7 +365,7 @@ fn sync_orbit_ring(
                         plan.radius + RING_MINOR_RADIUS,
                     ))),
                     NotShadowCaster,
-                    MeshMaterial3d(assets.material(&mut materials, false)),
+                    MeshMaterial3d(assets.material(&mut materials)),
                     Transform::from_translation(well_position).with_rotation(rotation),
                     Visibility::Visible,
                 ));
@@ -479,7 +479,7 @@ fn sync_radius_spoke(
             RadiusSpokeMarker { ship },
             Mesh3d(assets.segment_mesh(&mut meshes)),
             NotShadowCaster,
-            MeshMaterial3d(assets.material(&mut materials, false)),
+            MeshMaterial3d(assets.material(&mut materials)),
             transform,
             Visibility::Visible,
         ));

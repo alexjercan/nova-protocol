@@ -71,7 +71,7 @@ pub use self::{
         ShipOrderEngaged, ShipOrderHelmAuthority, ShipOrderOutcome, ShipOrderReport,
         ShipOrderReported, ShipOrderReports, SuspendedArrivalStandoff,
     },
-    prediction::{FlightPrediction, FlightPredictionEndType},
+    prediction::{decimate_path, FlightPrediction, FlightPredictionEndType},
     rcs_puff::prelude::{RcsPuffMarker, RcsPuffPlugin},
     state::{
         resolved_arrival_standoff, resolved_avoid_margin, Autopilot, AutopilotAction,
@@ -108,11 +108,11 @@ pub(crate) use self::{
 /// `NovaFlightPlugin` with `NovaFlightSystems`.
 pub mod prelude {
     pub use super::{
-        cancel_ship_order, capability::prelude::*, interrupt_ship_order, orbit_radius_band,
-        plan_leg, resolved_arrival_standoff, resolved_avoid_margin, resume_ship_order,
-        retire_ship_order_execution, AIOrderInterrupted, Autopilot, AutopilotAction,
-        AutopilotPhase, BodyRadius, DetourPolicy, DockPlan, FlightArrivalStandoff, FlightAuthority,
-        FlightAvoidMargin, FlightCruiseCap, FlightIntent, FlightPrediction,
+        cancel_ship_order, capability::prelude::*, decimate_path, interrupt_ship_order,
+        orbit_radius_band, plan_leg, resolved_arrival_standoff, resolved_avoid_margin,
+        resume_ship_order, retire_ship_order_execution, AIOrderInterrupted, Autopilot,
+        AutopilotAction, AutopilotPhase, BodyRadius, DetourPolicy, DockPlan, FlightArrivalStandoff,
+        FlightAuthority, FlightAvoidMargin, FlightCruiseCap, FlightIntent, FlightPrediction,
         FlightPredictionEndType, FlightSettings, LegPlan, MainDriveCommanded, ManeuverTelemetry,
         MatchRefusal, MatchRefusalType, NeutralizedBrakeType, NovaFlightPlugin, NovaFlightSystems,
         OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent, RcsPuffMarker,

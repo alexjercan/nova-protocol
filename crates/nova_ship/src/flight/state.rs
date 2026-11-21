@@ -603,8 +603,8 @@ pub struct ManeuverTelemetry {
     /// plus the resolved navigation margin). At or inside the park envelope it
     /// degenerates to the ship's own position - the computer will not fly back
     /// out. Equals `goal` for STOP (the planned rest point is the goal).
-    /// FlightPrediction owns the displayed path and can stop at its horizon
-    /// before the leg reaches this point.
+    /// FlightPrediction owns the displayed path, which ends where the leg
+    /// arrives.
     pub park_point: Vec3,
     /// The GAP, world units: centre distance less the target's resolved radius
     /// ([`BodyRadius`] / `GravityWell::body_radius` /
