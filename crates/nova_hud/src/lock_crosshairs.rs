@@ -20,6 +20,10 @@
 //!   (the LockOff cue in audio/ is its sound).
 //! - A brief centered red flash when the radar is DENIED (no Lock
 //!   capability; pairs with the deny buzz).
+//! - The RADAR SIGHT: while the radar search runs (Ctrl held, either slot), a
+//!   translucent white lock-on square at the screen centre, sized to the pick
+//!   zone, so the player can see where to put a body. It closes in on press,
+//!   breathes while held, and fades on release.
 //!
 //! The old "WEAPONS HOT ..." status text block is GONE: the inset frame
 //! carries the safety state, the inset's presence is the guided-torpedo
@@ -34,12 +38,13 @@ use nova_ui::{theme::combat, widget::UiText};
 
 use crate::prelude::*;
 
-/// The `lock_crosshairs_hud` spawner, the crosshair, ghost, candidate and deny-flash markers, and
-/// `LockCrosshairsHudPlugin`.
+/// The `lock_crosshairs_hud` spawner, the crosshair, ghost, candidate,
+/// deny-flash and sight markers, and `LockCrosshairsHudPlugin`.
 pub mod prelude {
     pub use super::{
         lock_crosshairs_hud, LockCrosshairsHudMarker, LockCrosshairsHudPlugin,
-        LockUnlatchGhostMarker, RadarCandidateMarker, RadarDenyFlashMarker, TravelCrosshairMarker,
+        LockUnlatchGhostMarker, RadarCandidateMarker, RadarDenyFlashMarker, RadarSightMarker,
+        TravelCrosshairMarker,
     };
 }
 
@@ -81,6 +86,34 @@ const GHOST_COMBAT_PX: f32 = 32.0;
 /// Radar-denied flash: a centered hollow box, red, gone fast.
 const DENY_FLASH_SECONDS: f32 = 0.35;
 
+/// Radar sight opacity. The owner asked for the lock-on square in white and
+/// "a bit transparent": half the travel crosshair's 0.9, so a lock under the
+/// sight still reads as the solid one of the two and the body inside stays
+/// visible.
+const SIGHT_ALPHA: f32 = 0.45;
+
+/// Radar sight white. The theme has no white token: its semantic colours are
+/// meaning-carrying hues, and the white crosshairs in this file are local
+/// constants too.
+const SIGHT_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, SIGHT_ALPHA);
+
+/// The sight opens from this multiple of its size and closes in onto the pick
+/// zone, so the press reads as the sight focusing.
+const SIGHT_OPEN_SCALE: f32 = 1.8;
+
+/// Seconds the opening takes (cubic ease-out).
+const SIGHT_OPEN_SECS: f32 = 0.18;
+
+/// One full breath while held, seconds.
+const SIGHT_BREATH_SECS: f32 = 1.6;
+
+/// How far the sight grows at the top of a breath, as a fraction of its size.
+/// Small, because the square is the pick zone and must not misstate it.
+const SIGHT_BREATH_GROWTH: f32 = 0.06;
+
+/// Seconds the sight takes to fade out after release.
+const SIGHT_FADE_SECS: f32 = 0.12;
+
 /// Marker for the crosshairs layer root.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct LockCrosshairsHudMarker;
@@ -97,6 +130,16 @@ pub struct TravelCrosshairMarker;
 /// Marker for the hollow radar box (the radar-active adornment).
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct RadarCandidateMarker;
+
+/// The radar sight at the screen centre. Shown while the player's radar
+/// search runs; the driver owns its size, scale, alpha and visibility.
+#[derive(Component, Debug, Clone, Default, Reflect)]
+pub struct RadarSightMarker {
+    /// Seconds since the search opened; `None` while it is closed.
+    pub held_secs: Option<f32>,
+    /// Seconds of the release fade left.
+    pub fade_secs: f32,
+}
 
 /// Marker for the radar box's travel-sweep label (name + distance).
 #[derive(Component, Debug, Clone, Reflect)]
@@ -122,8 +165,8 @@ pub struct RadarDenyFlashMarker {
     pub remaining: f32,
 }
 
-/// The crosshairs layer: the travel crosshair + the radar box (both
-/// screen-indicator nodes, hidden while their anchors are `None`) and the
+/// The crosshairs layer: the radar sight, the travel crosshair + the radar box
+/// (both screen-indicator nodes, hidden while their anchors are `None`) and the
 /// deny flash. Unlatch ghosts are spawned into this layer at runtime.
 pub fn lock_crosshairs_hud(target_sprite: Handle<Image>) -> impl Bundle {
     (
@@ -132,6 +175,20 @@ pub fn lock_crosshairs_hud(target_sprite: Handle<Image>) -> impl Bundle {
         LockGhostSprite(target_sprite.clone()),
         screen_indicator_layer(),
         children![
+            // First child, so every lock mark draws over it.
+            (
+                Name::new("RadarSight"),
+                RadarSightMarker::default(),
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Percent(50.0),
+                    top: Val::Percent(50.0),
+                    ..default()
+                },
+                UiTransform::default(),
+                ImageNode::new(target_sprite.clone()).with_color(SIGHT_COLOR),
+                Visibility::Hidden,
+            ),
             (
                 Name::new("TravelCrosshair"),
                 TravelCrosshairMarker,
@@ -210,11 +267,12 @@ fn style_radar_box(mut q_box: Query<&mut Node, Added<RadarCandidateMarker>>) {
 }
 
 /// Drives the two-lock crosshair language: the white travel crosshair, the
-/// hollow radar box, the per-tap unlatch ghosts, and the radar-denied flash.
-/// Registers the ghost/flash/sprite types and adds `style_radar_box`,
-/// `drive_travel_crosshair`, `drive_radar_candidate`, `spawn_unlatch_ghosts`,
-/// `fade_unlatch_ghosts` and `flash_radar_deny` in Update within
-/// [`super::NovaHudSystems`].
+/// hollow radar box, the radar sight, the per-tap unlatch ghosts, and the
+/// radar-denied flash.
+/// Registers the ghost/flash/sprite/sight types and adds `style_radar_box`,
+/// `drive_travel_crosshair`, `drive_radar_candidate`, `drive_radar_sight`,
+/// `spawn_unlatch_ghosts`, `fade_unlatch_ghosts` and `flash_radar_deny` in
+/// Update within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct LockCrosshairsHudPlugin;
 
@@ -224,12 +282,14 @@ impl Plugin for LockCrosshairsHudPlugin {
         app.register_type::<LockUnlatchGhostMarker>();
         app.register_type::<RadarDenyFlashMarker>();
         app.register_type::<LockGhostSprite>();
+        app.register_type::<RadarSightMarker>();
         app.add_systems(
             Update,
             (
                 style_radar_box,
                 drive_travel_crosshair,
                 drive_radar_candidate,
+                drive_radar_sight,
                 spawn_unlatch_ghosts,
                 fade_unlatch_ghosts,
                 flash_radar_deny,
@@ -316,6 +376,86 @@ fn drive_radar_candidate(
                 label_color.0 = color;
             }
         }
+    }
+}
+
+/// Side (logical px) of the radar sight on a viewport `viewport_height_px`
+/// tall: the diameter of the pick circle. [`RADAR_PICK_TOLERANCE`] is a share
+/// of the viewport HALF-height, so the radius is `tolerance * height / 2`.
+fn sight_side_px(viewport_height_px: f32) -> f32 {
+    RADAR_PICK_TOLERANCE * viewport_height_px
+}
+
+/// The sight's scale `held_secs` into the search: it closes in from
+/// [`SIGHT_OPEN_SCALE`] to 1 over [`SIGHT_OPEN_SECS`] (cubic ease-out), then
+/// breathes between 1 and `1 + SIGHT_BREATH_GROWTH`.
+fn sight_scale(held_secs: f32) -> f32 {
+    if held_secs < SIGHT_OPEN_SECS {
+        let eased = 1.0 - (1.0 - held_secs / SIGHT_OPEN_SECS).powi(3);
+        return SIGHT_OPEN_SCALE + (1.0 - SIGHT_OPEN_SCALE) * eased;
+    }
+    let phase = (held_secs - SIGHT_OPEN_SECS) / SIGHT_BREATH_SECS;
+    1.0 + SIGHT_BREATH_GROWTH * 0.5 * (1.0 - (std::f32::consts::TAU * phase).cos())
+}
+
+/// Show the radar sight while the player's radar search runs: a
+/// [`RadarState`] is on the ship (the Ctrl hold opened it) and there is a
+/// player camera for the pick to read the screen centre from - the same two
+/// facts `update_radar_search` needs. Pause, interface and cinematic hiding
+/// come from the layer root's [`HudTier`] in `apply_hud_visibility`; the
+/// sight writes `Inherited`, never `Visible`, so that hide reaches it.
+///
+/// Runs on the HUD's default clock like [`super::emphasis`]: the search only
+/// opens in unpaused flight.
+fn drive_radar_sight(
+    time: Res<Time>,
+    centre: ScreenCentreRay,
+    q_player: Query<Has<RadarState>, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    q_layer: Query<&ComputedNode, With<LockCrosshairsHudMarker>>,
+    mut q_sight: Query<(
+        &mut RadarSightMarker,
+        &ChildOf,
+        &mut Node,
+        &mut UiTransform,
+        &mut ImageNode,
+        &mut Visibility,
+    )>,
+) {
+    let searching = q_player.iter().any(|open| open) && centre.ray().is_some();
+    let dt = time.delta_secs();
+    for (mut sight, child_of, mut node, mut transform, mut image, mut visibility) in &mut q_sight {
+        // The layer fills the UI viewport, so its height is the viewport's.
+        let viewport_height = q_layer
+            .get(child_of.parent())
+            .map_or(0.0, |layer| layer.size().y * layer.inverse_scale_factor());
+        let side = sight_side_px(viewport_height);
+        if node.width != Val::Px(side) {
+            node.width = Val::Px(side);
+            node.height = Val::Px(side);
+            node.margin = UiRect {
+                left: Val::Px(-side * 0.5),
+                top: Val::Px(-side * 0.5),
+                ..default()
+            };
+        }
+
+        let alpha = if searching {
+            let held = sight.held_secs.map_or(0.0, |held| held + dt);
+            sight.held_secs = Some(held);
+            sight.fade_secs = SIGHT_FADE_SECS;
+            transform.scale = Vec2::splat(sight_scale(held));
+            SIGHT_ALPHA
+        } else {
+            sight.held_secs = None;
+            sight.fade_secs = (sight.fade_secs - dt).max(0.0);
+            SIGHT_ALPHA * sight.fade_secs / SIGHT_FADE_SECS
+        };
+        image.color = SIGHT_COLOR.with_alpha(alpha);
+        visibility.set_if_neq(if alpha > 0.0 {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        });
     }
 }
 
@@ -671,6 +811,78 @@ mod tests {
         assert!(
             world.get_entity(ghost).is_err(),
             "an expired ghost despawns"
+        );
+    }
+
+    /// The sight is the pick zone, shown only while the radar search runs:
+    /// hidden before the hold, the pick circle's diameter at two viewport
+    /// heights while held, and gone once the release fade ends.
+    #[test]
+    fn the_radar_sight_shows_the_pick_zone_only_while_the_search_runs() {
+        let mut world = World::new();
+        world.insert_resource(Time::<()>::default());
+        world.spawn((
+            SpaceshipCameraController,
+            Projection::Perspective(PerspectiveProjection::default()),
+            GlobalTransform::IDENTITY,
+        ));
+        let player = world
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+        let viewport = |height: f32| ComputedNode {
+            size: Vec2::new(height * 16.0 / 9.0, height),
+            ..ComputedNode::DEFAULT
+        };
+        let layer = world
+            .spawn((LockCrosshairsHudMarker, viewport(1080.0)))
+            .id();
+        let sight = world
+            .spawn((
+                RadarSightMarker::default(),
+                Node::default(),
+                UiTransform::default(),
+                ImageNode::default(),
+                Visibility::Hidden,
+            ))
+            .id();
+        world.entity_mut(layer).add_child(sight);
+        let system = world.register_system(drive_radar_sight);
+        let visibility = |world: &World| *world.entity(sight).get::<Visibility>().unwrap();
+        let width = |world: &World| world.entity(sight).get::<Node>().unwrap().width;
+
+        world.run_system(system).unwrap();
+        assert_eq!(visibility(&world), Visibility::Hidden, "no hold, no sight");
+
+        world.entity_mut(player).insert(RadarState::default());
+        world.run_system(system).unwrap();
+        assert_eq!(
+            visibility(&world),
+            Visibility::Inherited,
+            "the hold shows the sight"
+        );
+        assert_eq!(
+            width(&world),
+            Val::Px(RADAR_PICK_TOLERANCE * 1080.0),
+            "at 1080 px the square spans the pick circle"
+        );
+
+        world.entity_mut(layer).insert(viewport(720.0));
+        world.run_system(system).unwrap();
+        assert_eq!(
+            width(&world),
+            Val::Px(RADAR_PICK_TOLERANCE * 720.0),
+            "the square follows the viewport height"
+        );
+
+        world.entity_mut(player).remove::<RadarState>();
+        world
+            .resource_mut::<Time>()
+            .advance_by(std::time::Duration::from_secs_f32(SIGHT_FADE_SECS + 0.01));
+        world.run_system(system).unwrap();
+        assert_eq!(
+            visibility(&world),
+            Visibility::Hidden,
+            "the release fades the sight out"
         );
     }
 
