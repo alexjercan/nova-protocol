@@ -1,6 +1,6 @@
 # HUD notice: centre the box above the keybind dock
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 62
 - TAGS: v0.19.0, hud, ui
 
@@ -55,3 +55,6 @@
 - Comms overlap: option A, "go with A". The comms panel floor sits above
   the notice top, so comms cards always sit about 40 px higher and never
   move when a notice comes or goes.
+
+## Owner check (2026-11-22, option A)
+- Owner: "this one also looks good you can close it". Closed.
