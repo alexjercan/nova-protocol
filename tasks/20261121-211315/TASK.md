@@ -152,3 +152,36 @@ Paths and lines are at HEAD a82db744d, before the change.
   reads `GOTO LOST` for a GOTO target the Map does not plot (a scenario
   beacon), and the Map zoom limit comes from its contacts, so a route to a
   target it does not plot runs off the edge. Close after these land.
+
+## Build (2026-11-22, Map follow-up)
+- `GOTO LOST` cause: `update_map_panel` looked the GOTO target up in the
+  Map contact list and read LOST on a miss, so a live target the Map does
+  not plot (a scenario beacon locked in flight) read LOST. v0.18.0 had the
+  same rule (`GOTO target lost`).
+- Target gone: the GOTO target entity has no `GlobalTransform` any more
+  (despawned: destroyed, streamed out). This is the rule the autopilot
+  disengages on: `arrival_target` (`nova_ship/src/flight/autopilot.rs:762`)
+  needs the target's `GlobalTransform`, and a miss ends the leg with
+  `DisengageType::TargetGone` (`autopilot.rs:2081`). Not plotted is not gone.
+- Change: `update_map_panel` (`map/scene.rs:1219`) reads the target through
+  its own `(GlobalTransform, Option<Name>)` query. A plotted target reads its
+  code, an unplotted one its `Name` (as the target inset), an unnamed one
+  its range alone; LOST only when the query misses (`scene.rs:1294-1331`).
+  `GotoLegType::Contact` is now `Target`.
+- Zoom cause: `map_input` clamped the wheel at `map_radius_max(map_spread)`,
+  the furthest contact only, so a route to an unplotted target ran past it.
+- Change: `map_route_vertices` (`scene.rs:959`) is the one route the Map
+  draws (ship, points ahead, decimated); `project_map_route` and `map_input`
+  (`scene.rs:354`) both read it. The reach is
+  `map_radius_max(max(map_spread, route_spread))` (`map/mod.rs:143`). The
+  opening framing and Reframe still follow the contacts.
+- Proof (`map/tests.rs`): `a_goto_on_a_body_off_the_map_reads_its_name_and_range_until_it_is_gone`
+  (before: `GOTO LOST` for `GOTO Helm Beacon  2.10 km`) and
+  `the_map_zoom_reaches_the_end_of_the_goto_route` (before: wheel stopped at
+  520.2 u, route end needs 21678.4 u). After: 46/46 `map::tests` pass.
+- Frames (`loop_docked_helm` tail, `~/Pictures/nova-map-goto-beacon/`):
+  `docked-goto-map.png` reads `GOTO Helm Beacon  3.05 km` with the route
+  running off the right edge at the opening framing;
+  `docked-goto-map-reach.png` after the wheel shows the whole route ending
+  inside the viewport. Log: camera 17681 m out; the contacts alone allowed
+  5202 m; the route end is 2388 m out.

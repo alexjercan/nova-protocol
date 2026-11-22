@@ -315,7 +315,11 @@ pub(crate) fn map_input(
     contacts: MapContacts,
     mut commands: Commands,
     mut q_camera: Query<(&mut MapOrbit, &Transform), With<MapCameraMarker>>,
-    q_ship: Query<(Option<&Autopilot>, Option<&TravelLock>, Option<&Waypoint>)>,
+    (q_ship, q_route): (
+        Query<(Option<&Autopilot>, Option<&TravelLock>, Option<&Waypoint>)>,
+        Query<(&Autopilot, &FlightPrediction)>,
+    ),
+    time: Res<Time<Fixed>>,
     q_docked: Query<&DockedShip>,
     q_connections: Query<&DockingConnection>,
     q_panel: Query<&Hovered, With<MapPanelMarker>>,
@@ -342,13 +346,28 @@ pub(crate) fn map_input(
         }
         // Wheel zooms the focus distance, out to what the live scene needs:
         // a fixed ceiling left a contact 20 km out permanently off the map.
+        // The GOTO route counts with the contacts, since a route to a body
+        // the Map does not plot runs past every contact.
         // A notch over the panel scrolls it instead (`scroll_map_panel`).
         let over_panel = q_panel.iter().any(Hovered::get);
         if wheel_delta != 0.0 && !over_panel {
             let reach = if runtime.chart {
                 MAP_CHART_RADIUS_MAX
             } else {
-                map_radius_max(map_spread(&contacts, orbit.center))
+                let route = contacts
+                    .player_frame()
+                    .and_then(|(player, from, _)| {
+                        let (autopilot, prediction) = q_route.get(player).ok()?;
+                        matches!(
+                            autopilot.action,
+                            AutopilotAction::Goto { .. } | AutopilotAction::GotoPos { .. }
+                        )
+                        .then(|| map_route_vertices(from, prediction, &time))
+                    })
+                    .unwrap_or_default();
+                map_radius_max(
+                    map_spread(&contacts, orbit.center).max(route_spread(&route, orbit.center)),
+                )
             };
             orbit.radius = zoom_radius(orbit.radius, wheel_delta, MAP_RADIUS_MIN, reach);
         }
@@ -888,38 +907,12 @@ pub(crate) fn project_map_route(
     }
 
     // The path from the player blip through the points still ahead of the
-    // ship. Point `i` is the state `i` sample intervals after the seed, except
-    // the last, which is at the off-grid tick the leg ends at. The points are
-    // the predicted centre of mass but the blip is the root origin, so the
-    // first stroke is an icon-to-COM connector, not a predicted path: on a
-    // hull whose centre of mass sits off its origin it can kink.
+    // ship (`map_route_vertices`). The points are the predicted centre of
+    // mass but the blip is the root origin, so the first stroke is an
+    // icon-to-COM connector, not a predicted path: on a hull whose centre of
+    // mass sits off its origin it can kink.
     let vertices = goto
-        .and_then(|(from, _, prediction)| {
-            let prediction = prediction?;
-            let flown = time
-                .elapsed()
-                .saturating_sub(prediction.seed_time)
-                .as_secs_f32();
-            let last = prediction.points.len().saturating_sub(1);
-            let ahead: Vec<Vec3> = prediction
-                .points
-                .iter()
-                .enumerate()
-                .filter(|(i, _)| {
-                    let at = if *i == last {
-                        prediction.final_point_time
-                    } else {
-                        *i as f32 * prediction.sample_interval
-                    };
-                    at > flown
-                })
-                .map(|(_, point)| *point)
-                .collect();
-            (!ahead.is_empty()).then(|| {
-                let path = std::iter::once(from).chain(ahead).collect::<Vec<_>>();
-                decimate_path(&path, MAP_ROUTE_SEGMENTS + 1)
-            })
-        })
+        .and_then(|(from, _, prediction)| Some(map_route_vertices(from, prediction?, &time)))
         .unwrap_or_default();
     let size = computed.size() * to_logical;
     // A vertex behind the camera does not project, so both strokes that meet
@@ -955,6 +948,43 @@ pub(crate) fn project_map_route(
         }
         line_vis.set_if_neq(Visibility::Inherited);
     }
+}
+
+/// The GOTO route the Map draws for a ship at `from` flying `prediction`:
+/// the ship, then the predicted points still ahead of it, decimated to the
+/// route's strokes. Point `i` is the state `i` sample intervals after the
+/// seed, except the last, which is at the off-grid tick the leg ends at.
+/// Empty once every point is flown. [`map_input`] reads the same vertices
+/// for the zoom reach, so the wheel reaches the end the Map draws.
+pub(crate) fn map_route_vertices(
+    from: Vec3,
+    prediction: &FlightPrediction,
+    time: &Time<Fixed>,
+) -> Vec<Vec3> {
+    let flown = time
+        .elapsed()
+        .saturating_sub(prediction.seed_time)
+        .as_secs_f32();
+    let last = prediction.points.len().saturating_sub(1);
+    let ahead: Vec<Vec3> = prediction
+        .points
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| {
+            let at = if *i == last {
+                prediction.final_point_time
+            } else {
+                *i as f32 * prediction.sample_interval
+            };
+            at > flown
+        })
+        .map(|(_, point)| *point)
+        .collect();
+    if ahead.is_empty() {
+        return Vec::new();
+    }
+    let path = std::iter::once(from).chain(ahead).collect::<Vec<_>>();
+    decimate_path(&path, MAP_ROUTE_SEGMENTS + 1)
 }
 
 /// Clip a logical-pixel route segment to a `size` viewport inset by half of
@@ -1164,11 +1194,11 @@ pub(crate) fn on_map_cancel_button(_activate: On<Activate>, mut runtime: ResMut<
     runtime.cancel_requested = true;
 }
 
-/// Where the player's GOTO flies: a contact, or a waypoint's mark.
+/// Where the player's GOTO flies: a target body, or a waypoint's mark.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum GotoLegType {
-    /// A `Goto` of the contact.
-    Contact(Entity),
+    /// A `Goto` of the body, plotted on the Map or not.
+    Target(Entity),
     /// A waypoint's `GotoPos` at the mark.
     Mark(Vec3),
 }
@@ -1193,7 +1223,11 @@ pub(crate) fn update_map_panel(
     (chart, edge): (Res<Chart>, Option<Res<ChartSectorEdge>>),
     (jobs, encounters): (Res<Jobs>, Res<Encounters>),
     items: Option<Res<GameItems>>,
-    (q_autopilot, q_waypoint): (Query<&Autopilot>, Query<&Waypoint>),
+    (q_autopilot, q_waypoint, q_goto_target): (
+        Query<&Autopilot>,
+        Query<&Waypoint>,
+        Query<(&GlobalTransform, Option<&Name>)>,
+    ),
     q_docked: Query<&DockedShip>,
     q_connections: Query<&DockingConnection>,
     mut q_field: Query<
@@ -1235,53 +1269,66 @@ pub(crate) fn update_map_panel(
         .and_then(|sel| list.iter().find(|c| c.entity == sel));
     let player = contacts.player_frame();
     let waypoint = player.and_then(|(player, _, _)| q_waypoint.get(player).ok());
-    // The player's GOTO: a `Goto` of a contact, or a waypoint's `GotoPos`
-    // at its mark. A `GotoPos` no waypoint names is a scenario's order, not
-    // a GOTO the panel ends.
-    let goto_target = player.and_then(|(player, _, _)| match q_autopilot.get(player) {
+    // The player's GOTO: a `Goto` of a body, or a waypoint's `GotoPos` at
+    // its mark. A `GotoPos` no waypoint names is a scenario's order, not a
+    // GOTO the panel ends.
+    let goto_target = player.and_then(|(player, from, _)| match q_autopilot.get(player) {
         Ok(Autopilot {
             action: AutopilotAction::Goto { target },
             ..
-        }) => Some(GotoLegType::Contact(*target)),
+        }) => Some((GotoLegType::Target(*target), from)),
         Ok(Autopilot {
             action: AutopilotAction::GotoPos { position },
             ..
-        }) if waypoint.is_some() => Some(GotoLegType::Mark(*position)),
+        }) if waypoint.is_some() => Some((GotoLegType::Mark(*position), from)),
         _ => None,
     });
-    // A GOTO whose target left the map still reads as set, so CANCEL under it
-    // has something to end: docked without the helm the autopilot is held,
-    // and nothing notices a lost target until the undock. A waypoint reads
-    // its chart code in either view, and the range to where the leg flies.
+    // A GOTO target is gone when it has no place in the world any more
+    // (despawned: destroyed, streamed out), the rule `arrival_target` in
+    // `nova_ship` disengages the autopilot on. Not being plotted is not gone:
+    // a scenario beacon locked in flight is no contact but flies all the
+    // same. A gone GOTO still reads as set, so CANCEL under it has something
+    // to end: docked without the helm the autopilot is held, and nothing
+    // notices a lost target until the undock. A waypoint reads its chart code
+    // in either view, and the range to where the leg flies.
+    let lost = || ("GOTO LOST".to_string(), UiColorType::Accent);
+    let range =
+        |from: Vec3, to: Vec3| nova_ui::units::distance(Meters::from_engine(from.distance(to)));
     let destination = match (goto_target, waypoint) {
-        (Some(leg), Some(waypoint)) => {
+        (Some((leg, from)), Some(waypoint)) => {
             let to = match leg {
-                GotoLegType::Contact(target) => list
-                    .iter()
-                    .find(|c| c.entity == target)
-                    .map(|contact| contact.world_pos),
+                GotoLegType::Target(target) => q_goto_target
+                    .get(target)
+                    .ok()
+                    .map(|(transform, _)| transform.translation()),
                 GotoLegType::Mark(position) => Some(position),
             };
-            match (waypoint.target.chart_code(&chart), to, player) {
-                (Some(code), Some(to), Some((_, from, _))) => (
-                    format!(
-                        "GOTO {code}  {}",
-                        nova_ui::units::distance(Meters::from_engine(from.distance(to)))
-                    ),
+            match (waypoint.target.chart_code(&chart), to) {
+                (Some(code), Some(to)) => (
+                    format!("GOTO {code}  {}", range(from, to)),
                     UiColorType::Accent,
                 ),
-                _ => ("GOTO LOST".to_string(), UiColorType::Accent),
+                _ => lost(),
             }
         }
-        (Some(GotoLegType::Contact(target)), None) => {
-            match list.iter().find(|c| c.entity == target) {
-                Some(contact) => (
-                    format!("GOTO {}  {}", contact.code, contact.range_text()),
-                    UiColorType::Accent,
-                ),
-                None => ("GOTO LOST".to_string(), UiColorType::Accent),
+        (Some((GotoLegType::Target(target), from)), None) => match q_goto_target.get(target) {
+            Ok((transform, name)) => {
+                // A plotted target reads its blip's code; one the Map does
+                // not plot reads its name, as the target inset does. An
+                // unnamed one reads its range alone.
+                let label = list
+                    .iter()
+                    .find(|c| c.entity == target)
+                    .map(|contact| contact.code.clone())
+                    .or_else(|| name.map(|name| name.as_str().to_string()));
+                let range = range(from, transform.translation());
+                match label {
+                    Some(label) => (format!("GOTO {label}  {range}"), UiColorType::Accent),
+                    None => (format!("GOTO {range}"), UiColorType::Accent),
+                }
             }
-        }
+            Err(_) => lost(),
+        },
         _ => (String::new(), UiColorType::TextMuted),
     };
     let note = match &selected {

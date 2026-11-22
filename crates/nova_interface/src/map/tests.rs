@@ -2230,6 +2230,147 @@ fn a_goto_on_a_body_off_the_map_draws_its_predicted_route_without_a_tag() {
     assert_eq!(tag, Visibility::Hidden, "no blip, no tag");
 }
 
+/// A GOTO on a body the Map does not plot, such as a scenario beacon locked
+/// in flight, is live: the panel names it and its range as for a contact. It
+/// reads `GOTO LOST` only once the target is gone, the rule the autopilot's
+/// own target-gone check uses.
+#[test]
+fn a_goto_on_a_body_off_the_map_reads_its_name_and_range_until_it_is_gone() {
+    let mut rig = pane_pointer_rig();
+    let app = &mut rig.app;
+    app.insert_resource(InterfaceIcons::blank());
+    app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
+    app.add_systems(Update, (assign_map_contact_codes, update_map_panel).chain());
+    let content = rig.content_root;
+    app.world_mut()
+        .commands()
+        .entity(content)
+        .with_children(|content| spawn_map_panel(content, &InterfaceIcons::blank()));
+    let player = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            GlobalTransform::default(),
+            Name::new("NOVA"),
+        ))
+        .id();
+    let beacon = app
+        .world_mut()
+        .spawn((
+            EntityTypeName::new(nova_events::prelude::BEACON_TYPE_NAME),
+            GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -210.0)),
+            Name::new("Helm Beacon"),
+        ))
+        .id();
+    app.world_mut()
+        .entity_mut(player)
+        .insert(Autopilot::engage(AutopilotAction::Goto { target: beacon }));
+    app.world_mut().resource_mut::<MapRuntime>().active = true;
+    settle(app);
+    let plotted = app
+        .world_mut()
+        .run_system_once(move |contacts: MapContacts| {
+            contacts
+                .collect()
+                .iter()
+                .any(|contact| contact.entity == beacon)
+        })
+        .unwrap();
+    assert!(!plotted, "the beacon is not a map contact");
+    assert_eq!(
+        panel_text(app.world_mut(), MapPanelField::Destination),
+        "GOTO Helm Beacon  2.10 km"
+    );
+
+    app.world_mut()
+        .entity_mut(beacon)
+        .insert(GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -90.0)));
+    settle(app);
+    assert_eq!(
+        panel_text(app.world_mut(), MapPanelField::Destination),
+        "GOTO Helm Beacon  900 m",
+        "the range is live"
+    );
+
+    app.world_mut().entity_mut(beacon).despawn();
+    settle(app);
+    assert_eq!(
+        panel_text(app.world_mut(), MapPanelField::Destination),
+        "GOTO LOST"
+    );
+}
+
+/// The wheel pulls back far enough to see the end of the GOTO route, the
+/// decimated predicted path the Map draws, even when no contact is out
+/// there: a route to a beacon the Map does not plot ran off the viewport.
+#[test]
+fn the_map_zoom_reaches_the_end_of_the_goto_route() {
+    use bevy::input::{
+        mouse::{MouseScrollUnit, MouseWheel},
+        touch::TouchPhase,
+    };
+
+    let mut app = map_input_app();
+    let player = app
+        .world_mut()
+        .query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
+        .single(app.world())
+        .unwrap();
+    let beacon = app
+        .world_mut()
+        .spawn((
+            EntityTypeName::new(nova_events::prelude::BEACON_TYPE_NAME),
+            GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -3000.0)),
+            Name::new("Helm Beacon"),
+        ))
+        .id();
+    app.world_mut()
+        .entity_mut(player)
+        .insert(Autopilot::engage(AutopilotAction::Goto { target: beacon }));
+    // A bent leg whose far end is not the target: the reach follows the path.
+    let end = Vec3::new(400.0, 0.0, -2900.0);
+    predict(
+        &mut app,
+        player,
+        vec![Vec3::ZERO, Vec3::new(300.0, 0.0, -1500.0), end],
+        FlightPredictionEndType::Completed,
+    );
+    let radius = |app: &mut App| {
+        app.world_mut()
+            .query_filtered::<&MapOrbit, With<MapCameraMarker>>()
+            .single(app.world())
+            .unwrap()
+            .radius
+    };
+    let pull_back = |app: &mut App| {
+        for _ in 0..200 {
+            app.world_mut().write_message(MouseWheel {
+                unit: MouseScrollUnit::Line,
+                x: 0.0,
+                y: -3.0,
+                window: Entity::PLACEHOLDER,
+                phase: TouchPhase::Moved,
+            });
+            app.world_mut().run_system_once(map_input).unwrap();
+        }
+    };
+    pull_back(&mut app);
+    assert_eq!(
+        radius(&mut app),
+        map_radius_max(end.length()),
+        "the wheel stops where the route's end is in reach, not at the contacts"
+    );
+
+    // With the GOTO gone the reach is the contacts' again.
+    app.world_mut().entity_mut(player).remove::<Autopilot>();
+    pull_back(&mut app);
+    assert_eq!(radius(&mut app), map_radius_max(0.0));
+}
+
 #[test]
 fn a_goto_draws_no_route_until_its_prediction_lands() {
     let (mut app, player, raider, viewport) = goto_route_app();

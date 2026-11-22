@@ -109,7 +109,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Mod editor: Play holds the centre of the top bar in every view with the stage tools right of it, choice rows fit one line, and text fields grow to show every line.
 - **(breaking)** UiTheme drops `metrics.border_width`, the slider `height` and the badge `bracketed`, `padding_x` and `border_width`. Lint refuses a disabled button state that looks live.
 - While Ctrl is held, a translucent white lock-on square at the screen centre shows where the radar picks. It closes in on the press and breathes while held.
-- The GOTO line on the HUD and Map is the predicted flight to where the leg arrives, however long, also for a docked pair you helm or a beacon. Before, it ended 30 s out and a straight guide ran on.
+- The HUD and Map GOTO line is the predicted flight to the leg's arrival, also for a docked pair you helm or a beacon, and the Map zooms out to its end. Before, it ended 30 s out, then a straight guide.
 - Map chart GOTO: fly to a charted station or sector outside your window. A nav chip shows its code and range, the leg hands over to the station when it streams in, and saves keep it.
 - The Map panel keeps the GOTO destination and the GOTO and Cancel buttons at its foot; a long station stock list scrolls above them.
 - Generated planets have names, as `Quelcorgar II`, on the target inset, HUD labels and Map: the cluster's seeded name and a numeral, the same after a Load. Before, they showed their id.
@@ -133,6 +133,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Jobs, Inventory, Scenarios and Load lists: a hovered row on the list's top or bottom edge shows its whole outline. Before, the list's edge cut that line.
 - Parts catalogue: every tile keeps its bottom border. Before, at some window sizes the name strip covered it on a row, often the last one.
 - The wheel turned in the parts catalogue no longer zooms the Ship view when the catalogue closes. Before, all that travel zoomed it at once.
+- The Map panel names a GOTO on a body it does not plot, such as a scenario beacon, and its range. Before, it read `GOTO target lost` while the ship flew there.
 - The RCS magazine now refills while you hold Shift with your hand resting on the mouse. Before, each one-count tick of a resting mouse pushed the ship and restarted the 2 s refill delay.
 
 ## [0.18.0] - 2026-11-15

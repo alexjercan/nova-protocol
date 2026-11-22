@@ -12,7 +12,10 @@
 //!   nothing.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also record the `news-0150-docked-helm`
 //!   webm, then a HUD still and a Map still of the pair's predicted GOTO
-//!   path (`docked-goto-hud.png`, `docked-goto-map.png`).
+//!   path (`docked-goto-hud.png`, `docked-goto-map.png`), and a Map still
+//!   pulled back to the wheel's reach (`docked-goto-map-reach.png`). The
+//!   beacon is no Map contact, so the reach is the route's, not the
+//!   contacts'.
 //!
 //! After the loop the walk takes the HELM again, so the waiting GOTO flies
 //! the pair, and checks that the production prediction
@@ -69,6 +72,8 @@ const LOOP_NAME: &str = "news-0150-docked-helm";
 const HUD_SHOT: &str = "docked-goto-hud.png";
 #[cfg(feature = "debug")]
 const MAP_SHOT: &str = "docked-goto-map.png";
+#[cfg(feature = "debug")]
+const MAP_REACH_SHOT: &str = "docked-goto-map-reach.png";
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -686,4 +691,67 @@ fn helm_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
     .until(shot_written(MAP_SHOT))
     .deadline(WRITE_DEADLINE)
     .add()
+    .step("pull the map back to the wheel's reach")
+    .on_enter(pull_map_back)
+    .until(frames(MAP_SETTLE_FRAMES))
+    .add()
+    .step("report the map's reach")
+    .on_enter(report_map_reach)
+    .until(frames(1))
+    .add()
+    .step("shoot the map at its reach")
+    .on_enter(|world: &mut World| shoot(world, MAP_REACH_SHOT))
+    .until(shot_written(MAP_REACH_SHOT))
+    .deadline(WRITE_DEADLINE)
+    .add()
+}
+
+/// Turn the wheel back far past any reach in one frame: the Map clamps the
+/// zoom to what the scene needs.
+#[cfg(feature = "debug")]
+fn pull_map_back(world: &mut World) {
+    use bevy::input::{
+        mouse::{MouseScrollUnit, MouseWheel},
+        touch::TouchPhase,
+    };
+
+    world.write_message(MouseWheel {
+        unit: MouseScrollUnit::Line,
+        x: 0.0,
+        y: -400.0,
+        window: Entity::PLACEHOLDER,
+        phase: TouchPhase::Moved,
+    });
+}
+
+/// Log the Map camera's distance from the pair against the reach the
+/// contacts alone give and the reach the route's end needs.
+#[cfg(feature = "debug")]
+fn report_map_reach(world: &mut World) {
+    use bevy::ecs::system::RunSystemOnce;
+    use nova_protocol::nova_interface::map::prelude::{map_radius_max, map_spread, MapContacts};
+
+    let player = root(world, PLAYER_ID);
+    let at = world.get::<GlobalTransform>(player).unwrap().translation();
+    let route_end = world
+        .get::<FlightPrediction>(player)
+        .and_then(|prediction| prediction.points.last().copied())
+        .expect("loop_docked_helm: the pair has a predicted route");
+    let contacts_reach = world
+        .run_system_once(move |contacts: MapContacts| map_radius_max(map_spread(&contacts, at)))
+        .expect("loop_docked_helm: the map contacts read");
+    let camera = world
+        .query::<(&Name, &GlobalTransform)>()
+        .iter(world)
+        .find(|(name, _)| name.as_str() == "NovaOsMapCamera")
+        .map(|(_, transform)| transform.translation())
+        .expect("loop_docked_helm: the map camera");
+    info!(
+        "loop_docked_helm: map reach: camera {:.0} m from the pair, contacts alone allow \
+         {:.0} m, the route end is {:.0} m out and allows {:.0} m",
+        Meters::from_engine(camera.distance(at)).get(),
+        Meters::from_engine(contacts_reach).get(),
+        Meters::from_engine(route_end.distance(at)).get(),
+        Meters::from_engine(map_radius_max(route_end.distance(at))).get(),
+    );
 }

@@ -138,6 +138,15 @@ pub fn map_spread(contacts: &MapContacts, focus: Vec3) -> f32 {
         .fold(0.0f32, f32::max)
 }
 
+/// How far the GOTO `route` reaches from `focus`: the distance to its furthest
+/// vertex, in world units; zero for no route.
+pub(crate) fn route_spread(route: &[Vec3], focus: Vec3) -> f32 {
+    route
+        .iter()
+        .map(|vertex| vertex.distance(focus))
+        .fold(0.0f32, f32::max)
+}
+
 /// The orbit radius the map opens and re-frames at for a scene of this spread.
 pub fn map_radius_default(spread: f32) -> f32 {
     (spread * MAP_FRAMING_MARGIN).max(MAP_RADIUS_DEFAULT_MIN)
