@@ -112,7 +112,7 @@ Only then do the sleeves move. Both ports reach 5 m out over about a second, whi
 
 **<kbd>D</kbd> again lets go**, the same way <kbd>O</kbd> again drops an orbit. Either ship can press it, and neither needs the other's permission - the ship you docked with can leave while you are still sitting there. Each ship flies itself again the moment the clamp goes, and the helm goes with it: the next dock starts neutral. The port that let go plays the clamp releasing, and the HUD posts `UNDOCKED` whichever side pressed it.
 
-A dock has no timer and no drift. A pair stays docked indefinitely, because nothing you do at the controls can end it - only the verb can, or damage. A maneuver does not end it either: [ORBIT](../../flight-autopilot/#the-autopilot-flies-the-hull), GOTO and STOP fly the whole pair.
+A dock has no timer and no drift. A pair stays docked indefinitely, because nothing you do at the controls can end it - only the verb can, or damage. A maneuver does not end it either: [ORBIT](../../flight-autopilot/#the-autopilot-flies-the-hull), GOTO and STOP fly the whole pair, and the [predicted path](../../hud/#flight-readouts) is the pair's flight.
 
 The other endings are damage. Shoot the port off either hull, or kill either ship, and the clamp goes with it; the surviving port stows its sleeve and is free to dock again, with no release sound and no notice: the damage was the news. A port is the lightest thing on a hull at 90 health, so a dock in a firefight is a dock on borrowed time. A crewed Neutral is an exception: it holds the dock while a third ship shoots at it, but YOUR hit on it ends the dock at once, whole port or not. A derelict has nobody aboard to let go.
 

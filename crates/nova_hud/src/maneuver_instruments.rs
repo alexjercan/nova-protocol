@@ -587,6 +587,7 @@ mod tests {
                     sample_interval: SAMPLE_INTERVAL,
                     final_point_time: 3.0 * SAMPLE_INTERVAL,
                     end: FlightPredictionEndType::Completed,
+                    flown_point: Vec3::ZERO,
                 },
             ))
             .id();

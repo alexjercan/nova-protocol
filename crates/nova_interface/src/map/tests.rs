@@ -2023,6 +2023,7 @@ fn predict(app: &mut App, ship: Entity, points: Vec<Vec3>, end: FlightPrediction
         seed_time: std::time::Duration::ZERO,
         sample_interval,
         end,
+        flown_point: Vec3::ZERO,
     });
 }
 
@@ -2193,6 +2194,42 @@ fn the_goto_route_is_the_decimated_predicted_path_and_nothing_else() {
 /// live GOTO target throughout; a cancelled GOTO, or another order with a
 /// prediction of its own, draws neither, and the travel lock outlives the
 /// GOTO.
+/// A GOTO on a body the Map does not plot, such as a scenario beacon, has no
+/// tag to place, but its route is the predicted flight all the same.
+#[test]
+fn a_goto_on_a_body_off_the_map_draws_its_predicted_route_without_a_tag() {
+    let (mut app, player, _, viewport) = goto_route_app();
+    let beacon = app
+        .world_mut()
+        .spawn(GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -40.0)))
+        .id();
+    app.world_mut()
+        .entity_mut(player)
+        .insert(Autopilot::engage(AutopilotAction::Goto { target: beacon }));
+    let points = vec![
+        Vec3::ZERO,
+        Vec3::new(2.0, 0.0, -15.0),
+        Vec3::new(0.0, 0.0, -35.0),
+    ];
+    predict(
+        &mut app,
+        player,
+        points.clone(),
+        FlightPredictionEndType::Completed,
+    );
+    lay_out_map(&mut app, viewport, UVec2::new(1600, 1200), true);
+    project_map_route_nodes(&mut app);
+    let blip = blip_centre(&app, player);
+    let (middle, end) = (map_px(&mut app, points[1]), map_px(&mut app, points[2]));
+    assert_strokes(&mut app, &[(blip, middle, 0.8), (middle, end, 0.8)]);
+    let world = app.world_mut();
+    let tag = *world
+        .query_filtered::<&Visibility, With<MapGotoMarker>>()
+        .single(world)
+        .unwrap();
+    assert_eq!(tag, Visibility::Hidden, "no blip, no tag");
+}
+
 #[test]
 fn a_goto_draws_no_route_until_its_prediction_lands() {
     let (mut app, player, raider, viewport) = goto_route_app();

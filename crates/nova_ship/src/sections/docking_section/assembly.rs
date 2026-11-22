@@ -57,6 +57,57 @@ pub struct DockedAssembly {
 /// its own centre of mass, HullRadius)`.
 pub(crate) type AssemblyRoot = (Entity, f32, Vec3, Vec3, Mat3, f32);
 
+/// One root's [`AssemblyRoot`] from its avian state: the centre of mass lifted
+/// to world space and the inertia turned into it. A root with no
+/// [`HullRadius`] reads a NaN radius, which [`measure_docked_assembly`]
+/// refuses.
+pub(crate) fn assembly_root(
+    root: Entity,
+    (mass, center, inertia): (
+        &ComputedMass,
+        &ComputedCenterOfMass,
+        &ComputedAngularInertia,
+    ),
+    (position, rotation, velocity): (&Position, &Rotation, &LinearVelocity),
+    radius: Option<&HullRadius>,
+) -> AssemblyRoot {
+    (
+        root,
+        mass.value(),
+        position.0 + rotation.0 * center.0,
+        velocity.0,
+        Mat3::from(inertia.rotated(rotation.0).tensor()),
+        radius.map_or(f32::NAN, |radius| **radius),
+    )
+}
+
+/// Every root of the assembly `connection` holds, in the order
+/// [`measure_docked_assemblies`] measures them: a pair's two ships, or a
+/// station hub first and then the hull docked at each of its connections.
+/// `None` when the connection or its hub is gone.
+pub(crate) fn assembly_roots(
+    connection: Entity,
+    q_connections: &Query<(&DockingConnection, Option<&StationDock>)>,
+    q_hubs: &Query<&StationDocks>,
+) -> Option<Vec<Entity>> {
+    let (record, hub) = q_connections.get(connection).ok()?;
+    let Some(&StationDock(station)) = hub else {
+        return Some(vec![record.first_ship, record.second_ship]);
+    };
+    let mut roots = vec![station];
+    for entity in q_hubs.get(station).ok()?.iter() {
+        let Ok((record, _)) = q_connections.get(entity) else {
+            continue;
+        };
+        roots.push(if record.first_ship == station {
+            record.second_ship
+        } else {
+            record.first_ship
+        });
+    }
+    Some(roots)
+}
+
 /// Measure an assembly from its roots, with the inertia in WORLD space.
 ///
 /// The parallel axis term is written out: avian 0.8's `shifted_tensor` adds
@@ -285,13 +336,11 @@ pub(super) fn measure_docked_assemblies(
             .map(|&root| {
                 let (mass, center, inertia, position, rotation, velocity, radius, _) =
                     q_bodies.get(root).ok()?;
-                Some((
+                Some(assembly_root(
                     root,
-                    mass.value(),
-                    position.0 + rotation.0 * center.0,
-                    velocity.0,
-                    Mat3::from(inertia.rotated(rotation.0).tensor()),
-                    radius.map_or(f32::NAN, |radius| **radius),
+                    (mass, center, inertia),
+                    (position, rotation, velocity),
+                    radius,
                 ))
             })
             .collect();

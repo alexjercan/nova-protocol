@@ -799,17 +799,18 @@ pub(crate) fn project_map_route(
         spawn_map_route(&mut commands, viewport);
         return;
     };
+    // `to` is where the tag goes: the target's blip, or the mark. A GOTO on a
+    // target the Map does not plot (a scenario beacon) has no tag, but its
+    // route is still the predicted flight.
     let flight = contacts.player_frame().and_then(|(player, from, _)| {
         let (autopilot, prediction, waypoint) = q_autopilot.get(player).ok()?;
         let to = match autopilot.action {
-            AutopilotAction::Goto { target } => {
-                contacts
-                    .collect()
-                    .into_iter()
-                    .find(|contact| contact.entity == target)?
-                    .world_pos
-            }
-            AutopilotAction::GotoPos { position } => position,
+            AutopilotAction::Goto { target } => contacts
+                .collect()
+                .into_iter()
+                .find(|contact| contact.entity == target)
+                .map(|contact| contact.world_pos),
+            AutopilotAction::GotoPos { position } => Some(position),
             _ => return None,
         };
         Some((from, to, prediction, waypoint))
@@ -869,7 +870,7 @@ pub(crate) fn project_map_route(
     // The tag sits on the target tile's top edge, so it never covers the tile
     // or the code label beside it, and on a `GotoPos` mark where the leg
     // rests. It follows the target even when the route misses the viewport.
-    match goto.and_then(|(_, to, _)| project(to)) {
+    match goto.and_then(|(_, to, _)| to.and_then(project)) {
         Some(to) => {
             let (left, top) = (
                 Val::Px(to.x - MAP_BLIP_PX * 0.5),

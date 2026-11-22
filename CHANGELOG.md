@@ -105,7 +105,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Mod editor: Play holds the centre of the top bar in every view with the stage tools right of it, choice rows fit one line, and text fields grow to show every line.
 - **(breaking)** UiTheme drops `metrics.border_width`, the slider `height` and the badge `bracketed`, `padding_x` and `border_width`. Lint refuses a disabled button state that looks live.
 - While Ctrl is held, a translucent white lock-on square at the screen centre shows where the radar picks. It closes in on the press and breathes while held.
-- The GOTO line on the HUD and Map is the predicted flight to where the leg arrives, however long. Before, it ended 30 s out and a dim straight guide ran on to the target.
+- The GOTO line on the HUD and Map is the predicted flight to where the leg arrives, however long, also for a docked pair you helm or a beacon. Before, it ended 30 s out and a straight guide ran on.
 - Map chart GOTO: fly to a charted station or sector outside your window. A nav chip shows its code and range, the leg hands over to the station when it streams in, and saves keep it.
 - The Map panel keeps the GOTO destination and the GOTO and Cancel buttons at its foot; a long station stock list scrolls above them.
 - Generated planets have names, as `Quelcorgar II`, on the target inset, HUD labels and Map: the cluster's seeded name and a numeral, the same after a Load. Before, they showed their id.

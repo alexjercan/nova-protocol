@@ -42,6 +42,7 @@ pub use admission::{
     station_admission, DockAdmission, DockPressRefusal, DockPressRefusalType, DockRefusalType,
 };
 pub use assembly::DockedAssembly;
+pub(crate) use assembly::{assembly_root, assembly_roots, measure_docked_assembly};
 use assembly::{apply_docked_helm_wrench, measure_docked_assemblies};
 pub use beacon::{StationBeacon, StationBeaconPort};
 use connection::{

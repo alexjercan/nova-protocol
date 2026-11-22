@@ -15,6 +15,15 @@
 //! publishes. A moving well is not predicted: it stops the prediction with an
 //! error.
 //!
+//! A docked pair flies as one body: its driver's autopilot plans on the
+//! assembly, only the driver's engines and flight computers act, the attitude
+//! torque turns the assembly as one rigid body (`apply_docked_helm_wrench`) and
+//! the fixed joint carries each engine's push to the other roots. The run
+//! flies that rigid assembly from the driver's root: its mass, centre of mass,
+//! inertia and reach, measured as `measure_docked_assemblies` measures them,
+//! and every root's own well pull. A player root held by its partner flies no
+//! leg and has no prediction.
+//!
 //! Engine units throughout, as in the autopilot.
 
 use std::time::Duration;
@@ -34,7 +43,14 @@ use super::{
     dock_forecast::FieldBody,
     manual::rcs_push,
 };
-use crate::{physics::compute_pd_torque, prelude::*, sections::thruster_section::engine_direction};
+use crate::{
+    physics::compute_pd_torque,
+    prelude::*,
+    sections::{
+        docking_section::{assembly_root, assembly_roots, measure_docked_assembly},
+        thruster_section::engine_direction,
+    },
+};
 
 /// The longest leg a run flies before it gives up, seconds. A run that
 /// reaches it publishes nothing and logs an error: a leg that has not ended by
@@ -72,10 +88,11 @@ const SAMPLE_TICKS: u32 = 8;
 /// integration as the live ship, from the ship's state at [`Self::seed_time`];
 /// see the module docs for what the run cannot see. Runs from the seed to the
 /// end of the leg: for a GOTO the last point is where the leg arrives. Present
-/// only while such a leg is engaged on an undocked player ship with a live
-/// flight computer, a live engine and a measured mass, and only while every
-/// well is at rest. Replaced by each finished run; a new leg removes it at
-/// once.
+/// only while such a leg flies a player ship with a live flight computer, a
+/// live engine and a measured mass, and only while every well is at rest. A
+/// docked player ship flies its leg only while it drives its measured
+/// assembly, and the path is then the assembly's. Replaced by each finished
+/// run; a new leg removes it at once.
 #[derive(Component, Clone, Debug, Reflect)]
 #[reflect(Component)]
 pub struct FlightPrediction {
@@ -96,6 +113,10 @@ pub struct FlightPrediction {
     pub final_point_time: f32,
     /// How the predicted leg ends.
     pub end: FlightPredictionEndType,
+    /// The point [`Self::points`] follow, in the ship root's body frame: the
+    /// root's centre of mass, or its docked assembly's while it drives one.
+    /// The drawn line starts at this point on the rendered hull.
+    pub flown_point: Vec3,
 }
 
 /// How a predicted leg ends.
@@ -180,7 +201,8 @@ pub(super) struct FlightPredictionRun {
     body: FlightBody,
     /// The predicted actuators.
     helm: FlightHelm,
-    /// The root's avian mass, for the impulses.
+    /// The mover's mass, for the impulses: the root's avian mass, or its
+    /// docked assembly's.
     mass: ComputedMass,
     /// The leg's goal at the seed, then moved with the predicted target.
     target: Option<ArrivalTarget>,
@@ -193,10 +215,8 @@ pub(super) struct FlightPredictionRun {
     wells: Vec<WellSample>,
     /// The wells the gravity force system reads, frozen at the seed.
     gravity_wells: Vec<(Entity, Vec3, GravityWell)>,
-    /// The gravity force system pulls the ship.
-    ship_feels_wells: bool,
-    /// The well that owned the last predicted pull.
-    dominant_well: Option<Entity>,
+    /// Every root of the mover the gravity force system pulls.
+    pulled: Vec<PulledRoot>,
     /// The mover's resolved arrival margin.
     arrival_standoff: f32,
     /// The mover's resolved detour margin.
@@ -214,8 +234,27 @@ pub(super) struct FlightPredictionRun {
     braking_tick: Option<u32>,
     /// See [`FlightPrediction::seed_time`].
     seed_time: Duration,
+    /// See [`FlightPrediction::flown_point`].
+    flown_point: Vec3,
     /// See [`FlightPrediction::points`].
     pub(super) points: Vec<Vec3>,
+}
+
+/// One root of the mover that `gravity_well_system` pulls: the ship itself, or
+/// each pulled root of its docked assembly. The system pulls each root at its
+/// own origin with its own dominant well, at its centre of mass; on a rigid
+/// assembly that is a push of the mass share and a torque about the
+/// assembly's centre of mass.
+#[derive(Clone)]
+struct PulledRoot {
+    /// The root origin in the mover's root frame; zero for the mover's root.
+    origin: Vec3,
+    /// The root's centre of mass in the mover's root frame.
+    center_of_mass: Vec3,
+    /// The root's mass over the mover's: exactly 1 for an undocked ship.
+    share: f32,
+    /// The well that owned the root's last predicted pull.
+    dominant_well: Option<Entity>,
 }
 
 /// A GOTO target as avian moves it with no input: it coasts and tumbles. A
@@ -310,13 +349,15 @@ struct TargetMotion {
     anchor: ArrivalAnchorType,
 }
 
-/// One fixed tick of the live chain after [`autopilot_step`] for an undocked
-/// root, applied to `body` and `helm` in the live order: `rcs_burn_system`'s
-/// push, the PD torque of every live flight computer, `well_pull` (the
-/// dominant-well acceleration at the root origin), every thruster impulse,
-/// then avian's `substeps` (count, substep duration) of semi-implicit Euler
-/// with gyroscopic motion, and its writeback about the centre of mass.
-/// `avian_gravity` is avian's global [`Gravity`].
+/// One fixed tick of the live chain after [`autopilot_step`] for a mover,
+/// applied to `body` and `helm` in the live order: `rcs_burn_system`'s push,
+/// the PD torque of every live flight computer, the well pull (the
+/// acceleration and the angular acceleration of [`PulledRoot`]), every
+/// thruster impulse, then avian's `substeps` (count, substep duration) of
+/// semi-implicit Euler with gyroscopic motion, and its writeback about the
+/// centre of mass. `avian_gravity` is avian's global [`Gravity`]. A docked
+/// driver's mover is its rigid assembly: `mass` and `body` are the
+/// assembly's, and the helm is the driver's alone, as it is live.
 ///
 /// The mirror follows the live f32 operation order and is checked against
 /// flown COM positions with an explicit error bound. It assumes a ship root
@@ -329,7 +370,7 @@ pub(super) fn step_flight_body(
     body: &mut FlightBody,
     helm: &mut FlightHelm,
     mass: &ComputedMass,
-    well_pull: Vec3,
+    (well_pull, well_turn): (Vec3, Vec3),
     env: &FlightEnvironment,
     (substep_count, substep): (u32, Duration),
     avian_gravity: Vec3,
@@ -376,6 +417,9 @@ pub(super) fn step_flight_body(
     let mut angular_increment = Vec3::ZERO;
     if well_pull != Vec3::ZERO {
         linear_increment += well_pull;
+    }
+    if well_turn != Vec3::ZERO {
+        angular_increment += well_turn;
     }
     let (principal, local_frame) = body
         .angular_inertia
@@ -428,6 +472,103 @@ pub(super) fn step_flight_body(
     body.angular_velocity = angular_velocity;
     body.center_of_mass =
         Rotation(body.rotation).mul_vec3(body.local_center_of_mass) + body.position;
+}
+
+/// The well pull this tick on the mover `body` of `mass`, as
+/// `gravity_well_system` applies it to each of `pulled`: the acceleration of
+/// the mover's centre of mass and its angular acceleration about it. Moves
+/// each root's dominant well on. An undocked ship is its own one root at its
+/// centre of mass, so it takes its pull whole and no turn.
+fn well_pull(
+    body: &FlightBody,
+    mass: f32,
+    pulled: &mut [PulledRoot],
+    wells: &[(Entity, Vec3, GravityWell)],
+    gravity: &GravitySettings,
+    (candidates, pulls): (&mut Vec<(Entity, f32, Vec3)>, &mut Vec<(Entity, f32)>),
+) -> (Vec3, Vec3) {
+    let rotation = Rotation(body.rotation);
+    let mut acceleration = Vec3::ZERO;
+    let mut torque = Vec3::ZERO;
+    for root in pulled {
+        let pull = dominant_well_acceleration(
+            body.position + rotation.mul_vec3(root.origin),
+            root.dominant_well,
+            wells,
+            gravity,
+            candidates,
+            pulls,
+        );
+        root.dominant_well = pull.map(|(well, _)| well);
+        let Some((_, pull)) = pull else {
+            continue;
+        };
+        let shared = pull * root.share;
+        acceleration += shared;
+        let arm = rotation.mul_vec3(root.center_of_mass - body.local_center_of_mass);
+        torque += arm.cross(shared * mass);
+    }
+    let turn = if torque == Vec3::ZERO {
+        Vec3::ZERO
+    } else {
+        body.angular_inertia.rotated(body.rotation).inverse() * torque
+    };
+    (acceleration, turn)
+}
+
+/// The rigid assembly a docked driver at `pose` flies, measured from its
+/// roots' state now as `measure_docked_assemblies` measures it at the start
+/// of the next tick, with its inertia in the driver's frame; then every root
+/// of it the gravity force system pulls. `None` when it cannot be measured.
+fn docked_assembly(
+    connection: Entity,
+    (position, rotation): (&Position, &Rotation),
+    q_connections: &Query<(&DockingConnection, Option<&StationDock>)>,
+    q_hubs: &Query<&StationDocks>,
+    q_roots: &Query<(
+        (
+            &ComputedMass,
+            &ComputedCenterOfMass,
+            &ComputedAngularInertia,
+        ),
+        (&Position, &Rotation, &LinearVelocity),
+        Option<&HullRadius>,
+        (
+            Option<&DominantWell>,
+            Has<GravityAffected>,
+            Has<GravityWell>,
+        ),
+    )>,
+) -> Option<(DockedAssembly, Vec<PulledRoot>)> {
+    let roots = assembly_roots(connection, q_connections, q_hubs)?;
+    let readings = roots
+        .iter()
+        .map(|&root| {
+            let (props, motion, radius, _) = q_roots.get(root).ok()?;
+            Some(assembly_root(root, props, motion, radius))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let assembly = measure_docked_assembly(&readings).ok()?;
+    let inverse = rotation.0.inverse();
+    let pulled = readings
+        .iter()
+        .filter_map(|&(root, root_mass, center, ..)| {
+            let (_, (origin, ..), _, (dominant, affected, is_well)) = q_roots.get(root).ok()?;
+            (affected && !is_well).then(|| PulledRoot {
+                origin: inverse * (origin.0 - position.0),
+                center_of_mass: inverse * (center - position.0),
+                share: root_mass / assembly.mass,
+                dominant_well: dominant.map(|well| **well),
+            })
+        })
+        .collect();
+    Some((
+        DockedAssembly {
+            inertia: assembly.inertia.rotated(inverse),
+            ..assembly
+        },
+        pulled,
+    ))
 }
 
 /// avian 0.8's `pre_process_velocity_increments` with no damping, gravity
@@ -529,7 +670,7 @@ pub(super) fn predict_flight_path(
                 Option<&DominantWell>,
                 Has<GravityAffected>,
                 Has<GravityWell>,
-                Has<DockedShip>,
+                Option<&DockedShip>,
             ),
             (Option<&mut FlightPredictionRun>, Option<&FlightPrediction>),
         ),
@@ -557,6 +698,26 @@ pub(super) fn predict_flight_path(
             Option<&DominantWell>,
             Has<GravityAffected>,
             Has<GravityWell>,
+        )>,
+    ),
+    // A docked driver's assembly, measured as `measure_docked_assemblies`
+    // measures it, and each root's pull.
+    (q_connections, q_hubs, q_roots): (
+        Query<(&DockingConnection, Option<&StationDock>)>,
+        Query<&StationDocks>,
+        Query<(
+            (
+                &ComputedMass,
+                &ComputedCenterOfMass,
+                &ComputedAngularInertia,
+            ),
+            (&Position, &Rotation, &LinearVelocity),
+            Option<&HullRadius>,
+            (
+                Option<&DominantWell>,
+                Has<GravityAffected>,
+                Has<GravityWell>,
+            ),
         )>,
     ),
     // Ships whose failed prediction is already logged, so the error is said
@@ -607,8 +768,30 @@ pub(super) fn predict_flight_path(
                     | AutopilotAction::Stop
             )
         });
-        let Some(autopilot) = autopilot.filter(|_| !docked && dt > 0.0 && mass.value() > 0.0)
-        else {
+        // A docked root flies a leg only while it drives its pair, and then
+        // flies the pair. A held root's leg is frozen until it drives again or
+        // undocks, and an assembly that cannot be measured flies nothing:
+        // `measure_docked_assemblies` logs that and the HUD reads HELM FAULT.
+        let assembly = match docked {
+            None => Ok(None),
+            Some(docked) if !docked.drives => Err(()),
+            Some(docked) => docked_assembly(
+                docked.connection,
+                (pose.0, pose.1),
+                &q_connections,
+                &q_hubs,
+                &q_roots,
+            )
+            .map(Some)
+            .ok_or(()),
+        };
+        let Some((autopilot, assembly)) = autopilot.zip(assembly.ok()).filter(|(_, assembly)| {
+            dt > 0.0
+                && assembly
+                    .as_ref()
+                    .map_or(mass.value(), |(assembly, _)| assembly.mass)
+                    > 0.0
+        }) else {
             failed.remove(&ship);
             hide(&mut commands);
             continue;
@@ -714,9 +897,22 @@ pub(super) fn predict_flight_path(
                     velocities,
                     (mass, angular_inertia),
                     com,
-                    None,
+                    assembly.as_ref().map(|(assembly, _)| assembly),
                     hull_radius,
                 );
+                let flown_point = body.local_center_of_mass;
+                let pulled = match &assembly {
+                    None => (gravity_affected && !is_well)
+                        .then(|| PulledRoot {
+                            origin: Vec3::ZERO,
+                            center_of_mass: body.local_center_of_mass,
+                            share: 1.0,
+                            dominant_well: dominant_well.map(|well| **well),
+                        })
+                        .into_iter()
+                        .collect(),
+                    Some((_, pulled)) => pulled.clone(),
+                };
                 let target_motion =
                     target_body
                         .zip(target.as_ref())
@@ -730,14 +926,15 @@ pub(super) fn predict_flight_path(
                     points: vec![body.center_of_mass],
                     body,
                     helm,
-                    mass: *mass,
+                    mass: assembly
+                        .as_ref()
+                        .map_or(*mass, |(assembly, _)| ComputedMass::new(assembly.mass)),
                     target,
                     target_motion,
                     telemetry: telemetry.copied(),
                     wells,
                     gravity_wells,
-                    ship_feels_wells: gravity_affected && !is_well,
-                    dominant_well: dominant_well.map(|well| **well),
+                    pulled,
                     arrival_standoff: resolved_arrival_standoff(standoff_override, &settings),
                     avoid_margin: resolved_avoid_margin(avoid_margin, &settings),
                     obstacles: obstacle_field(&q_obstacles, [autopilot.action]),
@@ -746,6 +943,7 @@ pub(super) fn predict_flight_path(
                     ticks: 0,
                     braking_tick: None,
                     seed_time: time.elapsed(),
+                    flown_point,
                 };
                 match stale {
                     Some(stale) => {
@@ -806,24 +1004,19 @@ pub(super) fn predict_flight_path(
             if run.braking_tick.is_none() && run.telemetry.is_some_and(|numbers| numbers.braking) {
                 run.braking_tick = Some(run.ticks);
             }
-            let pull = if run.ship_feels_wells {
-                dominant_well_acceleration(
-                    run.body.position,
-                    run.dominant_well,
-                    &run.gravity_wells,
-                    &gravity_settings,
-                    &mut candidates,
-                    &mut pulls,
-                )
-            } else {
-                None
-            };
-            run.dominant_well = pull.map(|(well, _)| well);
+            let pull = well_pull(
+                &run.body,
+                run.mass.value(),
+                &mut run.pulled,
+                &run.gravity_wells,
+                &gravity_settings,
+                (&mut candidates, &mut pulls),
+            );
             step_flight_body(
                 &mut run.body,
                 &mut run.helm,
                 &run.mass,
-                pull.map_or(Vec3::ZERO, |(_, acceleration)| acceleration),
+                pull,
                 &env,
                 substeps,
                 avian_gravity.0,
@@ -899,6 +1092,7 @@ pub(super) fn predict_flight_path(
             sample_interval: SAMPLE_TICKS as f32 * dt,
             final_point_time: run.ticks as f32 * dt,
             end,
+            flown_point: run.flown_point,
         };
         commands.entity(ship).insert(prediction);
         if let Some(seed) = seeded {

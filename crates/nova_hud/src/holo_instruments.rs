@@ -3,22 +3,19 @@
 //! space.
 //!
 //! - **Trajectory ribbon**: the part of the leg's [`FlightPrediction`] the
-//!   ship has not flown yet, as thin cylinder segments from the rendered
-//!   centre of mass to the point the leg ends at. It is only ever the
+//!   ship has not flown yet, as thin cylinder segments from the point the
+//!   path follows on the rendered hull (its centre of mass, or its docked
+//!   pair's) to the point the leg ends at. It is only ever the
 //!   predicted path: with no prediction there is no ribbon.
 //! - **Flip gate**: a ring at the predicted flip point, perpendicular to the
 //!   predicted path, sized to fly through, until the leg first brakes.
 
 use std::time::Duration;
 
-use avian3d::prelude::ComputedCenterOfMass;
 use bevy::{light::NotShadowCaster, prelude::*};
 use nova_events::units::prelude::*;
 use nova_gameplay::markers::prelude::*;
-use nova_ship::{
-    flight::prelude::*,
-    prelude::{live_structure_anchor, HullEnvelopeRadius},
-};
+use nova_ship::{flight::prelude::*, prelude::HullEnvelopeRadius};
 
 use super::NAV_CYAN;
 
@@ -189,15 +186,11 @@ fn sync_trajectory_ribbon(
     mut assets: ResMut<HoloAssets>,
     time: Res<Time<Fixed>>,
     // The ribbon's ship end must meet the RENDERED hull: the eased root
-    // Transform, not raw avian Position, lifted to the centre of mass because
-    // every prediction point is one.
+    // Transform, not raw avian Position, lifted to the point every prediction
+    // point is, the prediction's flown point. Rotation and translation only:
+    // avian ignores render scale.
     q_ship: Query<
-        (
-            Entity,
-            &Transform,
-            Option<&ComputedCenterOfMass>,
-            &FlightPrediction,
-        ),
+        (Entity, &Transform, &FlightPrediction),
         (
             With<PlayerSpaceshipMarker>,
             Without<TrajectoryRibbonSegment>,
@@ -209,7 +202,7 @@ fn sync_trajectory_ribbon(
     let path = q_ship
         .iter()
         .next()
-        .and_then(|(ship, transform, center_of_mass, prediction)| {
+        .and_then(|(ship, transform, prediction)| {
             let ahead = prediction
                 .points
                 .iter()
@@ -217,9 +210,11 @@ fn sync_trajectory_ribbon(
                 .filter(|&(index, _)| is_ahead(prediction, now, index))
                 .map(|(_, point)| *point);
             let points = decimate_path(
-                &std::iter::once(live_structure_anchor(transform, center_of_mass))
-                    .chain(ahead)
-                    .collect::<Vec<_>>(),
+                &std::iter::once(
+                    transform.rotation * prediction.flown_point + transform.translation,
+                )
+                .chain(ahead)
+                .collect::<Vec<_>>(),
                 RIBBON_SEGMENTS + 1,
             );
             (points.len() > 1).then_some((ship, points))
@@ -387,6 +382,7 @@ mod tests {
             seed_time: Duration::ZERO,
             sample_interval: SAMPLE_INTERVAL,
             end: FlightPredictionEndType::Completed,
+            flown_point: Vec3::ZERO,
         }
     }
 
@@ -479,21 +475,26 @@ mod tests {
         }
     }
 
-    /// The ribbon starts at the rendered centre of mass, because every
-    /// prediction point is a centre of mass, then follows the points the ship
+    /// The ribbon starts at the prediction's flown point on the rendered hull,
+    /// because every prediction point is that point, then follows the points the ship
     /// has not reached, ends at the last one, and goes with the prediction. A
     /// GOTO draws nothing until its first prediction lands, then exactly the
     /// predicted path: never a line to the target.
     #[test]
-    fn the_ribbon_draws_the_unflown_prediction_from_the_rendered_centre_of_mass() {
+    fn the_ribbon_draws_the_unflown_prediction_from_the_rendered_flown_point() {
         let mut world = holo_world();
-        let ship = spawn_ship(&mut world, prediction(BENDING_PATH.to_vec(), None));
-        // A quarter turn carries the local +Z centre of mass to world +X.
-        world.entity_mut(ship).insert((
+        // A quarter turn carries the local +Z flown point to world +X.
+        let ship = spawn_ship(
+            &mut world,
+            FlightPrediction {
+                flown_point: Vec3::Z,
+                ..prediction(BENDING_PATH.to_vec(), None)
+            },
+        );
+        world.entity_mut(ship).insert(
             Transform::from_translation(Vec3::new(0.5, 0.0, 0.5))
                 .with_rotation(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2)),
-            ComputedCenterOfMass(Vec3::Z),
-        ));
+        );
         let rendered = Vec3::new(1.5, 0.0, 0.5);
 
         world.run_system_once(sync_trajectory_ribbon).unwrap();
@@ -536,9 +537,10 @@ mod tests {
         assert!(ribbon(&mut world).is_empty());
 
         // The first prediction lands: the ribbon is that path alone.
-        world
-            .entity_mut(ship)
-            .insert(prediction(BENDING_PATH.to_vec(), None));
+        world.entity_mut(ship).insert(FlightPrediction {
+            flown_point: Vec3::Z,
+            ..prediction(BENDING_PATH.to_vec(), None)
+        });
         world.run_system_once(sync_trajectory_ribbon).unwrap();
         world.run_system_once(sync_trajectory_ribbon).unwrap();
         assert_ribbon(&mut world, &curve);

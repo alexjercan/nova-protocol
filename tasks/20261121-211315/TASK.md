@@ -99,3 +99,49 @@ Paths and lines are at HEAD a82db744d, before the change.
 - Done when: a GOTO flown by a docked pair, either root at the helm, shows
   the predicted flight of the pair to arrival on the HUD and Map; the owner
   has checked it.
+
+### Follow-up result (2026-11-22)
+- Map of the docked flight: `measure_docked_assemblies` (FixedUpdate, before
+  physics) writes `DockedShip::drives` and `DockedAssembly`; only the driver's
+  thrusters burn, its PD output is spread as one rigid wrench
+  (`apply_docked_helm_wrench`), RCS gives every root the same delta-v, and
+  the autopilot flies `flight_body(.., Some(assembly))`. Each root feels its
+  own well pull at its own origin. The predictor runs in FixedPostUpdate, so
+  it re-measures the assembly from live root state, not the one-tick-stale
+  component.
+- Reproduced before the fix: the held-warship GOTO published no
+  `FlightPrediction` in 4473 ticks.
+- Change: `prediction.rs:771-786` replaces the `!docked` gate. A docked
+  root predicts only while it drives; `docked_assembly` (`prediction.rs:523`)
+  measures the pair through `assembly_roots`/`assembly_root`
+  (`docking_section/assembly.rs:64,88`) and seeds the flight body with the
+  assembly mass, centre and inertia. `well_pull` (`prediction.rs:482`) sums
+  each root's pull at its own origin into a force and a torque about the
+  assembly centre. `FlightPrediction::flown_point` (`prediction.rs:119`)
+  carries the followed point in the root frame; the HUD ribbon anchors on it
+  (`holo_instruments.rs:214`). Deleted: the `!docked` gate, the run's
+  `ship_feels_wells`/`dominant_well`, the ribbon's own
+  `ComputedCenterOfMass` anchor.
+- Helm cases: held from a living ship or a derelict, and a dead station hub,
+  draw the pair's path. A neutral helm (the partner drives) or a living
+  station's helm draws nothing: the player's GOTO waits and flies nothing.
+- Proof (`nova_scenario` `a_docked_pair_goto_is_predicted_to_its_arrival`):
+  held warship 69.9 s, 503 predictions, max time-aligned deviation 1.69 u,
+  max off the drawn line 0.64 u, max end gap 0.64 u; derelict station
+  40.7 s, 440 predictions, 0.036 / 0.024 / 0.020 u. Undocked reference on
+  the same 2000 u leg: 2.14 u deviation, 0.79 u end gap (a one-tick flip and
+  brake shift). Joint drift during the leg stayed under 1.1e-4 u, so joint
+  compliance is not a measurable error source.
+- Frames (`loop_docked_helm` stills tail: the walk takes the HELM back,
+  the waiting GOTO flies the pair, then HUD and Map stills), in
+  `~/Pictures/nova-goto-path/docked/`: the HUD line runs from the pair to the
+  arrival short of the HELM beacon; the ribbon ends on the predicted arrival
+  (9.7e-8 u) and flies 36.7 m off the tug's own centre of mass.
+- Audit fix: the Map dropped the route of a GOTO whose target is not a map
+  contact (a scenario beacon locked in flight); the first frame
+  (`map-before-noncontact-fix.png`) shows no line and `GOTO LOST`.
+  `project_map_route` (`map/scene.rs`) now draws the predicted route for
+  any GOTO and places the tag only on a plotted target.
+- Open, not this defect class: the panel reads `GOTO LOST` for a beacon that
+  was never on the Map; the Map zoom reach follows the contact spread, so a
+  route to an unplotted target runs off the viewport edge.

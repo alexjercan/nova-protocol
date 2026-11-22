@@ -11,7 +11,14 @@
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - the whole walk, recording
 //!   nothing.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also record the `news-0150-docked-helm`
-//!   webm.
+//!   webm, then a HUD still and a Map still of the pair's predicted GOTO
+//!   path (`docked-goto-hud.png`, `docked-goto-map.png`).
+//!
+//! After the loop the walk takes the HELM again, so the waiting GOTO flies
+//! the pair, and checks that the production prediction
+//! (`nova_ship::flight::prediction`) and the holo ribbon draw the pair's
+//! path to its arrival. The Map route strokes are crate-private to
+//! `nova_interface`, so the Map still is checked by eye only.
 //!
 //! ```text
 //! NOVA_CAPTURE_DIR=target/news-shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
@@ -58,6 +65,10 @@ const BEACON_LOCK_SIGNATURE: Meters = Meters(400.0);
 
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "news-0150-docked-helm";
+#[cfg(feature = "debug")]
+const HUD_SHOT: &str = "docked-goto-hud.png";
+#[cfg(feature = "debug")]
+const MAP_SHOT: &str = "docked-goto-map.png";
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -195,6 +206,18 @@ const ENDING_HOLD_SECS: f32 = 1.5;
 /// Real-seconds backstop for the loop write.
 #[cfg(feature = "debug")]
 const WRITE_DEADLINE: f32 = 60.0;
+/// Real-seconds backstop for the pair's predicted path to appear: the
+/// predictor flies the leg to its arrival in passes of 120 ticks, and each
+/// frame takes seconds on a software-rendered GPU.
+#[cfg(feature = "debug")]
+const PREDICTION_DEADLINE: f32 = 300.0;
+/// Frames the posed camera and the ribbon settle before the HUD still.
+#[cfg(feature = "debug")]
+const HUD_SETTLE_FRAMES: u32 = 10;
+/// Frames the Map pane renders before its still: its offscreen scene builds
+/// over frames.
+#[cfg(feature = "debug")]
+const MAP_SETTLE_FRAMES: u32 = 20;
 
 #[cfg(feature = "debug")]
 fn root(world: &mut World, id: &str) -> Entity {
@@ -355,6 +378,130 @@ fn assert_pair_one_body(
     );
 }
 
+/// The player's `FlightPrediction` has a path, and the holo ribbon draws it.
+#[cfg(feature = "debug")]
+fn pair_path_drawn() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    when(|world| {
+        let Some(mut q_player) =
+            world.try_query_filtered::<(Entity, &FlightPrediction), With<PlayerSpaceshipMarker>>()
+        else {
+            return false;
+        };
+        let Some((player, prediction)) = q_player.iter(world).next() else {
+            return false;
+        };
+        prediction.points.len() >= 3
+            && world
+                .try_query::<&TrajectoryRibbonSegment>()
+                .is_some_and(|mut segments| {
+                    segments.iter(world).any(|segment| segment.ship == player)
+                })
+    })
+}
+
+/// The interface is up on `pane`.
+#[cfg(feature = "debug")]
+fn the_interface_shows(
+    pane: nova_protocol::nova_interface::pane::InterfacePaneType,
+) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    when(move |world| {
+        world
+            .get_resource::<State<PauseStates>>()
+            .is_some_and(|pause| *pause.get() == PauseStates::Interface)
+            && world
+                .get_resource::<nova_protocol::nova_interface::pane::InterfacePaneType>()
+                .is_some_and(|shown| *shown == pane)
+    })
+}
+
+/// The pair's path: the player still drives the docked pair, the
+/// prediction follows the pair's centre of mass (not the tug's), and the
+/// ribbon draws every segment and ends on the prediction's arrival point.
+#[cfg(feature = "debug")]
+fn assert_pair_path(world: &mut World) {
+    use avian3d::prelude::ComputedCenterOfMass;
+
+    assert_helm(world, true);
+    let player = root(world, PLAYER_ID);
+    let prediction = world
+        .get::<FlightPrediction>(player)
+        .unwrap_or_else(|| panic!("loop_docked_helm: the docked pair has no FlightPrediction"));
+    let flown_point = prediction.flown_point;
+    let arrival = *prediction
+        .points
+        .last()
+        .expect("loop_docked_helm: a prediction has points");
+    let tug_center = world
+        .get::<ComputedCenterOfMass>(player)
+        .expect("loop_docked_helm: the tug has a centre of mass")
+        .0;
+    let beacon = world
+        .query::<(&EntityId, &GlobalTransform)>()
+        .iter(world)
+        .find(|(id, _)| id.0 == BEACON_ID)
+        .map(|(_, transform)| transform.translation())
+        .unwrap_or_else(|| panic!("loop_docked_helm: no beacon {BEACON_ID}"));
+    let (mut drawn, mut hidden, mut end) = (0u32, 0u32, None);
+    let mut segments = world.query::<(&TrajectoryRibbonSegment, &Transform, &Visibility)>();
+    for (segment, transform, visibility) in segments.iter(world) {
+        if segment.ship != player {
+            continue;
+        }
+        drawn += 1;
+        if *visibility == Visibility::Hidden {
+            hidden += 1;
+        }
+        let far =
+            transform.translation + transform.rotation.mul_vec3(Vec3::Y) * transform.scale.y * 0.5;
+        if end.is_none_or(|(index, _)| segment.index > index) {
+            end = Some((segment.index, far));
+        }
+    }
+    let end = end.map(|(_, far)| far);
+    info!(
+        "loop_docked_helm: the pair's path flies from {:.1} m off the tug's centre of mass, has \
+         {drawn} ribbon segment(s), {hidden} hidden, ends {:?} off the predicted arrival, and \
+         arrives {:.0} m from the beacon",
+        Meters::from_engine(flown_point.distance(tug_center)).get(),
+        end.map(|far| far.distance(arrival)),
+        Meters::from_engine(arrival.distance(beacon)).get(),
+    );
+    assert!(
+        flown_point.distance(tug_center) > 0.1,
+        "loop_docked_helm: the prediction follows the tug's centre of mass, not the pair's"
+    );
+    assert!(drawn >= 1, "loop_docked_helm: the ribbon drew no segment");
+    assert_eq!(hidden, 0, "loop_docked_helm: a ribbon segment is hidden");
+    assert!(
+        end.is_some_and(|far| far.distance(arrival) < 0.01),
+        "loop_docked_helm: the ribbon must end on the predicted arrival"
+    );
+}
+
+/// Pin the camera behind and above the pair, looking down its track, so the
+/// pair and its path to the beacon share the frame.
+#[cfg(feature = "debug")]
+fn frame_pair_path(world: &mut World) {
+    use avian3d::prelude::Position;
+
+    let player = root(world, PLAYER_ID);
+    let at = world.get::<Position>(player).unwrap().0;
+    let beacon = world
+        .query::<(&EntityId, &GlobalTransform)>()
+        .iter(world)
+        .find(|(id, _)| id.0 == BEACON_ID)
+        .map(|(_, transform)| transform.translation())
+        .unwrap_or_else(|| panic!("loop_docked_helm: no beacon {BEACON_ID}"));
+    let track = (beacon - at).normalize_or(Vec3::X);
+    let eye = at - track * Meters(160.0).to_engine() + Vec3::Y * Meters(70.0).to_engine();
+    let look_at = at + track * Meters(400.0).to_engine();
+    pose_camera(
+        world,
+        Meters3::from_engine(eye),
+        Meters3::from_engine(look_at),
+    );
+}
+
 /// Press and release a key action, one frame each.
 #[cfg(feature = "debug")]
 fn tap(
@@ -375,7 +522,8 @@ fn tap(
         .add()
 }
 
-/// Dock, take the HELM, fly the pair as one body, and hand the HELM back.
+/// Dock, take the HELM, fly the pair as one body, hand the HELM back, then
+/// take it again and shoot the pair's predicted GOTO path on the HUD and the Map.
 #[cfg(feature = "debug")]
 fn helm_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     let script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
@@ -485,7 +633,7 @@ fn helm_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
     })
     .until(frames(1))
     .add();
-    script
+    let script = script
         .step("hold the handed-back helm")
         .until(elapsed(ENDING_HOLD_SECS))
         .add()
@@ -493,5 +641,49 @@ fn helm_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .on_enter(|world: &mut World| loop_end(world, LOOP_NAME))
         .until(loop_written(LOOP_NAME))
         .deadline(WRITE_DEADLINE)
-        .add()
+        .add();
+    // The GOTO waits while the HELM is neutral; taking it back flies the
+    // pair again, and the pair's path is what the stills show.
+    let script = tap(
+        script,
+        "the helm key again",
+        "dock_helm",
+        helm_chip_is(DockChipState::Hot),
+    )
+    .step("wait for the pair's predicted path")
+    .until(pair_path_drawn())
+    .deadline(PREDICTION_DEADLINE)
+    .add()
+    .step("check the pair's path")
+    .on_enter(assert_pair_path)
+    .until(frames(1))
+    .add()
+    .step("frame the pair's path for the HUD still")
+    .on_enter(|world: &mut World| {
+        if let Some(mut hud) = world.get_resource_mut::<HudVisibility>() {
+            *hud = HudVisibility::On;
+        }
+        frame_pair_path(world);
+    })
+    .until(frames(HUD_SETTLE_FRAMES))
+    .add()
+    .step("shoot the HUD")
+    .on_enter(|world: &mut World| shoot(world, HUD_SHOT))
+    .until(shot_written(HUD_SHOT))
+    .deadline(WRITE_DEADLINE)
+    .add();
+    tap(
+        script,
+        "the interface key",
+        "interface_toggle",
+        the_interface_shows(nova_protocol::nova_interface::pane::InterfacePaneType::Map),
+    )
+    .step("settle the map")
+    .until(frames(MAP_SETTLE_FRAMES))
+    .add()
+    .step("shoot the map")
+    .on_enter(|world: &mut World| shoot(world, MAP_SHOT))
+    .until(shot_written(MAP_SHOT))
+    .deadline(WRITE_DEADLINE)
+    .add()
 }

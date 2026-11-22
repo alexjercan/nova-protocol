@@ -7,7 +7,7 @@
 //! on motion - overshoot, reversals, the mark, joint drift - never on time.
 
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{prelude::*, time::TimeUpdateStrategy};
 use nova_events::prelude::MetersPerSecond3;
 use nova_gameplay::{
     prelude::*,
@@ -417,4 +417,210 @@ fn a_re_dock_starts_neutral() {
     app.update();
     assert!(app.world().get::<DockedShip>(partner).unwrap().drives);
     assert!(!app.world().get::<DockedShip>(player).unwrap().drives);
+}
+
+/// The pair's centre of mass from its roots' live avian state: the point a
+/// docked pair's [`FlightPrediction`] follows.
+fn pair_center_of_mass(app: &App, roots: [Entity; 2]) -> Vec3 {
+    let world = app.world();
+    let (sum, mass) = roots.iter().fold((Vec3::ZERO, 0.0), |(sum, total), &root| {
+        let mass = world.get::<ComputedMass>(root).unwrap().value();
+        let center = world.get::<Rotation>(root).unwrap().0
+            * world.get::<ComputedCenterOfMass>(root).unwrap().0
+            + world.get::<Position>(root).unwrap().0;
+        (sum + center * mass, total + mass)
+    });
+    sum / mass
+}
+
+/// Fly the player's GOTO at a target `distance` ahead of the docked pair, one
+/// fixed tick per update, and lay every published prediction over the flown
+/// centre of mass of the pair at each tick it spans, the drawn polyline
+/// between its points included. Returns the largest time-aligned deviation,
+/// the largest distance of the flown point off the drawn line, the largest gap
+/// between a path's last point and the flown arrival, and the leg's seconds.
+fn fly_predicted_docked_goto(
+    app: &mut App,
+    player: Entity,
+    partner: Entity,
+    distance: f32,
+    case: &str,
+) -> (f32, f32, f32, f32) {
+    let step = app.world().resource::<Time<Fixed>>().timestep();
+    let dt = step.as_secs_f32();
+    app.insert_resource(TimeUpdateStrategy::ManualDuration(step));
+    app.update();
+    let roots = [player, partner];
+    let ahead = app.world().get::<Rotation>(player).unwrap().0 * Vec3::NEG_Z;
+    let goal = pair_center_of_mass(app, roots) + ahead * distance;
+    let target = app
+        .world_mut()
+        .spawn((
+            Transform::from_translation(goal),
+            GlobalTransform::from(Transform::from_translation(goal)),
+        ))
+        .id();
+    app.world_mut()
+        .entity_mut(player)
+        .insert(Autopilot::engage(AutopilotAction::Goto { target }));
+
+    // Index u is the state after update u; index 0 is the engaged state.
+    let mut coms = vec![pair_center_of_mass(app, roots)];
+    let mut elapsed = vec![app.world().resource::<Time<Fixed>>().elapsed()];
+    let mut predictions: Vec<FlightPrediction> = Vec::new();
+    let mut released_at = None;
+    for update in 1..=TICK_CAP {
+        app.update();
+        coms.push(pair_center_of_mass(app, roots));
+        elapsed.push(app.world().resource::<Time<Fixed>>().elapsed());
+        if let Some(prediction) = app.world().get::<FlightPrediction>(player) {
+            if predictions
+                .last()
+                .is_none_or(|last| last.seed_time != prediction.seed_time)
+            {
+                predictions.push(prediction.clone());
+            }
+        }
+        if app.world().get::<Autopilot>(player).is_none() {
+            released_at = Some(update);
+            break;
+        }
+    }
+    let released_at = released_at.unwrap_or_else(|| panic!("{case}: the GOTO must arrive"));
+    assert!(
+        !predictions.is_empty(),
+        "{case}: the docked pair's GOTO published no FlightPrediction in {released_at} ticks"
+    );
+    // The completing tick flies from the state after the update before it.
+    let live_end = released_at - 1;
+    let arrived = coms[live_end];
+    let (mut deviation, mut end_gap, mut late, mut off_line) = (0.0f32, 0.0f32, 0usize, 0.0f32);
+    let mut covered = vec![false; live_end + 1];
+    for prediction in &predictions {
+        assert_eq!(
+            prediction.end,
+            FlightPredictionEndType::Completed,
+            "{case}: every path ends at the arrival"
+        );
+        let seed = elapsed
+            .iter()
+            .position(|&time| time == prediction.seed_time)
+            .unwrap_or_else(|| panic!("{case}: a prediction seeds on a flown tick"));
+        let last = prediction.points.len() - 1;
+        let tick_of = |index: usize| {
+            if index == last {
+                seed + (prediction.final_point_time / dt).round() as usize
+            } else {
+                seed + 8 * index
+            }
+        };
+        late = late.max(tick_of(last).abs_diff(live_end));
+        end_gap = end_gap.max(prediction.points[last].distance(arrived));
+        for tick in seed..=tick_of(last).min(live_end) {
+            let index = (0..last)
+                .find(|&index| tick <= tick_of(index + 1))
+                .unwrap_or(last);
+            let drawn = if index == last {
+                prediction.points[last]
+            } else {
+                let (from, to) = (tick_of(index), tick_of(index + 1));
+                let t = (tick - from) as f32 / (to - from) as f32;
+                prediction.points[index].lerp(prediction.points[index + 1], t)
+            };
+            let error = drawn.distance(coms[tick]);
+            deviation = deviation.max(error);
+            // The flown point off the drawn line, wherever along it.
+            let near = prediction.points[index.saturating_sub(4)..(index + 5).min(last + 1)]
+                .windows(2)
+                .map(|pair| {
+                    let (a, b) = (pair[0], pair[1]);
+                    let span = b - a;
+                    let t = if span.length_squared() > 0.0 {
+                        ((coms[tick] - a).dot(span) / span.length_squared()).clamp(0.0, 1.0)
+                    } else {
+                        0.0
+                    };
+                    (a + span * t).distance(coms[tick])
+                })
+                .fold(drawn.distance(coms[tick]), f32::min);
+            off_line = off_line.max(near);
+            covered[tick] = true;
+        }
+    }
+    assert!(
+        covered[1..].iter().all(|&covered| covered),
+        "{case}: the predictions cover every flown tick after the first"
+    );
+    let seconds = live_end as f32 * dt;
+    println!(
+        "{case}: {} predictions over {live_end} ticks ({seconds:.1} s); max deviation \
+         {deviation} u, max end gap {end_gap} u, arrival tick off by at most {late}, max \
+         off the drawn line {off_line} u; the first path ends {} u from the flown arrival",
+        predictions.len(),
+        predictions[0].points[predictions[0].points.len() - 1].distance(arrived),
+    );
+    (deviation, off_line, end_gap, seconds)
+}
+
+/// A GOTO flown by a docked pair is predicted as the pair flies it, end to
+/// end: with the helm taken from a living warship, and with the helm a
+/// derelict partner 20.7 times the player's mass hands over at capture.
+///
+/// The time-aligned bound is the undocked predictor's own on this 2000 u
+/// leg: a lone warship measured 2.14 u (2026-11-22), from the flip and the
+/// brake landing about one tick off the flown ones. The held pair measured
+/// 1.69 u, the derelict station 0.04 u; every path ended within 0.65 u of
+/// the flown arrival.
+#[test]
+fn a_docked_pair_goto_is_predicted_to_its_arrival() {
+    for (case, partner, derelict, distance) in [
+        ("held warship", WARSHIP, false, 2000.0),
+        ("derelict station", STATION, true, 150.0),
+    ] {
+        let mut app = app();
+        let offset = collar(&app, WARSHIP, PLAYER_COLLAR) + Vec3::X * (1.0 + GAP)
+            - collar(&app, partner, PARTNER_COLLAR);
+        let player = spawn_ship(&mut app, WARSHIP, Vec3::ZERO);
+        let other = spawn_ship(&mut app, partner, offset);
+        settle(&mut app);
+        settle(&mut app);
+        app.world_mut()
+            .entity_mut(player)
+            .insert(PlayerSpaceshipMarker);
+        if derelict {
+            app.world_mut().entity_mut(other).insert(DerelictShipMarker);
+        }
+        dock(&mut app, player, other);
+        settle(&mut app);
+        if derelict {
+            assert!(
+                app.world().get::<DockedShip>(player).unwrap().drives,
+                "{case}: a derelict hands the helm over at capture"
+            );
+        } else {
+            take_helm(&mut app, player);
+        }
+        let (deviation, off_line, end_gap, seconds) =
+            fly_predicted_docked_goto(&mut app, player, other, distance, case);
+        assert!(
+            app.world().get::<DockedShip>(player).is_some(),
+            "{case}: still docked"
+        );
+        assert!(
+            seconds > 30.0,
+            "{case}: the leg must outlast 30 s: {seconds} s"
+        );
+        assert!(
+            deviation <= 2.5,
+            "{case}: the path strays {deviation} u from the flown pair at the same time"
+        );
+        assert!(
+            off_line <= 1.0,
+            "{case}: the flown pair runs {off_line} u off the drawn line"
+        );
+        assert!(
+            end_gap <= 1.0,
+            "{case}: a path ends {end_gap} u off the flown arrival"
+        );
+    }
 }
