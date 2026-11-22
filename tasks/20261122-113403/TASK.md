@@ -40,13 +40,18 @@
   `system_ai_combat` run: live ships turned at up to 9.1 deg/s. Nobody was
   neutralized, so the spin of a fresh wreck is not measured.
 
-## Proposed decisions (awaiting owner)
-- Recommended: E = A + D. A ship root with no live flight computer, not
-  docked, halves its spin every 8 s (60 deg/s under the 5 deg/s gate in
-  about 29 s). Spin only; drift unchanged. The capture gate measures the
-  two port faces with the same 5 m/s and 5 deg/s numbers.
-- Open choices on the page: which hulls settle, spin only or drift too,
-  the half-life, the gate fix, and a spin-matching MATCH (B) now or later.
+## Decisions (owner 2026-11-22)
+- Owner: "I want ships to settle after 30 seconds, I think it's the
+  simplest way we can do it, I don't want to force a new mechanic of
+  'matching the spin'... I am fine with this approach of having the
+  'neutralized' ships just stop after some time".
+- E = A + D as recommended: a ship root with no live flight computer, not
+  docked, settles its spin, under the 5 deg/s gate in about 30 s (8 s
+  half-life from 60 deg/s). Spin only; drift unchanged. Rocks, wreck
+  fragments and docked pairs are not settled.
+- The capture gate measures the two port faces with the same 5 m/s and
+  5 deg/s numbers.
+- No spin-matching MATCH or DOCK assist (B): rejected by the owner.
 
 ## Delivery
 1. Map the slice, reproduce the failed dock, and write the design page with
