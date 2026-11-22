@@ -84,7 +84,13 @@ The "not verified" points, answered from code and one live walk
   `:198`) and the leg arrives there. `report_buried_sector_mark`
   (`waypoint.rs:248`) warns once per mark and body.
 - Stations are not autopilot obstacles (`nova_ship/src/flight/autopilot.rs:393`),
-  so a cell centre inside a station is not avoided. Not reproduced.
+  so a cell centre inside a station is not avoided. A scan of the 125 cells
+  around the origin found no station near a centre: base content, seeds
+  1-10, 9 stations, the nearest 12.9 km off; fixture packs, 42 seeds, 40
+  stations, the nearest 5.5 km off. Cluster nodes stand on a 50 km lattice
+  and cell centres on a 32 km one, so a near hit is rare but possible.
+  `refuse_sector_mark_in_a_station` drops the waypoint and the autopilot
+  with an error when a live station's hull envelope holds the centre.
 - Chart marks draw at any cell distance; only visited cells have a cell
   label, so a sector waypoint targets a visited cell only.
 

@@ -12,19 +12,26 @@
 //! planetoid may stand on it. The autopilot pushes every `GotoPos` goal out
 //! of a sized body's clearance and parks there, so the leg rests beside the
 //! body, off the centre. That is reported as a warning once the body is live.
+//! A station is no obstacle to the autopilot, so a cell centre inside a live
+//! station's hull would end the leg in the hull: that drops the waypoint and
+//! the autopilot with an error. A scan of the window around the origin over
+//! ten seeds of the base content found no station within 5 km of a cell
+//! centre, so this guards a rare case, not a common one.
 //!
 //! Every fault here is a broken world, not a choice the player made: a
 //! charted station with no frozen record has no place to fly to, and a
 //! station that is gone once its cell is placed never thaws. Each one logs an
 //! error and drops the waypoint. No fault falls back to the cell centre.
 
+use avian3d::prelude::ComputedCenterOfMass;
 use bevy::prelude::*;
 use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::{
     Chart, ChartSectorEdge, PlayerSpaceshipMarker, StationMarker, Waypoint, WaypointTargetType,
 };
 use nova_ship::prelude::{
-    Autopilot, AutopilotAction, BodyRadius, PlayerAutopilotCompleted, TravelLock,
+    Autopilot, AutopilotAction, BodyRadius, HullEnvelopeRadius, PlayerAutopilotCompleted,
+    TravelLock,
 };
 use nova_world::prelude::{
     FrozenBodyType, FrozenSectors, NovaWorldSystems, PendingSectorStation, WorldConfig,
@@ -124,6 +131,7 @@ impl Plugin for WaypointPlugin {
                 refuse_lost_waypoint_station,
                 clear_stale_waypoint,
                 report_buried_sector_mark,
+                refuse_sector_mark_in_a_station,
             )
                 .chain()
                 .in_set(WaypointSystems),
@@ -274,6 +282,55 @@ pub(crate) fn report_buried_sector_mark(
             "nova_world_base: the centre of waypoint cell {coord} lies inside '{name}'; the \
              leg parks outside it, off the centre"
         );
+    }
+}
+
+/// A sector waypoint whose cell centre lies inside a live station's hull
+/// envelope: the autopilot routes around no station, so the leg would end in
+/// the hull. The waypoint and the autopilot drop, and the error names the
+/// station. Nothing moves the mark off the centre.
+pub(crate) fn refuse_sector_mark_in_a_station(
+    mut commands: Commands,
+    q_player: Query<(Entity, &Waypoint, &Autopilot), With<PlayerSpaceshipMarker>>,
+    q_station: Query<
+        (
+            Entity,
+            &GlobalTransform,
+            &HullEnvelopeRadius,
+            Option<&ComputedCenterOfMass>,
+            Option<&Name>,
+        ),
+        With<StationMarker>,
+    >,
+) {
+    for (player, waypoint, autopilot) in &q_player {
+        let WaypointTargetType::Sector(coord) = waypoint.target else {
+            continue;
+        };
+        if !matches!(autopilot.action, AutopilotAction::GotoPos { position } if position == waypoint.mark)
+        {
+            continue;
+        }
+        // The envelope is measured from the hull's centre of mass.
+        let hulls = q_station.iter().map(|(station, at, envelope, mass, _)| {
+            let centre = at.transform_point(mass.map_or(Vec3::ZERO, |mass| mass.0));
+            (station, centre, **envelope)
+        });
+        let Some(station) = burying_body(waypoint.mark, hulls) else {
+            continue;
+        };
+        let name = q_station
+            .get(station)
+            .ok()
+            .and_then(|(.., name)| name)
+            .map_or_else(|| station.to_string(), ToString::to_string);
+        error!(
+            "nova_world_base: the centre of waypoint cell {coord} lies inside station '{name}', \
+             which the autopilot does not route around; dropping the waypoint and the autopilot"
+        );
+        commands
+            .entity(player)
+            .remove::<(Waypoint, Autopilot, TravelLock)>();
     }
 }
 
@@ -610,6 +667,41 @@ mod tests {
 
         world.insert_resource(FrozenSectors::default());
         world.run_system_once(refuse_lost_waypoint_station).unwrap();
+        assert!(world.get::<Waypoint>(player).is_none());
+        assert!(world.get::<Autopilot>(player).is_none());
+    }
+
+    /// A sector leg whose cell centre lies inside a live station's hull
+    /// envelope drops with its waypoint; one beside the station flies on.
+    #[test]
+    fn a_sector_waypoint_inside_a_live_station_drops_the_leg() {
+        let coord = SectorCoord::new(4, 0, -1);
+        let (mut world, player) = flying_world();
+        world.entity_mut(player).insert(Waypoint {
+            target: WaypointTargetType::Sector(coord),
+            mark: MARK,
+        });
+        // The envelope reaches 30 u from the centre of mass, which stands
+        // 10 u off the root.
+        let station = world
+            .spawn((
+                StationMarker,
+                GlobalTransform::from_translation(MARK + Vec3::new(45.0, 0.0, 0.0)),
+                HullEnvelopeRadius(30.0),
+                ComputedCenterOfMass(Vec3::new(-10.0, 0.0, 0.0)),
+            ))
+            .id();
+        world
+            .run_system_once(refuse_sector_mark_in_a_station)
+            .unwrap();
+        assert!(world.get::<Waypoint>(player).is_some(), "beside it: kept");
+
+        world
+            .entity_mut(station)
+            .insert(ComputedCenterOfMass(Vec3::new(-20.0, 0.0, 0.0)));
+        world
+            .run_system_once(refuse_sector_mark_in_a_station)
+            .unwrap();
         assert!(world.get::<Waypoint>(player).is_none());
         assert!(world.get::<Autopilot>(player).is_none());
     }

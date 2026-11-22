@@ -13,8 +13,9 @@
 //! What to do:
 //!
 //! 1. press Tab, open the Map and press C for the chart. Click `STN-1`, the
-//!    starting station, then GOTO (G). The panel reads `GOTO STN-1` and the
-//!    range, and the station's label wears the `GOTO` tag;
+//!    starting station, then GOTO (or G). The panel reads `GOTO STN-1` and
+//!    the range under its stock list, and the station's label wears the
+//!    `GOTO` tag;
 //! 2. close Tab. The nav chip reads `STN-1` and the range. Turn away from it:
 //!    it clamps to the screen edge with its chevron. The holo ribbon shows
 //!    the predicted path once the forecast lands, and nothing before;
@@ -23,18 +24,21 @@
 //! 4. in the chart, click a visited cell's coordinate, then GOTO: the leg
 //!    flies to the cell's centre. A wreck or a job mark has no GOTO.
 //!
-//! The diagnostics layer (F3) is on at start: the waypoint, its mark and the
-//! order the autopilot flies.
+//! The diagnostics layer (F3) is on at start: in flight, the waypoint's code,
+//! the range to its mark and the order the autopilot flies. It writes
+//! nothing while a surface is up, so it covers no part of the Map.
 //!
 //! ```text
 //! nix develop --command cargo run --example waypoint_goto_sandbox --features debug
 //! ```
 //!
 //! No deadline ends the run unless `NOVA_AUTOPILOT=1` is set. Then a smoke
-//! walk waits for the staging, sets the chart GOTO on the starting station,
-//! checks the waypoint, the tag and the chip on and off screen, jumps the
+//! walk waits for the staging, checks that the GOTO and Cancel row stands
+//! inside the panel and the window under the station's stock list, clicks
+//! GOTO with the harness pointer, checks the waypoint, the tag and the chip
+//! on and off screen, jumps the
 //! ship 20 km short of the mark (disclosed) and checks the hand-off, then
-//! sets a chart GOTO on the cell the ship jumped to and checks its mark.
+//! clicks a chart GOTO on the cell the ship jumped to and checks its mark.
 //! `NOVA_CAPTURE=1` shoots the chart with the tag and the chip on and off
 //! screen.
 
@@ -59,7 +63,7 @@ const JUMP_DISTANCE: Meters = Meters(128_000.0);
 const JUMP_AXIS: Vec3 = Vec3::X;
 
 /// The intro line.
-const INTRO: &str = "Tab, Map, C: click STN-1, then G. Close Tab and follow the chip.";
+const INTRO: &str = "Tab, Map, C: click STN-1, then GOTO. Close Tab and follow the chip.";
 
 fn main() -> bevy::app::AppExit {
     open_world_stage::isolate_the_profile(env!("CARGO_CRATE_NAME"));
@@ -230,8 +234,12 @@ fn station_mark(world: &World, id: &GeneratedBodyId) -> Result<Vec3, WaypointFau
     )
 }
 
-/// The panel: the waypoint, its mark and the order the autopilot flies.
+/// The panel, in flight only: the waypoint's code, the range to its mark
+/// and the order the autopilot flies.
 fn draw_the_waypoint(world: &mut World) {
+    if *world.resource::<State<PauseStates>>().get() != PauseStates::Unpaused {
+        return;
+    }
     let phase = world.resource::<Sandbox>().phase;
     if phase != SandboxPhaseType::Ready {
         world
@@ -245,28 +253,29 @@ fn draw_the_waypoint(world: &mut World) {
     let at = world
         .get::<GlobalTransform>(player)
         .map_or(Vec3::ZERO, GlobalTransform::translation);
-    let mut lines = Vec::new();
-    match world.get::<Waypoint>(player) {
-        Some(waypoint) => {
-            lines.push(format!("Waypoint: {:?}", waypoint.target));
-            lines.push(format!(
-                "Mark: {} off",
-                nova_ui::units::distance(Meters::from_engine(at.distance(waypoint.mark)))
-            ));
-        }
-        None => lines.push("No waypoint".to_string()),
-    }
-    lines.push(format!(
-        "Autopilot: {:?}",
-        world
-            .get::<Autopilot>(player)
-            .map(|autopilot| autopilot.action)
-    ));
+    let waypoint = world.get::<Waypoint>(player).map(|waypoint| {
+        let code = waypoint
+            .target
+            .chart_code(world.resource::<Chart>())
+            .unwrap_or_else(|| "not charted".to_string());
+        format!(
+            "Waypoint {code}, mark {}",
+            nova_ui::units::distance(Meters::from_engine(at.distance(waypoint.mark)))
+        )
+    });
+    let order = match world
+        .get::<Autopilot>(player)
+        .map(|autopilot| autopilot.action)
+    {
+        Some(AutopilotAction::GotoPos { .. }) => "GotoPos",
+        Some(AutopilotAction::Goto { .. }) => "Goto",
+        Some(_) => "other",
+        None => "none",
+    };
     let mut panel = world.resource_mut::<DiagnosticsPanel>();
-    for line in lines {
-        panel.line(line);
-    }
-    panel.hint("TAB", "Map, C, click STN-1, G");
+    panel.line(waypoint.unwrap_or_else(|| "No waypoint".to_string()));
+    panel.line(format!("Autopilot {order}"));
+    panel.hint("TAB", "Map, C, click STN-1, GOTO");
 }
 
 mod smoke {
@@ -584,21 +593,57 @@ mod smoke {
             .add()
     }
 
-    fn press_goto(
+    /// The GOTO and Cancel row stands inside the panel and the window while
+    /// the panel's body runs past its height.
+    fn assert_the_verbs_in_view(world: &mut World, label: &str) {
+        let window = world
+            .query_filtered::<&Window, With<bevy::window::PrimaryWindow>>()
+            .single(world)
+            .map(|window| Rect::new(0.0, 0.0, window.width(), window.height()))
+            .expect("waypoint_goto_sandbox: a primary window");
+        let panel = ui_node_rect(world, "MapPanel").expect("waypoint_goto_sandbox: the Map panel");
+        let overflow = world
+            .query::<(&Name, &ComputedNode)>()
+            .iter(world)
+            .find(|(name, _)| name.as_str() == "MapPanelBody")
+            .map(|(_, body)| (body.content_size().y - body.size().y) * body.inverse_scale_factor())
+            .expect("waypoint_goto_sandbox: the panel body");
+        for verb in ["MapGoto", "MapCancel"] {
+            let rect = ui_node_rect(world, verb)
+                .unwrap_or_else(|| panic!("waypoint_goto_sandbox: {verb} is not shown"));
+            let inside = |outer: Rect| outer.contains(rect.min) && outer.contains(rect.max);
+            assert!(
+                inside(panel) && inside(window),
+                "waypoint_goto_sandbox: {verb} {rect:?} stands outside the panel {panel:?} or \
+                 the window {window:?}"
+            );
+        }
+        info!(
+            "waypoint_goto_sandbox: PASS GOTO and Cancel stand inside the panel and the {}x{} \
+             window on {label}, the body {overflow:.0} px past its height",
+            window.width(),
+            window.height()
+        );
+    }
+
+    fn click_goto(
         script: AutopilotPlugin<GameStates>,
         label: &'static str,
         landed: Arc<Predicate>,
     ) -> AutopilotPlugin<GameStates> {
         script
-            .step(format!("waypoint goto sandbox: press G on {label}"))
-            .on_enter(press_action("map_goto"))
+            .step(format!(
+                "waypoint goto sandbox: check the GOTO row on {label}"
+            ))
+            .on_enter(move |world: &mut World| assert_the_verbs_in_view(world, label))
             .until(frames(1))
             .add()
-            .step(format!("waypoint goto sandbox: let G up on {label}"))
-            .on_enter(release_action("map_goto"))
-            .until(and(landed, frames(SETTLE_FRAMES)))
-            .deadline(BEAT_SECS)
-            .add()
+            .click_named(
+                &format!("waypoint goto sandbox: click GOTO on {label}"),
+                "MapGoto",
+                and(landed, frames(SETTLE_FRAMES)),
+                BEAT_SECS,
+            )
     }
 
     fn close_the_interface(world: &mut World) {
@@ -623,7 +668,7 @@ mod smoke {
             .until(frames(SETTLE_FRAMES))
             .add();
         let script = open_the_chart(script, "the station", |world| expected(world).code.clone());
-        let script = press_goto(
+        let script = click_goto(
             script,
             "the station",
             when(|world| {
@@ -704,7 +749,7 @@ mod smoke {
             .until(frames(1))
             .add();
         let script = open_the_chart(script, "the cell", |world| expected(world).cell.to_string());
-        press_goto(script, "the cell", when(sector_goto_set))
+        click_goto(script, "the cell", when(sector_goto_set))
             .step("waypoint goto sandbox: check the sector GOTO")
             .on_enter(assert_the_sector_goto)
             .until(frames(SETTLE_FRAMES))

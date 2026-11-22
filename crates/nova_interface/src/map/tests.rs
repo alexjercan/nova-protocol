@@ -1122,10 +1122,11 @@ fn a_goto_set_on_the_map_stays_set_over_the_next_frames() {
     }
 }
 
-/// A wheel notch over the contact panel scrolls the panel and leaves the
+/// A wheel notch over the contact panel scrolls its body and leaves the
 /// view's zoom alone; a notch away from the panel zooms the view and leaves
-/// the panel where it is. A selected station's stock list pushes the STANCES
-/// block past a 720p panel, so its Pay fine is reached by the wheel.
+/// the body where it is. A selected station's stock list pushes the STANCES
+/// block past a 720p panel, so its Pay fine is reached by the wheel; the
+/// GOTO and Cancel row stays inside the panel over a body taller than it.
 #[test]
 fn a_wheel_over_the_map_panel_scrolls_it_and_leaves_the_chart_zoom() {
     use bevy::input::{
@@ -1177,8 +1178,13 @@ fn a_wheel_over_the_map_panel_scrolls_it_and_leaves_the_chart_zoom() {
         .query_filtered::<Entity, With<MapPanelMarker>>()
         .single(app.world())
         .expect("the map pane spawns one contact panel");
+    let body = app
+        .world_mut()
+        .query_filtered::<Entity, With<MapPanelBodyMarker>>()
+        .single(app.world())
+        .expect("the contact panel has one scrolling body");
     // Content taller than the panel, as a selected station's stock list is.
-    app.world_mut().entity_mut(panel).with_child(Node {
+    app.world_mut().entity_mut(body).with_child(Node {
         height: Val::Px(3000.0),
         flex_shrink: 0.0,
         ..default()
@@ -1194,13 +1200,32 @@ fn a_wheel_over_the_map_panel_scrolls_it_and_leaves_the_chart_zoom() {
         });
         settle(&mut rig.app);
     };
-    let scrolled = |rig: &PanePointerRig| rig.app.world().get::<ScrollPosition>(panel).unwrap().0.y;
+    let scrolled = |rig: &PanePointerRig| rig.app.world().get::<ScrollPosition>(body).unwrap().0.y;
+    let verbs = [
+        app_entity::<MapGotoButton>(&mut rig.app),
+        app_entity::<MapCancelButton>(&mut rig.app),
+    ];
+    let verbs_inside = |rig: &PanePointerRig| {
+        let panel = rig_rect(rig, panel);
+        verbs.iter().all(|verb| {
+            let verb = rig_rect(rig, *verb);
+            verb.width() > 0.0
+                && verb.height() > 0.0
+                && panel.contains(verb.min)
+                && panel.contains(verb.max)
+        })
+    };
     let radius = |rig: &PanePointerRig| rig.app.world().get::<MapOrbit>(camera).unwrap().radius;
 
     let rect = rig_rect(&rig, panel);
+    assert!(
+        verbs_inside(&rig),
+        "GOTO and Cancel stand inside the panel under a body taller than it"
+    );
     move_cursor_to(&mut rig, rect.center());
     wheel(&mut rig);
     assert!(scrolled(&rig) > 0.0, "the wheel over the panel scrolls it");
+    assert!(verbs_inside(&rig), "and the row does not scroll with it");
     assert_eq!(radius(&rig), 400.0, "and leaves the zoom");
 
     let held = scrolled(&rig);
@@ -3931,4 +3956,12 @@ fn a_waypoint_goto_draws_its_prediction_alone_and_the_chart_tags_its_label() {
     app.world_mut().entity_mut(label).insert(Visibility::Hidden);
     project_map_route_nodes(&mut app);
     assert_eq!(goto_tag(&mut app).1, Visibility::Hidden, "no label, no tag");
+}
+
+/// The one entity with `T`.
+fn app_entity<T: Component>(app: &mut App) -> Entity {
+    app.world_mut()
+        .query_filtered::<Entity, With<T>>()
+        .single(app.world())
+        .unwrap_or_else(|_| panic!("one {}", std::any::type_name::<T>()))
 }

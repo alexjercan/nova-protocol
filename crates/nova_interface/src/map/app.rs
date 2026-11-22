@@ -73,10 +73,18 @@ pub(crate) struct MapPanelIcon;
 #[derive(Component)]
 pub(crate) struct MapPanelHeaderMarker;
 
-/// The contact panel beside the map view. It scrolls: a selected station's
-/// stock list pushes the STANCES block past a 720p panel.
+/// The contact panel beside the map view: the scrolling
+/// [`MapPanelBodyMarker`] over the destination line and the GOTO and Cancel
+/// row, which stay in the panel however long the body runs. A wheel notch
+/// over any of it scrolls the body.
 #[derive(Component)]
 pub(crate) struct MapPanelMarker;
+
+/// The contact panel's scrolling body: a selected station's stock list
+/// pushes the STANCES block past a 720p panel, and past a 1080p one in the
+/// chart.
+#[derive(Component)]
+pub(crate) struct MapPanelBodyMarker;
 
 /// The contact panel's GOTO button. Its [`VerbGate`] hides it on the docked
 /// partner and, in the chart, unless a station or a cell is selected, and
@@ -108,19 +116,17 @@ pub(crate) struct MapGotoMarker;
 /// notch away from the panel is the view's.
 pub(crate) fn scroll_map_panel(
     mut wheel: MessageReader<MouseWheel>,
-    q_panel: Query<
+    q_panel: Query<&Hovered, With<MapPanelMarker>>,
+    q_body: Query<
         (&mut ScrollPosition, Option<&ComputedNode>, Option<&Hovered>),
-        With<MapPanelMarker>,
+        With<MapPanelBodyMarker>,
     >,
 ) {
-    if !q_panel
-        .iter()
-        .any(|(_, _, hovered)| hovered.is_some_and(Hovered::get))
-    {
+    if !q_panel.iter().any(Hovered::get) {
         wheel.clear();
         return;
     }
-    drive_wheel_scroll(wheel, q_panel);
+    drive_wheel_scroll(wheel, q_body);
 }
 
 /// Build the contact panel beside the map view: the
@@ -130,80 +136,40 @@ pub(crate) fn scroll_map_panel(
 /// view with a find selected; the OBJECTIVES block and the discovery log
 /// under it, shown in the chart view with nothing selected; the STANCES
 /// block, shown in the chart view with nothing selected or a living, unowned
-/// Station mark selected; and the live GOTO destination over the GOTO and
-/// Cancel pair in the local contact view.
+/// Station mark selected. All of these scroll in the
+/// [`MapPanelBodyMarker`]; under it, outside the scroll, the GOTO
+/// destination over the GOTO and Cancel pair.
 /// [`update_map_panel`](super::update_map_panel) fills it.
 pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     parent
         .spawn((
             MapPanelMarker,
             Name::new("MapPanel"),
-            inspector(Overflow::scroll_y()),
-            ScrollPosition::default(),
+            inspector(Overflow::clip()),
             Hovered::default(),
         ))
-        .with_children(|panel| {
-            panel
+        .with_children(|frame| {
+            frame
                 .spawn((
-                    MapPanelHeaderMarker,
+                    MapPanelBodyMarker,
+                    Name::new("MapPanelBody"),
                     Node {
-                        display: Display::None,
+                        flex_grow: 1.0,
+                        min_height: px(0),
                         flex_direction: FlexDirection::Column,
-                        row_gap: px(metrics::GAP),
+                        row_gap: px(metrics::GAP_L),
+                        overflow: Overflow::scroll_y(),
                         ..default()
                     },
+                    ScrollPosition::default(),
                 ))
-                .with_children(|header| {
-                    header
-                        .spawn(control_row(JustifyContent::FlexStart))
-                        .with_children(|head| {
-                            head.spawn(preview_frame()).with_children(|frame| {
-                                frame.spawn((
-                                    MapPanelIcon,
-                                    icon_node(
-                                        icons.body(BodyIconType::Ship),
-                                        MapContactKind::OwnShip.color(),
-                                        metrics::PREVIEW * 0.75,
-                                    ),
-                                    Visibility::Hidden,
-                                ));
-                            });
-                            head.spawn(Node {
-                                flex_grow: 1.0,
-                                min_width: px(0),
-                                flex_direction: FlexDirection::Column,
-                                row_gap: px(metrics::GAP_S),
-                                ..default()
-                            })
-                            .with_children(|identity| {
-                                for (field, role) in [
-                                    (MapPanelField::Code, TextRole::Title),
-                                    (MapPanelField::Name, TextRole::Body),
-                                    (MapPanelField::Kind, TextRole::Body),
-                                ] {
-                                    identity.spawn((field, text("", role)));
-                                }
-                            });
-                        });
-                    for field in [MapPanelField::Range, MapPanelField::Bearing] {
-                        spawn_kv_slot(
-                            header,
-                            MapPanelSlot(field),
-                            MapPanelLabel(field),
-                            (field, text("", TextRole::Value)),
-                        );
-                    }
-                    header.spawn((MapPanelField::Note, text("", TextRole::Label)));
-                });
-            spawn_map_chart_sector(panel);
-            spawn_map_chart_objectives(panel);
-            spawn_map_chart_log(panel);
-            spawn_map_stance_block(panel);
-            panel.spawn((MapPanelField::Destination, text("", TextRole::Label)));
+                .with_children(|panel| spawn_map_panel_body(panel, icons));
+            frame.spawn((MapPanelField::Destination, text("", TextRole::Label)));
             // Disabled at spawn: the map opens with nothing selected.
-            panel
+            frame
                 .spawn(Node {
                     width: percent(100),
+                    flex_shrink: 0.0,
                     ..verb_row(RowAlign::End)
                 })
                 .with_children(|verbs| {
@@ -225,6 +191,67 @@ pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &Interfa
                         .observe(on_map_cancel_button);
                 });
         });
+}
+
+/// The scrolling part of the contact panel: the header, the chart blocks and
+/// the STANCES block.
+fn spawn_map_panel_body(panel: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
+    panel
+        .spawn((
+            MapPanelHeaderMarker,
+            Node {
+                display: Display::None,
+                flex_direction: FlexDirection::Column,
+                row_gap: px(metrics::GAP),
+                ..default()
+            },
+        ))
+        .with_children(|header| {
+            header
+                .spawn(control_row(JustifyContent::FlexStart))
+                .with_children(|head| {
+                    head.spawn(preview_frame()).with_children(|frame| {
+                        frame.spawn((
+                            MapPanelIcon,
+                            icon_node(
+                                icons.body(BodyIconType::Ship),
+                                MapContactKind::OwnShip.color(),
+                                metrics::PREVIEW * 0.75,
+                            ),
+                            Visibility::Hidden,
+                        ));
+                    });
+                    head.spawn(Node {
+                        flex_grow: 1.0,
+                        min_width: px(0),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: px(metrics::GAP_S),
+                        ..default()
+                    })
+                    .with_children(|identity| {
+                        for (field, role) in [
+                            (MapPanelField::Code, TextRole::Title),
+                            (MapPanelField::Name, TextRole::Body),
+                            (MapPanelField::Kind, TextRole::Body),
+                        ] {
+                            identity.spawn((field, text("", role)));
+                        }
+                    });
+                });
+            for field in [MapPanelField::Range, MapPanelField::Bearing] {
+                spawn_kv_slot(
+                    header,
+                    MapPanelSlot(field),
+                    MapPanelLabel(field),
+                    (field, text("", TextRole::Value)),
+                );
+            }
+            header.spawn((MapPanelField::Note, text("", TextRole::Label)));
+        });
+    spawn_map_chart_sector(panel);
+    spawn_map_chart_objectives(panel);
+    spawn_map_chart_log(panel);
+    spawn_map_stance_block(panel);
 }
 
 /// The slot [`refresh_map_legend`](super::refresh_map_legend) fills with the
