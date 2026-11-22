@@ -1,6 +1,6 @@
 # GOTO line: always draw the computed flight path, never a straight line
 
-- STATUS: CLOSED
+- STATUS: OPEN
 - PRIORITY: 60
 - TAGS: v0.19.0, navigation, hud
 
@@ -86,3 +86,16 @@ Paths and lines are at HEAD a82db744d, before the change.
 ## Done when
 - Every GOTO line in the Map and the HUD is the computed flight path end to
   end, with no straight-line fallback anywhere, and the owner has checked it.
+
+## Follow-up (2026-11-22): docked pair shows no line
+- Owner: "when I am docked to a 'derelict' or I take helm I don't see the
+  flight path we should also fix that, as a follow up of something that
+  wasn't done in the task".
+- Cause: `predict_flight` skips any root with `DockedShip`
+  (`crates/nova_ship/src/flight/prediction.rs:610`, `!docked`), since #107
+  (fa2c58d2d). The prediction models one rigid body; a docked pair flies as
+  two jointed roots with the helm wrench spread by
+  `apply_docked_helm_wrench`. This task's proof used single ships only.
+- Done when: a GOTO flown by a docked pair, either root at the helm, shows
+  the predicted flight of the pair to arrival on the HUD and Map; the owner
+  has checked it.
