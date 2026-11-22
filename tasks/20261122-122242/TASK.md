@@ -1,6 +1,6 @@
 # RCS: refill while Shift is held, mouse cancels Shift+X
 
-- STATUS: CLOSED
+- STATUS: OPEN
 - PRIORITY: 58
 - TAGS: v0.19.0, flight, input
 
@@ -68,3 +68,13 @@
 
 ## Owner check (2026-11-22)
 - Played and approved: "works".
+
+## Follow-up (2026-11-22): MATCH cancel too eager
+- Owner: "the RCS Shift+X cancel should be more forgiving, right now it's
+  almost instant, it should require a bit of movement like some delta not
+  0.0 ... maybe do like a > EPS". The owner's `!= 0.0` guess is not a spec;
+  the rule: small mouse motion under SHIFT does not end MATCH; a deliberate
+  move does.
+- Today: `MouseRestFloor` drops a frame at or under 1 raw count
+  (`flight_rig.rs:100`), and any RCS command ends the autopilot
+  (`control.rs:40`).
