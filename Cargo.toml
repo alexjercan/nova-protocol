@@ -81,6 +81,15 @@ path = "examples/playable/carve_asteroids.rs"
 name = "docking_approach"
 path = "examples/playable/docking_approach.rs"
 
+# A neutralized raider with a dead computer and a free port, tumbling at the
+# rate a raider turned when its computer died mid-fight. The tumble settles
+# in about half a minute and the player docks to it; the capture gate reads
+# the port faces.
+[[example]]
+name = "spin_dock_sandbox"
+path = "examples/playable/spin_dock_sandbox.rs"
+required-features = ["debug"]
+
 # The trade a docked player runs through the Inventory pane: the same ported
 # pair, berthed inside capture, with the spar as a Neutral trader. The walk
 # buys, sells and gets refused through the pane's named widgets and checks both

@@ -53,6 +53,45 @@
   5 deg/s numbers.
 - No spin-matching MATCH or DOCK assist (B): rejected by the owner.
 
+## Build (2026-11-22)
+- Settle: `crates/nova_ship/src/flight/spin_settle.rs`. A ship root with no
+  live flight computer, not `DockedShip` or `DockedStation`, gets
+  `spin *= 0.5^(dt / half_life)`, exact for any step. Drift is not touched.
+  `FlightSettings::dead_spin_half_life` (state.rs:833, default 8 s). A
+  zero, negative or non-finite value logs `error!` once and settles
+  nothing.
+- Ordering: FixedUpdate, inside `NovaFlightSystems`, chained after
+  `neutralized_brake_system` and before `manual_burn_system`
+  (flight/mod.rs:235-240). avian integrates the new spin in
+  FixedPostUpdate of the same tick.
+- Frozen hulls: no catch-up on thaw. Thaw does not extrapolate motion, so
+  the settle does not either; a far hull settles while it is simulated.
+- Capture gate: `judge_pair` (docking_section/port.rs:383) compares the
+  velocity of each port face, `v + w x (face - com)`, with the same 5 m/s
+  and 5 deg/s limits.
+- Tests: `-p nova_ship --lib -- flight::spin_settle docking_section::
+  flight::tests::dock` 89 passed; `flight::` 227 passed;
+  `-p nova_scenario --lib -- dock station_hub station_derelict` 17 passed.
+  `a_dock_order_captures_at_a_spinning_station` keeps a live zero-authority
+  computer on the station, runs the settle, and asserts the station still
+  spins over 1.5 deg/s.
+- Kill spin rate: no natural computer kill in 150 s of AI duels. Lethal
+  hits staged on live, engaged ships gave 55.1, 46.1, 8.8 deg/s (raiders),
+  64.8 and 0.0 deg/s (pickets). In the live game all were under 5 deg/s
+  by 30 s (46.1 -> 19.4 at 10 s, as 0.5^(t/8) predicts).
+  `evidence/kill-spin-measurement.txt`.
+- Example: `examples/playable/spin_dock_sandbox.rs` (base raider; cargoa is
+  in The Ledger mod). Walk PASS lines: tumble 54.0 deg/s; settled to
+  4.85 deg/s after 28.0 s, drift unchanged; lock; MATCH engaged; MATCH
+  0.039 m/s off; docked, helm with the player. The harness places the
+  berth, it is not flown. `evidence/spin-dock-sandbox-walk.txt`.
+- Walk finding: a loose cargo canister stood at the raider's intake in
+  some runs. The tumbling hull struck it and moved the drift. The fixture
+  removes canisters within 100 m as the tumble is set. Source not found.
+- Frames: `~/Pictures/nova-spin-dock/spin-dock-sandbox-{tumble,settled}.png`.
+  The settled frame shows the sight line green; the port crosses are
+  behind the hulls from this camera.
+
 ## Delivery
 1. Map the slice, reproduce the failed dock, and write the design page with
    options and a recommendation.

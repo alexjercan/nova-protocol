@@ -27,15 +27,16 @@ What a dock is NOT is a merge. The two ships stay two ships: two hulls, two pilo
 |---|---|
 | Reach | a **10 m** face gap: one cell between the two port faces |
 | Facing | the two ports within **15 degrees** of directly opposed |
-| Speed | **5 m/s or less** relative speed between the two hulls |
+| Speed | **5 m/s or less** relative speed between the two port faces |
 | Spin | **5 deg/s or less** turn between the two hulls |
+| Dead hull | its tumble **settles in about half a minute** |
 | Roll | **ignored** - the ports are cylinders, any twist docks |
 | Sleeve | **5 m** out, in 1.2 s, and back in 0.8 s |
 | Health | **90**: the lightest part on a hull |
 
 ## Flying the approach
 
-<!-- Widget values: crates/nova_authoring/src/base_content/sections/docking_port.rs:23 (DOCK_TUBE_TRAVEL 0.5 cells = 5 m), :89 (capture_distance 10 m), :92 (capture_angle 15 deg), :96-97 (5 m/s, 5 deg/s); every gate is inclusive and graded on the stricter port, gap between retracted faces plus GAP_SLACK 0.0625 units (0.625 m) for f32 noise, speed and spin as relative magnitudes: crates/nova_ship/src/sections/docking_section/port.rs:39 (GAP_SLACK), :93-113 (the gates), :296-319 (relative speed and spin); a refused DOCK logs at debug only: connection.rs:352, :356, :375. -->
+<!-- Widget values: crates/nova_authoring/src/base_content/sections/docking_port.rs:23 (DOCK_TUBE_TRAVEL 0.5 cells = 5 m), :89 (capture_distance 10 m), :92 (capture_angle 15 deg), :96-97 (5 m/s, 5 deg/s); every gate is inclusive and graded on the stricter port, gap between retracted faces plus GAP_SLACK 0.0625 units (0.625 m) for f32 noise, speed and spin as relative magnitudes, the speed taken at the two port faces (v + w x (face - centre of mass)): crates/nova_ship/src/sections/docking_section/port.rs:39 (GAP_SLACK), :113-115 (the motion gate), :361-408 (face speed and spin); the dead-hull settle, spin halved every 8 s: crates/nova_ship/src/flight/spin_settle.rs, FlightSettings::dead_spin_half_life (crates/nova_ship/src/flight/state.rs:833); a refused DOCK logs at debug only: connection.rs:352, :356, :375. -->
 
 <div class="widget" data-widget="docking-envelope">
 <p>Two docking ports seen from the side, at the widest gap that docks: 10 m or less between the two retracted faces, the two ports facing each other within 15 degrees, moving at 5 m/s or less and turning at 5 degrees a second or less relative to each other. Roll is ignored. After the clamp, each sleeve runs 5 m out and the two meet across the gap.</p>
@@ -51,7 +52,9 @@ The DOCK chip lights on the [keybind dock](../../hud/) only while a pair of port
 
 - **The gap.** Ten meters or less, measured **face to face** between the two retracted ports - not between the two ships, and not between their centres. A port buried behind a wing measures from its own face like any other.
 - **The facing.** The two ports have to look at each other within fifteen degrees. Roll does not count: the collar is a circle, so meeting one upside down is the same as meeting it level, and the clamp simply keeps whatever twist you arrived with.
-- **The speed.** Five meters a second or less of RELATIVE motion, and five degrees a second or less of relative spin. Absolute speed is nothing here: two ships running together at 2 km/s are standing still as far as the other one is concerned.
+- **The speed.** Five meters a second or less of RELATIVE motion, and five degrees a second or less of relative spin. Absolute speed is nothing here: two ships running together at 2 km/s are standing still as far as the other one is concerned. The speed is measured **between the two ports**, not between the two ships: a hull that turns swings its port, so a port far out on a turning station moves faster than the station's centre. Match the centre and the port can still be too fast.
+
+A ship that lost its last flight computer has nothing to hold it steady, and a kill can leave it tumbling well past five degrees a second. Wait: a dead hull's tumble **settles in about half a minute** (the spin halves every 8 seconds), while its drift stays. A ship with a live computer, and a pair already docked, keep their turn. Then lock it, <kbd>Shift</kbd> + <kbd>X</kbd> to match its drift, and fly to its port.
 
 You do not choose the ports. The game pairs the nearest eligible ones on the two hulls and picks the same pair every time for the same approach, so a ship carrying four ports docks on the one you flew to.
 

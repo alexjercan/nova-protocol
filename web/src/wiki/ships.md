@@ -38,6 +38,8 @@ That is a different thing from being **out of the fight**. An armed ship that ha
 
 A neutralized ship drops its patrol, its escort slot and any order, and brakes to a stop with its own RCS so you can fly up and dock by hand. It needs no engine for that, but it needs a working flight computer, RCS, delta-v left in its own RCS magazine, and no gravity well stronger than its RCS. A ship that is docked, or lacks one of these, drifts on at its speed, and so does one whose magazine runs dry before it stops: a magazine that refills later does not start the brake again. The brake also ends once the ship stops: a later bump, such as your hull touching it as you dock, sets it drifting again. Your own ship never brakes by itself.
 
+A ship with no working flight computer cannot hold its heading either, so a kill can leave it tumbling. Its tumble settles on its own: the spin halves every 8 seconds, so a fast tumble falls to a dockable 5 degrees a second in about half a minute, while the drift stays. This holds for wrecks, derelicts, dead stations and your own ship once its last computer dies; a ship with a live computer holds its own turn, and a docked pair turns as one.
+
 The health bar on your combat lock's readout measures a target against the hull it was BUILT with, so it only ever falls as you work through the sections.
 
 ## What damage looks like

@@ -50,6 +50,7 @@ mod neutralized_brake;
 mod order;
 mod prediction;
 mod rcs_puff;
+mod spin_settle;
 mod state;
 mod station_keeping;
 mod thrusters;
@@ -89,6 +90,7 @@ use self::{
     neutralized_brake::{neutralized_brake_system, on_neutralized_engage_brake},
     order::{drive_scripted_align, drive_ship_orders},
     prediction::predict_flight_path,
+    spin_settle::settle_dead_hull_spin,
     state::remove_maneuver_telemetry,
     station_keeping::station_keeping_system,
 };
@@ -231,6 +233,10 @@ impl Plugin for NovaFlightPlugin {
                 // The one writer of a neutralized non-player hull's RCS
                 // command, before the burn spends it.
                 neutralized_brake_system,
+                // The one writer of the spin of a hull no live computer
+                // turns. In `FixedUpdate`, so avian's step in
+                // `FixedPostUpdate` integrates the settled spin this tick.
+                settle_dead_hull_spin,
                 manual_burn_system,
                 rcs_burn_system,
                 decay_player_rcs_intent,

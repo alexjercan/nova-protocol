@@ -1,0 +1,39 @@
+2026-11-22T11:29:33.937319Z  INFO scratch_kill_spin: KILLSPIN summary t=10: friend_1_interceptor=53.2Some(Engage) enemy_2_raider=47.0Some(Engage) enemy_0_raider=41.3Some(Engage) friend_0_raider=41.3Some(Engage) friend_2_patrol_picket=65.1Some(Engage) enemy_1_patrol_picket=52.1Some(Engage)
+2026-11-22T11:29:43.950578Z  INFO scratch_kill_spin: KILLSPIN summary t=20: friend_1_interceptor=45.1Some(Evade) enemy_2_raider=7.9Some(Evade) enemy_0_raider=24.5Some(Evade) friend_0_raider=24.5Some(Evade) friend_2_patrol_picket=9.5Some(Engage) enemy_1_patrol_picket=52.7Some(Evade)
+2026-11-22T11:29:53.958105Z  INFO scratch_kill_spin: KILLSPIN summary t=30: friend_2_patrol_picket=14.4Some(Engage) enemy_2_raider=23.6Some(Engage) enemy_0_raider=25.5Some(Engage) friend_0_raider=22.0Some(Engage) enemy_1_patrol_picket=0.0Some(Idle)
+2026-11-22T11:30:03.967664Z  INFO scratch_kill_spin: KILLSPIN summary t=40: friend_2_patrol_picket=27.4Some(Engage) enemy_2_raider=14.6Some(Evade) enemy_0_raider=14.5Some(Engage) friend_0_raider=14.5Some(Engage) enemy_1_patrol_picket=0.0Some(Idle)
+2026-11-22T11:30:13.970218Z  INFO scratch_kill_spin: KILLSPIN summary t=50: friend_2_patrol_picket=16.5Some(Engage) enemy_2_raider=29.5Some(Engage) enemy_0_raider=20.4Some(Evade) friend_0_raider=20.3Some(Evade) enemy_1_patrol_picket=0.0Some(Idle)
+2026-11-22T11:30:23.982465Z  INFO scratch_kill_spin: KILLSPIN summary t=60: friend_2_patrol_picket=7.0Some(Engage) enemy_2_raider=11.3Some(Evade) enemy_0_raider=4.3Some(Engage) friend_0_raider=4.6Some(Engage) enemy_1_patrol_picket=0.0Some(Idle)
+2026-11-22T11:30:34.006514Z  INFO scratch_kill_spin: KILLSPIN summary t=70: friend_2_patrol_picket=32.5Some(Engage) enemy_2_raider=23.8Some(Engage) enemy_0_raider=23.6Some(Evade) friend_0_raider=26.2Some(Evade) enemy_1_patrol_picket=0.0Some(Idle)
+2026-11-22T11:30:44.016095Z  INFO scratch_kill_spin: KILLSPIN summary t=80: friend_2_patrol_picket=1.1Some(Evade) enemy_2_raider=46.9Some(Evade) enemy_0_raider=44.3Some(Engage) friend_0_raider=44.3Some(Engage) enemy_1_patrol_picket=0.0Some(Idle)
+2026-11-22T11:30:54.035227Z  INFO scratch_kill_spin: KILLSPIN summary t=90: friend_2_patrol_picket=10.5Some(Engage) enemy_2_raider=5.4Some(Evade) enemy_0_raider=5.9Some(Engage) friend_0_raider=52.8Some(Evade) enemy_1_patrol_picket=0.0Some(Idle)
+2026-11-22T11:31:04.058384Z  INFO scratch_kill_spin: KILLSPIN summary t=100: friend_2_patrol_picket=8.2Some(Evade) enemy_2_raider=3.4Some(Engage) enemy_0_raider=39.5Some(Evade) friend_0_raider=34.1Some(Engage) enemy_1_patrol_picket=0.0Some(Idle)
+2026-11-22T11:31:14.079987Z  INFO scratch_kill_spin: KILLSPIN summary t=110: friend_2_patrol_picket=56.5Some(Evade) enemy_2_raider=21.1Some(Engage) enemy_0_raider=51.8Some(Evade) friend_0_raider=8.9Some(Engage) enemy_1_patrol_picket=0.0Some(Idle)
+2026-11-22T11:31:24.095556Z  INFO scratch_kill_spin: KILLSPIN summary t=120: friend_2_patrol_picket=49.5Some(Engage) enemy_2_raider=9.0Some(Evade) enemy_0_raider=34.1Some(Engage) friend_0_raider=34.5Some(Evade) enemy_1_patrol_picket=0.0Some(Idle)
+2026-11-22T11:31:34.116803Z  INFO scratch_kill_spin: KILLSPIN summary t=130: friend_2_patrol_picket=67.2Some(Evade) enemy_2_raider=3.6Some(Engage) enemy_0_raider=12.5Some(Evade) friend_0_raider=4.5Some(Engage) enemy_1_patrol_picket=0.0Some(Idle)
+2026-11-22T11:31:44.149634Z  INFO scratch_kill_spin: KILLSPIN summary t=140: friend_2_patrol_picket=5.7Some(Engage) enemy_2_raider=6.1Some(Evade) enemy_0_raider=43.9Some(Engage) friend_0_raider=39.3Some(Evade) enemy_1_patrol_picket=0.0Some(Idle)
+2026-11-22T11:31:54.181560Z  INFO scratch_kill_spin: KILLSPIN summary t=150: friend_2_patrol_picket=21.5Some(Engage) enemy_2_raider=12.5Some(Evade) enemy_0_raider=46.0Some(Evade) friend_0_raider=22.0Some(Engage) enemy_1_patrol_picket=0.0Some(Idle)
+2026-11-22T11:31:54.935556Z  INFO scratch_kill_spin: KILLSPIN staging lethal hits on 5 live computers
+2026-11-22T11:31:54.969153Z  INFO scratch_kill_spin: KILLSPIN staged: 'enemy_1_patrol_picket' lost its last flight computer at t=151.1 s spinning 0.00 deg/s, neutralized=false, state=Some(Idle)
+2026-11-22T11:31:54.969199Z  INFO scratch_kill_spin: KILLSPIN staged: 'friend_2_patrol_picket' lost its last flight computer at t=151.1 s spinning 64.81 deg/s, neutralized=false, state=Some(Evade)
+2026-11-22T11:31:54.969203Z  INFO scratch_kill_spin: KILLSPIN staged: 'enemy_2_raider' lost its last flight computer at t=151.1 s spinning 55.14 deg/s, neutralized=false, state=Some(Evade)
+2026-11-22T11:31:54.969206Z  INFO scratch_kill_spin: KILLSPIN staged: 'enemy_0_raider' lost its last flight computer at t=151.1 s spinning 8.82 deg/s, neutralized=false, state=Some(Engage)
+2026-11-22T11:31:54.969208Z  INFO scratch_kill_spin: KILLSPIN staged: 'friend_0_raider' lost its last flight computer at t=151.1 s spinning 46.08 deg/s, neutralized=false, state=Some(Evade)
+2026-11-22T11:31:55.988968Z  INFO scratch_kill_spin: KILLSPIN after 1 s: 'friend_0_raider' 42.25 deg/s
+2026-11-22T11:31:55.989049Z  INFO scratch_kill_spin: KILLSPIN after 1 s: 'friend_2_patrol_picket' 59.03 deg/s
+2026-11-22T11:31:55.989054Z  INFO scratch_kill_spin: KILLSPIN after 1 s: 'enemy_2_raider' 50.69 deg/s
+2026-11-22T11:31:55.989056Z  INFO scratch_kill_spin: KILLSPIN after 1 s: 'enemy_0_raider' 8.16 deg/s
+2026-11-22T11:31:55.989059Z  INFO scratch_kill_spin: KILLSPIN after 1 s: 'enemy_1_patrol_picket' 1.63 deg/s
+2026-11-22T11:32:04.184597Z  INFO scratch_kill_spin: KILLSPIN summary t=160: friend_0_raider=20.7NSome(Idle) friend_2_patrol_picket=28.9NSome(Idle) enemy_2_raider=18.9NSome(Idle) enemy_0_raider=4.2NSome(Idle) enemy_1_patrol_picket=0.8NSome(Idle)
+2026-11-22T11:32:04.942884Z  INFO scratch_kill_spin: KILLSPIN after 10 s: 'friend_0_raider' 19.35 deg/s
+2026-11-22T11:32:04.942922Z  INFO scratch_kill_spin: KILLSPIN after 10 s: 'friend_2_patrol_picket' 27.20 deg/s
+2026-11-22T11:32:04.942925Z  INFO scratch_kill_spin: KILLSPIN after 10 s: 'enemy_2_raider' 17.92 deg/s
+2026-11-22T11:32:04.942927Z  INFO scratch_kill_spin: KILLSPIN after 10 s: 'enemy_0_raider' 3.90 deg/s
+2026-11-22T11:32:04.942928Z  INFO scratch_kill_spin: KILLSPIN after 10 s: 'enemy_1_patrol_picket' 0.75 deg/s
+2026-11-22T11:32:14.205891Z  INFO scratch_kill_spin: KILLSPIN summary t=170: friend_0_raider=9.0NSome(Idle) friend_2_patrol_picket=11.5NSome(Idle) enemy_2_raider=8.2NSome(Idle) enemy_0_raider=1.8NSome(Idle) enemy_1_patrol_picket=0.3NSome(Idle)
+2026-11-22T11:32:24.215847Z  INFO scratch_kill_spin: KILLSPIN summary t=180: friend_0_raider=3.8NSome(Idle) friend_2_patrol_picket=4.9NSome(Idle) enemy_2_raider=3.3NSome(Idle) enemy_0_raider=0.7NSome(Idle) enemy_1_patrol_picket=0.1NSome(Idle)
+2026-11-22T11:32:24.969468Z  INFO scratch_kill_spin: KILLSPIN after 30 s: 'friend_0_raider' 3.55 deg/s
+2026-11-22T11:32:24.969566Z  INFO scratch_kill_spin: KILLSPIN after 30 s: 'friend_2_patrol_picket' 4.59 deg/s
+2026-11-22T11:32:24.969596Z  INFO scratch_kill_spin: KILLSPIN after 30 s: 'enemy_2_raider' 3.12 deg/s
+2026-11-22T11:32:24.969599Z  INFO scratch_kill_spin: KILLSPIN after 30 s: 'enemy_0_raider' 0.69 deg/s
+2026-11-22T11:32:24.969602Z  INFO scratch_kill_spin: KILLSPIN after 30 s: 'enemy_1_patrol_picket' 0.13 deg/s

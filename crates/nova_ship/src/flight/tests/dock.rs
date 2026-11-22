@@ -16,6 +16,7 @@ use super::{
         autopilot::dock_turns,
         dock_corridor::{forecast_blocker, DockCorridors},
         dock_forecast::{station_frame_sweep, DockForecast, FieldBody},
+        spin_settle::settle_dead_hull_spin,
         state::DOCK_BLOCKED_SECS,
     },
     support::*,
@@ -1321,6 +1322,10 @@ fn a_hull_that_parks_in_a_flying_approachs_corridor_holds_it_until_the_hull_leav
 
 /// A beam of 13 heavy cells along X, its centre of mass at the root, with one
 /// free port on the +X end cell facing -Z, drifting with the rig's station.
+///
+/// It carries a live flight computer with no authority: the hull is flown,
+/// so no settle takes its spin, and its loop applies no torque, so the spin
+/// a test gives it holds by inertia alone.
 fn beam_station(app: &mut App) -> (Entity, Entity) {
     const HALF: i32 = 6;
     let station = app
@@ -1344,6 +1349,19 @@ fn beam_station(app: &mut App) -> (Entity, Entity) {
             ColliderDensity(100.0),
         ));
     }
+    app.world_mut().spawn((
+        ChildOf(station),
+        Name::new("computer"),
+        ControllerSectionMarker,
+        PDController {
+            frequency: 4.0,
+            damping_ratio: 4.0,
+            max_angular_acceleration: 0.0,
+            sustained_angular_speed: f32::INFINITY,
+        },
+        PDControllerTarget(station),
+        Transform::default(),
+    ));
     let port = spawn_port(app, station, "end", Quat::IDENTITY);
     app.world_mut()
         .entity_mut(port)
@@ -1357,10 +1375,14 @@ fn beam_station(app: &mut App) -> (Entity, Entity) {
 /// mass's velocity alone, the hull lagged the turning entry and the port by
 /// their speed over the 0.3/s closing gain, 1.5 to 4.3 u off the axis, outside
 /// the 0.3 u gate, and held at the entry until its deadline ran out.
+///
+/// The spin settle runs as in production; the station's live computer keeps
+/// it off the station, and the end check proves the spin held.
 #[test]
 fn a_dock_order_captures_at_a_spinning_station() {
     for axis in [Vec3::Z, Vec3::Y] {
         let mut app = dock_flight_app();
+        app.add_systems(FixedUpdate, settle_dead_hull_spin.in_set(NovaFlightSystems));
         let (station, station_port) = beam_station(&mut app);
         let at = position_of(&app, station) + Vec3::new(6.0, 3.0, -20.0);
         let (ship, port) = visitor(&mut app, at);
@@ -1396,6 +1418,17 @@ fn a_dock_order_captures_at_a_spinning_station() {
             (connection.first_section, connection.second_section),
             (port, station_port),
             "spin about {axis}"
+        );
+        let held = app
+            .world()
+            .get::<AngularVelocity>(station)
+            .unwrap()
+            .0
+            .length()
+            .to_degrees();
+        assert!(
+            held > 1.5,
+            "spin about {axis}: the station still turns at capture, {held} deg/s"
         );
     }
 }

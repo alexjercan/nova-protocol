@@ -81,7 +81,10 @@ pub struct DockingPair {
     /// perpendicular. Lower is better, which is why the ranking sorts it
     /// ascending like the gap.
     pub opposition: f32,
-    /// How fast the two hulls are closing, engine units per second.
+    /// How fast the two port faces move against each other, engine units
+    /// per second: each face moves at its hull's velocity plus its spin
+    /// across the lever from the hull's centre of mass. A pair that turns
+    /// together reads still, however far its faces stand from the centres.
     pub relative_speed: f32,
     /// How fast they are turning relative to each other, radians per second.
     pub relative_spin: f32,
@@ -159,6 +162,10 @@ pub struct DockingPorts<'w, 's> {
         ),
         With<SpaceshipRootMarker>,
     >,
+    /// Each root's centre of mass in its own frame, which the port faces'
+    /// velocities turn about. A root avian has not weighed yet has none, and
+    /// no pair is graded on it.
+    mass_centres: Query<'w, 's, &'static ComputedCenterOfMass, With<SpaceshipRootMarker>>,
     /// The design-local id of a section, where the spawn path gave it one.
     /// The last tie-break, and the reason two equally good pairs resolve to
     /// the same answer on every run.
@@ -186,6 +193,18 @@ impl DockingPorts<'_, '_> {
             .get(root)
             .ok()
             .map(|(position, rotation, ..)| (position.0, rotation.0))
+    }
+
+    /// How `root` moves, as avian holds it, with its centre of mass in the
+    /// world.
+    fn motion(&self, root: Entity) -> Option<BodyMotion> {
+        let (position, rotation, velocity, spin) = self.bodies.get(root).ok()?;
+        let centre = self.mass_centres.get(root).ok()?;
+        Some(BodyMotion {
+            velocity: velocity.0,
+            spin: spin.0,
+            centre_of_mass: position.0 + rotation.0 * centre.0,
+        })
     }
 
     /// The velocity of a ship root, as avian holds it.
@@ -224,18 +243,16 @@ impl DockingPorts<'_, '_> {
         if first_root.0 != first_ship || second_root.0 != second_ship {
             return None;
         }
-        let (.., first_velocity, first_spin) = self.bodies.get(first_ship).ok()?;
-        let (.., second_velocity, second_spin) = self.bodies.get(second_ship).ok()?;
         Some(judge_pair(
             first_ship,
             first_section,
             self.pose(first_section, first_ship)?,
+            self.motion(first_ship)?,
             second_ship,
             second_section,
             self.pose(second_section, second_ship)?,
+            self.motion(second_ship)?,
             first_config.envelope().strictest(second_config.envelope()),
-            (first_velocity.0 - second_velocity.0).length(),
-            (first_spin.0 - second_spin.0).length(),
         ))
     }
 
@@ -282,18 +299,11 @@ impl DockingPorts<'_, '_> {
         let motion = (first_ship != second_ship
             && !self.docked.contains(first_ship)
             && !self.docked.contains(second_ship))
-        .then(|| {
-            let (.., first_velocity, first_spin) = self.bodies.get(first_ship).ok()?;
-            let (.., second_velocity, second_spin) = self.bodies.get(second_ship).ok()?;
-            Some((
-                (first_velocity.0 - second_velocity.0).length(),
-                (first_spin.0 - second_spin.0).length(),
-            ))
-        })
+        .then(|| Some((self.motion(first_ship)?, self.motion(second_ship)?)))
         .flatten();
         motion
             .into_iter()
-            .flat_map(move |(relative_speed, relative_spin)| {
+            .flat_map(move |(first_motion, second_motion)| {
                 self.ports
                     .iter()
                     .filter(move |(_, root, _)| root.0 == first_ship)
@@ -311,12 +321,12 @@ impl DockingPorts<'_, '_> {
                                         first_ship,
                                         first_section,
                                         first_pose,
+                                        first_motion,
                                         second_ship,
                                         second_section,
                                         second_pose,
+                                        second_motion,
                                         first_config.envelope().strictest(second_config.envelope()),
-                                        relative_speed,
-                                        relative_spin,
                                     ),
                                     self.ids.get(first_section).map_or("", |id| id.0.as_str()),
                                     self.ids.get(second_section).map_or("", |id| id.0.as_str()),
@@ -346,23 +356,44 @@ fn rank(
         .then_with(|| a_second.cmp(b_second))
 }
 
+/// How one ship root moves: what a port face on it moves with.
+#[derive(Clone, Copy, Debug)]
+struct BodyMotion {
+    /// The velocity of the centre of mass.
+    velocity: Vec3,
+    /// Angular velocity, radians per second.
+    spin: Vec3,
+    /// The centre of mass, world space.
+    centre_of_mass: Vec3,
+}
+
+impl BodyMotion {
+    /// The velocity of the body's point at `point`, world space.
+    fn velocity_at(&self, point: Vec3) -> Vec3 {
+        self.velocity + self.spin.cross(point - self.centre_of_mass)
+    }
+}
+
 /// Measure one pair of poses against `envelope`. Grades nothing away: the
 /// caller decides whether an ineligible pair is still interesting.
 #[expect(
     clippy::too_many_arguments,
-    reason = "the measurement takes both ends of the pair and the motion they share"
+    reason = "the measurement takes both ends of the pair and how each one moves"
 )]
 fn judge_pair(
     first_ship: Entity,
     first_section: Entity,
     first: PortPose,
+    first_motion: BodyMotion,
     second_ship: Entity,
     second_section: Entity,
     second: PortPose,
+    second_motion: BodyMotion,
     envelope: DockingEnvelope,
-    relative_speed: f32,
-    relative_spin: f32,
 ) -> DockingPair {
+    let relative_speed =
+        (first_motion.velocity_at(first.face) - second_motion.velocity_at(second.face)).length();
+    let relative_spin = (first_motion.spin - second_motion.spin).length();
     DockingPair {
         first_ship,
         first_section,

@@ -825,6 +825,12 @@ pub struct FlightSettings {
     /// wobble walks a fast proof orbit to this edge about once a lap, so
     /// the keeper puffs once a lap instead of trimming every tick.
     pub station_post_deadband: f32,
+    /// Seconds a ship root with no live flight computer takes to lose half
+    /// its spin, while it is not docked. Authored at 8 s: 60 deg/s falls
+    /// under the 5 deg/s docking gate in about 29 s. Spin only; drift is
+    /// untouched. A non-finite or non-positive value settles nothing and
+    /// logs an error.
+    pub dead_spin_half_life: f32,
 }
 
 impl Default for FlightSettings {
@@ -870,6 +876,7 @@ impl Default for FlightSettings {
             station_return_speed: MetersPerSecond(5.0).to_engine(),
             station_hold_deadband: MetersPerSecond(0.5).to_engine(),
             station_post_deadband: Meters(5.0).to_engine(),
+            dead_spin_half_life: 8.0,
         }
     }
 }

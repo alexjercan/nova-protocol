@@ -321,6 +321,121 @@ fn a_pair_closing_faster_than_the_limit_is_refused() {
     );
 }
 
+/// A beam of 21 one-cell blocks along X, its centre of mass at its origin
+/// and its one port on the +X end facing -Z, ten cells off the centre; and a
+/// one-cell visitor whose port faces it half a cell off. Both at rest.
+fn beam_and_visitor(app: &mut App) -> (Entity, Entity) {
+    const HALF: i32 = 10;
+    let beam = app
+        .world_mut()
+        .spawn((
+            Name::new("beam"),
+            SpaceshipRootMarker,
+            RigidBody::Dynamic,
+            Transform::default(),
+        ))
+        .id();
+    for x in -HALF..=HALF {
+        app.world_mut().spawn((
+            ChildOf(beam),
+            Transform::from_xyz(x as f32, 0.0, 0.0),
+            Collider::cuboid(1.0, 1.0, 1.0),
+            ColliderDensity(1.0),
+        ));
+    }
+    spawn_port(
+        app,
+        beam,
+        "end",
+        Vec3::new(HALF as f32, 0.0, 0.0),
+        Quat::IDENTITY,
+    );
+    let visitor = spawn_hull(
+        app,
+        Vec3::new(HALF as f32, 0.0, -1.0 - NOMINAL_GAP),
+        Quat::from_rotation_y(std::f32::consts::PI),
+    );
+    spawn_port(app, visitor, "fore", Vec3::ZERO, Quat::IDENTITY);
+    settle(app);
+    (beam, visitor)
+}
+
+/// The nearest pair between two ships, eligible or not.
+fn nearest(app: &mut App, first: Entity, second: Entity) -> DockingPair {
+    app.world_mut()
+        .run_system_once(move |ports: DockingPorts| ports.nearest_pair(first, second))
+        .expect("the pair search runs")
+        .expect("the two ports face each other")
+}
+
+/// The world centre of mass of `root`.
+fn centre_of_mass(app: &App, root: Entity) -> Vec3 {
+    let world = app.world();
+    world.get::<Position>(root).unwrap().0
+        + world.get::<Rotation>(root).unwrap().0
+            * world.get::<ComputedCenterOfMass>(root).unwrap().0
+}
+
+/// The beam's spin about its port's axis: 4 deg/s, under the 5 deg/s spin
+/// limit, which moves its port face 7 m/s on the 100 m lever.
+fn beam_spin() -> Vec3 {
+    Vec3::Z * 4.0_f32.to_radians()
+}
+
+#[test]
+fn a_co_rotating_pair_at_a_spinning_port_passes_the_motion_gate() {
+    let mut app = docking_app();
+    let (beam, visitor) = beam_and_visitor(&mut app);
+    let spin = beam_spin();
+    // The visitor turns with the beam and rides its turn: the two faces
+    // stand still to each other while the visitor's centre moves 7 m/s.
+    let lever = centre_of_mass(&app, visitor) - centre_of_mass(&app, beam);
+    app.world_mut()
+        .entity_mut(beam)
+        .insert(AngularVelocity(spin));
+    app.world_mut()
+        .entity_mut(visitor)
+        .insert((AngularVelocity(spin), LinearVelocity(spin.cross(lever))));
+
+    let pair = nearest(&mut app, visitor, beam);
+
+    assert!(
+        spin.cross(lever).length() > pair.envelope.maximum_relative_speed,
+        "the centres move apart faster than the limit"
+    );
+    assert!(
+        pair.relative_speed < 1e-3,
+        "the faces stand still: {} u/s",
+        pair.relative_speed
+    );
+    assert!(pair.motion_holds() && pair.is_eligible());
+}
+
+#[test]
+fn a_linear_only_match_at_a_spinning_port_is_too_fast() {
+    let mut app = docking_app();
+    let (beam, visitor) = beam_and_visitor(&mut app);
+    // MATCH's answer: the visitor holds the beam's centre velocity, zero
+    // here, and does not turn.
+    app.world_mut()
+        .entity_mut(beam)
+        .insert(AngularVelocity(beam_spin()));
+
+    let pair = nearest(&mut app, visitor, beam);
+
+    assert!(
+        pair.relative_spin <= pair.envelope.maximum_relative_angular_speed,
+        "the spin alone passes"
+    );
+    assert!(
+        pair.relative_speed > pair.envelope.maximum_relative_speed,
+        "the beam's port face sweeps past at {} u/s",
+        pair.relative_speed
+    );
+    assert!(!pair.motion_holds());
+    assert!(candidate(&mut app, visitor, beam).is_none());
+}
+
 #[test]
 fn a_reserved_port_is_not_a_candidate() {
     let mut app = docking_app();

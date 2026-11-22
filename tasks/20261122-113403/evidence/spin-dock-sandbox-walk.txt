@@ -1,0 +1,39 @@
+     Running `target/debug/examples/spin_dock_sandbox`
+2026-11-22T12:16:46.174434Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: load the void and stage the wreck` begins
+2026-11-22T12:16:47.215286Z DEBUG nova_scenario::loader::lifecycle: on_load_scenario: loaded scenario 'spin_dock_sandbox' with 1 handler(s) and 8 object(s)
+2026-11-22T12:16:47.215874Z DEBUG nova_scenario::loader::preload: preload_scenario_render_meshes: 'spin_dock_sandbox' warms 10 render mesh(es)
+2026-11-22T12:16:53.607637Z  INFO spin_dock_sandbox: spin_dock_sandbox: the wreck's computer is dead; tumble 55 deg/s, drift MetersPerSecond3(Vec3(3.0, 0.0, 0.0)) m/s
+2026-11-22T12:16:53.969979Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: check the tumble` begins
+2026-11-22T12:16:53.970233Z  INFO spin_dock_sandbox::smoke: spin_dock_sandbox: PASS the dead wreck tumbles at 54.0 deg/s, over the 5 deg/s gate, drifting 3.000 m/s
+2026-11-22T12:16:56.233344Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: shoot the tumble` begins
+2026-11-22T12:16:56.233517Z  INFO nova_debug::harness: nova capture: spin-dock-sandbox-tumble.png
+2026-11-22T12:16:57.302978Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: wait for the tumble to settle` begins
+2026-11-22T12:17:01.604060Z  INFO spin_dock_sandbox::smoke: spin_dock_sandbox: settling 27.33 deg/s, drift 3.1044 m/s
+2026-11-22T12:17:05.968187Z  INFO spin_dock_sandbox::smoke: spin_dock_sandbox: settling 18.88 deg/s, drift 3.1044 m/s
+2026-11-22T12:17:10.289043Z  INFO spin_dock_sandbox::smoke: spin_dock_sandbox: settling 13.11 deg/s, drift 3.1044 m/s
+2026-11-22T12:17:14.486327Z  INFO spin_dock_sandbox::smoke: spin_dock_sandbox: settling 9.06 deg/s, drift 3.1044 m/s
+2026-11-22T12:17:18.885663Z  INFO spin_dock_sandbox::smoke: spin_dock_sandbox: settling 6.15 deg/s, drift 3.1044 m/s
+2026-11-22T12:17:21.597678Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: check the settle and the drift` begins
+2026-11-22T12:17:21.598092Z  INFO spin_dock_sandbox::smoke: spin_dock_sandbox: PASS the tumble settled to 4.85 deg/s after 28.0 s, drift 3.104 m/s unchanged
+2026-11-22T12:17:24.087869Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: centre the wreck` begins
+2026-11-22T12:17:25.296617Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: hold the radar onto the wreck` begins
+2026-11-22T12:17:28.630417Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: release the radar` begins
+2026-11-22T12:17:29.386454Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: check the lock` begins
+2026-11-22T12:17:29.386528Z  INFO spin_dock_sandbox::smoke: spin_dock_sandbox: PASS the wreck is locked
+2026-11-22T12:17:32.178894Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: hold the RCS modifier` begins
+2026-11-22T12:17:32.889036Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: MATCH` begins
+2026-11-22T12:17:33.641860Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: let go of the chord` begins
+2026-11-22T12:17:36.207488Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: MATCH flies the tender onto the drift` begins
+2026-11-22T12:17:36.207519Z  INFO spin_dock_sandbox::smoke: spin_dock_sandbox: PASS MATCH engaged on the wreck
+2026-11-22T12:17:36.730928Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: check the match` begins
+2026-11-22T12:17:36.731016Z  INFO spin_dock_sandbox::smoke: spin_dock_sandbox: PASS MATCH holds the wreck's drift: 0.039 m/s off
+2026-11-22T12:17:39.460682Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: put the tender on the collar's berth` begins
+2026-11-22T12:17:42.579659Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: report the berth` begins
+2026-11-22T12:17:42.579821Z  INFO spin_dock_sandbox::smoke: spin_dock_sandbox: berthed; wreck spin 0.79 deg/s ([0.0032647671, 0.013192582, 0.0023301702]), centre speed 0.039 m/s
+2026-11-22T12:17:43.609453Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: shoot the settled berth` begins
+2026-11-22T12:17:43.609556Z  INFO nova_debug::harness: nova capture: spin-dock-sandbox-settled.png
+2026-11-22T12:17:45.358960Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: press DOCK` begins
+2026-11-22T12:17:46.028738Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: release DOCK` begins
+2026-11-22T12:17:46.717661Z  INFO nova_autopilot::autopilot: autopilot: step `spin dock sandbox: check the dock and the helm` begins
+2026-11-22T12:17:46.717854Z  INFO spin_dock_sandbox::smoke: spin_dock_sandbox: PASS docked to the settled wreck, the helm with the player
+2026-11-22T12:17:49.677095Z  INFO nova_autopilot::autopilot: autopilot: cycle complete, no panic (t=58.3s)
