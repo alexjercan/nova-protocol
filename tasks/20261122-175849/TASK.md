@@ -77,3 +77,9 @@
   let's try to keep the UI clean".
 - Rule: a floating objective label (on screen or edge-pinned) never draws over
   a fixed HUD panel, and floating labels do not stack on each other.
+
+## Follow-up (2026-11-22): objective chips on enemy ships
+- Owner: "maybe don't show the neutralize chip for objective for too long on
+  the enemy ships because it adds a lot of UI and makes it hard to see; or
+  like figure out a way to make these floating chips for objectives a bit
+  better". Design first: options with frames, owner picks.
