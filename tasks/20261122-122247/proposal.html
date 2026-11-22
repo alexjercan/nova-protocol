@@ -95,6 +95,7 @@ code { font: 12px ui-monospace, monospace; }
 <h2>A2. Create disabled reason</h2>
 <div class="where">world_setup.rs:82, tooltip :605, label :612, details :857</div>
 <div class="line">Create is unavailable: no start role is loaded. / No start role is loaded.</div>
+<p class="walks">Today Create is already disabled here, and the role list always selects its first role, so a player can never click Create without a role. The line only explains the greyed-out button. This state needs zero roles loaded (a broken mod set); the frames force it.</p>
 <div class="frames">
 <figure><img src="before/create-disabled-phosphor.png" alt="Role step with no roles, phosphor"><figcaption>phosphor (roles cleared by the capture patch)</figcaption></figure>
 <figure><img src="before/create-disabled-hardware.png" alt="Role step with no roles, hardware"><figcaption>hardware</figcaption></figure>
