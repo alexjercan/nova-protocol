@@ -1,6 +1,6 @@
 # Waypoints: point the way to a GOTO target that is not loaded
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.19.0, navigation, hud
 
