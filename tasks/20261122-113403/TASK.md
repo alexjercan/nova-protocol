@@ -22,6 +22,32 @@
   flies the spinning port's frame; a stabilise action; relaxed capture for
   spin; a combination.
 
+## Map (2026-11-22)
+- Page: `DESIGN-spin-docking.html`. Logs: `evidence/`.
+- Only hulls with no live flight computer keep spin: no `AngularDamping`
+  on ships, and attitude torque comes only from a live controller
+  (`controller_section.rs:481-503`). The neutralized brake is linear only
+  (`neutralized_brake.rs:122-128`). A live computer stops the spin; with
+  none, 10, 45 and 120 deg/s held for 30 s (`evidence/unit-neutral.log`).
+- The capture gate compares root centre-of-mass speeds, not port faces
+  (`docking_section/port.rs:227-238, :286-291`). A perfect co-rotation at
+  5 deg/s on a 63 m lever reads 5.24 m/s, TOO FAST. Above about 5 deg/s no
+  motion state docks (`evidence/unit-gates.log`).
+- MATCH matches linear velocity only (`autopilot.rs:2974-3020`). AI DOCK
+  takes only live stations (`order.rs:601-610`) and fails above 4 deg/s on
+  the port axis and above 6 deg/s across it (`evidence/unit-sweep.log`).
+- Stations hold attitude by PD, so they do not spin. One live
+  `system_ai_combat` run: live ships turned at up to 9.1 deg/s. Nobody was
+  neutralized, so the spin of a fresh wreck is not measured.
+
+## Proposed decisions (awaiting owner)
+- Recommended: E = A + D. A ship root with no live flight computer, not
+  docked, halves its spin every 8 s (60 deg/s under the 5 deg/s gate in
+  about 29 s). Spin only; drift unchanged. The capture gate measures the
+  two port faces with the same 5 m/s and 5 deg/s numbers.
+- Open choices on the page: which hulls settle, spin only or drift too,
+  the half-life, the gate fix, and a spin-matching MATCH (B) now or later.
+
 ## Delivery
 1. Map the slice, reproduce the failed dock, and write the design page with
    options and a recommendation.
