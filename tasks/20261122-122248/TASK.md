@@ -43,3 +43,7 @@
 - C: phosphor square, hardware keeps today's type shapes. Breaks the
   "hardware 2 px everywhere" rule.
 - Owner rules A, B or C.
+
+## Decision (owner 2026-11-22)
+- Option A: "A recommeded looks good". Every block box takes the theme
+  corner; type stays on colour and silhouette; dots stay round.
