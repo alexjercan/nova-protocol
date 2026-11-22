@@ -49,7 +49,7 @@ table and the proof plan.
   The edge arrows are combat-only, the objective chip is gold "do this now",
   and `GotoCueUIMarker` is the keycap on the lock. None of these fit.
 
-## Proposed decisions (awaiting owner)
+## Decisions (owner approved all recommendations 2026-11-22: "go with recommended")
 1. Address: `WaypointTargetType { Station(GeneratedBodyId), Sector(SectorCoord) }`
    and a `Waypoint` component on the player ship, in `nova_gameplay`. The
    mark comes from `FrozenSectors` (station) or the cell centre (sector).
