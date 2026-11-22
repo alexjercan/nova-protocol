@@ -67,6 +67,8 @@ The whole vocabulary at a glance:
 | [`OnJobDone`](#onjobdone) | `id`, `kind`, `station`, `reward_cr`, `post_key` | a held job's work in the world is finished and the job waits for its hand-in; a `Procure`, a hail job and a Load fire none |
 | [`OnJobHandedIn`](#onjobhandedin) | `id`, `kind`, `station`, `reward_cr`, `post_key` | the Jobs pane hands a held job in at its posting station and the reward is paid; a refused hand-in and a hail job fire none |
 | [`OnJobDropped`](#onjobdropped) | `id`, `kind`, `station`, `reward_cr`, `post_key`, `cause` | a held job ends with no hand-in: `cause` is `Lost` (the world took it) or `Abandoned` (the Drop button); a hail job fires none |
+| [`OnGoalStepDone`](#goal-events) | `step`, `reward_cr` | the start role goal's current step reads met and waits for its hand-in; a Load fires none |
+| [`OnGoalStepHandedIn`](#goal-events) | `step`, `reward_cr` | the Jobs pane hands the current goal step in and its reward is paid |
 | [`OnStanceChanged`](#onstancechanged) | `civilization`, `from`, `to` | a civilization's stance toward the player moves; a provocation and a Load fire none |
 | [`OnSectorEntered`](#onsectorentered) | `sector`, `x`, `y`, `z`, `from` | the player crosses into another sector of a generated world; a New Game and a Load fire none |
 
@@ -880,7 +882,7 @@ inventory, so a handler counts occurrences, not frames.
 | `OnPickedUp` | the ship whose intake took the stack | none | `canister`, `item`, `count` |
 | `OnJettisoned` | the ship whose intake dropped the stack | none | `canister`, `item`, `count` |
 | `OnTraded` | the ship traded WITH | the player's ship | `trade` (`Buy` or `Sell`, from the player's side), `item`, `count`, `price_cr` |
-| `OnCreditsChanged` | the ship whose purse moved | none | `previous_cr`, `current_cr`, `delta_cr` (signed), `cause` (`Trade`, `Take`, `Rebuild`, `Swap`, `Add`, `ShipBuy`, `EscortHire`, `StationBuy`, `JobReward`, `Settle`, `Craft`, `Rescue`, `Scenario` or `Cheat`) |
+| `OnCreditsChanged` | the ship whose purse moved | none | `previous_cr`, `current_cr`, `delta_cr` (signed), `cause` (`Trade`, `Take`, `Rebuild`, `Swap`, `Add`, `ShipBuy`, `EscortHire`, `StationBuy`, `JobReward`, `GoalReward`, `Settle`, `Craft`, `Rescue`, `Scenario` or `Cheat`) |
 | `OnRepaired` | the repaired ship | none | `section` (the Ship pane code, `CTL-1`), `item`, `count` (plates the job fitted; one event when the job ends, stops or is cancelled with at least one plate fitted) |
 | `OnRebuilt` | the rebuilt ship | none | `section` (the code the lost section had, `PDC-1`), `parts` (every recipe part, item id to count; for an SOS rescue, only those taken from the hold), `price_cr` (work plus bought parts; 0 for a field rebuild; for an SOS rescue, the section's share of the charge after the fee) |
 | `OnSwapped` | the refitted ship | none | `section` (the Ship pane code, `PDC-1`), `from` and `to` (the old and new section prototype ids), `parts` (every part of the new part's recipe), `price_cr` (work plus bought parts) |
@@ -1069,6 +1071,27 @@ the job is never offered or accepted again.
 |---|---|
 | `Lost` | the posting station was neutralized or destroyed; or, before the job was done, its hauler, wreck or caller was; or the escort hauler's leg order failed |
 | `Abandoned` | the player confirmed Drop in the Jobs pane |
+
+## Goal events
+
+Two events follow the [start role goal](../start-roles/#the-goal) of a
+generated world, one step at a time. Both carry the same fields:
+
+| field | type | value |
+|---|---|---|
+| `step` | number | the step's place in the goal, from 1 |
+| `reward_cr` | number | the reward the step's hand-in pays, in credits |
+
+`OnGoalStepDone` fires once when the current step's line reads met. A step
+met at a Load fires none. `OnGoalStepHandedIn` fires once per successful
+hand-in from the Jobs pane, docked or in flight, after the reward is paid.
+The payout itself is one [`OnCreditsChanged`](#hold-events) event with
+cause `GoalReward` on the player's ship. It fires on the next game tick,
+after this one: the open interface holds the game, so it comes once the
+pane shuts. A step
+whose count was already reached when the step before it was paid fires
+`OnGoalStepDone` right after that hand-in. A scenario with no `world:`
+line that names either event is a lint error: it has no start role.
 
 ## OnStanceChanged
 

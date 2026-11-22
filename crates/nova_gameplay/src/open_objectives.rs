@@ -1,12 +1,12 @@
 //! The open objectives of a world: what the player has to do now. One rule
 //! ([`open_objectives`]) feeds the Map's OBJECTIVES block, the Jobs pane's
-//! milestone row and the world save header, so the three never list
+//! current goal step and the world save header, so the three never list
 //! different things.
 //!
 //! It reads the session resources as they stand: the held [`Jobs`], the
 //! [`Chart`] for the hand-in station codes, and the role goal's
 //! [`GoalProgress`] and [`GoalRecord`]. It does not know the goal kinds: a
-//! milestone is the first goal line short of its need.
+//! milestone is the first goal step not paid, ready once its line is met.
 
 use crate::{
     chart::prelude::Chart,
@@ -41,13 +41,21 @@ pub enum OpenObjectiveType {
         /// while the chart has not found that station.
         hand_in: String,
     },
-    /// The role goal's first line whose `have` is short of its `need`.
-    Milestone(GoalLine),
+    /// The role goal's current step: the first one not paid.
+    Milestone {
+        /// Its index in the chain.
+        step: usize,
+        /// Its `have / need`.
+        line: GoalLine,
+        /// Its line is met: only the hand-in is left.
+        ready: bool,
+    },
 }
 
 /// Every open objective, in order: each held job in accept order with its
-/// `have / need` against `hold`, then the role goal's next unmet line. A met
-/// `record` lists no milestone, and neither does an empty `goal`.
+/// `have / need` against `hold`, then the role goal's current step. A goal
+/// whose every step `record` paid lists no milestone, and neither does an
+/// empty `goal`.
 pub fn open_objectives(
     chart: &Chart,
     jobs: &Jobs,
@@ -69,10 +77,15 @@ pub fn open_objectives(
             hand_in: chart.station_code(&job.target).unwrap_or_default(),
         }
     });
-    let milestone = (!record.is_met())
-        .then(|| goal.lines.iter().find(|line| line.have < line.need))
-        .flatten()
-        .map(|line| OpenObjectiveType::Milestone(line.clone()));
+    let step = record.current();
+    let milestone = goal
+        .steps
+        .get(step)
+        .map(|current| OpenObjectiveType::Milestone {
+            step,
+            line: current.line.clone(),
+            ready: current.line.is_met(),
+        });
     held.chain(milestone).collect()
 }
 
@@ -82,15 +95,16 @@ mod tests {
 
     use super::*;
     use crate::{
+        goal::prelude::GoalStep,
         inventory::prelude::{ItemCategoryType, ItemDesign},
         jobs::prelude::{Job, JobReward, JobType},
     };
 
     /// Each held job lists with its code, its `have / need` and its hand-in
-    /// station's code, then only the first unmet milestone; a met record
-    /// lists no milestone.
+    /// station's code, then only the first unpaid step, ready once its line
+    /// is met; a record that paid every step lists no milestone.
     #[test]
-    fn the_open_objectives_list_held_jobs_and_only_the_next_unmet_milestone() {
+    fn the_open_objectives_list_held_jobs_and_only_the_current_goal_step() {
         let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
         let mut chart = Chart::default();
         chart.find_station(&station, false, false, None, 0.0);
@@ -136,10 +150,20 @@ mod tests {
         let hold = ShipInventory::new(&items, 10_000, [("IronOre".into(), 3)]);
         let progress = GoalProgress {
             title: "Cargo runs".to_string(),
-            lines: vec![
-                GoalLine::new("Cargo runs", 3, 3),
-                GoalLine::new("Stations owned", 0, 1),
+            steps: vec![
+                GoalStep {
+                    line: GoalLine::new("Cargo runs", 3, 3),
+                    reward_cr: 3_000,
+                },
+                GoalStep {
+                    line: GoalLine::new("Stations owned", 0, 1),
+                    reward_cr: 10_000,
+                },
             ],
+        };
+        let paid = |paid_at: &[f64]| GoalRecord {
+            paid_at: paid_at.to_vec(),
+            hulls_taken: 0,
         };
         let open = open_objectives(
             &chart,
@@ -170,8 +194,28 @@ mod tests {
                     done: true,
                     hand_in: "STN-1".to_string(),
                 },
-                OpenObjectiveType::Milestone(GoalLine::new("Stations owned", 0, 1)),
+                OpenObjectiveType::Milestone {
+                    step: 0,
+                    line: GoalLine::new("Cargo runs", 3, 3),
+                    ready: true,
+                },
             ]
+        );
+        assert_eq!(
+            open_objectives(
+                &chart,
+                &Jobs::default(),
+                Some(&items),
+                None,
+                &progress,
+                &paid(&[60.0]),
+            ),
+            vec![OpenObjectiveType::Milestone {
+                step: 1,
+                line: GoalLine::new("Stations owned", 0, 1),
+                ready: false,
+            }],
+            "a paid step hands over to the next"
         );
 
         assert!(
@@ -181,10 +225,7 @@ mod tests {
                 Some(&items),
                 None,
                 &progress,
-                &GoalRecord {
-                    met_at: Some(90.0),
-                    hulls_taken: 0,
-                },
+                &paid(&[60.0, 90.0]),
             )
             .is_empty(),
             "a met goal lists no milestone"

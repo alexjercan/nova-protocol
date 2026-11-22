@@ -13,7 +13,7 @@
 //! On that board the unarmed freighter cannot take the Escort, so its
 //! Accept is greyed; the starting station's board leaves such a job out.
 //! Your jobs holds the procurement with its `have / need` meter under the
-//! role's milestone row. The walk clicks the held row, so the inspector
+//! role goal's block. The walk clicks the held row, so the inspector
 //! reads it in full with Show on Map, asserts what the frame must read and
 //! shoots it.
 //!
@@ -47,7 +47,7 @@ use clap::Parser;
 use nova_protocol::{
     nova_debug::harness::{AutopilotPlugin, Predicate},
     nova_interface::{
-        jobs::prelude::{JOBS_AVAILABLE, JOBS_MILESTONE, JOB_ACCEPT_PREFIX, JOB_SHOW_ON_MAP},
+        jobs::prelude::{JOBS_AVAILABLE, JOBS_GOAL, JOB_ACCEPT_PREFIX, JOB_SHOW_ON_MAP},
         pane::InterfacePaneType,
     },
     prelude::*,
@@ -408,7 +408,7 @@ fn open_the_jobs_tab(script: AutopilotPlugin<GameStates>, at: &str) -> Autopilot
 }
 
 /// What the frame must show, read off the world and the drawn pane: the
-/// board's three offers with the Escort's Accept greyed, the milestone row,
+/// board's three offers with the Escort's Accept greyed, the goal block,
 /// the held procurement with its meter, and the inspector on it.
 fn the_pane_reads(world: &World) -> Result<(), String> {
     let held = world
@@ -444,8 +444,8 @@ fn the_pane_reads(world: &World) -> Result<(), String> {
     if !greyed {
         return Err("no Escort row with a greyed Accept".to_string());
     }
-    if named(world, JOBS_MILESTONE).is_none() {
-        return Err("no milestone row".to_string());
+    if named(world, JOBS_GOAL).is_none() {
+        return Err("no goal block".to_string());
     }
     let hold = player(world).and_then(|player| world.get::<ShipInventory>(player));
     let (have, need) = held.job.progress(hold, false);

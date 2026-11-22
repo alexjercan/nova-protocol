@@ -2072,7 +2072,7 @@ fn assert_the_done(world: &mut World) {
     );
     if kind(world) == LocatedKindType::Neutralize {
         assert_eq!(
-            world.resource::<GoalProgress>().lines[0],
+            world.resource::<GoalProgress>().steps[0].line,
             GoalLine::new("Bounties handed in", 0, 3),
             "{tag} job: the kill alone counts no bounty"
         );
@@ -2154,7 +2154,7 @@ fn assert_the_hand_in(world: &mut World) {
     );
     if kind(world) == LocatedKindType::Neutralize {
         assert_eq!(
-            world.resource::<GoalProgress>().lines[0],
+            world.resource::<GoalProgress>().steps[0].line,
             GoalLine::new("Bounties handed in", 1, 3),
             "{tag} job: the hand-in counts one bounty"
         );

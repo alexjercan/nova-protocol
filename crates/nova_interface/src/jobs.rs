@@ -16,14 +16,26 @@
 //! hand-in | Hand in `X`. The hand-in column reads HAND IN HERE docked at
 //! the job's target, else blank; Hand in is hidden elsewhere, and disabled
 //! with the short count painted Danger while the work or the hold is short.
-//! Under the held table head, one row reads the start role's goal: its
-//! title, its next unmet line ([`open_objectives`]) and a `have / need`
-//! meter, or the play time the goal was met; a role with no goal has no row,
-//! and with no goal and no held job the panel is its title alone. Clicking a
+//! Under the held table head, the goal block reads the start role's goal:
+//! a title row with its steps paid (`1 / 2`), or the play time the goal was
+//! met in Accent, then one row per step in chain order, `GOAL-n <label>`.
+//! A paid step is dim with the play time it was handed in; the current step
+//! ([`open_objectives`]) is lit with its `have / need` meter, its reward in
+//! the hand-in column and a Hand in button, enabled once its line is met,
+//! in flight or docked anywhere; a later step is dim with its meter and
+//! reward. A role with no goal has no block, and with no goal and no held
+//! job the panel is its title alone. Clicking a
 //! job row selects it and the inspector reads its task, its target, its
 //! hand-in station, its reward, its time left or progress and a Show on Map
 //! button, which opens the Map's chart view on the job's mark
 //! ([`MapRuntime::chart_show`]).
+//!
+//! A goal step's Hand in raises a [`GoalHandInCommand`];
+//! [`apply_goal_hand_ins`] plans it with [`plan_goal_hand_in`], pays the
+//! step's reward to the player with cause `GoalReward` (no station pays),
+//! stamps the step in [`GoalRecord`] with the world clock, plays the payout
+//! cue, counts the balance up and raises [`GoalStepHandedIn`]. A refusal
+//! pays nothing and plays the deny sound.
 //!
 //! A click on Accept or Hand in raises a [`JobAcceptCommand`] or a
 //! [`JobHandInCommand`]; [`apply_job_commands`] plans it with
@@ -106,8 +118,9 @@ use crate::{
 /// Glob-import surface: `use nova_interface::jobs::prelude::*`.
 pub mod prelude {
     pub use super::{
-        JobAcceptCommand, JobHandInCommand, JobsRuntime, JOBS_AVAILABLE, JOBS_HELD, JOBS_MILESTONE,
-        JOBS_PANE, JOB_ACCEPT_PREFIX, JOB_HAIL_DECLINE, JOB_HAND_IN_PREFIX, JOB_SHOW_ON_MAP,
+        GoalHandInCommand, JobAcceptCommand, JobHandInCommand, JobsRuntime, GOAL_HAND_IN_PREFIX,
+        JOBS_AVAILABLE, JOBS_GOAL, JOBS_GOAL_STEP_PREFIX, JOBS_HELD, JOBS_PANE, JOB_ACCEPT_PREFIX,
+        JOB_HAIL_DECLINE, JOB_HAND_IN_PREFIX, JOB_SHOW_ON_MAP,
     };
 }
 
@@ -117,9 +130,15 @@ pub const JOBS_PANE: &str = "JobsPane";
 pub const JOBS_AVAILABLE: &str = "JobsAvailable";
 /// The `Name` of the held jobs panel.
 pub const JOBS_HELD: &str = "JobsHeld";
-/// The `Name` of the held panel's milestone row, present while the start
-/// role has a goal.
-pub const JOBS_MILESTONE: &str = "JobsMilestone";
+/// The `Name` of the held panel's goal block, present while the start role
+/// has a goal.
+pub const JOBS_GOAL: &str = "JobsGoal";
+/// The `Name` prefix of a goal step's row: `JobsGoalStep-<step>`, the step's
+/// index in the chain.
+pub const JOBS_GOAL_STEP_PREFIX: &str = "JobsGoalStep-";
+/// The `Name` prefix of the current goal step's Hand in button:
+/// `GoalHandIn-<step>`, the step's index in the chain.
+pub const GOAL_HAND_IN_PREFIX: &str = "GoalHandIn-";
 /// The `Name` prefix of a board row's Accept button: `JobAccept-<row>`.
 pub const JOB_ACCEPT_PREFIX: &str = "JobAccept-";
 /// The `Name` prefix of a held row's Hand in button: `JobHandIn-<row>`.
@@ -159,6 +178,14 @@ pub struct JobAcceptCommand {
 pub struct JobHandInCommand {
     /// The held job.
     pub id: JobId,
+}
+
+/// A request to hand the role goal's step `step` in, raised by its row's
+/// Hand in button. It needs no dock: a goal step is handed in from anywhere.
+#[derive(Message, Clone, Copy, Debug)]
+pub struct GoalHandInCommand {
+    /// The step's index in the chain.
+    pub step: usize,
 }
 
 /// A confirmed request to drop the held job `id`, raised only by a
@@ -276,6 +303,10 @@ struct JobRefreshButton {
     step: JobAskStepType,
     id: JobId,
 }
+
+/// A goal step row's Hand in: the step's index in the chain.
+#[derive(Component, Clone, Copy, Debug)]
+struct GoalHandInButton(usize);
 
 /// The inspector's Show on Map button: the mark it opens the chart on.
 #[derive(Component, Clone, Debug)]
@@ -559,6 +590,82 @@ struct HeldRow {
     confirming: bool,
 }
 
+/// Where a goal step stands in its chain.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum GoalStepStateType {
+    /// Handed in at this play time.
+    Paid(f64),
+    /// The first step not paid: its Hand in is enabled once `ready`.
+    Current {
+        /// Its line is met.
+        ready: bool,
+    },
+    /// After the current step.
+    Later,
+}
+
+/// One goal step row as the pane shows it.
+#[derive(Clone, Debug, PartialEq)]
+struct GoalStepRow {
+    /// `GOAL-n`, numbered from 1.
+    code: String,
+    line: GoalLine,
+    reward_cr: u32,
+    state: GoalStepStateType,
+}
+
+/// The goal block as the pane shows it.
+#[derive(Clone, Debug, PartialEq)]
+struct GoalView {
+    title: String,
+    /// How many steps are paid.
+    paid: usize,
+    /// The play time the last step was paid at, once every step is.
+    met_at: Option<f64>,
+    steps: Vec<GoalStepRow>,
+}
+
+impl GoalView {
+    /// The block for `progress` and `record`, the current step as
+    /// [`open_objectives`] lists it in `objectives`; `None` with no goal.
+    fn of(
+        progress: &GoalProgress,
+        record: &GoalRecord,
+        objectives: &[OpenObjectiveType],
+    ) -> Option<Self> {
+        if progress.is_empty() {
+            return None;
+        }
+        let current = objectives.iter().find_map(|objective| match objective {
+            OpenObjectiveType::Milestone { step, ready, .. } => Some((*step, *ready)),
+            OpenObjectiveType::Job { .. } => None,
+        });
+        let steps = progress
+            .steps
+            .iter()
+            .enumerate()
+            .map(|(index, step)| GoalStepRow {
+                code: format!("GOAL-{}", index + 1),
+                line: step.line.clone(),
+                reward_cr: step.reward_cr,
+                state: match (record.paid_at.get(index), current) {
+                    (Some(at), _) => GoalStepStateType::Paid(*at),
+                    (None, Some((step, ready))) if step == index => {
+                        GoalStepStateType::Current { ready }
+                    }
+                    (None, _) => GoalStepStateType::Later,
+                },
+            })
+            .collect();
+        Some(Self {
+            title: progress.title.clone(),
+            paid: record.current().min(progress.steps.len()),
+            met_at: record.met_at(progress.steps.len()),
+            steps,
+        })
+    }
+}
+
 /// The selected job as the inspector reads it.
 #[derive(Clone, Debug, PartialEq)]
 struct InspectorView {
@@ -586,12 +693,8 @@ struct JobsView {
     /// docked station's board.
     available: Vec<PostedRow>,
     held: Vec<HeldRow>,
-    /// The role goal's heading.
-    goal_title: String,
-    /// The role goal's next unmet line, as [`open_objectives`] lists it.
-    milestone: Option<GoalLine>,
-    /// The play time the role goal was met at.
-    goal_met_at: Option<f64>,
+    /// The role goal's block, while the start role has a goal.
+    goal: Option<GoalView>,
     docked: bool,
     inspector: Option<InspectorView>,
 }
@@ -915,19 +1018,12 @@ fn update_jobs_pane(
         }
     });
 
-    let milestone = open_objectives(&chart, &jobs, Some(&items), hold, &progress, &record)
-        .into_iter()
-        .find_map(|objective| match objective {
-            OpenObjectiveType::Milestone(line) => Some(line),
-            OpenObjectiveType::Job { .. } => None,
-        });
+    let objectives = open_objectives(&chart, &jobs, Some(&items), hold, &progress, &record);
 
     let view = JobsView {
         available,
         held,
-        goal_title: progress.title.clone(),
-        milestone,
-        goal_met_at: record.met_at,
+        goal: GoalView::of(&progress, &record, &objectives),
         docked: partner.is_some(),
         inspector,
     };
@@ -1537,64 +1633,186 @@ fn posted_row(r: &mut ChildSpawnerCommands, icons: &InterfaceIcons, index: usize
     });
 }
 
-/// The start role's goal line under the held table head: its title and next
-/// unmet line with a `have / need` meter, or the play time it was met.
-fn goal_row(panel: &mut ChildSpawnerCommands, icons: &InterfaceIcons, view: &JobsView) {
-    let (line, color, progress) = match (&view.milestone, view.goal_met_at) {
-        (Some(line), _) => (
-            format!("{}: {}", view.goal_title, line.label),
-            UiColorType::Text,
-            Some((line.have, line.need)),
-        ),
-        (None, Some(at)) => (
-            format!("{}: {}", view.goal_title, play_time_text(at)),
-            UiColorType::Accent,
-            None,
-        ),
-        (None, None) => return,
+/// A goal block row: its cells line up with the held rows under it.
+fn goal_row_node() -> Node {
+    Node {
+        width: percent(100),
+        min_height: px(metrics::LIST_ROW_H),
+        padding: UiRect {
+            left: px(ROW_INSET_PX),
+            right: px(ROW_INSET_PX + SCROLL_GUTTER_PX),
+            ..default()
+        },
+        column_gap: px(metrics::GAP_L),
+        row_gap: px(metrics::GAP_S),
+        flex_wrap: FlexWrap::Wrap,
+        ..control_row(JustifyContent::FlexStart)
+    }
+}
+
+/// A `have / need` meter painted `color`, for a goal step row.
+fn step_meter(have: u64, need: u64, color: UiColorType) -> impl Bundle {
+    let fraction = if need == 0 {
+        0.0
+    } else {
+        have as f32 / need as f32
     };
+    (
+        Node {
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            column_gap: px(metrics::GAP),
+            flex_shrink: 0.0,
+            ..default()
+        },
+        Pickable::IGNORE,
+        children![
+            bare_meter(ROW_METER_PX, fraction),
+            text_nowrap(&format!("{have} / {need}"), TextRole::Body, color),
+        ],
+    )
+}
+
+/// The start role's goal block under the held table head: the title row
+/// with the steps paid or the play time the goal was met, then one row per
+/// step.
+fn goal_block(panel: &mut ChildSpawnerCommands, icons: &InterfaceIcons, goal: &GoalView) {
     panel
         .spawn((
-            Name::new(JOBS_MILESTONE),
+            Name::new(JOBS_GOAL),
             Node {
-                // The cells line up with the held rows under it.
                 width: percent(100),
-                min_height: px(metrics::LIST_ROW_H),
-                padding: UiRect {
-                    left: px(ROW_INSET_PX),
-                    right: px(ROW_INSET_PX + SCROLL_GUTTER_PX),
-                    ..default()
-                },
-                column_gap: px(metrics::GAP_L),
+                flex_direction: FlexDirection::Column,
                 row_gap: px(metrics::GAP_S),
-                flex_wrap: FlexWrap::Wrap,
-                ..control_row(JustifyContent::FlexStart)
+                ..default()
             },
         ))
-        .with_children(|row| {
-            row.spawn(fixed(
-                ICON_PX,
-                icon_node(
-                    icons.chart(ChartIconType::Milestone),
-                    ChartIconType::Milestone.color(),
-                    18.0,
-                ),
-            ));
-            row.spawn(title_cell(&line, TextRole::Value, color));
-            match progress {
-                Some((have, need)) => {
-                    row.spawn(fixed(PROGRESS_PX, meter(ROW_METER_PX, have, need, false)))
-                }
-                None => row.spawn(fixed(PROGRESS_PX, ())),
-            };
-            // One blank for the hand-in and verb columns, so a wrapped row
-            // spends one empty line, not two cells.
-            row.spawn(fixed(HAND_IN_PX + VERBS_PX + metrics::GAP_L, ()));
+        .with_children(|block| {
+            block.spawn(goal_row_node()).with_children(|row| {
+                row.spawn(fixed(
+                    ICON_PX,
+                    icon_node(
+                        icons.chart(ChartIconType::Milestone),
+                        ChartIconType::Milestone.color(),
+                        18.0,
+                    ),
+                ));
+                let title_color = if goal.met_at.is_some() {
+                    UiColorType::Accent
+                } else {
+                    UiColorType::Text
+                };
+                row.spawn(title_cell(&goal.title, TextRole::Value, title_color));
+                match goal.met_at {
+                    Some(at) => row.spawn(text_cell(
+                        PROGRESS_PX,
+                        &play_time_text(at),
+                        TextRole::Value,
+                        UiColorType::Accent,
+                    )),
+                    None => row.spawn(fixed(
+                        PROGRESS_PX,
+                        step_meter(
+                            goal.paid as u64,
+                            goal.steps.len() as u64,
+                            UiColorType::TextBody,
+                        ),
+                    )),
+                };
+                // One blank for the hand-in and verb columns, so a wrapped
+                // row spends one empty line, not two cells.
+                row.spawn(fixed(HAND_IN_PX + VERBS_PX + metrics::GAP_L, ()));
+            });
+            for (index, step) in goal.steps.iter().enumerate() {
+                block
+                    .spawn((
+                        Name::new(format!("{JOBS_GOAL_STEP_PREFIX}{index}")),
+                        goal_row_node(),
+                    ))
+                    .with_children(|row| goal_step_row(row, icons, index, step));
+            }
         });
 }
 
+/// One goal step row's cells: blank | `GOAL-n <label>` | progress | reward
+/// | Hand in. A paid step reads dim with its play time and no reward; the
+/// current step is lit, with Hand in enabled once its line is met; a later
+/// step is dim, its reward shown so the next step is never a surprise.
+fn goal_step_row(
+    row: &mut ChildSpawnerCommands,
+    icons: &InterfaceIcons,
+    index: usize,
+    step: &GoalStepRow,
+) {
+    let current = matches!(step.state, GoalStepStateType::Current { .. });
+    let (title_color, figure_color) = if current {
+        (UiColorType::Text, UiColorType::Accent)
+    } else {
+        (UiColorType::TextMuted, UiColorType::TextMuted)
+    };
+    row.spawn(fixed(ICON_PX, ()));
+    row.spawn(title_cell(
+        &format!("{} {}", step.code, step.line.label),
+        TextRole::Value,
+        title_color,
+    ));
+    match step.state {
+        GoalStepStateType::Paid(at) => row.spawn(text_cell(
+            PROGRESS_PX,
+            &play_time_text(at),
+            TextRole::Body,
+            UiColorType::TextMuted,
+        )),
+        GoalStepStateType::Current { .. } | GoalStepStateType::Later => row.spawn(fixed(
+            PROGRESS_PX,
+            step_meter(
+                step.line.have,
+                step.line.need,
+                if current {
+                    UiColorType::Text
+                } else {
+                    UiColorType::TextMuted
+                },
+            ),
+        )),
+    };
+    match step.state {
+        GoalStepStateType::Paid(_) => {
+            row.spawn(fixed(HAND_IN_PX, ()));
+        }
+        GoalStepStateType::Current { .. } | GoalStepStateType::Later => {
+            row.spawn(fixed(HAND_IN_PX, ())).with_children(|reward| {
+                spawn_credit_figure(
+                    reward,
+                    icons,
+                    u64::from(step.reward_cr),
+                    TextRole::Value,
+                    figure_color,
+                    (),
+                );
+            });
+        }
+    }
+    row.spawn(verbs_cell()).with_children(|verbs| {
+        if let GoalStepStateType::Current { ready } = step.state {
+            gated_verb(
+                verbs,
+                format!("{GOAL_HAND_IN_PREFIX}{index}"),
+                ButtonSpec::control("Hand in"),
+                if ready {
+                    VerbGate::Ready
+                } else {
+                    VerbGate::Disabled
+                },
+            )
+            .insert(GoalHandInButton(index))
+            .observe(on_goal_hand_in_button);
+        }
+    });
+}
+
 /// The jobs the player holds: the title, the table head, the role goal's
-/// line and the held rows.
+/// block and the held rows.
 fn held_panel(
     col: &mut ChildSpawnerCommands,
     icons: &InterfaceIcons,
@@ -1605,8 +1823,7 @@ fn held_panel(
     col.spawn((Name::new(JOBS_HELD), column_panel()))
         .with_children(|panel| {
             panel_title(panel, "Your jobs");
-            let goal = view.milestone.is_some() || view.goal_met_at.is_some();
-            if view.held.is_empty() && !goal {
+            if view.held.is_empty() && view.goal.is_none() {
                 return;
             }
             panel.spawn(table()).with_children(|panel| {
@@ -1620,7 +1837,9 @@ fn held_panel(
                         (VERBS_PX, ""),
                     ],
                 );
-                goal_row(panel, icons, view);
+                if let Some(goal) = &view.goal {
+                    goal_block(panel, icons, goal);
+                }
                 scroll_rows(panel, JobsScrollType::Held, offset, |panel| {
                     for (index, row) in view.held.iter().enumerate() {
                         spawn_row(
@@ -1815,6 +2034,18 @@ fn on_job_button(
                 answer: HailAnswerType::HandIn,
             });
         }
+    }
+}
+
+/// Raise the [`GoalHandInCommand`] for the button's step when it is
+/// activated. The press is silent: the result plays the one cue.
+fn on_goal_hand_in_button(
+    activate: On<Activate>,
+    q_button: Query<&GoalHandInButton>,
+    mut hand_ins: MessageWriter<GoalHandInCommand>,
+) {
+    if let Ok(GoalHandInButton(step)) = q_button.get(activate.entity) {
+        hand_ins.write(GoalHandInCommand { step: *step });
     }
 }
 
@@ -2228,6 +2459,79 @@ fn apply_job_commands(
     }
 }
 
+/// Apply [`GoalHandInCommand`]s by the [`plan_goal_hand_in`] rule, from
+/// anywhere: an allowed hand-in pays the step's reward to the player ship
+/// with cause `GoalReward` (no station pays it), stamps the step in
+/// [`GoalRecord`] at the world clock's reading, raises [`GoalStepHandedIn`],
+/// plays the payout cue and starts the pane head's count-up
+/// ([`BalanceCountUp`]). A refused hand-in, a reward that would overflow the
+/// balance and a session with no player ship change nothing and play the
+/// deny sound. A step past the chain is a stale button: it warns.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one system reading the command, the goal, the clock, the player's balance, the count-up and the cue"
+)]
+fn apply_goal_hand_ins(
+    mut commands: Commands,
+    mut hand_ins: MessageReader<GoalHandInCommand>,
+    progress: Res<GoalProgress>,
+    mut record: ResMut<GoalRecord>,
+    clock: Res<WorldClock>,
+    mut runtime: ResMut<JobsRuntime>,
+    mut count_up: ResMut<BalanceCountUp>,
+    mut q_player: Query<
+        (&mut ShipCredits, &mut ShipInventoryReports),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
+) {
+    for command in hand_ins.read() {
+        let reward_cr = match plan_goal_hand_in(&progress, &record, command.step) {
+            Ok(reward_cr) => reward_cr,
+            Err(refusal) => {
+                if refusal == GoalHandInRefusalType::NoGoal {
+                    warn!(
+                        "nova_interface: the goal hand-in of step {} finds no such step in {} \
+                         steps",
+                        command.step + 1,
+                        progress.steps.len()
+                    );
+                } else {
+                    debug!(
+                        "nova_interface: refused the goal hand-in of step {}: {refusal:?}",
+                        command.step + 1
+                    );
+                }
+                runtime.cue.raise(ActionOutcomeType::Refused);
+                continue;
+            }
+        };
+        let Ok((mut credits, mut reports)) = q_player.single_mut() else {
+            debug!("nova_interface: refused the goal hand-in: no player ship");
+            runtime.cue.raise(ActionOutcomeType::Refused);
+            continue;
+        };
+        let Some(paid_cr) = credits.0.checked_add(reward_cr) else {
+            debug!("nova_interface: refused the goal hand-in: the balance would overflow");
+            runtime.cue.raise(ActionOutcomeType::Refused);
+            continue;
+        };
+        reports.change_credits(&mut credits, paid_cr, CreditChangeCauseType::GoalReward);
+        record.paid_at.push(clock.play_seconds);
+        count_up.raise();
+        commands.trigger(GoalStepHandedIn {
+            step: command.step,
+            reward_cr,
+        });
+        info!(
+            "nova_interface: handed in goal step {} of '{}' for {reward_cr} cr at {:.1} s of play",
+            command.step + 1,
+            progress.title,
+            clock.play_seconds
+        );
+        runtime.cue.raise(ActionOutcomeType::Paid);
+    }
+}
+
 /// Drives the Jobs pane's lists and actions.
 pub(crate) struct JobsPanePlugin;
 
@@ -2238,6 +2542,7 @@ impl Plugin for JobsPanePlugin {
         app.add_message::<JobHandInCommand>();
         app.add_message::<JobDropCommand>();
         app.add_message::<JobOfferRefreshCommand>();
+        app.add_message::<GoalHandInCommand>();
         // Owned by the open world's encounter director; registered here as
         // well so the pane stands alone. A second registration is a no-op.
         app.add_message::<HailAnswerCommand>();
@@ -2247,6 +2552,7 @@ impl Plugin for JobsPanePlugin {
             Update,
             (
                 apply_job_commands,
+                apply_goal_hand_ins,
                 cue_hail_answers,
                 update_jobs_pane,
                 play_jobs_cue,
@@ -4092,5 +4398,189 @@ mod tests {
                 "a click on {name} selects its job"
             );
         }
+    }
+
+    /// The goal step hand-ins a test heard, in order.
+    #[derive(Resource, Default)]
+    struct HeardHandIns(Vec<GoalStepHandedIn>);
+
+    /// The jobs app with a two-step goal, step 1 met, an undocked player
+    /// with 2,000 cr and the clock at 120 s.
+    fn goal_app() -> (App, Entity) {
+        let mut app = jobs_app();
+        app.insert_resource(GoalProgress {
+            title: "A kill list".to_string(),
+            steps: vec![
+                GoalStep {
+                    line: GoalLine::new("Bounties handed in", 3, 3),
+                    reward_cr: 3_000,
+                },
+                GoalStep {
+                    line: GoalLine::new("Stations owned", 0, 1),
+                    reward_cr: 10_000,
+                },
+            ],
+        });
+        app.init_resource::<GoalRecord>();
+        app.add_message::<GoalHandInCommand>();
+        app.add_systems(Update, apply_goal_hand_ins.before(play_jobs_cue));
+        app.init_resource::<HeardHandIns>();
+        app.add_observer(
+            |handed: On<GoalStepHandedIn>, mut heard: ResMut<HeardHandIns>| {
+                heard.0.push(*handed);
+            },
+        );
+        app.world_mut().resource_mut::<WorldClock>().play_seconds = 120.0;
+        let player = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                ShipCredits(2_000),
+                ShipInventoryReports::default(),
+            ))
+            .id();
+        (app, player)
+    }
+
+    /// Undocked, the current met step's Hand in pays its reward with cause
+    /// `GoalReward`, stamps the step at the clock, raises one
+    /// `GoalStepHandedIn` and plays the payout cue; a later step, the paid
+    /// step again and a step past the chain each pay nothing and buzz.
+    #[test]
+    fn the_goal_hand_in_pays_from_anywhere_with_cause_goal_reward_and_the_payout_cue() {
+        let (mut app, player) = goal_app();
+        assert!(app.world().get::<DockedShip>(player).is_none());
+
+        app.world_mut().write_message(GoalHandInCommand { step: 1 });
+        app.update();
+        assert_eq!(
+            app.world().get::<ShipCredits>(player),
+            Some(&ShipCredits(2_000))
+        );
+        assert!(app.world().resource::<GoalRecord>().paid_at.is_empty());
+        assert_eq!(
+            take_cues(&mut app),
+            [UiSfx::EditorDeny],
+            "a later step buzzes"
+        );
+
+        app.world_mut().write_message(GoalHandInCommand { step: 0 });
+        app.update();
+        assert_eq!(
+            app.world().get::<ShipCredits>(player),
+            Some(&ShipCredits(5_000))
+        );
+        assert_eq!(
+            app.world()
+                .get::<ShipInventoryReports>(player)
+                .map(|reports| &reports.0[..]),
+            Some(
+                &[ShipInventoryReport::CreditsChanged {
+                    previous_cr: 2_000,
+                    current_cr: 5_000,
+                    cause: CreditChangeCauseType::GoalReward,
+                }][..]
+            ),
+            "the reward is one credit change, caused by the goal"
+        );
+        assert_eq!(app.world().resource::<GoalRecord>().paid_at, vec![120.0]);
+        assert_eq!(
+            app.world().resource::<HeardHandIns>().0,
+            vec![GoalStepHandedIn {
+                step: 0,
+                reward_cr: 3_000
+            }]
+        );
+        assert_eq!(
+            take_cues(&mut app),
+            [UiSfx::Payout],
+            "one payout cue, no click"
+        );
+
+        for step in [0, 5] {
+            app.world_mut().write_message(GoalHandInCommand { step });
+            app.update();
+            assert_eq!(
+                take_cues(&mut app),
+                [UiSfx::EditorDeny],
+                "step {step} buzzes"
+            );
+        }
+        assert_eq!(
+            app.world().get::<ShipCredits>(player),
+            Some(&ShipCredits(5_000))
+        );
+        assert_eq!(app.world().resource::<GoalRecord>().paid_at, vec![120.0]);
+        assert_eq!(app.world().resource::<HeardHandIns>().0.len(), 1);
+    }
+
+    /// The goal block lists every step in chain order: a paid step with its
+    /// stamp and no Hand in, the current step's Hand in enabled once met and
+    /// disabled while short, a later step with none; a met goal reads its
+    /// stamp.
+    #[test]
+    fn the_goal_block_reads_paid_current_and_later_steps() {
+        let progress = |stations: u64| GoalProgress {
+            title: "A kill list".to_string(),
+            steps: vec![
+                GoalStep {
+                    line: GoalLine::new("Bounties handed in", 3, 3),
+                    reward_cr: 3_000,
+                },
+                GoalStep {
+                    line: GoalLine::new("Stations owned", stations, 1),
+                    reward_cr: 10_000,
+                },
+            ],
+        };
+        let record = |paid_at: Vec<f64>| GoalRecord {
+            paid_at,
+            hulls_taken: 0,
+        };
+        let view = |progress: &GoalProgress, record: &GoalRecord| {
+            let objectives = open_objectives(
+                &Chart::default(),
+                &Jobs::default(),
+                None,
+                None,
+                progress,
+                record,
+            );
+            GoalView::of(progress, record, &objectives).expect("a goal block")
+        };
+        let states = |view: &GoalView| view.steps.iter().map(|step| step.state).collect::<Vec<_>>();
+
+        let fresh = view(&progress(0), &record(Vec::new()));
+        assert_eq!(
+            states(&fresh),
+            [
+                GoalStepStateType::Current { ready: true },
+                GoalStepStateType::Later
+            ]
+        );
+        assert_eq!((fresh.paid, fresh.met_at), (0, None));
+        assert_eq!(fresh.steps[1].code, "GOAL-2");
+
+        let one = view(&progress(0), &record(vec![60.0]));
+        assert_eq!(
+            states(&one),
+            [
+                GoalStepStateType::Paid(60.0),
+                GoalStepStateType::Current { ready: false }
+            ]
+        );
+
+        let met = view(&progress(1), &record(vec![60.0, 90.0]));
+        assert_eq!(
+            states(&met),
+            [GoalStepStateType::Paid(60.0), GoalStepStateType::Paid(90.0)]
+        );
+        assert_eq!((met.paid, met.met_at), (2, Some(90.0)));
+        assert_eq!(
+            GoalView::of(&GoalProgress::default(), &record(Vec::new()), &[]),
+            None,
+            "no goal, no block"
+        );
     }
 }

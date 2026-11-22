@@ -160,11 +160,19 @@ pub(super) fn save_fixture_world(app: &mut App, root: &Path, name: &str) {
     }
     app.world_mut().insert_resource(GoalProgress {
         title: "Cargo runs".to_string(),
-        lines: vec![
-            GoalLine::new("Cargo runs", 3, 3),
-            GoalLine::new("Stations owned", 0, 1),
+        steps: vec![
+            GoalStep {
+                line: GoalLine::new("Cargo runs", 3, 3),
+                reward_cr: 3_000,
+            },
+            GoalStep {
+                line: GoalLine::new("Stations owned", 0, 1),
+                reward_cr: 10_000,
+            },
         ],
     });
+    // Step 1 handed in at 60 s, so the header lists step 2.
+    app.world_mut().resource_mut::<GoalRecord>().paid_at = vec![60.0];
     let (folder, lock) = create_world(root, name).expect("the root takes a new world");
     app.world_mut().insert_resource(WorldSaveSession::created(
         folder,

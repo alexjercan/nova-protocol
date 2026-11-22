@@ -1,7 +1,8 @@
-//! system_role_goals: a bounty hunter's charter starts standing, stands three
-//! hand-ins against its kill-list line while no station stands, meets both
-//! lines once a station is bought, shows in the Map, and survives the leave
-//! save and a Load.
+//! system_role_goals: a bounty hunter's charter starts standing, readies
+//! step 1 at three hand-ins, hands it in from the Jobs pane in flight for
+//! 3,000 cr, readies step 2 once a station is bought, hands it in for
+//! 10,000 cr to meet the charter, shows it in the Map, and survives the
+//! leave save and a Load.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on seed 10,
 //! picks `bounty_hunter`, and waits for the armed world and its first save.
@@ -9,33 +10,34 @@
 //! Neutralize jobs as DISCLOSED FIXTURE STATE: each valid job goes through
 //! `Jobs::accept`, `mark_done` and `complete`, with posters in cells
 //! (1, 0, 0), (2, 0, 0) and (9, 0, 0), each naming a distinct hull; this
-//! fixture replaces flying and fighting, not the goal tracker. It checks the
-//! kill-list line reads three with the shared station line still at zero,
-//! undocks, jumps to the origin, picks
-//! the nearest living non-Enemy station outside the origin's cell, warms its
-//! civilization to Ally by merits the way a player does, berths and docks,
-//! sets the player's balance to 100,000,000 cr as a second piece of
-//! DISCLOSED FIXTURE STATE so the station is affordable, and buys it through
-//! the Station pane's Buy station button. It checks the
-//! one-time play-clock stamp, reads the met charter in the Map's chart view,
-//! leaves to the main menu,
-//! reads the save through [`open_world`], then loads it again and checks the
-//! live progress.
+//! fixture replaces flying and fighting, not the goal tracker. It checks
+//! step 1 reads ready, undocks, opens the Jobs pane and presses the step's
+//! Hand in by name. It then jumps to the origin, picks the nearest living
+//! non-Enemy station outside the origin's cell, warms its civilization to
+//! Ally by merits the way a player does, berths and docks, sets the
+//! player's balance to 100,000,000 cr as a second piece of DISCLOSED
+//! FIXTURE STATE so the station is affordable, and buys it through the
+//! Station pane's Buy station button. Step 2 reads ready; the range hands
+//! it in from the Jobs pane, checks the met stamp, reads the met charter in
+//! the Map's chart view, leaves to the main menu, reads the save through
+//! [`open_world`], then loads it again and checks the live progress.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: the charter opens standing with its lines at zero` | the bounty hunter's `A kill list` has `Bounties handed in 0 / 3` first and `Stations owned 0 / 1` second, with no stamp |
-//! | 2 | `outcome: three neutralize hand-ins stand the kill list at the station line` | three completed Neutralize jobs on three distinct hulls yield `Bounties handed in 3 / 3` and `Stations owned 0 / 1`, not met, still no stamp |
-//! | 3 | `outcome: buying a station meets the kill list and stamps the record once` | buying one station through the Station pane reads `3 / 3` and `1 / 1`, met, with a stamp inside the play clock that does not move across two more frames |
-//! | 4 | `outcome: the map's chart view shows the charter met` | its OBJECTIVES block shows one row with the stamp as a clock face in place of the milestones and no milestone row |
-//! | 5 | `outcome: the leave save keeps the met charter` | `open_world` reads the same met stamp from the leave save |
-//! | 6 | `outcome: a load restores the met charter` | after Load and a frame, the same stamp and met progress return |
+//! | 1 | `outcome: the charter opens standing with its steps at zero` | the bounty hunter's `A kill list` has step 1 `Bounties handed in 0 / 3` for 3,000 cr and step 2 `Stations owned 0 / 1` for 10,000 cr, with no step paid |
+//! | 2 | `outcome: three neutralize hand-ins ready goal step 1` | three completed Neutralize jobs on three distinct hulls yield `Bounties handed in 3 / 3`, step 1 current and ready, one `OnGoalStepDone` with step 1, nothing paid |
+//! | 3 | `outcome: the goal step 1 hand-in pays 3,000 cr in flight` | undocked, the Jobs pane's `GoalHandIn-0` raises the balance by 3,000 cr, fires `OnCreditsChanged` with cause `GoalReward` and `OnGoalStepHandedIn` with step 1, and stamps step 1 inside the play clock |
+//! | 4 | `outcome: buying a station readies goal step 2` | after the buy, step 2 reads `Stations owned 1 / 1`, current and ready, with one more `OnGoalStepDone` with step 2 |
+//! | 5 | `outcome: the goal step 2 hand-in meets the charter` | the Jobs pane's `GoalHandIn-1` raises the balance by 10,000 cr with cause `GoalReward`; the goal is met at the second stamp, which does not move across two more frames |
+//! | 6 | `outcome: the map's chart view shows the charter met` | its OBJECTIVES block shows one row with the stamp as a clock face and no milestone row |
+//! | 7 | `outcome: the leave save keeps both paid steps` | `open_world` reads the same two stamps from the leave save |
+//! | 8 | `outcome: a load restores both paid steps` | after Load and a frame, the same stamps and met progress return |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 NOVA_AUTOPILOT_DEADLINE=3600 \
 //!   cargo run --example system_role_goals --features debug
-//! # look for: `role goals: PASS buying a station meets the kill list` and
+//! # look for: `role goals: PASS goal step 2 meets the charter` and
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 //! `NOVA_CAPTURE=1` also writes `role-goals-charter.png` of the chart view
@@ -49,9 +51,10 @@ use nova_protocol::prelude::*;
 #[command(name = "system_role_goals")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "Start the bounty hunter, stand its kill list at three hand-ins, buy a station to \
-             meet the charter, read it in the Map, and check it through a save and a Load. \
-             Autopilot-only correctness range",
+    about = "Start the bounty hunter, ready its kill list at three hand-ins and hand step 1 in \
+             from the Jobs pane, buy a station and hand step 2 in to meet the charter, read it \
+             in the Map, and check it through a save and a Load. Autopilot-only correctness \
+             range",
     long_about = None
 )]
 struct Cli;
@@ -84,6 +87,7 @@ fn main() -> bevy::app::AppExit {
         app.add_systems(Update, walk::hold_the_walk_clock);
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
         app.init_resource::<walk::GoalWatch>();
+        app.add_observer(walk::watch_goal_events);
         app.add_plugins(walk::script());
         app.add_systems(
             Startup,
@@ -104,7 +108,9 @@ mod walk {
     use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
     use nova_protocol::{
         nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
+        nova_events::engine::GameEvent,
         nova_interface::{
+            jobs::prelude::GOAL_HAND_IN_PREFIX,
             pane::InterfacePaneType,
             station::{STATION_BUY_ASK, STATION_BUY_BUTTON},
         },
@@ -127,6 +133,9 @@ mod walk {
     const LOAD_BUTTON: &str = "Load Button";
     const LOAD_WORLD_BUTTON: &str = "Load World Button";
     const MAP_TAB: &str = "InterfaceTabMap";
+    const JOBS_TAB: &str = "InterfaceTabJobs";
+    /// What each step's hand-in pays on every base role.
+    const STEP_REWARDS_CR: [u32; 2] = [3_000, 10_000];
     /// The Station pane's panel, which scrolls under the wheel.
     const STATION_PANEL: &str = "StationPanel";
     /// The disclosed fixture balance the player holds once the station is
@@ -143,7 +152,8 @@ mod walk {
     /// The frame the capture path writes of the chart view's OBJECTIVES block.
     const CHARTER_SHOT: &str = "role-goals-charter.png";
 
-    /// What the chosen station and the first met stamp were.
+    /// What the chosen station was, the goal and credit events the walk
+    /// heard, the balance before a hand-in and the met stamp.
     #[derive(Resource, Default)]
     pub(super) struct GoalWatch {
         /// The chosen station's typed id.
@@ -154,6 +164,38 @@ mod walk {
         position: Option<Meters3>,
         /// The first stamp observed once the charter is met.
         met_at: Option<f64>,
+        /// Every step's stamp the frame the charter was met: the leave to
+        /// the main menu clears the live record before the save is read.
+        paid_at: Vec<f64>,
+        /// The player's balance the frame a hand-in was pressed.
+        before_cr: Option<u32>,
+        /// `ongoalstepdone`, `ongoalstephandedin` and `oncreditschanged`
+        /// payloads, in firing order.
+        events: Vec<(String, serde_json::Value)>,
+    }
+
+    impl GoalWatch {
+        fn named(&self, name: &str) -> Vec<&serde_json::Value> {
+            self.events
+                .iter()
+                .filter(|(found, _)| found == name)
+                .map(|(_, data)| data)
+                .collect()
+        }
+    }
+
+    /// Keep each goal step and credit change scenario event the world fires.
+    pub(super) fn watch_goal_events(event: On<GameEvent>, mut watch: ResMut<GoalWatch>) {
+        let name = event.name();
+        if !matches!(
+            name,
+            "ongoalstepdone" | "ongoalstephandedin" | "oncreditschanged"
+        ) {
+            return;
+        }
+        let data = event.info().data.clone().unwrap_or_default();
+        info!("role goals: {name} {data}");
+        watch.events.push((name.to_string(), data));
     }
 
     /// Hold the virtual clock's clamp at [`WALK_CLOCK_SECS`] every frame: a
@@ -206,13 +248,35 @@ mod walk {
         value.0 = text.to_string();
     }
 
+    /// The record's stamps, one per paid step.
+    fn paid(world: &World) -> Vec<f64> {
+        world
+            .get_resource::<GoalRecord>()
+            .map(|record| record.paid_at.clone())
+            .unwrap_or_default()
+    }
+
+    /// Whether step `step` is the current one and its line is met.
+    fn step_ready(world: &World, step: usize) -> bool {
+        paid(world).len() == step
+            && world
+                .get_resource::<GoalProgress>()
+                .and_then(|progress| progress.steps.get(step))
+                .is_some_and(|goal_step| goal_step.line.is_met())
+    }
+
     fn progress_is_met(world: &World) -> bool {
         world
             .get_resource::<GoalProgress>()
-            .is_some_and(GoalProgress::is_met)
-            && world
-                .get_resource::<GoalRecord>()
-                .is_some_and(GoalRecord::is_met)
+            .zip(world.get_resource::<GoalRecord>())
+            .is_some_and(|(progress, record)| record.met_at(progress.steps.len()).is_some())
+    }
+
+    fn balance(world: &World) -> u32 {
+        world
+            .get::<ShipCredits>(player(world))
+            .expect("role goals: the player has a balance")
+            .0
     }
 
     fn the_interface_shows(pane: Option<InterfacePaneType>) -> Arc<Predicate> {
@@ -297,75 +361,227 @@ mod walk {
             .unwrap_or_else(|error| panic!("role goals: invalid completed jobs: {error}"));
     }
 
-    /// The charter's title and each line, with whether it reads met.
-    fn read_progress(world: &World) -> (String, Vec<GoalLine>, bool) {
+    /// The charter's title and each step's line with its reward.
+    fn read_progress(world: &World) -> (String, Vec<(GoalLine, u32)>) {
         let progress = world.resource::<GoalProgress>();
         (
             progress.title.clone(),
-            progress.lines.clone(),
-            progress.is_met(),
+            progress
+                .steps
+                .iter()
+                .map(|step| (step.line.clone(), step.reward_cr))
+                .collect(),
         )
     }
 
-    /// The kill list's two lines, its own first, at `stations` owned and
-    /// `bounties` handed in.
-    fn expected_lines(stations: u64, bounties: u64) -> Vec<GoalLine> {
+    /// The kill list's two steps at `bounties` handed in and `stations`
+    /// owned, each with its reward.
+    fn expected_steps(bounties: u64, stations: u64) -> Vec<(GoalLine, u32)> {
         vec![
-            GoalLine::new("Bounties handed in", bounties, 3),
-            GoalLine::new("Stations owned", stations, 1),
+            (
+                GoalLine::new("Bounties handed in", bounties, 3),
+                STEP_REWARDS_CR[0],
+            ),
+            (
+                GoalLine::new("Stations owned", stations, 1),
+                STEP_REWARDS_CR[1],
+            ),
         ]
     }
 
-    /// Claim 1: the charter opens standing with both lines at zero.
+    fn step_lines(steps: &[(GoalLine, u32)]) -> Vec<String> {
+        steps
+            .iter()
+            .map(|(line, reward)| {
+                format!(
+                    "{} {} / {} for {reward} cr",
+                    line.label, line.have, line.need
+                )
+            })
+            .collect()
+    }
+
+    /// Claim 1: the charter opens standing with both steps at zero.
     fn assert_standing_charter(world: &mut World) {
-        let (title, lines, met) = read_progress(world);
+        let (title, steps) = read_progress(world);
         assert_eq!(title, "A kill list", "role goals: charter title");
         assert_eq!(
-            lines,
-            expected_lines(0, 0),
+            steps,
+            expected_steps(0, 0),
             "role goals: the charter opens with zero progress"
         );
-        assert!(!met, "role goals: the charter is standing");
-        assert_eq!(
-            world.resource::<GoalRecord>().met_at,
-            None,
-            "role goals: the standing charter has no stamp"
-        );
+        assert!(paid(world).is_empty(), "role goals: no step is paid");
         nova_probe::probe_marker(
             world,
-            "outcome: the charter opens standing with its lines at zero",
-            serde_json::json!({
-                "title": title,
-                "lines": ["Bounties handed in 0 / 3", "Stations owned 0 / 1"],
-                "met_at": None::<f64>,
-            }),
+            "outcome: the charter opens standing with its steps at zero",
+            serde_json::json!({ "title": title, "steps": step_lines(&steps), "paid_at": paid(world) }),
         );
         info!("role goals: the kill list opens standing at zero");
     }
 
-    /// Claim 2: three hand-ins stand the kill list at the station line.
-    fn assert_hand_ins_stand_at_station_line(world: &mut World) {
-        let (_, lines, met) = read_progress(world);
+    /// Claim 2: three hand-ins ready step 1, and the tracker raises its done
+    /// event once.
+    fn assert_step_one_ready(world: &mut World) {
+        let (_, steps) = read_progress(world);
         assert_eq!(
-            lines,
-            expected_lines(0, 3),
-            "role goals: three hand-ins meet the kill-list line alone"
+            steps,
+            expected_steps(3, 0),
+            "role goals: three hand-ins meet step 1's line"
         );
         assert!(
-            !met,
-            "role goals: three bounties with no station standing do not meet the charter"
+            step_ready(world, 0),
+            "role goals: step 1 is current and ready"
         );
+        assert!(
+            paid(world).is_empty(),
+            "role goals: nothing paid before the hand-in"
+        );
+        let done: Vec<serde_json::Value> = world
+            .resource::<GoalWatch>()
+            .named("ongoalstepdone")
+            .into_iter()
+            .cloned()
+            .collect();
         assert_eq!(
-            world.resource::<GoalRecord>().met_at,
-            None,
-            "role goals: no stamp before a station is owned"
+            done,
+            vec![serde_json::json!({ "step": 1, "reward_cr": STEP_REWARDS_CR[0] })],
+            "role goals: one OnGoalStepDone for step 1"
         );
         nova_probe::probe_marker(
             world,
-            "outcome: three neutralize hand-ins stand the kill list at the station line",
-            serde_json::json!({ "lines": ["Bounties handed in 3 / 3", "Stations owned 0 / 1"] }),
+            "outcome: three neutralize hand-ins ready goal step 1",
+            serde_json::json!({ "steps": step_lines(&steps), "done": done }),
         );
-        info!("role goals: three hand-ins stand the kill list at the station line");
+        info!("role goals: PASS three hand-ins ready goal step 1");
+    }
+
+    /// Note the balance before a hand-in press.
+    fn note_balance(world: &mut World) {
+        let before = balance(world);
+        world.resource_mut::<GoalWatch>().before_cr = Some(before);
+        info!("role goals: the balance before the hand-in is {before} cr");
+    }
+
+    /// The hand-in of step `step` paid its reward to the player with cause
+    /// `GoalReward`, fired `OnGoalStepHandedIn` and stamped the step: the
+    /// stamp, after its checks.
+    fn assert_paid_step(world: &mut World, step: usize) -> f64 {
+        let reward = STEP_REWARDS_CR[step];
+        let before = world
+            .resource::<GoalWatch>()
+            .before_cr
+            .expect("role goals: the balance was noted before the press");
+        assert_eq!(
+            balance(world),
+            before + reward,
+            "role goals: step {} pays {reward} cr",
+            step + 1
+        );
+        let watch = world.resource::<GoalWatch>();
+        let rewarded: Vec<&serde_json::Value> = watch
+            .named("oncreditschanged")
+            .into_iter()
+            .filter(|data| data["cause"] == "GoalReward")
+            .collect();
+        assert_eq!(
+            rewarded.len(),
+            step + 1,
+            "role goals: one OnCreditsChanged with cause GoalReward per paid step: {rewarded:?}"
+        );
+        assert_eq!(
+            rewarded[step]["delta_cr"],
+            i64::from(reward),
+            "{rewarded:?}"
+        );
+        assert_eq!(
+            rewarded[step]["current_cr"],
+            before + reward,
+            "{rewarded:?}"
+        );
+        let handed: Vec<&serde_json::Value> = watch.named("ongoalstephandedin");
+        assert_eq!(
+            handed.last().copied(),
+            Some(&serde_json::json!({ "step": step + 1, "reward_cr": reward })),
+            "role goals: OnGoalStepHandedIn names step {}: {handed:?}",
+            step + 1
+        );
+        assert_eq!(
+            handed.len(),
+            step + 1,
+            "role goals: one handed-in event per step"
+        );
+        let stamps = paid(world);
+        assert_eq!(
+            stamps.len(),
+            step + 1,
+            "role goals: step {} is stamped",
+            step + 1
+        );
+        let clock = world.resource::<WorldClock>().play_seconds;
+        let at = stamps[step];
+        assert!(
+            at.is_finite() && at > 0.0 && at <= clock,
+            "role goals: stamp {at} is within the positive play clock {clock}"
+        );
+        at
+    }
+
+    /// Claim 3: step 1's hand-in in flight pays 3,000 cr.
+    fn assert_step_one_paid(world: &mut World) {
+        assert!(
+            world.get::<DockedShip>(player(world)).is_none(),
+            "role goals: the step 1 hand-in happens in flight"
+        );
+        let at = assert_paid_step(world, 0);
+        assert!(
+            !progress_is_met(world),
+            "role goals: one paid step does not meet a two-step charter"
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: the goal step 1 hand-in pays 3,000 cr in flight",
+            serde_json::json!({ "reward_cr": STEP_REWARDS_CR[0], "cause": "GoalReward", "paid_at": at }),
+        );
+        info!(
+            "role goals: PASS goal step 1 paid {} cr in flight at {at} s",
+            STEP_REWARDS_CR[0]
+        );
+    }
+
+    /// Claim 4: the bought station readies step 2.
+    fn assert_step_two_ready(world: &mut World) {
+        let (_, steps) = read_progress(world);
+        assert_eq!(
+            steps,
+            expected_steps(3, 1),
+            "role goals: the bought station meets step 2's line"
+        );
+        assert!(
+            step_ready(world, 1),
+            "role goals: step 2 is current and ready"
+        );
+        let done: Vec<serde_json::Value> = world
+            .resource::<GoalWatch>()
+            .named("ongoalstepdone")
+            .into_iter()
+            .cloned()
+            .collect();
+        assert_eq!(
+            done.last(),
+            Some(&serde_json::json!({ "step": 2, "reward_cr": STEP_REWARDS_CR[1] })),
+            "role goals: OnGoalStepDone for step 2: {done:?}"
+        );
+        assert_eq!(
+            done.len(),
+            2,
+            "role goals: one done event per step: {done:?}"
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: buying a station readies goal step 2",
+            serde_json::json!({ "steps": step_lines(&steps) }),
+        );
+        info!("role goals: PASS buying a station readies goal step 2");
     }
 
     /// The entity wearing `id`, if one does.
@@ -735,45 +951,39 @@ mod walk {
             .any(|named| named.as_str() == name)
     }
 
-    /// Check the tracker after the bought station meets the kill list.
+    /// Step 2's hand-in pays 10,000 cr and meets the charter at its stamp.
     fn assert_met_and_capture_stamp(world: &mut World) {
-        let (_, lines, met) = read_progress(world);
-        assert_eq!(
-            lines,
-            expected_lines(1, 3),
-            "role goals: the bought station meets the kill list"
-        );
-        assert!(met, "role goals: the kill-list charter is met");
-        let clock = world.resource::<WorldClock>().play_seconds;
+        let at = assert_paid_step(world, 1);
         let met_at = world
             .resource::<GoalRecord>()
-            .met_at
-            .expect("role goals: a met charter has a stamp");
-        assert!(
-            met_at.is_finite() && met_at > 0.0 && met_at <= clock,
-            "role goals: stamp {met_at} is within the positive play clock {clock}"
+            .met_at(2)
+            .expect("role goals: two paid steps meet the charter");
+        assert_eq!(
+            met_at, at,
+            "role goals: the charter is met at the second stamp"
         );
-        world.resource_mut::<GoalWatch>().met_at = Some(met_at);
+        let stamps = paid(world);
+        let mut watch = world.resource_mut::<GoalWatch>();
+        watch.met_at = Some(met_at);
+        watch.paid_at = stamps;
     }
 
-    /// The met stamp is unchanged after two more frames; emit the named claim.
+    /// Claim 5: the met stamp is unchanged after two more frames.
     fn assert_stamp_stable(world: &mut World) {
-        let (_, lines, met) = read_progress(world);
-        assert_eq!(
-            lines,
-            expected_lines(1, 3),
+        assert!(
+            progress_is_met(world),
             "role goals: the kill-list charter stays met"
         );
-        assert!(met, "role goals: the kill-list charter stays met");
         let expected = world
             .resource::<GoalWatch>()
             .met_at
             .expect("role goals: the first stamp was captured");
-        let found = world.resource::<GoalRecord>().met_at;
+        let stamps = paid(world);
+        assert_eq!(stamps.len(), 2, "role goals: no step is paid twice");
         assert_eq!(
-            found,
+            stamps.last().copied(),
             Some(expected),
-            "role goals: the met record is stamped only once"
+            "role goals: the met stamp does not move"
         );
         let completed = world.resource::<Jobs>().completed().to_vec();
         assert_eq!(completed.len(), 3, "role goals: three jobs completed");
@@ -783,20 +993,20 @@ mod walk {
                 .all(|job| matches!(&job.kind, JobType::Neutralize { .. })),
             "role goals: every fixture hand-in is Neutralize"
         );
-        let progress_lines: Vec<String> = lines
-            .iter()
-            .map(|line| format!("{} {} / {}", line.label, line.have, line.need))
-            .collect();
         nova_probe::probe_marker(
             world,
-            "outcome: buying a station meets the kill list and stamps the record once",
-            serde_json::json!({ "lines": progress_lines, "met_at": expected }),
+            "outcome: the goal step 2 hand-in meets the charter",
+            serde_json::json!({
+                "reward_cr": STEP_REWARDS_CR[1],
+                "cause": "GoalReward",
+                "paid_at": stamps,
+            }),
         );
-        info!("role goals: PASS buying a station meets the kill list at {expected} s");
+        info!("role goals: PASS goal step 2 meets the charter at {expected} s");
     }
 
-    /// The chart view's OBJECTIVES block holds the reached goal's stamp row
-    /// in place of the milestones.
+    /// Claim 6: the chart view's OBJECTIVES block holds the met goal's stamp
+    /// row in place of the current step.
     fn assert_map_charter(world: &mut World) {
         let expected = world
             .resource::<GoalWatch>()
@@ -860,53 +1070,112 @@ mod walk {
             world.resource::<GameEncounters>(),
         )
         .unwrap_or_else(|refusal| panic!("role goals: cannot open the leave save: {refusal}"));
+        let stamps = world.resource::<GoalWatch>().paid_at.clone();
         assert_eq!(
-            state.goal.met_at,
-            Some(expected),
-            "role goals: leave save keeps the met stamp"
+            state.goal.paid_at, stamps,
+            "role goals: the leave save keeps both stamps"
         );
-        assert!(
-            state.goal.is_met(),
-            "role goals: leave save records the charter met"
+        assert_eq!(
+            state.goal.met_at(2),
+            Some(expected),
+            "role goals: the leave save records the charter met"
         );
         nova_probe::probe_marker(
             world,
-            "outcome: the leave save keeps the met charter",
+            "outcome: the leave save keeps both paid steps",
             serde_json::json!({
                 "slug": slug,
                 "generation": header.generation,
                 "format": header.format,
-                "met_at": state.goal.met_at,
+                "paid_at": state.goal.paid_at,
             }),
         );
         info!("role goals: leave save keeps the charter met at {expected} s");
         drop(lock);
     }
 
+    /// Claim 8: a Load restores both stamps and the met charter.
     fn assert_loaded_charter(world: &mut World) {
         let expected = world
             .resource::<GoalWatch>()
             .met_at
             .expect("role goals: the met stamp was captured");
-        let (title, lines, met) = read_progress(world);
+        let (title, steps) = read_progress(world);
         assert_eq!(title, "A kill list", "role goals: loaded title");
-        assert_eq!(lines, expected_lines(1, 3), "role goals: loaded lines");
-        assert!(met, "role goals: loaded progress is met");
+        assert_eq!(steps, expected_steps(3, 1), "role goals: loaded steps");
+        assert!(progress_is_met(world), "role goals: loaded progress is met");
+        let stamps = paid(world);
         assert_eq!(
-            world.resource::<GoalRecord>().met_at,
-            Some(expected),
-            "role goals: Load restores the original stamp"
+            stamps,
+            world.resource::<GoalWatch>().paid_at,
+            "role goals: Load restores both stamps"
         );
-        let progress_lines: Vec<String> = lines
-            .iter()
-            .map(|line| format!("{} {} / {}", line.label, line.have, line.need))
-            .collect();
+        assert_eq!(
+            stamps.last().copied(),
+            Some(expected),
+            "role goals: Load restores the original met stamp"
+        );
         nova_probe::probe_marker(
             world,
-            "outcome: a load restores the met charter",
-            serde_json::json!({ "title": title, "lines": progress_lines, "met_at": expected }),
+            "outcome: a load restores both paid steps",
+            serde_json::json!({ "title": title, "steps": step_lines(&steps), "paid_at": stamps }),
         );
         info!("role goals: PASS Load restored the met charter at {expected} s");
+    }
+
+    /// Open the interface on the Jobs pane and press step `step`'s Hand in,
+    /// noting the balance first.
+    fn hand_in_step(
+        script: AutopilotPlugin<GameStates>,
+        step: usize,
+    ) -> AutopilotPlugin<GameStates> {
+        let button = format!("{GOAL_HAND_IN_PREFIX}{step}");
+        let script = tap(
+            script,
+            "the interface key",
+            "interface_toggle",
+            the_interface_shows(None),
+        )
+        .click_named(
+            &format!("role goals: open the Jobs pane for step {}", step + 1),
+            JOBS_TAB,
+            the_interface_shows(Some(InterfacePaneType::Jobs)),
+            BEAT_SECS,
+        )
+        .step(format!(
+            "role goals: settle the Jobs pane for step {}",
+            step + 1
+        ))
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step(format!(
+            "role goals: note the balance before step {}",
+            step + 1
+        ))
+        .on_enter(note_balance)
+        .add()
+        .click_named(
+            &format!("role goals: hand goal step {} in", step + 1),
+            &button,
+            when(move |world| paid(world).len() > step),
+            BEAT_SECS,
+        );
+        // The scenario drains the pane's credit change on the next fixed
+        // tick, and the open interface holds the clock: the `GoalReward`
+        // event comes once the pane shuts.
+        tap(script, "the interface key", "interface_toggle", unpaused())
+            .step(format!("role goals: hear the step {} reward", step + 1))
+            .until(when(move |world| {
+                world
+                    .resource::<GoalWatch>()
+                    .named("oncreditschanged")
+                    .into_iter()
+                    .filter(|data| data["cause"] == "GoalReward")
+                    .count()
+                    > step
+            }))
+            .deadline(BEAT_SECS)
+            .add()
     }
 
     pub(super) fn script() -> AutopilotPlugin<GameStates> {
@@ -957,8 +1226,12 @@ mod walk {
             .on_enter(inject_completed_jobs)
             .until(frames(1))
             .add()
-            .step("role goals: assert three hand-ins stand at the station line")
-            .on_enter(assert_hand_ins_stand_at_station_line)
+            .step("role goals: wait for step 1 to read ready")
+            .until(when(|world| step_ready(world, 0)))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("role goals: assert three hand-ins ready step 1")
+            .on_enter(assert_step_one_ready)
             .add()
             .step("role goals: undock from the starting station")
             .on_enter(|world: &mut World| {
@@ -967,6 +1240,10 @@ mod walk {
             })
             .until(and(player_free(), frames(SETTLE_FRAMES)))
             .deadline(SESSION_SECS)
+            .add();
+        let script = hand_in_step(script, 0)
+            .step("role goals: assert the step 1 hand-in in flight")
+            .on_enter(assert_step_one_paid)
             .add()
             .step("role goals: jump to the origin, the spawn before the docked start")
             .on_enter(|world: &mut World| park_player(world, Meters3::ZERO))
@@ -1015,11 +1292,15 @@ mod walk {
                 SESSION_SECS,
             );
         let script = tap(script, "the interface key", "interface_toggle", unpaused())
-            .step("role goals: wait for the goal tracker")
-            .until(when(progress_is_met))
+            .step("role goals: wait for step 2 to read ready")
+            .until(when(|world| step_ready(world, 1)))
             .deadline(BEAT_SECS)
             .add()
-            .step("role goals: check the first met stamp")
+            .step("role goals: assert the bought station readies step 2")
+            .on_enter(assert_step_two_ready)
+            .add();
+        let script = hand_in_step(script, 1)
+            .step("role goals: check the met stamp")
             .on_enter(assert_met_and_capture_stamp)
             .add()
             .step("role goals: hold the stamp for two frames")

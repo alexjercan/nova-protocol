@@ -47,29 +47,29 @@ pub mod prelude {
         units::prelude::*,
         ActionRefusedEventInfo, AddedEventInfo, CargoEventInfo, CinematicEventInfo,
         CreditChangeCauseType, CreditsChangedEventInfo, DockingEventInfo, EntityId, EntityTypeName,
-        EscortHiredEventInfo, ItemTradeType, JobDropCauseType, JobDroppedEventInfo, JobEventInfo,
-        LockEventInfo, MinedEventInfo, OnActionRefusedEvent, OnAddedEvent,
-        OnCinematicFinishedEvent, OnCinematicSkippedEvent, OnCombatLockEndEvent,
+        EscortHiredEventInfo, GoalStepEventInfo, ItemTradeType, JobDropCauseType,
+        JobDroppedEventInfo, JobEventInfo, LockEventInfo, MinedEventInfo, OnActionRefusedEvent,
+        OnAddedEvent, OnCinematicFinishedEvent, OnCinematicSkippedEvent, OnCombatLockEndEvent,
         OnCombatLockStartEvent, OnCreditsChangedEvent, OnDefeatedEvent, OnDefeatedEventInfo,
         OnDestroyedEvent, OnDestroyedEventInfo, OnDockedEvent, OnEnterEvent, OnEnterEventInfo,
-        OnEscortHiredEvent, OnExitEvent, OnExitEventInfo, OnGotoCompleteEvent,
-        OnGotoCompleteEventInfo, OnJettisonedEvent, OnJobAcceptedEvent, OnJobDoneEvent,
-        OnJobDroppedEvent, OnJobHandedInEvent, OnMinedEvent, OnNeutralizedEvent,
-        OnNeutralizedEventInfo, OnOrbitEndEvent, OnOrbitLapEvent, OnOrbitStableEvent,
-        OnOrbitStartEvent, OnOrbitUnstableEvent, OnPickedUpEvent, OnRebuiltEvent, OnRepairedEvent,
-        OnResumeEvent, OnResumeEventInfo, OnSectorEnteredEvent, OnShipBoughtEvent,
-        OnShipOrderCanceledEvent, OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent,
-        OnShipOrderCompleteEventInfo, OnShipOrderFailedEvent, OnShipOrderFailedEventInfo,
-        OnShipOrderInterruptedEvent, OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent,
-        OnShipOrderResumedEventInfo, OnStanceChangedEvent, OnStartEvent, OnStartEventInfo,
-        OnStationBoughtEvent, OnStopCompleteEvent, OnStopCompleteEventInfo, OnStoredEvent,
-        OnStrippedEvent, OnSwappedEvent, OnTimerEndEvent, OnTimerEndEventInfo, OnTradedEvent,
-        OnTravelLockEndEvent, OnTravelLockStartEvent, OnUndockedEvent, OnUpdateEvent,
-        OnUpdateEventInfo, OnWithdrawnEvent, OrbitEventInfo, RebuiltEventInfo, RepairedEventInfo,
-        ScenarioAddressableMarker, SectorEnteredEventInfo, ShipBoughtEventInfo, ShipOrderKind,
-        StanceChangedEventInfo, StationBoughtEventInfo, StorageEventInfo, StrippedEventInfo,
-        SwappedEventInfo, TradedEventInfo, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME,
-        CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME,
+        OnEscortHiredEvent, OnExitEvent, OnExitEventInfo, OnGoalStepDoneEvent,
+        OnGoalStepHandedInEvent, OnGotoCompleteEvent, OnGotoCompleteEventInfo, OnJettisonedEvent,
+        OnJobAcceptedEvent, OnJobDoneEvent, OnJobDroppedEvent, OnJobHandedInEvent, OnMinedEvent,
+        OnNeutralizedEvent, OnNeutralizedEventInfo, OnOrbitEndEvent, OnOrbitLapEvent,
+        OnOrbitStableEvent, OnOrbitStartEvent, OnOrbitUnstableEvent, OnPickedUpEvent,
+        OnRebuiltEvent, OnRepairedEvent, OnResumeEvent, OnResumeEventInfo, OnSectorEnteredEvent,
+        OnShipBoughtEvent, OnShipOrderCanceledEvent, OnShipOrderCanceledEventInfo,
+        OnShipOrderCompleteEvent, OnShipOrderCompleteEventInfo, OnShipOrderFailedEvent,
+        OnShipOrderFailedEventInfo, OnShipOrderInterruptedEvent, OnShipOrderInterruptedEventInfo,
+        OnShipOrderResumedEvent, OnShipOrderResumedEventInfo, OnStanceChangedEvent, OnStartEvent,
+        OnStartEventInfo, OnStationBoughtEvent, OnStopCompleteEvent, OnStopCompleteEventInfo,
+        OnStoredEvent, OnStrippedEvent, OnSwappedEvent, OnTimerEndEvent, OnTimerEndEventInfo,
+        OnTradedEvent, OnTravelLockEndEvent, OnTravelLockStartEvent, OnUndockedEvent,
+        OnUpdateEvent, OnUpdateEventInfo, OnWithdrawnEvent, OrbitEventInfo, RebuiltEventInfo,
+        RepairedEventInfo, ScenarioAddressableMarker, SectorEnteredEventInfo, ShipBoughtEventInfo,
+        ShipOrderKind, StanceChangedEventInfo, StationBoughtEventInfo, StorageEventInfo,
+        StrippedEventInfo, SwappedEventInfo, TradedEventInfo, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME,
+        BEACON_TYPE_NAME, CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME,
         CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME, DERELICT_STATION_TYPE_NAME,
         ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
         ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME,
@@ -1001,6 +1001,9 @@ pub enum CreditChangeCauseType {
     /// An answered SOS rescue call took its bill: the fee and the recipes of
     /// the sections it rebuilt, down to zero at most.
     Rescue,
+    /// A role goal step handed in from the Jobs pane: its reward. The
+    /// credits come from no station.
+    GoalReward,
 }
 
 impl CreditChangeCauseType {
@@ -1022,6 +1025,7 @@ impl CreditChangeCauseType {
             CreditChangeCauseType::Cheat => "Cheat",
             CreditChangeCauseType::Scenario => "Scenario",
             CreditChangeCauseType::Rescue => "Rescue",
+            CreditChangeCauseType::GoalReward => "GoalReward",
         }
     }
 }
@@ -1478,6 +1482,40 @@ pub struct OnJobHandedInEvent;
 #[event_info(JobDroppedEventInfo)]
 pub struct OnJobDroppedEvent;
 
+/// The current step of the player's role goal is met and waits for its
+/// hand-in in the Jobs pane (`ongoalstepdone`).
+///
+/// One event per step, the frame its line turns met while it is the current
+/// step, or the frame it becomes the current step already met. A Load, a
+/// New Game and the first frame a goal is read fire none.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("ongoalstepdone")]
+#[event_info(GoalStepEventInfo)]
+pub struct OnGoalStepDoneEvent;
+
+/// The Jobs pane handed a met role goal step in and its reward was paid
+/// (`ongoalstephandedin`).
+///
+/// One event per hand-in the rule allows; a refused hand-in fires nothing,
+/// and neither does a paid step restored by a Load.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("ongoalstephandedin")]
+#[event_info(GoalStepEventInfo)]
+pub struct OnGoalStepHandedInEvent;
+
+/// Payload for [`OnGoalStepDoneEvent`] and [`OnGoalStepHandedInEvent`]: the
+/// step and its reward.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct GoalStepEventInfo {
+    /// The step's number in the chain, 1 for the first, as `GOAL-1` names
+    /// it.
+    #[serde(rename = "step")]
+    pub step: u32,
+    /// The credits the step's hand-in pays.
+    #[serde(rename = "reward_cr")]
+    pub reward_cr: u32,
+}
+
 /// Payload for [`OnJobAcceptedEvent`], [`OnJobDoneEvent`] and
 /// [`OnJobHandedInEvent`]: the job.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default, Reflect)]
@@ -1809,6 +1847,7 @@ mod inventory_event_tests {
             CreditChangeCauseType::Cheat,
             CreditChangeCauseType::Scenario,
             CreditChangeCauseType::Rescue,
+            CreditChangeCauseType::GoalReward,
         ] {
             let serialized = serde_json::to_value(cause).expect("a unit variant serializes");
             assert_eq!(serialized.as_str(), Some(cause.as_str()));

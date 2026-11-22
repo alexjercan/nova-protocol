@@ -12,6 +12,10 @@
 //! one payload builder, so the four payloads cannot drift apart. A job
 //! hailed in space fires none of them ([`job_event_info`]).
 //!
+//! The goal events: the open world raises [`GoalStepDone`] and the Jobs
+//! pane [`GoalStepHandedIn`], which fire `OnGoalStepDone` and
+//! `OnGoalStepHandedIn` with the step's number in the chain and its reward.
+//!
 //! The stance event: every site that steps a civilization's table stance
 //! raises [`StanceChanged`], which fires `OnStanceChanged`.
 
@@ -25,6 +29,8 @@ pub(super) fn register_bridged_events(app: &mut App) {
     app.add_observer(fire_job_done);
     app.add_observer(fire_job_handed_in);
     app.add_observer(fire_job_dropped);
+    app.add_observer(fire_goal_step_done);
+    app.add_observer(fire_goal_step_handed_in);
     app.add_observer(fire_stance_changed);
 }
 
@@ -71,6 +77,24 @@ fn fire_job_dropped(dropped: On<JobDropped>, mut commands: Commands) {
     if let Some(info) = job_event_info(&dropped.job) {
         commands.fire::<OnJobDroppedEvent>(JobDroppedEventInfo::new(info, dropped.cause));
     }
+}
+
+/// The payload both goal events carry: the step's number in the chain, 1
+/// for the first, and its reward.
+fn goal_step_event_info(step: usize, reward_cr: u32) -> GoalStepEventInfo {
+    GoalStepEventInfo {
+        step: u32::try_from(step + 1).expect("a goal has fewer than u32::MAX steps"),
+        reward_cr,
+    }
+}
+
+fn fire_goal_step_done(done: On<GoalStepDone>, mut commands: Commands) {
+    commands.fire::<OnGoalStepDoneEvent>(goal_step_event_info(done.step, done.reward_cr));
+}
+
+fn fire_goal_step_handed_in(handed_in: On<GoalStepHandedIn>, mut commands: Commands) {
+    commands
+        .fire::<OnGoalStepHandedInEvent>(goal_step_event_info(handed_in.step, handed_in.reward_cr));
 }
 
 fn fire_stance_changed(changed: On<StanceChanged>, mut commands: Commands) {
@@ -285,6 +309,32 @@ mod tests {
         assert_eq!(
             app.world().resource::<Fired>().0,
             [dropped("Lost"), dropped("Abandoned")]
+        );
+    }
+
+    /// A goal step's done and its hand-in each fire their event once, the
+    /// step numbered from 1 as `GOAL-n` names it.
+    #[test]
+    fn each_goal_step_event_fires_once_with_the_step_number_and_reward() {
+        let mut app = bridge_app();
+
+        app.world_mut().trigger(GoalStepDone {
+            step: 0,
+            reward_cr: 3_000,
+        });
+        app.world_mut().trigger(GoalStepHandedIn {
+            step: 0,
+            reward_cr: 3_000,
+        });
+        app.world_mut().flush();
+
+        let step = fields(&[("reward_cr", "3000"), ("step", "1")]);
+        assert_eq!(
+            app.world().resource::<Fired>().0,
+            [
+                (OnGoalStepDoneEvent::name(), step.clone()),
+                (OnGoalStepHandedInEvent::name(), step),
+            ]
         );
     }
 

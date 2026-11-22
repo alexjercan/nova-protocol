@@ -29,8 +29,8 @@ use crate::{
     inspect::{
         asset_kind_mut, asset_rows, choose_field, content_reflect_mut, edited_entries, form_fault,
         item_text, list_entries, nudge_field, set_item_text, set_list_entries, write_field,
-        AssetListType, AssetTextType, DragRule, FieldRoot, Limit, ListEditType, ListEntry,
-        PathStep, RowValue,
+        AssetListType, AssetTextType, DragRule, FieldRoot, InspectorRow, Limit, ListEditType,
+        ListEntry, PathStep, RowValue,
     },
     node::{
         spawn_section_node, teardown_document, EditContext, NextChildOrdinal, NodeId, ShipNode,
@@ -1353,24 +1353,60 @@ fn a_start_role_hull_picks_from_the_ship_designs() {
     );
 }
 
-/// A goal kind is a choice, and switching it keeps the count: every kind
-/// carries one number, so nothing is invented.
+/// A goal's steps are a list: each step under a remove control with its
+/// kind a choice and its reward a number on the block, then one add control.
+/// Switching a step's kind keeps its count: every kind carries one number,
+/// so nothing is invented.
 #[test]
-fn a_goal_switched_to_another_kind_keeps_its_count() {
+fn a_goal_step_switched_to_another_kind_keeps_its_count() {
     let mut role = shipped("start role");
     let rows = asset_rows(&role, &Default::default());
+    let steps = [
+        PathStep::Field("goal".to_string()),
+        PathStep::Field("steps".to_string()),
+    ];
+    let in_step = |row: &&InspectorRow, index: usize| {
+        row.path.starts_with(&steps) && row.path.get(2) == Some(&PathStep::Item(index))
+    };
+    let Content::StartRole(held) = &role else {
+        unreachable!("a start role");
+    };
+    let count = held.goal.steps.len();
+    assert!(count >= 2, "the shipped role has a chain of steps");
+    assert_eq!(
+        rows.iter()
+            .filter(|row| row.path.len() == 3 && matches!(row.value, RowValue::Remove))
+            .filter(|row| row.path.starts_with(&steps))
+            .count(),
+        count,
+        "one remove control per step"
+    );
+    assert!(
+        rows.iter()
+            .any(|row| row.path == steps && matches!(row.value, RowValue::Append(_))),
+        "an add control after the last step"
+    );
+    let reward = rows
+        .iter()
+        .find(|row| in_step(row, 0) && row.label == "Reward Cr")
+        .expect("the first step's reward row");
+    assert!(
+        matches!(reward.value, RowValue::Number(_)),
+        "{:?}",
+        reward.value
+    );
     let kind = rows
         .iter()
-        .find(|row| row.group.last().is_some_and(|group| group == "Goal") && row.label == "Kind")
-        .expect("a goal kind row");
+        .find(|row| in_step(row, 0) && row.label == "Kind")
+        .expect("the first step's kind row");
     let RowValue::Choice { options, .. } = &kind.value else {
-        panic!("the goal kind is a choice: {:?}", kind.value);
+        panic!("a step's kind is a choice: {:?}", kind.value);
     };
     assert!(options.iter().any(|option| option == "KillList"));
     let Content::StartRole(held) = &mut role else {
         unreachable!("a start role");
     };
-    held.goal.kind = RoleGoalType::Patrols { jobs: 6 };
+    held.goal.steps[0].kind = RoleGoalType::Patrols { jobs: 6 };
 
     let path = kind.path.clone();
     let config = content_reflect_mut(&mut role).expect("a form");
@@ -1379,5 +1415,5 @@ fn a_goal_switched_to_another_kind_keeps_its_count() {
     let Content::StartRole(held) = &role else {
         unreachable!("a start role");
     };
-    assert_eq!(held.goal.kind, RoleGoalType::KillList { hulls: 6 });
+    assert_eq!(held.goal.steps[0].kind, RoleGoalType::KillList { hulls: 6 });
 }

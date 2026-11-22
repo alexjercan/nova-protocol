@@ -48,7 +48,8 @@
 //! clock, the [`WorldClock`], the play time every frozen body's stamp and every
 //! posting reads against, the player's [`CivilizationStances`], refused when
 //! a stamp is ahead of that clock, and the role goal's [`GoalRecord`],
-//! refused when stamped ahead of it.
+//! refused when it pays more steps than the role's goal has or a step is
+//! stamped out of order or ahead of the clock.
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -152,8 +153,8 @@ pub struct WorldSaveHeader {
     /// What the player keeps beside that hull.
     pub fleet: SavedFleet,
     /// Every objective still open, in the Map's order (`open_objectives`):
-    /// the jobs held, then the role goal's next unmet line. A met goal and
-    /// a completed job are not listed.
+    /// the jobs held, then the role goal's current step. A met goal and a
+    /// completed job are not listed.
     pub objectives: Vec<SavedObjective>,
     /// The chart as the Load preview draws it: every visited cell and every
     /// find, round the player's cell.
@@ -190,8 +191,8 @@ pub struct SavedObjective {
     pub kind: SavedObjectiveType,
     /// Its one line: the job title or the goal title.
     pub title: String,
-    /// Its counts, `label  have / need` each: the goal's next unmet line,
-    /// as the Map lists it. A job has none.
+    /// Its counts, `label  have / need` each: the goal's current step, as
+    /// the Map lists it. A job has none.
     pub lines: Vec<SavedObjectiveLine>,
 }
 
@@ -328,7 +329,7 @@ pub struct WorldSaveState {
     /// The player's table of civilization stances: every civilization whose
     /// standing differs from the seed or has something pending.
     pub stances: CivilizationStances,
-    /// The start role's goal: standing, or the clock reading it was met at.
+    /// The start role's goal: the clock reading of each paid step.
     pub goal: GoalRecord,
     /// The allied station the player started docked at: the one board that
     /// posts starter jobs.
@@ -565,6 +566,7 @@ pub fn open_world(
     let state = read_state(
         &path,
         &header,
+        roles,
         items,
         scenarios,
         designs,
@@ -613,6 +615,7 @@ pub fn check_world(
     read_state(
         &path,
         &header,
+        roles,
         items,
         scenarios,
         designs,
@@ -628,6 +631,7 @@ pub fn check_world(
 fn read_state(
     path: &Path,
     header: &WorldSaveHeader,
+    roles: &GameStartRoles,
     items: &GameItems,
     scenarios: &RegisteredScenarios,
     designs: &GameShipDesigns,
@@ -685,9 +689,13 @@ fn read_state(
         .stances
         .validate(state.clock.play_seconds)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    // `read_header` refused a role the catalog does not hold.
+    let goal_steps = roles
+        .get_role(&header.role)
+        .map_or(0, |role| role.goal.steps.len());
     state
         .goal
-        .validate(state.clock.play_seconds)
+        .validate(goal_steps, state.clock.play_seconds)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     state
         .encounters

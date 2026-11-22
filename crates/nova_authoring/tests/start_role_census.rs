@@ -446,6 +446,9 @@ struct Greedy {
     /// The model clock when the run took its last job's payout or stopped.
     stopped_s: f64,
     goal: (u64, u64),
+    /// The model clock when the goal's step 1 was handed in, its reward in
+    /// `end_cr`; `None` while the run never met it.
+    goal_paid_s: Option<f64>,
     stop: StopType,
 }
 
@@ -1140,8 +1143,8 @@ fn kind_of(job: &Job) -> JobKindType {
     }
 }
 
-/// The role's own goal line over `completed` and `hulls_taken`, the first
-/// of its progress: what it has and what it asks for.
+/// The role's own goal line over `completed` and `hulls_taken`, its first
+/// step's: what it has and what it asks for.
 fn goal_count(catalog: &Catalog, role: usize, completed: &[Job], hulls_taken: u64) -> (u64, u64) {
     let progress = goal_progress(
         &catalog.roles[role].goal,
@@ -1152,10 +1155,11 @@ fn goal_count(catalog: &Catalog, role: usize, completed: &[Job], hulls_taken: u6
             hulls_taken,
         },
     );
-    let own = progress
-        .lines
+    let own = &progress
+        .steps
         .first()
-        .expect("a goal's progress opens with the role's own line");
+        .expect("a goal's progress opens with the role's own step")
+        .line;
     (own.have, own.need)
 }
 
@@ -1508,6 +1512,13 @@ fn greedy(
     let mut sales_cr = 0;
     let mut first_payout_s = None;
     let mut hulls_taken = 0;
+    let mut goal_paid_s = None;
+    let step_one_cr = catalog.roles[role]
+        .goal
+        .steps
+        .first()
+        .expect("a goal has a step")
+        .reward_cr;
     let stop = loop {
         if done.len() >= GREEDY_JOB_CAP {
             break StopType::JobCap;
@@ -1680,6 +1691,20 @@ fn greedy(
         let paper = row.paper_s.expect("a taken row has a paper time");
         clock += paper;
         first_payout_s.get_or_insert(clock);
+        // The goal's step 1 is handed in from the Jobs pane the moment it
+        // is met, from anywhere: the reward lands with no flight.
+        if goal_paid_s.is_none() {
+            let (have, need) = goal_count(
+                catalog,
+                role,
+                mirror.app.world().resource::<Jobs>().completed(),
+                hulls_taken,
+            );
+            if have >= need {
+                purse.credits += step_one_cr;
+                goal_paid_s = Some(clock);
+            }
+        }
         done.push(Done {
             kind: row.posted,
             net_cr: row.net_cr(),
@@ -1699,6 +1724,7 @@ fn greedy(
         first_payout_s,
         stopped_s: clock,
         goal,
+        goal_paid_s,
         stop,
     }
 }
@@ -1734,7 +1760,12 @@ fn measure_seed(catalog: &Catalog, seed: u32) -> Result<SeedMeasure, String> {
         .roles
         .iter()
         .enumerate()
-        .filter(|(_, role)| matches!(role.goal.kind, RoleGoalType::Outlaw { .. }))
+        .filter(|(_, role)| {
+            role.goal
+                .steps
+                .first()
+                .is_some_and(|step| matches!(step.kind, RoleGoalType::Outlaw { .. }))
+        })
         .map(|(role, _)| {
             let hull = &catalog.hulls[role];
             let mut hunt = hunt(hull, &world);
@@ -2160,7 +2191,11 @@ fn report_role(out: &mut String, catalog: &Catalog, role: usize, seeds: &[SeedMe
         spec.hull,
         spec.jobs,
         spec.goal.title,
-        spec.goal.kind,
+        spec.goal
+            .steps
+            .iter()
+            .map(|step| (&step.kind, step.reward_cr))
+            .collect::<Vec<_>>(),
         hull.hull_cr,
         hull.stock_cr,
         hull.credits,
@@ -2544,6 +2579,7 @@ fn report_role(out: &mut String, catalog: &Catalog, role: usize, seeds: &[SeedMe
          | first payout, paper s, quartiles | {} |\n\
          | last payout or stop, paper s, quartiles | {} |\n\
          | goal count at 15 min of {need}, quartiles | {} |\n\
+         | seeds with goal step 1 paid by 15 min / its paper s, quartiles | {} / {} |\n\
          | net job pay by kind | {} |\n\
          | Escort and Neutralize share of net job pay | {fight} |\n\
          | docked 0 s rows: share of jobs / of net job pay | {} / {} |\n\
@@ -2558,6 +2594,11 @@ fn report_role(out: &mut String, catalog: &Catalog, role: usize, seeds: &[SeedMe
         quartiles(runs.iter().filter_map(|run| run.first_payout_s).collect()),
         quartiles(runs.iter().map(|run| run.stopped_s).collect()),
         quartiles(runs.iter().map(|run| run.goal.0 as f64).collect()),
+        share(
+            runs.iter().filter(|run| run.goal_paid_s.is_some()).count(),
+            n
+        ),
+        quartiles(runs.iter().filter_map(|run| run.goal_paid_s).collect()),
         KINDS
             .iter()
             .map(|kind| format!(

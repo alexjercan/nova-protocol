@@ -14,7 +14,11 @@
 //! job has no station hand-in: its done posts nothing, and the dock with
 //! its caller that pays it, or the pane's hand-in while that dock holds,
 //! posts the same `PAID` line with the payout sound
-//! ([`HudNotice::payout`]): the pane plays none for it. A hull that hails the
+//! ([`HudNotice::payout`]): the pane plays none for it. The role goal's
+//! current step turning met ([`GoalStepDone`]) posts `GOAL-n done: hand in`
+//! with the cue, and its hand-in ([`GoalStepHandedIn`]) posts `GOAL-n PAID
+//! 3,000 CR` silent, as a job's do; both wait behind the shown line
+//! ([`HudNotice::waiting`]). A hull that hails the
 //! player ([`HailRaised`]) posts `HAIL <CALLER>`. A dock
 //! with a held supply job's
 //! caller that delivers nothing ([`SupplyRefused`]) posts what the hold
@@ -44,10 +48,15 @@
 //! LOW or DRY ([`AmmoReserveCrossed`]) posts `PDC ROUND LOW: 400` or
 //! `TORPEDO DRY`, once per crossing.
 //!
-//! One slot, no queue: a new text replaces the shown one and plays the cue,
-//! unless it was posted silent; the same text again while it shows restarts
-//! the dwell and stays quiet. The dwell runs on virtual time, so a paused game
-//! holds the notice.
+//! One slot: a new text replaces the shown one and plays the cue, unless it
+//! was posted silent; the same text again while it shows restarts the dwell
+//! and stays quiet. A waiting line is the one exception: posted while a line
+//! that does not wait shows, it holds one place behind it and shows when
+//! that line ends, and a later waiting line takes its place. So the step
+//! that the third bounty's hand-in meets shows `JOB-3 PAID` first, then
+//! `GOAL-1 done: hand in`, or `GOAL-1 PAID` if the step was handed in in
+//! the same pane visit. The dwell runs on virtual time, so a paused game,
+//! and an open interface, holds the notice and the line behind it.
 //!
 //! The box's left edge sits on the screen midline, not centred on it: the comms
 //! panel spans the bottom-left from 16 px to 48 % of the width (`comms_panel`),
@@ -124,6 +133,9 @@ pub struct HudNotice {
     pub text: String,
     /// The sound a new text plays.
     pub cue: HudNoticeCueType,
+    /// It waits behind a shown line that does not wait
+    /// ([`waiting`](Self::waiting)).
+    pub waits: bool,
 }
 
 impl HudNotice {
@@ -132,6 +144,7 @@ impl HudNotice {
         Self {
             text: text.into(),
             cue: HudNoticeCueType::Notice,
+            waits: false,
         }
     }
 
@@ -140,6 +153,7 @@ impl HudNotice {
         Self {
             text: text.into(),
             cue: HudNoticeCueType::Silent,
+            waits: false,
         }
     }
 
@@ -148,6 +162,18 @@ impl HudNotice {
         Self {
             text: text.into(),
             cue: HudNoticeCueType::Payout,
+            waits: false,
+        }
+    }
+
+    /// This line, waiting: posted while a line that does not wait shows, it
+    /// shows, with its cue, when that line ends, and a later waiting line
+    /// takes its place. A role goal step's line waits, because the hand-in
+    /// that meets a step posts its own `PAID` line the same frame.
+    pub fn waiting(self) -> Self {
+        Self {
+            waits: true,
+            ..self
         }
     }
 }
@@ -157,10 +183,16 @@ impl HudNotice {
 #[derive(Resource, Debug, Default)]
 struct ShownNotice(Option<Notice>);
 
+/// The waiting line behind the shown one, or `None`.
+#[derive(Resource, Debug, Default)]
+struct QueuedNotice(Option<HudNotice>);
+
 #[derive(Debug)]
 struct Notice {
     text: String,
     age_secs: f32,
+    /// It was posted waiting: a later waiting line replaces it at once.
+    waits: bool,
 }
 
 impl Notice {
@@ -273,10 +305,13 @@ impl Plugin for HudNoticePlugin {
         app.add_message::<RescueCallEnded>();
         app.add_message::<CraftJobEnded>();
         app.init_resource::<ShownNotice>();
+        app.init_resource::<QueuedNotice>();
         app.register_type::<HudNoticeMarker>();
         app.register_type::<HudNoticeText>();
         app.add_observer(post_job_done_notice);
         app.add_observer(post_job_paid_notice);
+        app.add_observer(post_goal_step_done_notice);
+        app.add_observer(post_goal_step_paid_notice);
         app.add_observer(post_hail_notice);
         app.add_observer(post_supply_refused_notice);
         app.add_observer(post_dock_clamped_notice);
@@ -608,6 +643,27 @@ fn post_job_paid_notice(handed_in: On<JobHandedIn>, mut notices: MessageWriter<H
     });
 }
 
+/// Post `GOAL-n done: hand in` with the notice cue when the role goal's
+/// current step reads met. It waits behind the shown line: the step a job
+/// hand-in meets is met while that hand-in's `PAID` line shows.
+fn post_goal_step_done_notice(done: On<GoalStepDone>, mut notices: MessageWriter<HudNotice>) {
+    let line = format!("GOAL-{} done: hand in", done.step + 1);
+    debug!("hud_notice: {line}");
+    notices.write(HudNotice::new(line).waiting());
+}
+
+/// Post `GOAL-n PAID <reward> CR` when a goal step is handed in, without a
+/// cue: the Jobs pane plays the payout sound. It waits behind the shown
+/// line and takes the place of a waiting `done` line for the step.
+fn post_goal_step_paid_notice(
+    handed_in: On<GoalStepHandedIn>,
+    mut notices: MessageWriter<HudNotice>,
+) {
+    let line = job_paid_line(&format!("GOAL-{}", handed_in.step + 1), handed_in.reward_cr);
+    debug!("hud_notice: {line}");
+    notices.write(HudNotice::silent(line).waiting());
+}
+
 /// Post `HAIL <CALLER>` when a hull hails the player with a job.
 fn post_hail_notice(raised: On<HailRaised>, mut notices: MessageWriter<HudNotice>) {
     let line = format!("HAIL {}", raised.caller.to_uppercase());
@@ -683,18 +739,26 @@ fn ammo_reserve_line(crossed: &AmmoReserveCrossed, items: &GameItems) -> String 
     }
 }
 
-/// Age the shown notice and take the latest posting into the slot. A new text
-/// plays the cue once on the interface route, so the master, interface and
-/// harness mutes apply, unless the posting is silent; the same text again
-/// only restarts the dwell.
+/// Age the shown notice and drop it once faded, then take this frame's
+/// posts: the last line that does not wait replaces the shown one, and the
+/// last waiting line waits behind a shown line that does not wait, or
+/// replaces the shown one. A waiting line shows once the slot empties. A
+/// new text plays its cue once on the interface route, so the master,
+/// interface and harness mutes apply, unless it is silent; the same text
+/// again restarts the dwell quietly.
 ///
-/// The slot empties while no notice box exists: the box is player-scoped, and
-/// a notice left over from a ship that despawned must not show on the next
-/// one's box.
+/// The slot and the line behind it empty while no notice box exists: the
+/// box is player-scoped, and a notice left over from a ship that despawned
+/// must not show on the next one's box.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one system reading the clock, the posts, the slot, the line behind it, the bank and the box"
+)]
 fn show_hud_notice(
     time: Res<Time<Virtual>>,
     mut notices: MessageReader<HudNotice>,
     mut shown: ResMut<ShownNotice>,
+    mut queued: ResMut<QueuedNotice>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     q_box: Query<(), With<HudNoticeMarker>>,
     mut commands: Commands,
@@ -703,6 +767,9 @@ fn show_hud_notice(
         notices.clear();
         if shown.0.is_some() {
             shown.0 = None;
+        }
+        if queued.0.is_some() {
+            queued.0 = None;
         }
         return;
     }
@@ -717,23 +784,40 @@ fn show_hud_notice(
             shown.0 = None;
         }
     }
-    let Some(HudNotice { text, cue }) = notices.read().last() else {
-        return;
+    let posted: Vec<HudNotice> = notices.read().cloned().collect();
+    let mut show = |notice: HudNotice, shown: &mut ShownNotice| {
+        let repeat = shown.0.as_ref().is_some_and(|old| old.text == notice.text);
+        shown.0 = Some(Notice {
+            text: notice.text,
+            age_secs: 0.0,
+            waits: notice.waits,
+        });
+        let sound = match notice.cue {
+            HudNoticeCueType::Notice => (UiSfx::HudNotice, SoundCategoryType::Notice),
+            // The category the Jobs pane plays a station hand-in's payout on.
+            HudNoticeCueType::Payout => (UiSfx::Payout, SoundCategoryType::UiConfirm),
+            HudNoticeCueType::Silent => return,
+        };
+        if !repeat {
+            if let Some(bank) = bank.as_deref() {
+                commands.trigger(PlaySound::ui(bank.get(sound.0), sound.1));
+            }
+        }
     };
-    let repeat = shown.0.as_ref().is_some_and(|notice| notice.text == *text);
-    shown.0 = Some(Notice {
-        text: text.clone(),
-        age_secs: 0.0,
-    });
-    let sound = match cue {
-        HudNoticeCueType::Notice => (UiSfx::HudNotice, SoundCategoryType::Notice),
-        // The category the Jobs pane plays a station hand-in's payout on.
-        HudNoticeCueType::Payout => (UiSfx::Payout, SoundCategoryType::UiConfirm),
-        HudNoticeCueType::Silent => return,
-    };
-    if !repeat {
-        if let Some(bank) = bank {
-            commands.trigger(PlaySound::ui(bank.get(sound.0), sound.1));
+    if let Some(plain) = posted.iter().rev().find(|notice| !notice.waits) {
+        show(plain.clone(), &mut shown);
+    }
+    if let Some(waiting) = posted.iter().rev().find(|notice| notice.waits) {
+        if shown.0.as_ref().is_some_and(|notice| !notice.waits) {
+            queued.0 = Some(waiting.clone());
+        } else {
+            queued.0 = None;
+            show(waiting.clone(), &mut shown);
+        }
+    }
+    if shown.0.is_none() {
+        if let Some(waiting) = queued.0.take() {
+            show(waiting, &mut shown);
         }
     }
 }
@@ -1272,5 +1356,128 @@ mod tests {
             Some("CRAFT STOPPED: UNDOCKED")
         );
         assert_eq!(line(CraftJobEndType::Cancelled { batches: 2 }), None);
+    }
+
+    /// A bounty hand-in that the station paid as `code`.
+    fn bounty_paid(code: &str) -> JobHandedIn {
+        use nova_events::prelude::{GeneratedBodyId, SectorCoord};
+
+        let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+        JobHandedIn {
+            job: Job {
+                id: JobId::slot(station.clone(), 0, 0),
+                kind: JobType::Neutralize {
+                    hull: GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_hull", 0),
+                    hull_name: "Raider".to_string(),
+                },
+                target: station,
+                leg_m: 0,
+                threat: 0,
+                reward: JobReward::flat(400),
+            },
+            code: code.to_string(),
+        }
+    }
+
+    /// A step turning met posts `GOAL-n done: hand in` with the notice cue,
+    /// and its hand-in posts `GOAL-n PAID <reward> CR` in its place at once,
+    /// silent: the Jobs pane plays the payout sound.
+    #[test]
+    fn a_done_step_posts_goal_done_and_a_paid_step_posts_goal_paid() {
+        let mut app = notice_app();
+        app.world_mut().trigger(GoalStepDone {
+            step: 0,
+            reward_cr: 3_000,
+        });
+        app.update();
+        assert_eq!(
+            rendered(&mut app),
+            ("GOAL-1 done: hand in".to_string(), 1.0)
+        );
+        assert_eq!(app.world().resource::<NoticeCues>().interface, 1);
+
+        app.world_mut().trigger(GoalStepHandedIn {
+            step: 0,
+            reward_cr: 3_000,
+        });
+        app.update();
+        assert_eq!(
+            rendered(&mut app),
+            ("GOAL-1 PAID 3,000 CR".to_string(), 1.0)
+        );
+        let cues = app.world().resource::<NoticeCues>();
+        assert_eq!(
+            (cues.interface, cues.payout, cues.other),
+            (1, 0, 0),
+            "the paid line plays no cue"
+        );
+    }
+
+    /// The third bounty's hand-in meets step 1 while its `JOB-3 PAID` line
+    /// shows: the goal's line waits behind it and shows, with its cue, once
+    /// the paid line ends, so the player sees both. A step handed in before
+    /// then takes the waiting line's place: `GOAL-1 PAID` follows `JOB-3
+    /// PAID`, and the done line never shows. A plain notice in between
+    /// replaces the shown line and keeps the waiting one.
+    #[test]
+    fn a_goal_line_waits_behind_the_job_paid_line_and_shows_after_it() {
+        let mut app = notice_app();
+        app.world_mut().trigger(bounty_paid("JOB-3"));
+        app.update();
+        app.world_mut().trigger(GoalStepDone {
+            step: 0,
+            reward_cr: 3_000,
+        });
+        app.update();
+        assert_eq!(
+            rendered(&mut app).0,
+            "JOB-3 PAID 400 CR",
+            "the paid line holds the slot"
+        );
+        assert_eq!(app.world().resource::<NoticeCues>().interface, 0);
+
+        refuse(&mut app, Some("RELAY DOCK OCCUPIED"));
+        app.update();
+        assert_eq!(rendered(&mut app).0, "RELAY DOCK OCCUPIED");
+        refuse(&mut app, None);
+
+        advance(&mut app, NOTICE_DWELL_SECS + NOTICE_FADE_SECS + FRAME_SECS);
+        assert_eq!(
+            rendered(&mut app),
+            ("GOAL-1 done: hand in".to_string(), 1.0),
+            "the goal's line shows once the line before it ends"
+        );
+        assert_eq!(
+            app.world().resource::<NoticeCues>().interface,
+            2,
+            "the refusal's cue, then the goal line's"
+        );
+
+        let mut app = notice_app();
+        app.world_mut().trigger(bounty_paid("JOB-3"));
+        app.world_mut().trigger(GoalStepDone {
+            step: 0,
+            reward_cr: 3_000,
+        });
+        app.update();
+        app.world_mut().trigger(GoalStepHandedIn {
+            step: 0,
+            reward_cr: 3_000,
+        });
+        app.update();
+        assert_eq!(rendered(&mut app).0, "JOB-3 PAID 400 CR");
+        advance(&mut app, NOTICE_DWELL_SECS + NOTICE_FADE_SECS + FRAME_SECS);
+        assert_eq!(rendered(&mut app).0, "GOAL-1 PAID 3,000 CR");
+        assert_eq!(
+            app.world().resource::<NoticeCues>().interface,
+            0,
+            "the done line never showed, so its cue never played"
+        );
+        advance(&mut app, NOTICE_DWELL_SECS + NOTICE_FADE_SECS + FRAME_SECS);
+        assert_eq!(
+            rendered(&mut app).0,
+            "",
+            "nothing waits after the goal's line"
+        );
     }
 }

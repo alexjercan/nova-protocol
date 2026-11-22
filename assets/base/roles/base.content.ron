@@ -17,9 +17,20 @@
         jobs: Mining,
         goal: (
             title: "Ore to market",
-            kind: OreDeliveries(
-                jobs: 3,
-            ),
+            steps: [
+                (
+                    kind: OreDeliveries(
+                        jobs: 3,
+                    ),
+                    reward_cr: 3000,
+                ),
+                (
+                    kind: StationsOwned(
+                        stations: 1,
+                    ),
+                    reward_cr: 10000,
+                ),
+            ],
         ),
         lore: "Mining crews work the rock fields for whoever buys the ore. The tug is old, but it pays.",
     )),
@@ -41,9 +52,20 @@
         jobs: Salvage,
         goal: (
             title: "A salvage run",
-            kind: Recoveries(
-                jobs: 3,
-            ),
+            steps: [
+                (
+                    kind: Recoveries(
+                        jobs: 3,
+                    ),
+                    reward_cr: 3000,
+                ),
+                (
+                    kind: StationsOwned(
+                        stations: 1,
+                    ),
+                    reward_cr: 10000,
+                ),
+            ],
         ),
         lore: "Every fight leaves wrecks behind. Scavengers take what still has a price.",
     )),
@@ -66,9 +88,20 @@
         jobs: Trade,
         goal: (
             title: "A freight line",
-            kind: CargoRuns(
-                jobs: 3,
-            ),
+            steps: [
+                (
+                    kind: CargoRuns(
+                        jobs: 3,
+                    ),
+                    reward_cr: 3000,
+                ),
+                (
+                    kind: StationsOwned(
+                        stations: 1,
+                    ),
+                    reward_cr: 10000,
+                ),
+            ],
         ),
         lore: "Stations need food, water and parts they cannot make. Haulers carry them between stations.",
     )),
@@ -90,9 +123,20 @@
         jobs: Bounty,
         goal: (
             title: "A kill list",
-            kind: KillList(
-                hulls: 3,
-            ),
+            steps: [
+                (
+                    kind: KillList(
+                        hulls: 3,
+                    ),
+                    reward_cr: 3000,
+                ),
+                (
+                    kind: StationsOwned(
+                        stations: 1,
+                    ),
+                    reward_cr: 10000,
+                ),
+            ],
         ),
         lore: "Some ships carry a price on their hull. Hunters collect it.",
     )),
@@ -115,9 +159,20 @@
         jobs: Patrol,
         goal: (
             title: "Patrol record",
-            kind: Patrols(
-                jobs: 3,
-            ),
+            steps: [
+                (
+                    kind: Patrols(
+                        jobs: 3,
+                    ),
+                    reward_cr: 3000,
+                ),
+                (
+                    kind: StationsOwned(
+                        stations: 1,
+                    ),
+                    reward_cr: 10000,
+                ),
+            ],
         ),
         lore: "Patrol crews start on small pickets and earn larger hulls. Few reach a warship.",
     )),
@@ -139,9 +194,20 @@
         jobs: Raid,
         goal: (
             title: "An outlaw\'s name",
-            kind: Outlaw(
-                hulls: 3,
-            ),
+            steps: [
+                (
+                    kind: Outlaw(
+                        hulls: 3,
+                    ),
+                    reward_cr: 3000,
+                ),
+                (
+                    kind: StationsOwned(
+                        stations: 1,
+                    ),
+                    reward_cr: 10000,
+                ),
+            ],
         ),
         lore: "Past the patrol routes, a full hold is a target. Raiders live on what they take.",
     )),

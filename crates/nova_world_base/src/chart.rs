@@ -286,7 +286,7 @@ mod tests {
         let mut jobs = world.resource_mut::<Jobs>();
         jobs.accept(dropped.clone());
         jobs.drop(&dropped.id);
-        assert!(!world.resource::<GoalRecord>().is_met());
+        assert_eq!(world.resource::<GoalRecord>().met_at(2), None);
 
         app.update();
 

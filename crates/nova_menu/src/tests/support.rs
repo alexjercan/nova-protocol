@@ -66,7 +66,16 @@ pub(crate) fn dummy_roles() -> GameStartRoles {
                 jobs: JobMixType::Trade,
                 goal: RoleGoal {
                     title: "A goal".to_string(),
-                    kind: RoleGoalType::KillList { hulls: 6 },
+                    steps: vec![
+                        RoleGoalStep {
+                            kind: RoleGoalType::KillList { hulls: 6 },
+                            reward_cr: 3_000,
+                        },
+                        RoleGoalStep {
+                            kind: RoleGoalType::StationsOwned { stations: 1 },
+                            reward_cr: 10_000,
+                        },
+                    ],
                 },
                 lore: String::new(),
             })

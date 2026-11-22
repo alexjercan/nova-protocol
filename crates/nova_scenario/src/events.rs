@@ -269,7 +269,8 @@ scenario_events! {
     /// A ship's credits balance moved (`id` = the ship; `previous_cr`,
     /// `current_cr`, `delta_cr`, `cause` = `Trade`, `Take`, `Rebuild`,
     /// `Swap`, `Add`, `ShipBuy`, `EscortHire`, `StationBuy`, `JobReward`,
-    /// `JobRefresh`, `Settle`, `Craft`, `Cheat`, `Scenario` or `Rescue`).
+    /// `JobRefresh`, `Settle`, `Craft`, `Cheat`, `Scenario`, `Rescue` or
+    /// `GoalReward`).
     /// Once per ship per change, so a trade raises one for each party.
     OnCreditsChanged => OnCreditsChangedEvent { label: "On Credits Changed", category: Trade },
     /// A Ship pane repair spent hull plates (`id` = the ship; `section` = the
@@ -321,6 +322,16 @@ scenario_events! {
     /// it, `Abandoned` for the pane's Drop). Once per job. Generated worlds
     /// only.
     OnJobDropped => OnJobDroppedEvent { label: "On Job Dropped", category: Trade },
+    /// The current step of the player's role goal is met and waits for its
+    /// hand-in (`step` = its number in the chain, 1 for the first;
+    /// `reward_cr` = what the hand-in pays). Once per step; a Load, a New
+    /// Game and the first frame a goal is read fire none. Generated worlds
+    /// only.
+    OnGoalStepDone => OnGoalStepDoneEvent { label: "On Goal Step Done", category: Mission },
+    /// The Jobs pane handed a met role goal step in and paid its reward
+    /// (`step`, `reward_cr`). Once per hand-in; a refused hand-in fires
+    /// none. Generated worlds only.
+    OnGoalStepHandedIn => OnGoalStepHandedInEvent { label: "On Goal Step Handed In", category: Mission },
     /// A civilization's stance toward the player moved
     /// (`civilization` = its id text, `from` and `to` = `Ally`, `Neutral` or
     /// `Enemy`). Once per step: an offence's, each neighbour's it reached, a

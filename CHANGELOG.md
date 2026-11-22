@@ -34,7 +34,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Job boards draw from six mixes, one per start role: Mining, Salvage, Trade, Bounty, Patrol and Raid. A role's boards lean to its own work, and a mix may never post a kind.
 - A recovery or a neutralize with no wreck or hostile near the station now names its own: a derelict or one raider up to 16 km out, put there on Accept. Before, it posted as a Bring job.
 - Your starting station's board now posts three jobs your start hull can do and lists every one. Before, it hid a job the hull could not do and could list fewer than three.
-- A role goal now reads its own line first, three of the role's work, then one owned station. The transport counts cargo runs; the pirate counts trading hulls it neutralizes.
+- A role goal is a chain of paid steps: three of the role's work for 3,000 cr, then one owned station for 10,000 cr. The transport counts cargo runs; the pirate counts trading hulls it neutralizes.
 - A recovery now asks for hold room for its whole stack as well as a docking section: Accept is disabled behind `HOLD` on a hull too small. Before, it asked for the docking section alone.
 - A kill is an offence only when your ship or a fleet escort landed the last hit no more than 30 s before the hull went dead. Before, one old hit made a later kill by anything yours.
 - Start credits are 2,200 cr for the industrial and the transport, 1,800 cr for the bounty hunter, the military and the pirate, and 1,500 cr for the scavenger. Before, 1,000 to 2,200 cr.
@@ -72,13 +72,15 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New content kind `Encounter`: `id`, `weight`, `player` (`Any` or `Armed`) and `kind` (`Hail` with `job` and `line`, `Ambush` or `Derelict`). A mod adds one or replaces a base one by id.
 - A job hailed in space fires no job events: `OnJobAccepted`, `OnJobDone`, `OnJobHandedIn` and `OnJobDropped` follow station board and `PostJob` jobs only.
 - **(breaking)** A start role's `jobs` is `Mining`, `Salvage`, `Trade`, `Bounty`, `Patrol` or `Raid`. `Combat` is gone and `Trade` has new weights.
-- **(breaking)** Goal kind `StationNetwork` is gone. `CargoRuns(jobs: n)` counts Procure, Supply and Escort hand-ins; `Outlaw(hulls: n)` counts each trading hull you neutralize, at any stance.
+- **(breaking)** A role `goal` is `steps: [(kind, reward_cr)]`, with kind `StationsOwned(stations: n)`. `StationNetwork` is gone; `CargoRuns` counts Procure, Supply, Escort; `Outlaw` any trading hull.
+- New events `OnGoalStepDone` and `OnGoalStepHandedIn` carry `step` and `reward_cr`; a goal step's pay fires `OnCreditsChanged` with cause `GoalReward`.
 - A UiTheme's `segmented` border colour is no longer painted: the options draw the control's only line. A box takes its corner from the theme's `radius` or `panel_radius`.
 - New content kind `MusicTrack` adds an `.ogg` song to a situation's playlist with its licence. Actions `PlayMusic` and `StopMusic` play a scenario's own song.
 - A scenario planet with a blank `name` is a lint error and refuses the load: the target inset and the Map show that name.
 
 ### Interface & HUD
 
+- The Jobs pane lists every goal step, `GOAL-1`, `GOAL-2`, with meter, reward and Hand in, docked or in flight. The HUD notice posts `GOAL-1 done: hand in`, then `GOAL-1 PAID 3,000 CR`.
 - The Ship pane lists running repairs with a bar, the time left and Cancel. In flight a chip under the RCS pips shows the first job, and a notice says how each one ends.
 - The Ship pane's Distress block tags why the ship is stranded and shows what a rescue costs, then shows the call with Cancel. The HUD chip reads `SOS 14 S`; a notice says how it ends.
 - Low-ammo warning: when the hold has under one magazine of an ammo item, a notice (`PDC ROUND LOW: 400`, then `PDC ROUND DRY`) and one cue play; the weapon gauge flashes once at LOW.

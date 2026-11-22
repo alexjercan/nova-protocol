@@ -19,8 +19,8 @@ use nova_gameplay::prelude::{
 };
 use nova_scenario::prelude::{
     spaceship_scenario_object, CurrentScenario, GameShipDesigns, GameStartRoles, GeneratedMarks,
-    NovaEventWorld, OpenWorldSession, RoleGoal, RoleGoalType, ScenarioConfig, SpaceshipConfig,
-    SpentHandlers, StartKit, StartRole,
+    NovaEventWorld, OpenWorldSession, RoleGoal, RoleGoalStep, RoleGoalType, ScenarioConfig,
+    SpaceshipConfig, SpentHandlers, StartKit, StartRole,
 };
 use nova_ship::prelude::{
     targeting_state, ChaseCameraPlugin, ChaseZoom, RcsBudget, ShipStyleConfig,
@@ -42,7 +42,9 @@ pub const FIXTURE_SCENARIO_ID: &str = "session";
 pub const FIXTURE_ROLE_ID: &str = "fixture_role";
 
 /// The start role catalog a fixture save is checked against: one role,
-/// [`FIXTURE_ROLE_ID`]. Nothing spawns it, so its hull names no design.
+/// [`FIXTURE_ROLE_ID`], whose goal asks six bounties for 3,000 cr, then one
+/// owned station for 10,000 cr. Nothing spawns it, so its hull names no
+/// design.
 pub fn fixture_roles() -> GameStartRoles {
     GameStartRoles(vec![StartRole {
         id: FIXTURE_ROLE_ID.into(),
@@ -57,7 +59,16 @@ pub fn fixture_roles() -> GameStartRoles {
         jobs: JobMixType::Trade,
         goal: RoleGoal {
             title: "A goal".to_string(),
-            kind: RoleGoalType::KillList { hulls: 6 },
+            steps: vec![
+                RoleGoalStep {
+                    kind: RoleGoalType::KillList { hulls: 6 },
+                    reward_cr: 3_000,
+                },
+                RoleGoalStep {
+                    kind: RoleGoalType::StationsOwned { stations: 1 },
+                    reward_cr: 10_000,
+                },
+            ],
         },
         lore: String::new(),
     }])

@@ -876,19 +876,20 @@ mod walk {
         }
     }
 
-    /// The charter line labelled `label`.
+    /// The charter step whose line is labelled `label`.
     fn charter_line(world: &World, label: &str) -> (u64, u64) {
         let progress = world.resource::<GoalProgress>();
-        let line = progress
-            .lines
+        let line = &progress
+            .steps
             .iter()
-            .find(|line| line.label == label)
+            .find(|step| step.line.label == label)
             .unwrap_or_else(|| {
                 panic!(
-                    "civilization stance: the charter '{}' has no line '{label}': {:?}",
-                    progress.title, progress.lines
+                    "civilization stance: the charter '{}' has no step '{label}': {:?}",
+                    progress.title, progress.steps
                 )
-            });
+            })
+            .line;
         (line.have, line.need)
     }
 

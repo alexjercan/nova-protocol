@@ -1672,14 +1672,15 @@
     // A `StartRole` is one row in the New Game wizard's role list: the icon
     // shape drawn beside its name there and on the Load list, the catalog
     // hull the player starts in, a kit of credits and items, the job mix its
-    // boards lean to and its one end goal. Every field is required. `icon` is
-    // one of `Drill`, `Claw`, `Container`, `Star`, `Shield` or `Blades`; a
-    // missing or unknown icon fails lint. `hull` must name a ship design a
-    // loaded bundle declares (here the base `light_freighter`), every kit
-    // item must be in the item catalog, the kit must fit the hull's hold, and
-    // a goal must ask for a count above zero: lint refuses each failure. The
-    // wizard derives the weapon keys from the hull's sections, so a role
-    // binds nothing itself.
+    // boards lean to and its goal: a chain of steps, each a `kind` with its
+    // count and the `reward_cr` its hand-in pays. Every field is required.
+    // `icon` is one of `Drill`, `Claw`, `Container`, `Star`, `Shield` or
+    // `Blades`; a missing or unknown icon fails lint. `hull` must name a ship
+    // design a loaded bundle declares (here the base `light_freighter`),
+    // every kit item must be in the item catalog, the kit must fit the hull's
+    // hold, and a goal must list at least one step, each with a count and a
+    // reward above zero: lint refuses each failure. The wizard derives the
+    // weapon keys from the hull's sections, so a role binds nothing itself.
     StartRole((
         id: "example_surveyor",
         name: "Surveyor (Example Mod)",
@@ -1693,7 +1694,10 @@
         jobs: Trade,
         goal: (
             title: "Survey runs",
-            kind: CargoRuns(jobs: 2),
+            steps: [
+                (kind: CargoRuns(jobs: 2), reward_cr: 2000),
+                (kind: StationsOwned(stations: 1), reward_cr: 10000),
+            ],
         ),
         lore: "Survey crews map the rock fields and sell the data cores to any station that pays.",
     )),

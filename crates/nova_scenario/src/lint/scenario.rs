@@ -2413,6 +2413,10 @@ impl GeneratedWorldOnlyType {
 const NO_JOB_BOARD: &str =
     "only a generated world's stations post job boards, so the event can never fire";
 
+/// Why no role goal event fires on a `Void` world.
+const NO_ROLE_GOAL: &str =
+    "only a generated world starts a role with a goal, so the event can never fire";
+
 /// Why no stance event fires on a `Void` world.
 const NO_CIVILIZATION: &str =
     "only a generated world has civilizations, so no stance can move and the event can never fire";
@@ -2453,6 +2457,14 @@ const GENERATED_WORLD_ONLY: &[(GeneratedWorldOnlyType, &str)] = &[
     (
         GeneratedWorldOnlyType::Event(EventConfig::OnJobDropped),
         NO_JOB_BOARD,
+    ),
+    (
+        GeneratedWorldOnlyType::Event(EventConfig::OnGoalStepDone),
+        NO_ROLE_GOAL,
+    ),
+    (
+        GeneratedWorldOnlyType::Event(EventConfig::OnGoalStepHandedIn),
+        NO_ROLE_GOAL,
     ),
     (
         GeneratedWorldOnlyType::Event(EventConfig::OnStanceChanged),
@@ -6028,8 +6040,9 @@ mod tests {
             .collect()
     }
 
-    /// A void has no station that posts a board, no civilization and no
-    /// sector, so a handler or a step gate on a job, stance or sector event
+    /// A void has no station that posts a board, no role goal, no
+    /// civilization and no sector, so a handler or a step gate on a job,
+    /// goal, stance or sector event
     /// could never run. The same scenario on a generated world may name
     /// them.
     #[test]
@@ -6039,6 +6052,8 @@ mod tests {
             (EventConfig::OnJobDone, "post job boards"),
             (EventConfig::OnJobHandedIn, "post job boards"),
             (EventConfig::OnJobDropped, "post job boards"),
+            (EventConfig::OnGoalStepDone, "starts a role with a goal"),
+            (EventConfig::OnGoalStepHandedIn, "starts a role with a goal"),
             (EventConfig::OnStanceChanged, "has civilizations"),
             (EventConfig::OnSectorEntered, "has sectors to cross"),
         ] {

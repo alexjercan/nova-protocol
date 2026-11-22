@@ -882,8 +882,8 @@ pub struct BalanceCountUp {
 
 impl BalanceCountUp {
     /// Count the title row's balance up to the player's balance and show
-    /// the rise beside it. Only a job reward raises one: any other credit
-    /// change alone shows the true balance at once.
+    /// the rise beside it. Only a job or a goal step reward raises one: any
+    /// other credit change alone shows the true balance at once.
     pub fn raise(&mut self) {
         self.raised = true;
     }
@@ -1265,7 +1265,7 @@ fn on_interface_tab_click(
 pub enum ActionOutcomeType {
     /// The action went through.
     Done,
-    /// The action went through and paid the player a job reward.
+    /// The action went through and paid the player a job or goal step reward.
     Paid,
     /// The action changed nothing.
     Refused,

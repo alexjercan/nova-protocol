@@ -10,9 +10,9 @@
 //! shot. The walk accepts the starting station's first job on the
 //! Jobs pane and opens the Map's chart view: its OBJECTIVES block must list
 //! the held job with its `have / need` and the starting station's code, and
-//! only the role's next unmet milestone; it is shot and the chart view
+//! only the role goal's current step; it is shot and the chart view
 //! closed. The walk undocks: in flight the interface's Jobs pane must show
-//! the same milestone over the held job, and it is shot. Stations are a
+//! the goal's steps over the held job, and it is shot. Stations are a
 //! civilization apart, so no other one streams in round the start; the walk
 //! teleports to the pinned waystation's cell, picks the nearest living,
 //! non-Enemy station outside the start's cell other than the starting
@@ -40,8 +40,8 @@
 //! | 5 | `outcome: the discovery log lists the station` | with nothing selected, the panel's log has an icon row reading `STN-n`, its cell and how long ago, and a row for the start's cell |
 //! | 6 | `outcome: the leave save holds the chart and the start` | the leave save, read with [`open_world`], holds the three cells, the station's summary and the starting station's id |
 //! | 7 | `outcome: a loaded world restores the chart` | after Load the live chart holds the same three cells and the same station summary, and the session names the same starting station |
-//! | 8 | `outcome: the chart's objectives list what the player has to do` | at the start, with a job held, the OBJECTIVES block displays `JOB-1` beside the job's title, `have / need` and the hand-in `STN-n`, plus the role goal's heading and first unmet milestone; no EMPTY, later goal line or `Goal reached at` row shows |
-//! | 9 | `outcome: the Jobs pane shows the next unmet milestone in flight` | after the undock, in flight, the interface's Jobs pane shows the `JobsMilestone` row reading the goal's title and first unmet line with its `have / need`, and the held row `JobRowHeld-0` with the job's title |
+//! | 8 | `outcome: the chart's objectives list what the player has to do` | at the start, with a job held, the OBJECTIVES block displays `JOB-1` beside the job's title, `have / need` and the hand-in `STN-n`, plus the role goal's heading and its current step; no EMPTY, later goal step or `Goal reached at` row shows |
+//! | 9 | `outcome: the Jobs pane shows the goal's steps in flight` | after the undock, in flight, the interface's Jobs pane shows the `JobsGoal` block reading the goal's title and `0 / n` steps paid, one `JobsGoalStep-i` row per step reading `GOAL-i <label>` with its `have / need`, a Hand in on the current step only, and the held row `JobRowHeld-0` with the job's title |
 //!
 //! ONE SUBJECT: the chart a streamed world keeps. The save's refusal of an
 //! unknown item named by a chart is unit-tested in `nova_world_base::save`.
@@ -55,8 +55,8 @@
 //! ```
 //! `NOVA_CAPTURE=1` also writes `start-docked-station.png` of the Station
 //! pane at the starting station, `map-objectives.png` of the chart view's
-//! OBJECTIVES block at the start, `jobs-milestone.png` of the Jobs pane's
-//! milestone row in flight and `map-chart-view.png` of the chart view.
+//! OBJECTIVES block at the start, `jobs-goal.png` of the Jobs pane's
+//! goal block in flight and `map-chart-view.png` of the chart view.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -121,7 +121,10 @@ mod walk {
     use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
     use nova_protocol::{
         nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
-        nova_interface::{jobs::prelude::JOBS_MILESTONE, pane::InterfacePaneType},
+        nova_interface::{
+            jobs::prelude::{GOAL_HAND_IN_PREFIX, JOBS_GOAL, JOBS_GOAL_STEP_PREFIX},
+            pane::InterfacePaneType,
+        },
         prelude::*,
     };
     use nova_ui::widget::TextFieldValue;
@@ -162,8 +165,8 @@ mod walk {
     const START_SHOT: &str = "start-docked-station.png";
     /// The shot of the chart view's OBJECTIVES block at the start.
     const OBJECTIVES_SHOT: &str = "map-objectives.png";
-    /// The shot of the Jobs pane's milestone row in flight.
-    const JOBS_MILESTONE_SHOT: &str = "jobs-milestone.png";
+    /// The shot of the Jobs pane's goal block in flight.
+    const JOBS_GOAL_SHOT: &str = "jobs-goal.png";
     /// The `Name` prefix of the OBJECTIVES block's rows.
     const OBJECTIVE_ROW_PREFIX: &str = "MapChartObjective";
 
@@ -836,7 +839,7 @@ mod walk {
 
     /// Claim 8: at the start, with the job held, the OBJECTIVES
     /// block lists the job with `have / need` and its hand-in station's
-    /// code, and only the next unmet milestone.
+    /// code, and only the goal's current step.
     fn assert_the_objectives(world: &mut World) {
         let rows = named_row(world, "MapChartObjectives")
             .expect("world chart: the panel holds the OBJECTIVES block");
@@ -871,11 +874,12 @@ mod walk {
             !rows.contains(&"EMPTY".to_string()),
             "world chart: a milestone is not empty: {rows:?}"
         );
+        let current = world.resource::<GoalRecord>().current();
         let next = goal
-            .lines
-            .iter()
-            .find(|line| line.have < line.need)
-            .expect("world chart: a fresh role has an unmet milestone");
+            .steps
+            .get(current)
+            .map(|step| step.line.clone())
+            .expect("world chart: a fresh role has a current step");
         // `texts_under` reads depth first, so a row's texts come in no
         // fixed order: compare them sorted.
         let mut milestones = named_rows(world, &format!("{OBJECTIVE_ROW_PREFIX}Milestone"));
@@ -885,13 +889,17 @@ mod walk {
         assert_eq!(
             milestones,
             vec![expected],
-            "world chart: the block lists only the next unmet milestone: {rows:?}"
+            "world chart: the block lists only the current step: {rows:?}"
         );
-        for line in goal.lines.iter().filter(|line| line.label != next.label) {
+        for step in goal
+            .steps
+            .iter()
+            .filter(|step| step.line.label != next.label)
+        {
             assert!(
-                !rows.contains(&line.label),
-                "world chart: '{}' is not the next milestone and is not listed: {rows:?}",
-                line.label
+                !rows.contains(&step.line.label),
+                "world chart: '{}' is not the current step and is not listed: {rows:?}",
+                step.line.label
             );
         }
         assert!(
@@ -907,26 +915,44 @@ mod walk {
     }
 
     /// Claim 9: in flight, the Jobs pane's held panel shows the role goal's
-    /// next unmet milestone the Map listed, over the held job's row.
-    fn assert_the_jobs_milestone(world: &mut World) {
+    /// block, every step in chain order, over the held job's row.
+    fn assert_the_jobs_goal(world: &mut World) {
         assert!(
             the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_none()),
             "world chart: the Jobs pane is read in flight"
         );
         let goal = world.resource::<GoalProgress>().clone();
-        let next = goal
-            .lines
-            .iter()
-            .find(|line| line.have < line.need)
-            .expect("world chart: a fresh role has an unmet milestone");
-        let row = named_row(world, JOBS_MILESTONE)
-            .expect("world chart: the Jobs pane shows the milestone row");
-        let label = format!("{}: {}", goal.title, next.label);
-        let meter = format!("{} / {}", next.have, next.need);
         assert!(
-            row.contains(&label) && row.contains(&meter),
-            "world chart: the milestone row reads '{label}' {meter}: {row:?}"
+            world.resource::<GoalRecord>().paid_at.is_empty(),
+            "world chart: a fresh role has paid no step"
         );
+        let block =
+            named_row(world, JOBS_GOAL).expect("world chart: the Jobs pane shows the goal block");
+        let paid = format!("0 / {}", goal.steps.len());
+        assert!(
+            block.contains(&goal.title) && block.contains(&paid),
+            "world chart: the goal block reads '{}' with {paid} steps paid: {block:?}",
+            goal.title
+        );
+        let mut steps = Vec::new();
+        for (index, step) in goal.steps.iter().enumerate() {
+            let row = named_row(world, &format!("{JOBS_GOAL_STEP_PREFIX}{index}"))
+                .unwrap_or_else(|| panic!("world chart: the goal block lists step {}", index + 1));
+            let label = format!("GOAL-{} {}", index + 1, step.line.label);
+            let meter = format!("{} / {}", step.line.have, step.line.need);
+            assert!(
+                row.contains(&label) && row.contains(&meter),
+                "world chart: step {} reads '{label}' {meter}: {row:?}",
+                index + 1
+            );
+            let button = format!("{GOAL_HAND_IN_PREFIX}{index}");
+            assert_eq!(
+                named_row(world, &button).is_some(),
+                index == 0,
+                "world chart: only the current step has a Hand in ({button})"
+            );
+            steps.push(row);
+        }
         let job = world.resource::<Jobs>().held()[0].clone();
         let title = job.title(world.resource::<GameItems>());
         let held = named_row(world, "JobRowHeld-0")
@@ -937,10 +963,10 @@ mod walk {
         );
         nova_probe::probe_marker(
             world,
-            "outcome: the Jobs pane shows the next unmet milestone in flight",
-            serde_json::json!({ "milestone": row, "held": held }),
+            "outcome: the Jobs pane shows the goal's steps in flight",
+            serde_json::json!({ "goal": block, "steps": steps, "held": held }),
         );
-        info!("world chart: PASS the Jobs pane milestone reads {row:?} over {held:?}");
+        info!("world chart: PASS the Jobs pane goal reads {steps:?} over {held:?}");
     }
 
     /// Claim 3: the chart's visited cells are exactly the three entered.
@@ -1380,15 +1406,15 @@ mod walk {
         .click_named(
             "world chart: open the Jobs pane in flight",
             "InterfaceTabJobs",
-            and(ui_node_present(JOBS_MILESTONE), frames(SETTLE_FRAMES)),
+            and(ui_node_present(JOBS_GOAL), frames(SETTLE_FRAMES)),
             BEAT_SECS,
         )
         .step("world chart: assert the Jobs pane milestone")
-        .on_enter(assert_the_jobs_milestone)
+        .on_enter(assert_the_jobs_goal)
         .add()
         .step("world chart: shoot the Jobs pane milestone")
-        .on_enter(|world: &mut World| shoot(world, JOBS_MILESTONE_SHOT))
-        .until(shot_written(JOBS_MILESTONE_SHOT))
+        .on_enter(|world: &mut World| shoot(world, JOBS_GOAL_SHOT))
+        .until(shot_written(JOBS_GOAL_SHOT))
         .deadline(BEAT_SECS)
         .add();
         let script = tap(script, "the interface key", "interface_toggle", unpaused())

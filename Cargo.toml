@@ -125,6 +125,14 @@ name = "job_board_sandbox"
 path = "examples/playable/job_board_sandbox.rs"
 required-features = ["debug"]
 
+# The role goal's paid steps by hand: New Game as the bounty hunter with step
+# 1 ready, handed in from the Jobs pane in flight, then a bought station for
+# step 2. The walk presses each Hand in by name and checks the pay.
+[[example]]
+name = "role_goal_sandbox"
+path = "examples/playable/role_goal_sandbox.rs"
+required-features = ["debug"]
+
 # The open world's encounters by hand: New Game on a pinned seed, the hull in
 # open space, and a key for each base encounter (the two hails, the ambush,
 # the derelict find). No deadline ends it; under NOVA_AUTOPILOT a smoke walk

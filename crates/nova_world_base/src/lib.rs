@@ -43,8 +43,9 @@
 //! it, renews an offer that stood past the price table's window or was
 //! handed in, puts an accepted job's bodies in the world and marks a held job
 //! done. It derives the start role's goal progress from those records every
-//! frame and stamps the goal met once, as a saved fact
-//! (`nova_gameplay::prelude::GoalRecord`). A world save carries the chart,
+//! frame and says when its current step is met; the Jobs pane stamps each
+//! paid step in a saved fact (`nova_gameplay::prelude::GoalRecord`). A world
+//! save carries the chart,
 //! the player's [`Jobs`], the [`JobPostings`], the [`StationVisits`], the
 //! [`WorldClock`] and the goal record; on the web they last one session.
 #![warn(missing_docs)]
@@ -386,9 +387,8 @@ impl Plugin for NovaWorldBasePlugin {
         // looks at the window. The player's saved controls come back with
         // them after the targeting pass, so the restored locks meet their
         // first sensor pass with their floors held. The save runs after the
-        // goal stamp, so a save on the met frame holds `met_at` beside the
-        // met facts: both touch
-        // `World`, and unordered a Load would restamp at the Load-time clock.
+        // goal progress, so a save on a step's met frame holds the facts its
+        // announcement read: both touch `World`.
         #[cfg(not(target_arch = "wasm32"))]
         app.add_systems(
             Update,

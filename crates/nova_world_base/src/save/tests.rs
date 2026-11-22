@@ -22,9 +22,9 @@ use nova_gameplay::prelude::{
     CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, CivilizationId, CivilizationStances,
     ClockFreeze, ClusterType, DamageLevel, DamageMarks, DamageType, Encounters, FreezeOwner,
     FrozenRoundFlight, GameConsumables, GameEncounters, GameItems, GameRecipes, GameTradeProfiles,
-    GoalLine, GoalProgress, GoalRecord, Health, ImpactSparkMarker, ImpactSparkPlugin, ImpactSparks,
-    IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType, Job,
-    JobField, JobId, JobMixType, JobPostings, JobSpawns, JobType, Jobs, NeutralizedMarker,
+    GoalLine, GoalProgress, GoalRecord, GoalStep, Health, ImpactSparkMarker, ImpactSparkPlugin,
+    ImpactSparks, IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType,
+    Job, JobField, JobId, JobMixType, JobPostings, JobSpawns, JobType, Jobs, NeutralizedMarker,
     PlayerFleetMarker, PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage,
     ProjectileOwner, RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime,
     SavedOwner, SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
@@ -1896,7 +1896,7 @@ fn a_world_whose_saved_controls_name_what_it_does_not_keep_is_refused_on_open() 
 
 /// A save's header carries what the Load list and details show without the
 /// state file: the play time, the hull's name, the fleet counts, the open
-/// objectives with the goal's next unmet line only, and the chart's cells
+/// objectives with the goal's current step only, and the chart's cells
 /// and marks.
 #[test]
 fn a_save_header_carries_the_play_time_hull_fleet_open_objectives_and_chart() {
@@ -1913,9 +1913,15 @@ fn a_save_header_carries_the_play_time_hull_fleet_open_objectives_and_chart() {
     }
     world.insert_resource(GoalProgress {
         title: "Cargo runs".to_string(),
-        lines: vec![
-            GoalLine::new("Cargo runs", 1, 3),
-            GoalLine::new("Stations owned", 1, 1),
+        steps: vec![
+            GoalStep {
+                line: GoalLine::new("Cargo runs", 1, 3),
+                reward_cr: 3_000,
+            },
+            GoalStep {
+                line: GoalLine::new("Stations owned", 1, 1),
+                reward_cr: 10_000,
+            },
         ],
     });
     frame(&mut world);
@@ -1996,12 +2002,18 @@ fn a_met_goal_is_not_listed_among_a_save_header_s_open_objectives() {
     world.resource_mut::<WorldClock>().play_seconds = 90.0;
     world.insert_resource(GoalProgress {
         title: "Cargo runs".to_string(),
-        lines: vec![
-            GoalLine::new("Cargo runs", 3, 3),
-            GoalLine::new("Stations owned", 1, 1),
+        steps: vec![
+            GoalStep {
+                line: GoalLine::new("Cargo runs", 3, 3),
+                reward_cr: 3_000,
+            },
+            GoalStep {
+                line: GoalLine::new("Stations owned", 1, 1),
+                reward_cr: 10_000,
+            },
         ],
     });
-    world.resource_mut::<GoalRecord>().met_at = Some(60.0);
+    world.resource_mut::<GoalRecord>().paid_at = vec![30.0, 60.0];
     frame(&mut world);
     frame(&mut world);
     world.resource_mut::<WorldSaveSession>().request_leave();
@@ -2792,9 +2804,11 @@ fn a_held_hail_job_with_no_live_encounter_fails_the_save_and_is_refused_on_open(
 }
 
 /// The role goal's record is written with a leave save and comes back on a
-/// Load; a stamp ahead of the saved clock is a save the Load refuses.
+/// Load with both paid steps and the met stamp; a record of the shape that
+/// kept one stamp, a record paying more steps than the role has and a step
+/// stamped ahead of the saved clock are saves the Load refuses.
 #[test]
-fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
+fn paid_goal_steps_and_the_met_stamp_survive_a_load_and_a_forged_record_is_refused() {
     let root = tempfile::tempdir().unwrap();
     let (mut world, _player) = armed_session(root.path());
     frame(&mut world);
@@ -2804,10 +2818,11 @@ fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
     world.insert_resource(WorldClock {
         play_seconds: 200.0,
     });
-    *world.resource_mut::<GoalRecord>() = GoalRecord {
-        met_at: Some(150.0),
+    let paid = GoalRecord {
+        paid_at: vec![100.0, 150.0],
         hulls_taken: 2,
     };
+    *world.resource_mut::<GoalRecord>() = paid.clone();
     world.resource_mut::<WorldSaveSession>().request_leave();
     run_until_idle(&mut world);
     assert_eq!(
@@ -2816,85 +2831,66 @@ fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
     );
     let digest = world.resource::<LoadedSectionPacks>().digest.0;
     world.remove_resource::<WorldSaveSession>();
-    let (_, lock, _, state) = open_world(
-        root.path(),
-        "session",
-        &catalog(digest),
-        &roles(),
-        &items(),
-        &scenarios(),
-        &designs(),
-        &profiles(),
-        &recipes(),
-        &GameConsumables::default(),
-        &GameEncounters::default(),
-    )
-    .unwrap();
-    assert_eq!(
-        state.goal,
-        GoalRecord {
-            met_at: Some(150.0),
-            hulls_taken: 2,
-        },
-        "the leave save wrote the record"
-    );
+    let open = |root: &Path| {
+        open_world(
+            root,
+            "session",
+            &catalog(digest),
+            &roles(),
+            &items(),
+            &scenarios(),
+            &designs(),
+            &profiles(),
+            &recipes(),
+            &GameConsumables::default(),
+            &GameEncounters::default(),
+        )
+    };
+    let (_, lock, _, state) = open(root.path()).unwrap();
+    assert_eq!(state.goal, paid, "the leave save wrote the record");
     drop(lock);
 
     let resumed = load(root.path(), digest);
     assert_eq!(
         *resumed.resource::<GoalRecord>(),
-        GoalRecord {
-            met_at: Some(150.0),
-            hulls_taken: 2,
-        },
+        paid,
         "the Load restored the record on the arming frame"
+    );
+    assert_eq!(
+        resumed.resource::<GoalRecord>().met_at(2),
+        Some(150.0),
+        "the fixture role's two steps are paid: the goal is met"
     );
     drop(resumed);
 
-    // A record of the shape that kept the stamp alone is refused, not
+    // A record of the shape that kept one met stamp is refused, not
     // migrated.
     let text = ron::to_string(&state).unwrap();
-    let old_shape = text.replace(",hulls_taken:2", "");
-    assert_ne!(old_shape, text, "the state names the count: {text}");
+    let old_shape = text.replace("paid_at:[100.0,150.0]", "met_at:Some(150.0)");
+    assert_ne!(old_shape, text, "the state names the stamps: {text}");
     std::fs::write(root.path().join("session/state.2.ron"), old_shape).unwrap();
-    let refused = open_world(
-        root.path(),
-        "session",
-        &catalog(digest),
-        &roles(),
-        &items(),
-        &scenarios(),
-        &designs(),
-        &profiles(),
-        &recipes(),
-        &GameConsumables::default(),
-        &GameEncounters::default(),
-    );
+    let refused = open(root.path());
     assert!(
-        matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("hulls_taken")),
-        "a goal record with no hull count refuses the save: {refused:?}"
+        matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("met_at")),
+        "a goal record with one met stamp refuses the save: {refused:?}"
     );
 
-    // A record stamped after the saved clock is one no session wrote.
-    let mut state = state;
-    state.goal.met_at = Some(250.0);
-    let text = ron::to_string(&state).unwrap();
-    std::fs::write(root.path().join("session/state.2.ron"), text).unwrap();
-    let refused = open_world(
-        root.path(),
-        "session",
-        &catalog(digest),
-        &roles(),
-        &items(),
-        &scenarios(),
-        &designs(),
-        &profiles(),
-        &recipes(),
-        &GameConsumables::default(),
-        &GameEncounters::default(),
-    );
+    // More paid steps than the fixture role's two is a record no session
+    // wrote.
+    let forged = text.replace("paid_at:[100.0,150.0]", "paid_at:[100.0,150.0,160.0]");
+    std::fs::write(root.path().join("session/state.2.ron"), forged).unwrap();
+    let refused = open(root.path());
     assert!(
-        matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("stamped met")),
+        matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("pays 3 steps")),
+        "three paid steps on a two-step goal refuse the save: {refused:?}"
+    );
+
+    // A step stamped after the saved clock is one no session wrote.
+    let forged = text.replace("paid_at:[100.0,150.0]", "paid_at:[100.0,250.0]");
+    std::fs::write(root.path().join("session/state.2.ron"), forged).unwrap();
+    let refused = open(root.path());
+    assert!(
+        matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("goal step 2 is stamped paid")),
         "a stamp ahead of the clock refuses the save: {refused:?}"
     );
 }
@@ -6589,17 +6585,18 @@ fn a_saved_ships_rcs_magazine_overspent_negative_non_finite_or_brakeless_is_refu
     drop(lock);
 }
 
-/// A save written on the frame a role goal is met must carry the stamp,
-/// so the snapshot that copies `GoalRecord` runs after the tracker that
-/// stamps it. Both touch `World`, so unordered they run in a per-build
-/// topsort tie-break that today happens to put the stamp first.
+/// A save written on the frame a goal step turns met must list the step as
+/// this frame's progress reads it, so the snapshot whose header reads
+/// `GoalProgress` runs after the tracker that derives it. Both touch
+/// `World`, so unordered they run in a per-build topsort tie-break that
+/// today happens to put the tracker first.
 ///
 /// Asserted through Bevy's conflict list rather than an observed order,
 /// because the tie-break supplies the right order with or without the edge.
 /// The base plugin has other conflicting pairs, so only this one is checked.
 /// Systems are matched by key, not name: names need `bevy/debug`.
 #[test]
-fn the_save_snapshot_is_ordered_after_the_goal_stamp() {
+fn the_save_snapshot_is_ordered_after_the_goal_tracker() {
     use bevy::ecs::schedule::IntoSystemSet;
 
     let mut app = App::new();
@@ -6628,7 +6625,7 @@ fn the_save_snapshot_is_ordered_after_the_goal_stamp() {
         .any(|(a, b, _)| (*a == stamp && *b == snapshot) || (*a == snapshot && *b == stamp));
     assert!(
         !unordered,
-        "Update leaves the goal stamp and the save snapshot in an indeterminate order"
+        "Update leaves the goal tracker and the save snapshot in an indeterminate order"
     );
 }
 

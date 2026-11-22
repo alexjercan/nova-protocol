@@ -841,14 +841,13 @@ mod smoke {
         })
     }
 
-    /// The Map's chart view lists the role goal's own line as the next
-    /// milestone: the first line of [`GoalProgress`], which a new game has
-    /// not met.
+    /// The Map's chart view lists the role goal's first step as the current
+    /// one: the first step of [`GoalProgress`], which a new game has not met.
     fn the_chart_lists_the_own_goal_line() -> Arc<Predicate> {
         when(|world| {
             let Some(line) = world
                 .get_resource::<GoalProgress>()
-                .and_then(|progress| progress.lines.first().cloned())
+                .and_then(|progress| progress.steps.first().map(|step| step.line.clone()))
             else {
                 return false;
             };

@@ -14,17 +14,19 @@
 //! panels, so each start can patch its hull and rebuild one small lost
 //! section before it can craft.
 //!
-//! Goals are the roles' finite milestones over saved facts. Every role's
-//! progress opens with its own count and ends with the same last line, one
-//! owned station, a rule in code. Each count is three: three hand-ins of
-//! the kinds the role's board mix draws most, or for the pirate three
-//! trading hulls it neutralized, which no board posts. A charter is a
-//! milestone, not an ending: the world plays on past it.
+//! Goals are the roles' finite chains of steps over saved facts. Every
+//! role's chain opens with its own count and closes with the same step,
+//! one owned station. Each count is three: three hand-ins of the kinds the
+//! role's board mix draws most, or for the pirate three trading hulls it
+//! neutralized, which no board posts. Each step's hand-in pays the same on
+//! every role ([`FIRST_STEP_REWARD_CR`], [`STATION_STEP_REWARD_CR`]), so
+//! the roles stay level with each other. A charter is a milestone, not an
+//! ending: the world plays on past it.
 
 use nova_gameplay::prelude::{
     ItemDesignId, ItemRoleType, JobMixType, RoleIconType, ShipInventoryStock,
 };
-use nova_scenario::prelude::{RoleGoal, RoleGoalType, StartKit, StartRole};
+use nova_scenario::prelude::{RoleGoal, RoleGoalStep, RoleGoalType, StartKit, StartRole};
 
 use super::{
     items::{REPAIR_KIT, SECTION_PANEL},
@@ -33,6 +35,33 @@ use super::{
         RAIDER_SHIP_ID, SALVAGE_HAULER_SHIP_ID,
     },
 };
+
+/// What the hand-in of a role's own step pays: about three median job
+/// rewards, under the first 15 minutes' median gain and above every start
+/// kit, so it reads as a step up without skipping the early game.
+const FIRST_STEP_REWARD_CR: u32 = 3_000;
+
+/// What the hand-in of the owned-station step pays: about a fifth of a
+/// median station at advancement 0, a refit after the big spend.
+const STATION_STEP_REWARD_CR: u32 = 10_000;
+
+/// A charter titled `title`: the role's own step of `kind`, then one owned
+/// station.
+fn charter(title: &str, kind: RoleGoalType) -> RoleGoal {
+    RoleGoal {
+        title: title.to_string(),
+        steps: vec![
+            RoleGoalStep {
+                kind,
+                reward_cr: FIRST_STEP_REWARD_CR,
+            },
+            RoleGoalStep {
+                kind: RoleGoalType::StationsOwned { stations: 1 },
+                reward_cr: STATION_STEP_REWARD_CR,
+            },
+        ],
+    }
+}
 
 /// Every shipped start role, in the order a picker lists them.
 pub(crate) fn start_role_catalog() -> Vec<StartRole> {
@@ -52,10 +81,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
                 (REPAIR_KIT, 3),
             ],
             JobMixType::Mining,
-            RoleGoal {
-                title: "Ore to market".to_string(),
-                kind: RoleGoalType::OreDeliveries { jobs: 3 },
-            },
+            charter("Ore to market", RoleGoalType::OreDeliveries { jobs: 3 }),
             "Mining crews work the rock fields for whoever buys the ore. The tug is old, but \
              it pays.",
         ),
@@ -74,10 +100,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
                 (REPAIR_KIT, 3),
             ],
             JobMixType::Salvage,
-            RoleGoal {
-                title: "A salvage run".to_string(),
-                kind: RoleGoalType::Recoveries { jobs: 3 },
-            },
+            charter("A salvage run", RoleGoalType::Recoveries { jobs: 3 }),
             "Every fight leaves wrecks behind. Scavengers take what still has a price.",
         ),
         role(
@@ -96,10 +119,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
                 (REPAIR_KIT, 3),
             ],
             JobMixType::Trade,
-            RoleGoal {
-                title: "A freight line".to_string(),
-                kind: RoleGoalType::CargoRuns { jobs: 3 },
-            },
+            charter("A freight line", RoleGoalType::CargoRuns { jobs: 3 }),
             "Stations need food, water and parts they cannot make. Haulers carry them \
              between stations.",
         ),
@@ -118,10 +138,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
                 (REPAIR_KIT, 3),
             ],
             JobMixType::Bounty,
-            RoleGoal {
-                title: "A kill list".to_string(),
-                kind: RoleGoalType::KillList { hulls: 3 },
-            },
+            charter("A kill list", RoleGoalType::KillList { hulls: 3 }),
             "Some ships carry a price on their hull. Hunters collect it.",
         ),
         role(
@@ -140,10 +157,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
                 (REPAIR_KIT, 3),
             ],
             JobMixType::Patrol,
-            RoleGoal {
-                title: "Patrol record".to_string(),
-                kind: RoleGoalType::Patrols { jobs: 3 },
-            },
+            charter("Patrol record", RoleGoalType::Patrols { jobs: 3 }),
             "Patrol crews start on small pickets and earn larger hulls. Few reach a warship.",
         ),
         role(
@@ -161,10 +175,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
                 (REPAIR_KIT, 3),
             ],
             JobMixType::Raid,
-            RoleGoal {
-                title: "An outlaw's name".to_string(),
-                kind: RoleGoalType::Outlaw { hulls: 3 },
-            },
+            charter("An outlaw's name", RoleGoalType::Outlaw { hulls: 3 }),
             "Past the patrol routes, a full hold is a target. Raiders live on what they take.",
         ),
     ]

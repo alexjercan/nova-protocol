@@ -1,14 +1,15 @@
 //! The START ROLE content kind: one New Game start a player picks.
 //!
 //! A role names a catalog hull and a kit: the credits and the items the ship
-//! starts with, and its charter ([`RoleGoal`]): one finite milestone, a
-//! predicate over facts the world save already carries. A met charter ends
-//! nothing; the open world plays on. It is authored once per role as a
+//! starts with, and its charter ([`RoleGoal`]): a finite chain of steps,
+//! each a predicate over facts the world save already carries and a reward
+//! the player collects with a hand-in. A met charter ends nothing; the open
+//! world plays on. It is authored once per role as a
 //! [`StartRole`] and read through [`GameStartRoles`]. The lint
 //! (`lint_start_role`) refuses a hull no visible ship design carries, a hull
 //! with no cargo intake or with an intake where a berthed ship parks, a hull
 //! section above advancement 0, an unknown kit item, a kit the hull's hold
-//! cannot carry, and a goal no save can meet or tell apart.
+//! cannot carry, and a goal with no step, a zero count or a zero reward.
 //!
 //! New Game's Create and Load insert the [`OpenWorldSession`]: the seed and
 //! the role the player picked. The `SpawnStartRole` action reads it and
@@ -30,8 +31,9 @@ use crate::objects::{
 /// Glob-import surface for the start role content kind.
 pub mod prelude {
     pub use super::{
-        start_role_bindings, GameStartRoles, OpenWorldSession, RoleGoal, RoleGoalType, StartKit,
-        StartRole, StartRoleDesignId, StartingStation, StationBerth, StationBerthType,
+        start_role_bindings, GameStartRoles, OpenWorldSession, RoleGoal, RoleGoalStep,
+        RoleGoalType, StartKit, StartRole, StartRoleDesignId, StartingStation, StationBerth,
+        StationBerthType,
     };
 }
 
@@ -192,8 +194,9 @@ impl std::fmt::Display for StartRoleDesignId {
 ///
 /// Every field is required in RON. A hull no visible ship design carries, a
 /// hull with no cargo intake or with an intake where a berthed ship parks, an
-/// unknown kit item, a kit heavier than the hull's hold and a goal with a
-/// zero count are refused at lint, see `lint_start_role`.
+/// unknown kit item, a kit heavier than the hull's hold and a goal with no
+/// step, a zero count or a zero reward are refused at lint, see
+/// `lint_start_role`.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
@@ -212,30 +215,43 @@ pub struct StartRole {
     pub kit: StartKit,
     /// Which job kinds the station boards lean to for this start.
     pub jobs: JobMixType,
-    /// The role's one finite milestone.
+    /// The role's charter: a finite chain of steps.
     pub goal: RoleGoal,
     /// Background text for the role.
     pub lore: String,
 }
 
-/// One finite milestone: the heading the New Game role step, the Jobs pane
-/// and the Load screen show, and its predicate. Every role's progress opens
-/// with the role's own line and closes with the shared one, one owned
-/// station; met, it stamps the save and changes nothing else; play goes on.
+/// The role's charter: the heading the New Game role step, the Jobs pane
+/// and the Load screen show, and its steps in order. Each step, once its
+/// line is met, waits for a hand-in in the Jobs pane, from anywhere, that
+/// pays its reward; the next step is then the current one. The last paid
+/// step stamps the goal met and changes nothing else; play goes on.
 #[derive(Clone, Debug, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct RoleGoal {
     /// The heading, for a reader.
     pub title: String,
-    /// What the save must show before the shared station line.
-    pub kind: RoleGoalType,
+    /// The steps in the order they are handed in. At least one.
+    pub steps: Vec<RoleGoalStep>,
 }
 
-/// The predicates a goal may be. Closed: a role picks one and sets its
+/// One step of a charter: what the save must show, and what its hand-in
+/// pays.
+#[derive(Clone, Debug, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct RoleGoalStep {
+    /// The predicate the step's line reads.
+    pub kind: RoleGoalType,
+    /// The credits the step's hand-in pays the player, above zero.
+    pub reward_cr: u32,
+}
+
+/// The predicates a goal step may be. Closed: a step picks one and sets its
 /// count. Every predicate reads facts the world save carries: the jobs the
-/// player handed in and the trading hulls the player took out. The shared
-/// last line, one owned station, is a rule in code, not content.
+/// player handed in, the trading hulls the player took out and the stations
+/// the player owns.
 #[derive(Clone, Debug, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
@@ -270,6 +286,11 @@ pub enum RoleGoalType {
     Outlaw {
         /// How many trading hulls to neutralize, above zero.
         hulls: u32,
+    },
+    /// Own `stations` stations at once, live or frozen.
+    StationsOwned {
+        /// How many stations to own, above zero.
+        stations: u32,
     },
 }
 

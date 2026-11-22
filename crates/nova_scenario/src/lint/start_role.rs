@@ -1,6 +1,7 @@
 //! Reference checks over one start role: its hull resolves, carries a cargo
 //! intake clear of its docking ports and advancement-0 parts only, its kit
-//! fits, and its goal asks for a count above zero.
+//! fits, and its goal has at least one step, each with a count and a reward
+//! above zero.
 
 use std::collections::HashSet;
 
@@ -24,7 +25,9 @@ use crate::prelude::*;
 ///   one there could never be rebuilt;
 /// - the kit's `stock` names an item `items` does not hold, or weighs more
 ///   than the hull's hold;
-/// - the goal asks for a zero count: no hand-in could ever move it.
+/// - the goal has no step: there is nothing to hand in;
+/// - a goal step asks for a zero count: it would read met before any work;
+/// - a goal step's reward is zero: its hand-in would pay nothing.
 pub fn lint_start_role(
     role: &StartRole,
     designs: &KnownShipDesigns,
@@ -69,21 +72,38 @@ pub fn lint_start_role(
     issues
 }
 
-/// Refuse a goal whose count is zero: it would read met before any
-/// hand-in.
+/// Refuse a goal with no step, and a step whose count or reward is zero: a
+/// zero count would read met before any work, a zero reward would pay
+/// nothing for its hand-in.
 fn check_goal(id: &str, goal: &RoleGoal, source: &str, issues: &mut Vec<LintIssue>) {
-    let (count, what) = match &goal.kind {
-        RoleGoalType::OreDeliveries { jobs }
-        | RoleGoalType::Recoveries { jobs }
-        | RoleGoalType::CargoRuns { jobs }
-        | RoleGoalType::Patrols { jobs } => (*jobs, "jobs"),
-        RoleGoalType::KillList { hulls } | RoleGoalType::Outlaw { hulls } => (*hulls, "hulls"),
-    };
-    if count == 0 {
+    if goal.steps.is_empty() {
         issues.push(LintIssue::error(
             source,
-            format!("start role '{id}': goal asks for 0 {what}"),
+            format!("start role '{id}': goal '{}' has no step", goal.title),
         ));
+    }
+    for (index, step) in goal.steps.iter().enumerate() {
+        let number = index + 1;
+        let (count, what) = match &step.kind {
+            RoleGoalType::OreDeliveries { jobs }
+            | RoleGoalType::Recoveries { jobs }
+            | RoleGoalType::CargoRuns { jobs }
+            | RoleGoalType::Patrols { jobs } => (*jobs, "jobs"),
+            RoleGoalType::KillList { hulls } | RoleGoalType::Outlaw { hulls } => (*hulls, "hulls"),
+            RoleGoalType::StationsOwned { stations } => (*stations, "stations"),
+        };
+        if count == 0 {
+            issues.push(LintIssue::error(
+                source,
+                format!("start role '{id}': goal step {number} asks for 0 {what}"),
+            ));
+        }
+        if step.reward_cr == 0 {
+            issues.push(LintIssue::error(
+                source,
+                format!("start role '{id}': goal step {number} pays a reward_cr of 0"),
+            ));
+        }
     }
 }
 
@@ -170,6 +190,17 @@ mod tests {
         LintSeverity,
     };
 
+    /// A goal of the one step `kind`, paying 3,000 cr.
+    fn one_step_goal(kind: RoleGoalType) -> RoleGoal {
+        RoleGoal {
+            title: "A goal".to_string(),
+            steps: vec![RoleGoalStep {
+                kind,
+                reward_cr: 3_000,
+            }],
+        }
+    }
+
     fn role(hull: &str) -> StartRole {
         StartRole {
             id: "military".into(),
@@ -182,10 +213,7 @@ mod tests {
                 stock: ShipInventoryStock::default(),
             },
             jobs: JobMixType::Trade,
-            goal: RoleGoal {
-                title: "A goal".to_string(),
-                kind: RoleGoalType::KillList { hulls: 3 },
-            },
+            goal: one_step_goal(RoleGoalType::KillList { hulls: 3 }),
             lore: String::new(),
         }
     }
@@ -224,10 +252,7 @@ mod tests {
                 stock: ShipInventoryStock::default(),
             },
             jobs: JobMixType::Trade,
-            goal: RoleGoal {
-                title: "A goal".to_string(),
-                kind: RoleGoalType::KillList { hulls: 3 },
-            },
+            goal: one_step_goal(RoleGoalType::KillList { hulls: 3 }),
             lore: String::new(),
         };
         let found = lint_start_role(
@@ -247,16 +272,14 @@ mod tests {
         );
     }
 
-    /// A goal of any kind is refused by a zero count, named by what it
-    /// counts; a count above zero passes for every kind.
+    /// A goal with no step, a step of any kind with a zero count and a step
+    /// with a zero reward are refused, each named by its step; a count and a
+    /// reward above zero pass for every kind.
     #[test]
-    fn a_start_role_goal_with_a_zero_count_is_refused() {
-        let goal_errors = |kind: RoleGoalType| -> Vec<String> {
+    fn a_goal_with_no_steps_or_a_zero_count_or_reward_is_refused() {
+        let goal_errors = |goal: RoleGoal| -> Vec<String> {
             let mut role = role("picket");
-            role.goal = RoleGoal {
-                title: "A goal".to_string(),
-                kind,
-            };
+            role.goal = goal;
             lint_start_role(
                 &role,
                 &ships(&["picket"]),
@@ -276,9 +299,13 @@ mod tests {
             RoleGoalType::KillList { hulls: 3 },
             RoleGoalType::Patrols { jobs: 3 },
             RoleGoalType::Outlaw { hulls: 3 },
+            RoleGoalType::StationsOwned { stations: 1 },
         ];
         for kind in sound {
-            assert!(goal_errors(kind.clone()).is_empty(), "{kind:?}");
+            assert!(
+                goal_errors(one_step_goal(kind.clone())).is_empty(),
+                "{kind:?}"
+            );
         }
         let zero = [
             (RoleGoalType::OreDeliveries { jobs: 0 }, "0 jobs"),
@@ -287,16 +314,37 @@ mod tests {
             (RoleGoalType::KillList { hulls: 0 }, "0 hulls"),
             (RoleGoalType::Patrols { jobs: 0 }, "0 jobs"),
             (RoleGoalType::Outlaw { hulls: 0 }, "0 hulls"),
+            (RoleGoalType::StationsOwned { stations: 0 }, "0 stations"),
         ];
         for (kind, text) in zero {
-            let errors = goal_errors(kind.clone());
-            assert!(
-                errors
-                    .iter()
-                    .any(|m| m.contains("start role 'military': goal asks for") && m.contains(text)),
-                "{kind:?}: {errors:?}"
+            let mut goal = one_step_goal(RoleGoalType::KillList { hulls: 3 });
+            goal.steps.push(RoleGoalStep {
+                kind: kind.clone(),
+                reward_cr: 10_000,
+            });
+            let errors = goal_errors(goal);
+            assert_eq!(
+                errors,
+                [format!(
+                    "start role 'military': goal step 2 asks for {text}"
+                )],
+                "{kind:?}"
             );
         }
+        let mut unpaid = one_step_goal(RoleGoalType::KillList { hulls: 3 });
+        unpaid.steps[0].reward_cr = 0;
+        assert_eq!(
+            goal_errors(unpaid),
+            ["start role 'military': goal step 1 pays a reward_cr of 0"]
+        );
+        let empty = RoleGoal {
+            title: "A goal".to_string(),
+            steps: Vec::new(),
+        };
+        assert_eq!(
+            goal_errors(empty),
+            ["start role 'military': goal 'A goal' has no step"]
+        );
     }
 
     /// The starting station builds advancement-0 parts only: a hull section

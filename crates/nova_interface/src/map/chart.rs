@@ -1372,8 +1372,9 @@ pub(crate) fn spawn_map_chart_objectives(panel: &mut ChildSpawnerCommands) {
 /// selected, rebuild its rows whenever what [`open_objectives`] lists, the
 /// goal's met stamp, or the focused chart layer changes, and hide it
 /// otherwise. The heading carries the focused layer (`OBJECTIVES` over
-/// `Layer {layer}`). A held job's row selects its JOB mark; a met goal reads
-/// one row with its stamp.
+/// `Layer {layer}`). A held job's row selects its JOB mark; the goal's
+/// current step reads `done` in Accent while it waits for its hand-in; a met
+/// goal reads one row with its stamp.
 #[expect(
     clippy::too_many_arguments,
     reason = "the records the rows read, the player's hold and the icons the rows draw"
@@ -1412,7 +1413,7 @@ pub(crate) fn update_map_chart_objectives(
             &progress,
             &record,
         ),
-        record.met_at,
+        record.met_at(progress.steps.len()),
         runtime.chart_layer,
     );
     if built.as_ref() == Some(&rows) {
@@ -1474,23 +1475,28 @@ pub(crate) fn update_map_chart_objectives(
             }
             if objectives
                 .iter()
-                .any(|objective| matches!(objective, OpenObjectiveType::Milestone(_)))
+                .any(|objective| matches!(objective, OpenObjectiveType::Milestone { .. }))
                 || met_at.is_some()
             {
                 block.spawn(text(&progress.title, TextRole::Label));
             }
             for objective in objectives {
-                if let OpenObjectiveType::Milestone(line) = objective {
+                if let OpenObjectiveType::Milestone { line, ready, .. } = objective {
+                    let count = if *ready {
+                        ("done".to_string(), TextRole::Value, UiColorType::Accent)
+                    } else {
+                        (
+                            format!("{} / {}", line.have, line.need),
+                            TextRole::Body,
+                            UiColorType::TextBody,
+                        )
+                    };
                     spawn_icon_row(
                         block,
                         Some(milestone.clone()),
                         &line.label,
                         UiColorType::Text,
-                        &[(
-                            &format!("{} / {}", line.have, line.need),
-                            TextRole::Body,
-                            UiColorType::TextBody,
-                        )],
+                        &[(&count.0, count.1, count.2)],
                     )
                     .insert(Name::new("MapChartObjectiveMilestone"));
                 }

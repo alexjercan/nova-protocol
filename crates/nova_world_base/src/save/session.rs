@@ -26,9 +26,9 @@ use nova_gameplay::prelude::{
     StationVisits, UnsettledBody,
 };
 use nova_scenario::prelude::{
-    freeze_fleet, freeze_ship, CurrentScenario, GameShipDesigns, GeneratedMarks, NovaEventWorld,
-    OpenWorldSession, ResumedScenario, ResumedSpaceship, SavedScenario, ShipDesignSource,
-    SpentHandlers, StartRoleDesignId,
+    freeze_fleet, freeze_ship, CurrentScenario, GameShipDesigns, GameStartRoles, GeneratedMarks,
+    NovaEventWorld, OpenWorldSession, ResumedScenario, ResumedSpaceship, SavedScenario,
+    ShipDesignSource, SpentHandlers, StartRoleDesignId,
 };
 use nova_ship::prelude::{CameraView, ParkedHullType, ResumedCameraView};
 use nova_world::prelude::{
@@ -581,7 +581,11 @@ pub(crate) fn snapshot_world(world: &mut World) {
     let station_visits = world.resource::<StationVisits>().clone();
     let clock = *world.resource::<WorldClock>();
     let stances = world.resource::<CivilizationStances>().clone();
-    let goal = *world.resource::<GoalRecord>();
+    let goal = world.resource::<GoalRecord>().clone();
+    let goal_steps = world
+        .resource::<GameStartRoles>()
+        .get_role(&world.resource::<OpenWorldSession>().role)
+        .map_or(0, |role| role.goal.steps.len());
     let start = world.resource::<OpenWorldSession>().start.clone();
     let encounters = world.resource::<Encounters>().clone();
     let encounter_designs = world.resource::<GameEncounters>().clone();
@@ -620,7 +624,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
                 title,
                 lines: Vec::new(),
             },
-            OpenObjectiveType::Milestone(line) => SavedObjective {
+            OpenObjectiveType::Milestone { line, .. } => SavedObjective {
                 kind: SavedObjectiveType::Goal,
                 title: progress.title.clone(),
                 lines: vec![SavedObjectiveLine {
@@ -695,7 +699,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
                 .and_then(|()| state.station_visits.validate(state.clock.play_seconds))
                 .and_then(|()| check_saved_visits(&state))
                 .and_then(|()| state.stances.validate(state.clock.play_seconds))
-                .and_then(|()| state.goal.validate(state.clock.play_seconds))
+                .and_then(|()| state.goal.validate(goal_steps, state.clock.play_seconds))
                 .and_then(|()| {
                     state
                         .encounters
