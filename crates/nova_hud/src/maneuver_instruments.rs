@@ -110,14 +110,17 @@ pub fn maneuver_instruments_hud(config: ManeuverInstrumentsHudConfig) -> impl Bu
     // Content-sized: the destination readout's text length swings with the
     // target name and range, and a bordered chip must hug it.
     let chip = |offset: Vec2| {
-        screen_indicator_node(
-            ScreenIndicatorConfig {
-                anchor: None,
-                size: ScreenIndicatorSize::Content,
-                offset,
-                offscreen: ScreenIndicatorOffscreen::Hide,
-            },
-            chip_node(),
+        (
+            ScreenLabelType::Maneuver,
+            screen_indicator_node(
+                ScreenIndicatorConfig {
+                    anchor: None,
+                    size: ScreenIndicatorSize::Content,
+                    offset,
+                    offscreen: ScreenIndicatorOffscreen::Hide,
+                },
+                chip_node(),
+            ),
         )
     };
 

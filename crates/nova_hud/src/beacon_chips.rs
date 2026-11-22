@@ -73,6 +73,7 @@ fn beacon_chip_hud(beacon: Entity, suppressed: bool) -> impl Bundle {
                 (!suppressed).then_some(beacon),
                 ChipTone::Readout,
                 CHIP_CLEARANCE,
+                ScreenLabelType::Beacon,
             ),
             children![
                 (

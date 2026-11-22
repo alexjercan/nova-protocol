@@ -31,6 +31,7 @@ use super::{
     keybind_dock::{column_floor_px, LaidOutDock},
     NovaHudSystems,
 };
+use crate::prelude::HudKeepOutPanel;
 
 /// The pickup tick column spawner, its markers and `PickupTickPlugin`.
 pub mod prelude {
@@ -65,6 +66,7 @@ pub fn pickup_tick_hud() -> impl Bundle {
     (
         Name::new("PickupTick"),
         PickupTickMarker,
+        HudKeepOutPanel,
         Node {
             position_type: PositionType::Absolute,
             left: Val::Percent(50.0),

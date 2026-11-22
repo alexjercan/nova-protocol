@@ -564,6 +564,7 @@ fn objective_chip(shown: &ObjectiveNotification, theme: &ActiveUiTheme) -> impl 
     (
         Name::new("ObjectiveStackChip"),
         ObjectiveStackChip(shown.id.clone()),
+        HudKeepOutPanel,
         // The posting pop, seeded from the chip's age so a rebuilt node keeps
         // playing the same one-shot.
         HudEmphasis::popped_at_age(CHIP_POP_SCALE, CHIP_POP_SECS, shown.age_secs),
@@ -641,6 +642,7 @@ fn tab_footer(key: &str, cap: Option<KeyCap>, label: &'static str) -> impl Bundl
     (
         Name::new("ObjectiveStackTab"),
         ObjectiveStackTabMarker,
+        HudKeepOutPanel,
         Node {
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,

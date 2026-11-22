@@ -27,7 +27,7 @@ use nova_ui::{
     widget::{metrics, UiText},
 };
 
-use crate::{prelude::*, screen_indicator::fit_box, target_inset::TargetInsetKeepOut};
+use crate::{hud_keep_out::HudKeepOuts, prelude::*, screen_indicator::fit_box};
 
 /// Minimum on-screen size (px) of the target reticle. This is its historical
 /// fixed size: the reticle grows to match larger targets but never shrinks
@@ -48,9 +48,9 @@ const READOUT_GAP_PX: f32 = metrics::GAP;
 /// the HUD's screen edge inset.
 const READOUT_VIEW_MARGIN_PX: f32 = metrics::GAP_XL;
 
-/// The least clear space between the readout and the target inset panel (px):
-/// the kit's block-to-block gap.
-const READOUT_INSET_GAP_PX: f32 = metrics::GAP_L;
+/// The least clear space between the readout and a fixed HUD panel (px): the
+/// kit's block-to-block gap.
+const READOUT_PANEL_GAP_PX: f32 = metrics::GAP_L;
 
 /// Peak scale of the lock readout while the weapons are hot - demo 2's
 /// `.lock-read.emph`.
@@ -375,12 +375,12 @@ fn readout_rest_gap(width: f32) -> f32 {
 /// PARENT's centre. So at the peak the readout's centre sits at
 /// `reticle_centre + RETICLE_FIRING_PULSE * (rest_centre - reticle_centre)`
 /// and its size is scaled by both. Every in-between box lies in the union, so
-/// a hot, firing lock clears the inset at its largest.
+/// a hot, firing lock clears the panels at its largest.
 ///
 /// A non-zero displacement moves the rest box one-to-one but the peak box by
 /// the reticle's pulse scale; the extra 12 % of the move lands away from the
 /// keep-out, and into the view margin by at most 12 % of the move.
-fn lock_readout_origin(reticle: Rect, size: Vec2, view: Vec2, keep_out: Option<Rect>) -> Vec2 {
+fn lock_readout_origin(reticle: Rect, size: Vec2, view: Vec2, keep_outs: &[Rect]) -> Vec2 {
     let centre = reticle.center();
     let displacement = |min: Vec2| {
         let rest = Rect::from_corners(min, min + size);
@@ -392,8 +392,8 @@ fn lock_readout_origin(reticle: Rect, size: Vec2, view: Vec2, keep_out: Option<R
             rest.union(peak),
             view,
             READOUT_VIEW_MARGIN_PX,
-            keep_out,
-            READOUT_INSET_GAP_PX,
+            keep_outs,
+            READOUT_PANEL_GAP_PX,
         )
     };
     let gap = readout_rest_gap(size.x);
@@ -410,13 +410,13 @@ fn lock_readout_origin(reticle: Rect, size: Vec2, view: Vec2, keep_out: Option<R
 }
 
 /// Place the lock readout beside the reticle, on the side that stays in view
-/// and clear of the target inset.
+/// and clear of the fixed HUD panels.
 ///
 /// Reads the reticle box the indicator pass wrote this frame (px) and the
 /// readout's last measured size, so a readout that changes length is off by
 /// that change for one frame. Writes only on change.
 fn fit_lock_readout(
-    inset: TargetInsetKeepOut,
+    keep_outs: HudKeepOuts,
     q_camera: Query<&Camera, With<ScreenIndicatorCamera>>,
     ui_scale: Res<UiScale>,
     q_reticle: Query<
@@ -442,7 +442,7 @@ fn fit_lock_readout(
     else {
         return;
     };
-    let keep_out = inset.rect(view);
+    let keep_outs = keep_outs.rects(view);
     for (mut node, computed, &ChildOf(parent)) in &mut q_readout {
         let Ok((reticle, visibility)) = q_reticle.get(parent) else {
             continue;
@@ -457,7 +457,7 @@ fn fit_lock_readout(
         };
         let reticle = Rect::new(left, top, left + width, top + height);
         let size = computed.size() * computed.inverse_scale_factor();
-        let origin = lock_readout_origin(reticle, size, view, keep_out);
+        let origin = lock_readout_origin(reticle, size, view, &keep_outs);
         let (want_left, want_top) = (Val::Px(origin.x), Val::Px(origin.y));
         if node.left != want_left {
             node.left = want_left;

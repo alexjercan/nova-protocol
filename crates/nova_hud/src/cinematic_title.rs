@@ -24,6 +24,8 @@ use nova_ui::{
     widget::{metrics, ThemedRadius, UiText},
 };
 
+use crate::prelude::HudKeepOutPanel;
+
 /// The `CinematicTitle` resource, its card and the corner it sits in.
 pub mod prelude {
     pub use super::{CinematicTitle, ScreenCorner, TitleCard};
@@ -138,6 +140,7 @@ fn spawn_cinematic_title(mut commands: Commands) {
         .spawn((
             Name::new("CinematicTitleCard"),
             CinematicTitleMarker,
+            HudKeepOutPanel,
             Visibility::Hidden,
             Node {
                 position_type: PositionType::Absolute,

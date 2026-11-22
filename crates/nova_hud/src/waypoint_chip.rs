@@ -60,7 +60,12 @@ fn waypoint_chip_hud(ship: Entity) -> impl Bundle {
         anchored_chip_layer(ship),
         children![(
             Name::new("WaypointChipUI"),
-            anchored_chip_node(None, ChipTone::Readout, CHIP_CLEARANCE),
+            anchored_chip_node(
+                None,
+                ChipTone::Readout,
+                CHIP_CLEARANCE,
+                ScreenLabelType::Waypoint,
+            ),
             children![
                 (
                     Name::new("WaypointChipLabel"),

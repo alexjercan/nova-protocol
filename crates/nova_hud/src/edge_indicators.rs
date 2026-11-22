@@ -108,6 +108,7 @@ fn edge_indicator(target: Entity, kind: EdgeIndicatorKind, color: Color) -> impl
         EdgeIndicatorMarker,
         EdgeIndicatorTarget(target),
         kind,
+        ScreenLabelType::EdgePointer,
         screen_indicator(ScreenIndicatorConfig {
             anchor: Some(ScreenIndicatorAnchorKind::Entity(target)),
             size: ScreenIndicatorSize::Fixed(Vec2::splat(ARROW_PX)),

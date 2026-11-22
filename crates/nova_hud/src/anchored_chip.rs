@@ -110,9 +110,11 @@ pub fn anchored_chip_node(
     anchor: Option<Entity>,
     tone: ChipTone,
     clearance: ScreenIndicatorClearance,
+    label: ScreenLabelType,
 ) -> impl Bundle {
     (
         AnchoredChipNodeMarker,
+        label,
         screen_indicator_node(
             ScreenIndicatorConfig {
                 anchor: anchor.map(ScreenIndicatorAnchorKind::Entity),

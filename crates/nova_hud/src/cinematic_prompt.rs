@@ -30,6 +30,7 @@ use nova_ui::{
 };
 
 use super::keybind_dock::{dock_top_px, LaidOutDock};
+use crate::prelude::HudKeepOutPanel;
 
 /// The `CinematicPrompt` resource.
 pub mod prelude {
@@ -85,6 +86,7 @@ fn spawn_cinematic_prompt(mut commands: Commands) {
         .spawn((
             Name::new("CinematicSkipPrompt"),
             CinematicPromptMarker,
+            HudKeepOutPanel,
             Visibility::Hidden,
             Node {
                 position_type: PositionType::Absolute,

@@ -258,7 +258,8 @@ pub fn hud_notice_hud() -> impl Bundle {
 /// layout would otherwise clear last frame's line.
 #[derive(bevy::ecs::system::SystemParam)]
 pub(crate) struct HudNoticeKeepOut<'w, 's> {
-    shown: Res<'w, ShownNotice>,
+    // Absent without `HudNoticePlugin`: no notice, no keep-out.
+    shown: Option<Res<'w, ShownNotice>>,
     q_box: Query<'w, 's, &'static ComputedNode, With<HudNoticeMarker>>,
     q_text: Query<'w, 's, Ref<'static, Text>, With<HudNoticeText>>,
 }
@@ -267,7 +268,7 @@ impl HudNoticeKeepOut<'_, '_> {
     /// The box's rect in UI px on a `view` of that size, or `None` while the
     /// slot is empty.
     pub(crate) fn rect(&self, view: Vec2) -> Option<Rect> {
-        self.shown.0.as_ref()?;
+        self.shown.as_ref()?.0.as_ref()?;
         let computed = self.q_box.iter().next()?;
         let text = self.q_text.iter().next()?;
         let size = if text.is_changed() {

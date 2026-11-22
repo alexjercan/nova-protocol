@@ -93,7 +93,12 @@ fn objective_marker_chip_hud(target: Entity) -> impl Bundle {
             Name::new("ObjectiveMarkerChipUI"),
             // The objective chip is the amber "do this now" member of the chip
             // family (demo 2 `.obj`).
-            anchored_chip_node(Some(target), ChipTone::Amber, CHIP_CLEARANCE),
+            anchored_chip_node(
+                Some(target),
+                ChipTone::Amber,
+                CHIP_CLEARANCE,
+                ScreenLabelType::Objective,
+            ),
             children![
                 objective_marker_diamond(),
                 (

@@ -101,3 +101,61 @@
   rides in for 4 s (the HUD notice dwell) when the target comes into view
   after 1 s or more off screen, or the tag lands or changes, then settles to
   the diamond. Lands after the keep-out work.
+
+## Audit (2026-11-22, keep-clear)
+- Fixed panels: keybind dock (`keybind_dock.rs:333`), HUD notice
+  (`hud_notice.rs:220`), pickup tick (`pickup_tick.rs:64`), comms stack
+  (`comms_panel.rs:283`), objective stack (`objective_stack.rs:240`), readout
+  strip (`readout.rs:142`), target inset (`target_inset.rs:374`), cinematic
+  prompt (`cinematic_prompt.rs:82`) and title (`cinematic_title.rs:136`),
+  `nova_ui` status bar (`status_bar.rs:31`).
+- Floating labels: flight chips (`flight_status.rs:211`), maneuver readouts
+  (`maneuver_instruments.rs:130`), GOTO/ORBIT cues (`keybind_dock.rs:496`),
+  edge arrows (`edge_indicators.rs:105`), beacon, objective, waypoint and
+  cargo chips (`beacon_chips.rs:71`, `objective_markers.rs:93`,
+  `waypoint_chip.rs:62`, `cargo_canister_chips.rs:99`).
+- Graphics that stay on their target and never move: reticles, rings,
+  allegiance and section markers, ammo gauges, the destination sprite.
+- Before: only the cues and the lock readout cleared the inset; the clamp
+  floor (`column_floor_px`) ignored the comms stack, so an edge-pinned chip
+  sat on the bottom card; nothing separated labels. Frames
+  `notice-*-{1card,3card}-*-comms-chip-before.png`,
+  `notice-*-overlap-*-keep-clear-before.png`: JOB-1 pinned over the bottom
+  card, JOB-2 over the middle card, JOB-3 over JOB-4.
+
+## Build (2026-11-22, comms and job chip, keep-clear)
+- Owner: `crates/nova_hud/src/hud_keep_out.rs`. A fixed panel carries
+  `HudKeepOutPanel`; `HudKeepOuts::rects` is the union of the laid-out panels,
+  the notice rect and the inset rect. The status bar gets the marker as a
+  required component.
+- Label pass (`screen_indicator.rs`, `update_screen_indicators`): labels carry
+  `ScreenLabelType` (`:165`) and are placed in type order; each is fitted with
+  `fit_box` (`:428`) against the panels and the labels already placed, 8 px
+  apart (`LABEL_GAP_PX`). An edge-pinned label also clears the bottom-centre
+  column (`column_top_px`, `keybind_dock.rs:124`), so it does not jump when a
+  notice comes. A label moved on screen shows no edge arrow; a pinned one keeps
+  the clamp's arrow. The flight chips and the lock readout fit against the
+  same union.
+- Deleted: `clear_cues_of_notice` and `CUE_NOTICE_GAP_PX` (cues are labels
+  now), `clamp_insets`, the floor argument of `place`/`clamp_*`.
+- Proof: `an_edge_pinned_chip_never_overlaps_a_comms_card` (failed before,
+  passes), `a_label_over_a_panel_moves_clear_without_an_edge_arrow`,
+  `a_later_label_gives_way_to_an_earlier_one` (both arrows hidden),
+  `a_box_between_two_keep_outs_clears_both_by_the_shortest_path`.
+  `cargo test -p nova_hud --lib`: 344 pass.
+- Frames (`~/Pictures/nova-hud-notice-centre/`, `*-comms-chip-after.png`,
+  `*-keep-clear-after.png`, both themes, 1280x720 and 1920x1080): chip to card,
+  label to label gaps 8 to 9 px; no label over a panel.
+- Open: a marked hostile behind the player shows two edge cues (gold chip and
+  red edge arrow). Cheap fix: hide the edge arrow whose target wears a pinned
+  objective chip. Not done; it waits for the objective chip design.
+
+## Build (2026-11-22, smaller keybind dock)
+- Chip padding and chip gap go from 8 / 7 px to `metrics::GAP_S`
+  (`keybind_dock.rs:141`, `:145`); a portrait keycap (the mouse) is held to the
+  row height (`KeyCap::row_size`, `key_glyphs.rs:327`). Dock chips 45 -> 32 px
+  tall at 1280x720 and 1920x1080, both themes.
+- Stopped at about 71 %, not half: the smallest glyphs were already at the
+  readable floor (label caps 8 px, keycap legends 9 px, measured before and
+  after), so text and keycap height stay.
+- Everything on the dock top follows `column_top_px`/`column_floor_px`.

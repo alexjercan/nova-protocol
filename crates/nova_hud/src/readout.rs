@@ -30,6 +30,7 @@ use nova_ui::{
 };
 
 use super::HudTier;
+use crate::prelude::HudKeepOutPanel;
 
 /// Glob-import surface: `use nova_hud::readout::prelude::*`
 /// re-exports the public API of this module.
@@ -143,6 +144,7 @@ fn spawn_readout_strip(mut commands: Commands) {
     commands.spawn((
         Name::new("HudReadoutStrip"),
         HudReadoutStripMarker,
+        HudKeepOutPanel,
         HudTier::Instrument,
         Node {
             position_type: PositionType::Absolute,

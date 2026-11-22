@@ -21,8 +21,13 @@ use avian3d::prelude::*;
 use bevy::{prelude::*, ui::UiSystems};
 use nova_gameplay::prelude::subtree_bounding_sphere;
 use nova_ship::prelude::{BodyRadius, CameraAuthoritySystems};
+use nova_ui::widget::metrics;
 
-use crate::keybind_dock::{column_floor_px, LaidOutDock};
+use crate::{
+    hud_keep_out::HudKeepOuts,
+    keybind_dock::{column_top_px, LaidOutDock},
+    target_inset::TargetInsetHudMarker,
+};
 
 /// The screen-indicator spawners, its anchor, offset, size and offscreen components, and
 /// `ScreenIndicatorPlugin` with `ScreenIndicatorSystems`.
@@ -32,7 +37,7 @@ pub mod prelude {
         ScreenIndicatorAnchorKind, ScreenIndicatorArrowMarker, ScreenIndicatorCamera,
         ScreenIndicatorClearance, ScreenIndicatorConfig, ScreenIndicatorMarker,
         ScreenIndicatorOffscreen, ScreenIndicatorOffset, ScreenIndicatorPlugin,
-        ScreenIndicatorSize, ScreenIndicatorSystems,
+        ScreenIndicatorSize, ScreenIndicatorSystems, ScreenLabelType,
     };
 }
 
@@ -136,14 +141,51 @@ pub enum ScreenIndicatorOffscreen {
     /// shown and rotated to point toward the anchor while clamped, and hidden
     /// while the anchor is on-screen.
     ///
-    /// While the keybind dock is on screen, the bottom inset is at least the
-    /// bottom-centre column's floor, so a clamped indicator stands above the
-    /// key row and the notice box rather than on them.
+    /// A [`ScreenLabelType`] indicator then slides along the edge past any
+    /// fixed HUD panel it would cover, and stands over the bottom-centre
+    /// column (the key row and the notice slot) across the whole width; the
+    /// arrow keeps pointing at the anchor.
     ClampToEdge {
         /// Inset (px) from the viewport edges the indicator is clamped to.
         margin_px: f32,
     },
 }
+
+/// A floating label: an indicator that never draws over a fixed HUD panel
+/// ([`HudKeepOutPanel`](crate::hud_keep_out::HudKeepOutPanel)) nor over a label
+/// of an earlier type.
+///
+/// Labels are fitted in declaration order, ties by entity: each label moves the
+/// shortest way clear of the panels and of every label fitted before it, so a
+/// later label gives way and an earlier one holds. A label moved on screen
+/// shows no arrow: the arrow marks the edge clamp alone. Graphics that
+/// frame their anchor (reticles, rings, ship markers) carry no label type and
+/// never move.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Reflect)]
+pub enum ScreenLabelType {
+    /// The speed, mode, RCS and repair chips beside the player's ship. Their
+    /// owner fits the stack as one box, so they hold and others give way.
+    ShipReadout,
+    /// A keycap cue (GOTO, ORBIT): the next input the player can press.
+    InputCue,
+    /// An objective marker chip.
+    Objective,
+    /// The chart waypoint chip.
+    Waypoint,
+    /// A maneuver readout: the destination ETA, the flip mark, the orbit radius.
+    Maneuver,
+    /// A beacon chip.
+    Beacon,
+    /// An edge pointer with its distance. Only takes part while pinned: on
+    /// screen it draws nothing.
+    EdgePointer,
+    /// A cargo canister chip.
+    Canister,
+}
+
+/// The least clearance (UI px) between a floating label and a fixed panel or
+/// another label.
+pub(crate) const LABEL_GAP_PX: f32 = metrics::GAP;
 
 /// Marker for the optional direction-arrow node under a clamping indicator.
 /// The arrow art is expected to point up; the widget rotates it via
@@ -295,13 +337,11 @@ enum Placement {
 /// `projected` is the viewport projection of the (offset) anchor point, or
 /// `None` when the anchor does not project (behind the camera); `view_pos` is
 /// the anchor in camera space, used to keep a direction in that case.
-/// `floor_px` is the least bottom inset of a clamped indicator.
 fn place(
     viewport: Vec2,
     projected: Option<Vec2>,
     view_pos: Vec3,
     policy: ScreenIndicatorOffscreen,
-    floor_px: f32,
 ) -> Placement {
     let center = viewport / 2.0;
     match projected {
@@ -316,7 +356,7 @@ fn place(
             ScreenIndicatorOffscreen::ClampToEdge { margin_px } => {
                 let dir = direction_from_center(pos, center);
                 Placement::Visible {
-                    center: clamp_to_rect(pos, viewport, margin_px, floor_px),
+                    center: clamp_to_rect(pos, viewport, margin_px),
                     arrow: Some(dir),
                 }
             }
@@ -329,7 +369,7 @@ fn place(
                 // the edge rect, lands the indicator on the correct edge.
                 let pos = center + dir * viewport.max_element();
                 Placement::Visible {
-                    center: clamp_to_rect(pos, viewport, margin_px, floor_px),
+                    center: clamp_to_rect(pos, viewport, margin_px),
                     arrow: Some(dir),
                 }
             }
@@ -337,43 +377,26 @@ fn place(
     }
 }
 
-/// The viewport insets (px) of a clamped indicator: `margin_px` on the left,
-/// top and right, and the larger of it and `floor_px` at the bottom. A
-/// negative value is treated as zero.
-fn clamp_insets(margin_px: f32, floor_px: f32) -> (Vec2, Vec2) {
-    let margin_px = margin_px.max(0.0);
-    (
-        Vec2::splat(margin_px),
-        Vec2::new(margin_px, margin_px.max(floor_px)),
-    )
-}
-
-/// Clamp `pos` to the viewport rect inset by [`clamp_insets`]. The indicator
-/// never leaves the viewport, and an inset wider than half the viewport
-/// degenerates to the viewport center instead of panicking.
-fn clamp_to_rect(pos: Vec2, viewport: Vec2, margin_px: f32, floor_px: f32) -> Vec2 {
-    let (low, high) = clamp_insets(margin_px, floor_px);
-    let min = low.min(viewport / 2.0);
-    let max = (viewport - high).max(viewport / 2.0);
+/// Clamp `pos` to the viewport rect inset by `margin_px` (a negative margin is
+/// zero). The indicator never leaves the viewport, and an inset wider than half
+/// the viewport degenerates to the viewport center instead of panicking.
+fn clamp_to_rect(pos: Vec2, viewport: Vec2, margin_px: f32) -> Vec2 {
+    let margin = Vec2::splat(margin_px.max(0.0));
+    let min = margin.min(viewport / 2.0);
+    let max = (viewport - margin).max(viewport / 2.0);
     pos.clamp(min, max)
 }
 
 /// Clamp the center of a box of `size` so the WHOLE box stays inside the
-/// viewport inset by [`clamp_insets`]. [`clamp_to_rect`] keeps only the center
+/// viewport inset by `margin_px`. [`clamp_to_rect`] keeps only the center
 /// inside, which is right for a point and wrong for anything as wide as a
 /// labelled chip. Degenerate cases (a box or inset wider than the viewport)
 /// collapse to the viewport center rather than panicking.
-fn clamp_box_to_rect(
-    center: Vec2,
-    size: Vec2,
-    viewport: Vec2,
-    margin_px: f32,
-    floor_px: f32,
-) -> Vec2 {
-    let (low, high) = clamp_insets(margin_px, floor_px);
+fn clamp_box_to_rect(center: Vec2, size: Vec2, viewport: Vec2, margin_px: f32) -> Vec2 {
+    let margin = Vec2::splat(margin_px.max(0.0));
     let half = size.max(Vec2::ZERO) / 2.0;
-    let min = (low + half).min(viewport / 2.0);
-    let max = (viewport - high - half).max(viewport / 2.0);
+    let min = (margin + half).min(viewport / 2.0);
+    let max = (viewport - margin - half).max(viewport / 2.0);
     center.clamp(min, max)
 }
 
@@ -392,20 +415,21 @@ fn hold_extent(min: f32, max: f32, room_min: f32, room_max: f32) -> f32 {
 }
 
 /// Where a `desired` box must move (UI px) to stay whole inside a `view` inset
-/// by `margin_px` on both axes AND clear of `keep_out` grown by `gap_px`.
-/// Returns the displacement to add to `desired`; zero when it already fits.
+/// by `margin_px` on both axes AND clear of every `keep_outs` rect grown by
+/// `gap_px`. Returns the displacement to add to `desired`; zero when it
+/// already fits.
 ///
-/// The view wins: a box that cannot clear the keep-out without leaving the
-/// margin stays where the view holds it, overlap and all. When it can, the
-/// shortest of the four axis moves that just clear the grown rect is taken, and
-/// a tie takes the vertical move. Stateless on purpose - the same inputs give
-/// the same answer, so a box on the boundary cannot flicker between two
-/// states it remembers.
+/// The view wins: a box that cannot clear the keep-outs without leaving the
+/// margin stays where the view holds it, overlap and all. Otherwise the
+/// shortest path of at most [`FIT_STEPS`] axis moves is taken, each move just
+/// clearing one rect the box still hits, and a tie takes the vertical move.
+/// Stateless on purpose - the same inputs give the same answer, so a box on
+/// the boundary cannot flicker between two states it remembers.
 pub(crate) fn fit_box(
     desired: Rect,
     view: Vec2,
     margin_px: f32,
-    keep_out: Option<Rect>,
+    keep_outs: &[Rect],
     gap_px: f32,
 ) -> Vec2 {
     let margin_px = margin_px.max(0.0);
@@ -414,47 +438,68 @@ pub(crate) fn fit_box(
         hold_extent(desired.min.x, desired.max.x, room_min.x, room_max.x),
         hold_extent(desired.min.y, desired.max.y, room_min.y, room_max.y),
     );
-    let Some(keep_out) = keep_out else {
-        return held;
-    };
     let box_ = Rect {
         min: desired.min + held,
         max: desired.max + held,
     };
-    let grown = keep_out.inflate(gap_px.max(0.0));
-    let overlaps = box_.min.x < grown.max.x
-        && box_.max.x > grown.min.x
-        && box_.min.y < grown.max.y
-        && box_.max.y > grown.min.y;
-    if !overlaps {
-        return held;
-    }
-
-    // Vertical moves first, so a strict `<` below leaves a tie to them.
-    let moves = [
-        Vec2::new(0.0, grown.min.y - box_.max.y),
-        Vec2::new(0.0, grown.max.y - box_.min.y),
-        Vec2::new(grown.min.x - box_.max.x, 0.0),
-        Vec2::new(grown.max.x - box_.min.x, 0.0),
-    ];
+    let grown: Vec<Rect> = keep_outs
+        .iter()
+        .map(|rect| rect.inflate(gap_px.max(0.0)))
+        .collect();
+    let at = |shift: Vec2| Rect {
+        min: box_.min + shift,
+        max: box_.max + shift,
+    };
+    let overlaps = |a: Rect, b: &Rect| {
+        a.min.x < b.max.x && a.max.x > b.min.x && a.min.y < b.max.y && a.max.y > b.min.y
+    };
     // Float slack so a move that lands exactly on the margin stays legal.
     const EDGE_SLACK_PX: f32 = 1e-3;
+    let in_room = |rect: Rect| {
+        rect.min.x >= room_min.x - EDGE_SLACK_PX
+            && rect.min.y >= room_min.y - EDGE_SLACK_PX
+            && rect.max.x <= room_max.x + EDGE_SLACK_PX
+            && rect.max.y <= room_max.y + EDGE_SLACK_PX
+    };
+
     let mut best: Option<Vec2> = None;
-    for shift in moves {
-        let (min, max) = (box_.min + shift, box_.max + shift);
-        if min.x < room_min.x - EDGE_SLACK_PX
-            || min.y < room_min.y - EDGE_SLACK_PX
-            || max.x > room_max.x + EDGE_SLACK_PX
-            || max.y > room_max.y + EDGE_SLACK_PX
-        {
-            continue;
+    let mut frontier = vec![Vec2::ZERO];
+    for _ in 0..=FIT_STEPS {
+        let mut next = Vec::new();
+        for shift in frontier {
+            if best.is_some_and(|best| shift.length() >= best.length()) {
+                continue;
+            }
+            let moved = at(shift);
+            let mut hit = grown.iter().filter(|rect| overlaps(moved, rect)).peekable();
+            if hit.peek().is_none() {
+                best = Some(shift);
+                continue;
+            }
+            for rect in hit {
+                // Vertical moves first, so the strict `<` above leaves a tie
+                // to them.
+                for step in [
+                    Vec2::new(0.0, rect.min.y - moved.max.y),
+                    Vec2::new(0.0, rect.max.y - moved.min.y),
+                    Vec2::new(rect.min.x - moved.max.x, 0.0),
+                    Vec2::new(rect.max.x - moved.min.x, 0.0),
+                ] {
+                    if in_room(at(shift + step)) {
+                        next.push(shift + step);
+                    }
+                }
+            }
         }
-        if best.is_none_or(|best| shift.length() < best.length()) {
-            best = Some(shift);
-        }
+        frontier = next;
     }
     held + best.unwrap_or(Vec2::ZERO)
 }
+
+/// The most axis moves [`fit_box`] chains to clear its keep-outs. Three clears
+/// a box wedged in a corner between two panels and a label; the HUD has a few
+/// panels and labels, so the search stays small.
+const FIT_STEPS: usize = 3;
 
 /// Direction from the viewport center toward an off-screen projected point.
 /// Falls back to straight down when the point sits on the center.
@@ -635,9 +680,11 @@ fn indicator_size(
 /// Project every indicator to its anchor: resolve the anchor (a missing one
 /// hides the node), project through the [`ScreenIndicatorCamera`], size the
 /// node, apply the pixel offset, and apply the off-screen policy including
-/// the direction arrow.
+/// the direction arrow. Then fit every [`ScreenLabelType`] label clear of the
+/// fixed panels and of the labels fitted before it.
 #[expect(
     clippy::type_complexity,
+    clippy::too_many_arguments,
     reason = "one query term per anchor placement input"
 )]
 fn update_screen_indicators(
@@ -649,11 +696,13 @@ fn update_screen_indicators(
             &ScreenIndicatorOffset,
             Option<&ScreenIndicatorClearance>,
             &ScreenIndicatorOffscreen,
+            Option<&ScreenLabelType>,
             &ComputedNode,
+            &UiGlobalTransform,
             &mut Node,
             &mut Visibility,
         ),
-        With<ScreenIndicatorMarker>,
+        (With<ScreenIndicatorMarker>, Without<TargetInsetHudMarker>),
     >,
     // This runs BEFORE this frame's transform propagation (UI layout comes
     // first in PostUpdate), so `GlobalTransform` still holds last frame's
@@ -666,18 +715,23 @@ fn update_screen_indicators(
     q_aabb: Query<&ColliderAabb, Without<Sensor>>,
     q_body_radius: Query<&BodyRadius>,
     q_nested: Query<(), With<ScreenIndicatorMarker>>,
+    q_drawn: Query<
+        (&ComputedNode, &UiGlobalTransform, &InheritedVisibility),
+        Without<ScreenIndicatorMarker>,
+    >,
     mut q_arrow: Query<
         (&mut UiTransform, &mut Visibility),
         (
             With<ScreenIndicatorArrowMarker>,
             Without<ScreenIndicatorMarker>,
+            Without<TargetInsetHudMarker>,
         ),
     >,
     q_camera: Query<(Entity, &Camera), With<ScreenIndicatorCamera>>,
     ui_scale: Res<UiScale>,
+    keep_outs: HudKeepOuts,
     q_dock: LaidOutDock,
 ) {
-    let floor_px = column_floor_px(&q_dock).unwrap_or(0.0);
     // Without a projection camera every indicator hides, rather than freezing
     // at a stale position. More than one tagged camera is a consumer bug:
     // warn and project through the first, so indicators stay live and the
@@ -690,7 +744,24 @@ fn update_screen_indicators(
             "update_screen_indicators: multiple ScreenIndicatorCamera cameras, using the first"
         );
     }
+    let view = camera.and_then(|(camera_entity, camera)| {
+        let camera_transform = transform_helper
+            .compute_global_transform(camera_entity)
+            .ok()?;
+        let viewport = UiProjection::new(camera, &camera_transform, &ui_scale).view_size()?;
+        Some((camera, camera_transform, viewport))
+    });
+    let Some((camera, camera_transform, viewport)) = view else {
+        for (.., mut visibility) in &mut q_indicator {
+            visibility.set_if_neq(Visibility::Hidden);
+        }
+        return;
+    };
+    let camera_transform = &camera_transform;
+    let projection = UiProjection::new(camera, camera_transform, &ui_scale);
 
+    // A label is written after every label of an earlier type is placed.
+    let mut labels: Vec<PlacedLabel> = Vec::new();
     for (
         entity,
         anchor,
@@ -698,26 +769,13 @@ fn update_screen_indicators(
         offset,
         clearance,
         offscreen,
+        label,
         computed,
+        drawn,
         mut node,
         mut visibility,
     ) in &mut q_indicator
     {
-        let Some((camera_entity, camera)) = camera else {
-            visibility.set_if_neq(Visibility::Hidden);
-            continue;
-        };
-        let Ok(camera_transform) = transform_helper.compute_global_transform(camera_entity) else {
-            visibility.set_if_neq(Visibility::Hidden);
-            continue;
-        };
-        let camera_transform = &camera_transform;
-        let projection = UiProjection::new(camera, camera_transform, &ui_scale);
-        let Some(viewport) = projection.view_size() else {
-            visibility.set_if_neq(Visibility::Hidden);
-            continue;
-        };
-
         // Resolve the anchor to a world position; entity anchors follow their
         // freshly composed pose and hide when the entity no longer resolves.
         let Some(kind) = **anchor else {
@@ -779,7 +837,6 @@ fn update_screen_indicators(
             projected.map(|pos| pos + offset),
             view_pos,
             *offscreen,
-            floor_px,
         );
         let Placement::Visible { center, arrow } = placement else {
             visibility.set_if_neq(Visibility::Hidden);
@@ -802,20 +859,138 @@ fn update_screen_indicators(
         // A `Content` chip is held whole in view on screen too: its anchor can
         // stand nearer the edge than half the chip's width. A sized box is
         // not, since it must stay on the anchor it frames.
+        let margin_px = match *offscreen {
+            ScreenIndicatorOffscreen::ClampToEdge { margin_px } => margin_px,
+            ScreenIndicatorOffscreen::Hide => 0.0,
+        };
         let center = match *offscreen {
             ScreenIndicatorOffscreen::ClampToEdge { margin_px }
                 if arrow.is_some() || matches!(size_mode, ScreenIndicatorSize::Content) =>
             {
-                clamp_box_to_rect(center, size, viewport, margin_px, floor_px)
+                clamp_box_to_rect(center, size, viewport, margin_px)
             }
             _ => center,
         };
-        node.left = Val::Px(center.x - size.x / 2.0);
-        node.top = Val::Px(center.y - size.y / 2.0);
         visibility.set_if_neq(Visibility::Visible);
-
-        update_arrows(entity, arrow, &q_children, &q_nested, &mut q_arrow);
+        match label {
+            // An edge pointer on screen draws nothing, so it neither moves nor
+            // claims room.
+            Some(&kind) if kind != ScreenLabelType::EdgePointer || arrow.is_some() => {
+                labels.push(PlacedLabel {
+                    kind,
+                    entity,
+                    center,
+                    size,
+                    drawn: drawn_extent(entity, size, computed, drawn, &q_children, &q_drawn),
+                    margin_px,
+                    arrow,
+                });
+            }
+            _ => {
+                node.left = Val::Px(center.x - size.x / 2.0);
+                node.top = Val::Px(center.y - size.y / 2.0);
+                update_arrows(entity, arrow, &q_children, &q_nested, &mut q_arrow);
+            }
+        }
     }
+
+    labels.sort_by_key(|label| (label.kind, label.entity));
+    let mut taken = keep_outs.rects(viewport);
+    // A pinned label stands over the whole bottom-centre column, shown notice
+    // or not, so it does not hop when a notice comes.
+    let column =
+        column_top_px(&q_dock).map(|top| Rect::new(0.0, viewport.y - top, viewport.x, viewport.y));
+    for label in labels {
+        let drawn = Rect {
+            min: label.center + label.drawn.min,
+            max: label.center + label.drawn.max,
+        };
+        let shift = match (label.arrow, column) {
+            (Some(_), Some(column)) => {
+                let keep: Vec<Rect> = taken.iter().copied().chain([column]).collect();
+                fit_box(drawn, viewport, label.margin_px, &keep, LABEL_GAP_PX)
+            }
+            _ => fit_box(drawn, viewport, label.margin_px, &taken, LABEL_GAP_PX),
+        };
+        let center = label.center + shift;
+        taken.push(Rect {
+            min: drawn.min + shift,
+            max: drawn.max + shift,
+        });
+        if let Ok((.., mut node, _)) = q_indicator.get_mut(label.entity) {
+            node.left = Val::Px(center.x - label.size.x / 2.0);
+            node.top = Val::Px(center.y - label.size.y / 2.0);
+        }
+        // The arrow stays the edge clamp's alone: a label moved on screen
+        // shows none.
+        update_arrows(
+            label.entity,
+            label.arrow,
+            &q_children,
+            &q_nested,
+            &mut q_arrow,
+        );
+    }
+}
+
+/// A label placed from its anchor and waiting for its fit.
+struct PlacedLabel {
+    kind: ScreenLabelType,
+    entity: Entity,
+    /// Box centre (UI px) before the fit.
+    center: Vec2,
+    /// Box size (UI px).
+    size: Vec2,
+    /// What the label draws, relative to its box centre: the box and every
+    /// shown descendant that hangs outside it (an arrow, a distance line).
+    drawn: Rect,
+    margin_px: f32,
+    arrow: Option<Vec2>,
+}
+
+/// The extent a label draws, relative to its box centre: its own box of `size`
+/// grown by every shown descendant's box from the last layout. Children hang
+/// at fixed offsets from the box, so last frame's offsets hold for this frame.
+/// Nested indicators place themselves and are left out.
+fn drawn_extent(
+    entity: Entity,
+    size: Vec2,
+    computed: &ComputedNode,
+    transform: &UiGlobalTransform,
+    q_children: &Query<&Children>,
+    q_drawn: &Query<
+        (&ComputedNode, &UiGlobalTransform, &InheritedVisibility),
+        Without<ScreenIndicatorMarker>,
+    >,
+) -> Rect {
+    let scale = computed.inverse_scale_factor();
+    let origin = transform.translation * scale;
+    let half = size / 2.0;
+    let mut extent = Rect {
+        min: -half,
+        max: half,
+    };
+    let mut stack: Vec<Entity> = q_children
+        .get(entity)
+        .map(|children| children.iter().collect())
+        .unwrap_or_default();
+    while let Some(current) = stack.pop() {
+        let Ok((child, child_transform, visible)) = q_drawn.get(current) else {
+            continue;
+        };
+        if !visible.get() {
+            continue;
+        }
+        let size = child.size() * child.inverse_scale_factor();
+        if size.min_element() > 0.0 {
+            let centre = child_transform.translation * child.inverse_scale_factor() - origin;
+            extent = extent.union(Rect::from_center_size(centre, size));
+        }
+        if let Ok(children) = q_children.get(current) {
+            stack.extend(children.iter());
+        }
+    }
+    extent
 }
 
 /// Show and rotate (or hide) every [`ScreenIndicatorArrowMarker`] descendant
@@ -832,6 +1007,7 @@ fn update_arrows(
         (
             With<ScreenIndicatorArrowMarker>,
             Without<ScreenIndicatorMarker>,
+            Without<TargetInsetHudMarker>,
         ),
     >,
 ) {
@@ -889,16 +1065,16 @@ mod tests {
     fn clamp_to_rect_respects_margin() {
         let viewport = Vec2::new(800.0, 600.0);
         assert_eq!(
-            clamp_to_rect(Vec2::new(900.0, 300.0), viewport, 20.0, 0.0),
+            clamp_to_rect(Vec2::new(900.0, 300.0), viewport, 20.0),
             Vec2::new(780.0, 300.0)
         );
         assert_eq!(
-            clamp_to_rect(Vec2::new(-50.0, -50.0), viewport, 20.0, 0.0),
+            clamp_to_rect(Vec2::new(-50.0, -50.0), viewport, 20.0),
             Vec2::new(20.0, 20.0)
         );
         // Inside the rect: untouched.
         assert_eq!(
-            clamp_to_rect(Vec2::new(400.0, 300.0), viewport, 20.0, 0.0),
+            clamp_to_rect(Vec2::new(400.0, 300.0), viewport, 20.0),
             Vec2::new(400.0, 300.0)
         );
     }
@@ -910,16 +1086,16 @@ mod tests {
         // The clamped centre leaves room for the half-width: at the plain
         // point clamp (x = 780) the chip would draw out to x = 870.
         assert_eq!(
-            clamp_box_to_rect(Vec2::new(900.0, 300.0), chip, viewport, 20.0, 0.0),
+            clamp_box_to_rect(Vec2::new(900.0, 300.0), chip, viewport, 20.0),
             Vec2::new(690.0, 300.0)
         );
         assert_eq!(
-            clamp_box_to_rect(Vec2::new(-50.0, -50.0), chip, viewport, 20.0, 0.0),
+            clamp_box_to_rect(Vec2::new(-50.0, -50.0), chip, viewport, 20.0),
             Vec2::new(110.0, 35.0)
         );
         // Inside with room to spare: untouched.
         assert_eq!(
-            clamp_box_to_rect(Vec2::new(400.0, 300.0), chip, viewport, 20.0, 0.0),
+            clamp_box_to_rect(Vec2::new(400.0, 300.0), chip, viewport, 20.0),
             Vec2::new(400.0, 300.0)
         );
     }
@@ -931,22 +1107,22 @@ mod tests {
 
         // Already inside the margin: no move.
         assert_eq!(
-            fit_box(rect(100.0, 100.0, 80.0, 30.0), view, 12.0, None, 12.0),
+            fit_box(rect(100.0, 100.0, 80.0, 30.0), view, 12.0, &[], 12.0),
             Vec2::ZERO
         );
         // Past the right and bottom edges: pulled back to the margin on both.
         assert_eq!(
-            fit_box(rect(760.0, 580.0, 80.0, 30.0), view, 12.0, None, 12.0),
+            fit_box(rect(760.0, 580.0, 80.0, 30.0), view, 12.0, &[], 12.0),
             Vec2::new(-52.0, -22.0)
         );
         // Past the left and top edges: pushed in to the margin on both.
         assert_eq!(
-            fit_box(rect(-30.0, -10.0, 80.0, 30.0), view, 12.0, None, 12.0),
+            fit_box(rect(-30.0, -10.0, 80.0, 30.0), view, 12.0, &[], 12.0),
             Vec2::new(42.0, 22.0)
         );
         // Wider than the room: centred on that axis, not clamped to one side.
         assert_eq!(
-            fit_box(rect(0.0, 100.0, 900.0, 30.0), view, 12.0, None, 12.0),
+            fit_box(rect(0.0, 100.0, 900.0, 30.0), view, 12.0, &[], 12.0),
             Vec2::new(-50.0, 0.0)
         );
     }
@@ -960,12 +1136,12 @@ mod tests {
         // The grown keep-out is (532, 0)-(800, 268). A box hanging 20 px into
         // it clears downward (to y = 268) cheaper than leftward.
         let desired = rect(600.0, 248.0, 100.0, 60.0);
-        let shift = fit_box(desired, view, 12.0, Some(inset), 12.0);
+        let shift = fit_box(desired, view, 12.0, &[inset], 12.0);
         assert_eq!(shift, Vec2::new(0.0, 20.0));
 
         // Deep in the keep-out's corner the left move is the shorter one.
         let desired = rect(500.0, 100.0, 100.0, 60.0);
-        let shift = fit_box(desired, view, 12.0, Some(inset), 12.0);
+        let shift = fit_box(desired, view, 12.0, &[inset], 12.0);
         assert_eq!(shift, Vec2::new(-68.0, 0.0));
 
         // Down would leave the view: the box moves up instead of off-screen,
@@ -977,7 +1153,7 @@ mod tests {
                 near_floor,
                 low_view,
                 12.0,
-                Some(rect(500.0, 280.0, 200.0, 60.0)),
+                &[rect(500.0, 280.0, 200.0, 60.0)],
                 0.0
             ),
             Vec2::new(0.0, -80.0),
@@ -990,7 +1166,7 @@ mod tests {
                 squeezed,
                 tight_view,
                 12.0,
-                Some(rect(0.0, 0.0, 800.0, 184.0)),
+                &[rect(0.0, 0.0, 800.0, 184.0)],
                 0.0
             ),
             Vec2::new(0.0, -18.0),
@@ -1002,10 +1178,34 @@ mod tests {
             rect(300.0, 300.0, 100.0, 100.0),
             view,
             12.0,
-            Some(rect(250.0, 250.0, 200.0, 200.0)),
+            &[rect(250.0, 250.0, 200.0, 200.0)],
             0.0,
         );
         assert_eq!(tie, Vec2::new(0.0, -150.0));
+    }
+
+    #[test]
+    fn a_box_between_two_keep_outs_clears_both_by_the_shortest_path() {
+        let view = Vec2::new(800.0, 600.0);
+        let rect = |x: f32, y: f32, w: f32, h: f32| Rect::new(x, y, x + w, y + h);
+        // A panel under the box and a placed label just above it: the single
+        // up move off the panel lands on the label, so the fit chains a
+        // second up move past the label, shorter than any sideways path.
+        let panel = rect(0.0, 400.0, 400.0, 200.0);
+        let label = rect(100.0, 340.0, 120.0, 40.0);
+        let desired = rect(120.0, 390.0, 100.0, 30.0);
+        let shift = fit_box(desired, view, 12.0, &[panel, label], 8.0);
+        let moved = Rect {
+            min: desired.min + shift,
+            max: desired.max + shift,
+        };
+        for keep_out in [panel, label] {
+            assert!(
+                moved.intersect(keep_out.inflate(8.0)).is_empty(),
+                "{moved:?} still meets {keep_out:?}"
+            );
+        }
+        assert_eq!(shift, Vec2::new(0.0, -88.0));
     }
 
     #[test]
@@ -1014,7 +1214,7 @@ mod tests {
         // min > max); it degenerates to the center.
         let viewport = Vec2::new(100.0, 100.0);
         assert_eq!(
-            clamp_box_to_rect(Vec2::ZERO, Vec2::splat(400.0), viewport, 10.0, 0.0),
+            clamp_box_to_rect(Vec2::ZERO, Vec2::splat(400.0), viewport, 10.0),
             Vec2::new(50.0, 50.0)
         );
     }
@@ -1025,7 +1225,7 @@ mod tests {
         // panics on min > max); it degenerates to the center.
         let viewport = Vec2::new(100.0, 100.0);
         assert_eq!(
-            clamp_to_rect(Vec2::new(0.0, 0.0), viewport, 500.0, 0.0),
+            clamp_to_rect(Vec2::new(0.0, 0.0), viewport, 500.0),
             Vec2::new(50.0, 50.0)
         );
     }
@@ -1050,7 +1250,6 @@ mod tests {
             Some(Vec2::new(100.0, 100.0)),
             Vec3::new(0.0, 0.0, -10.0),
             ScreenIndicatorOffscreen::Hide,
-            0.0,
         );
         assert_eq!(
             placement,
@@ -1068,7 +1267,6 @@ mod tests {
             Some(Vec2::new(900.0, 300.0)),
             Vec3::new(5.0, 0.0, -10.0),
             ScreenIndicatorOffscreen::Hide,
-            0.0,
         );
         assert_eq!(placement, Placement::Hidden);
     }
@@ -1080,7 +1278,6 @@ mod tests {
             Some(Vec2::new(900.0, 300.0)),
             Vec3::new(5.0, 0.0, -10.0),
             ScreenIndicatorOffscreen::ClampToEdge { margin_px: 20.0 },
-            0.0,
         );
         assert_eq!(
             placement,
@@ -1100,7 +1297,6 @@ mod tests {
             None,
             Vec3::new(0.0, 0.0, 5.0),
             ScreenIndicatorOffscreen::ClampToEdge { margin_px: 20.0 },
-            0.0,
         );
         assert_eq!(
             placement,
@@ -1118,7 +1314,6 @@ mod tests {
             None,
             Vec3::new(0.0, 0.0, 5.0),
             ScreenIndicatorOffscreen::Hide,
-            0.0,
         );
         assert_eq!(placement, Placement::Hidden);
     }
@@ -1189,6 +1384,113 @@ mod tests {
             centre.distance(Vec2::new(400.0, 300.0) / 1.5) < 0.01,
             "the indicator centre is {centre} UI px"
         );
+    }
+
+    /// A shown fixed panel standing at `centre` with `size` (UI px), as the
+    /// last layout left it.
+    fn spawn_panel(world: &mut World, centre: Vec2, size: Vec2) -> Rect {
+        world.spawn((
+            crate::hud_keep_out::HudKeepOutPanel,
+            ComputedNode {
+                size,
+                ..ComputedNode::DEFAULT
+            },
+            UiGlobalTransform::from_translation(centre),
+            InheritedVisibility::VISIBLE,
+        ));
+        Rect::from_center_size(centre, size)
+    }
+
+    /// A 60x20 label of `kind` on a point anchor, with a hidden arrow child.
+    fn spawn_label(world: &mut World, kind: ScreenLabelType, anchor: Vec3) -> (Entity, Entity) {
+        let arrow = world
+            .spawn((
+                ScreenIndicatorArrowMarker,
+                UiTransform::default(),
+                Visibility::Hidden,
+            ))
+            .id();
+        let label = world
+            .spawn((
+                kind,
+                screen_indicator(ScreenIndicatorConfig {
+                    anchor: Some(ScreenIndicatorAnchorKind::Point(anchor)),
+                    size: ScreenIndicatorSize::Fixed(Vec2::new(60.0, 20.0)),
+                    ..default()
+                }),
+            ))
+            .add_child(arrow)
+            .id();
+        (label, arrow)
+    }
+
+    fn label_rect(world: &World, label: Entity) -> Rect {
+        let (left, top, width, height) = node_rect(world, label);
+        Rect::new(left, top, left + width, top + height)
+    }
+
+    /// A label whose anchor stands under a fixed panel moves clear of it by
+    /// the label gap, and shows no edge arrow, since it is not clamped. The
+    /// test camera puts `(x, y, -10)` at `(400 + 30x, 300 - 30y)` px.
+    #[test]
+    fn a_label_over_a_panel_moves_clear_without_an_edge_arrow() {
+        let mut world = World::new();
+        spawn_camera(&mut world);
+        let panel = spawn_panel(&mut world, Vec2::new(200.0, 450.0), Vec2::new(300.0, 100.0));
+        let (label, arrow) = spawn_label(
+            &mut world,
+            ScreenLabelType::Objective,
+            Vec3::new(-20.0 / 3.0, -5.0, -10.0),
+        );
+
+        world.run_system_once(update_screen_indicators).unwrap();
+
+        let rect = label_rect(&world, label);
+        assert!(
+            rect.intersect(panel.inflate(LABEL_GAP_PX - 0.01))
+                .is_empty(),
+            "the label {rect:?} draws over the panel {panel:?}"
+        );
+        assert_eq!(
+            *world.entity(arrow).get::<Visibility>().unwrap(),
+            Visibility::Hidden,
+            "a label moved on screen shows no edge arrow"
+        );
+    }
+
+    /// Two labels on one anchor: the earlier type holds its anchor and the
+    /// later one gives way, clear of it by the label gap. Neither is clamped,
+    /// so neither shows its edge arrow.
+    #[test]
+    fn a_later_label_gives_way_to_an_earlier_one() {
+        let mut world = World::new();
+        spawn_camera(&mut world);
+        let anchor = Vec3::new(0.0, 0.0, -10.0);
+        let (beacon, beacon_arrow) = spawn_label(&mut world, ScreenLabelType::Beacon, anchor);
+        let (objective, objective_arrow) =
+            spawn_label(&mut world, ScreenLabelType::Objective, anchor);
+
+        world.run_system_once(update_screen_indicators).unwrap();
+
+        let (held, moved) = (label_rect(&world, objective), label_rect(&world, beacon));
+        assert_eq!(
+            held.center(),
+            Vec2::new(400.0, 300.0),
+            "the objective holds"
+        );
+        assert!(
+            moved
+                .intersect(held.inflate(LABEL_GAP_PX - 0.01))
+                .is_empty(),
+            "the beacon {moved:?} draws over the objective {held:?}"
+        );
+        for arrow in [beacon_arrow, objective_arrow] {
+            assert_eq!(
+                *world.entity(arrow).get::<Visibility>().unwrap(),
+                Visibility::Hidden,
+                "an on-screen label shows no edge arrow"
+            );
+        }
     }
 
     #[test]

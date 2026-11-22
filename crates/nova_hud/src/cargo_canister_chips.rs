@@ -98,6 +98,7 @@ fn cargo_canister_chip_hud(canister: Entity) -> impl Bundle {
         children![(
             Name::new("CargoCanisterChipUI"),
             AnchoredChipNodeMarker,
+            ScreenLabelType::Canister,
             screen_indicator_node(
                 ScreenIndicatorConfig {
                     anchor: None,

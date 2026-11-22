@@ -32,10 +32,10 @@ use nova_ui::{
 
 use super::{
     emphasis::prelude::*,
+    hud_keep_out::HudKeepOuts,
     hull_shell::prelude::*,
     screen_indicator::{fit_box, prelude::*, UiProjection},
     situation::prelude::*,
-    target_inset::TargetInsetKeepOut,
     velocity::prelude::*,
     NAV_CYAN,
 };
@@ -78,10 +78,9 @@ const CHIP_SHELL_GAP_PX: f32 = metrics::GAP_L;
 /// screen edge inset.
 const CHIP_VIEW_MARGIN_PX: f32 = metrics::GAP_XL;
 
-/// The least clear space between the flight chip stack and the target inset
-/// panel (px). The inset is a keep-out: a chip under it is unreadable. The
-/// kit's block-to-block gap.
-const CHIP_INSET_GAP_PX: f32 = metrics::GAP_L;
+/// The least clear space between the flight chip stack and a fixed HUD panel
+/// (px): a chip under a panel is unreadable. The kit's block-to-block gap.
+const CHIP_PANEL_GAP_PX: f32 = metrics::GAP_L;
 
 /// How far the speed chip rides above the ship's centre of mass (px; screen y
 /// grows downward). Lifted clear of the bottom-centre keybind dock: the ship
@@ -190,6 +189,7 @@ pub fn flight_status_hud(config: FlightStatusHudConfig) -> impl Bundle {
     let chip = |anchor: Option<ScreenIndicatorAnchorKind>, lift: f32| {
         (
             FlightChipLift(lift),
+            ScreenLabelType::ShipReadout,
             screen_indicator_node(
                 ScreenIndicatorConfig {
                     anchor,
@@ -411,7 +411,7 @@ impl Plugin for FlightStatusHudPlugin {
 /// The chips are one stack that moves as a unit. Its box spans the four
 /// rows - always, shown or not, so it does not hop when the mode chip appears -
 /// and [`fit_box`] holds that box inside the view by [`CHIP_VIEW_MARGIN_PX`] on
-/// both axes and clear of the target inset by [`CHIP_INSET_GAP_PX`]. Every chip
+/// both axes and clear of every fixed HUD panel by [`CHIP_PANEL_GAP_PX`]. Every chip
 /// takes the same displacement, so the rows keep their pitch and one left edge.
 /// The fit applies only while the centre of mass is on screen; off it the
 /// indicator pass hides the chips, and a fit would only chase a dead point.
@@ -437,7 +437,7 @@ fn anchor_flight_chips(
     transform_helper: TransformHelper,
     q_camera: Query<(Entity, &Camera), With<ScreenIndicatorCamera>>,
     ui_scale: Res<UiScale>,
-    inset: TargetInsetKeepOut,
+    keep_outs: HudKeepOuts,
 ) {
     let Some((camera_entity, camera)) = q_camera.iter().next() else {
         return;
@@ -539,8 +539,8 @@ fn anchor_flight_chips(
                     stack_box,
                     view,
                     CHIP_VIEW_MARGIN_PX,
-                    inset.rect(view),
-                    CHIP_INSET_GAP_PX,
+                    &keep_outs.rects(view),
+                    CHIP_PANEL_GAP_PX,
                 )
             }
             _ => Vec2::ZERO,
@@ -1515,7 +1515,7 @@ mod tests {
         );
         for (rect, lift) in &shown.boxes {
             assert!(
-                !overlaps(*rect, shown.panel.inflate(CHIP_INSET_GAP_PX)),
+                !overlaps(*rect, shown.panel.inflate(CHIP_PANEL_GAP_PX)),
                 "the chip on row {lift} at {rect:?} is under the inset {:?}",
                 shown.panel
             );

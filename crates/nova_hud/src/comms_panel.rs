@@ -35,6 +35,7 @@ use super::{
     keybind_dock::{column_floor_px, LaidOutDock},
     HudSelfDrivenVisibility, HudTier,
 };
+use crate::prelude::HudKeepOutPanel;
 
 /// The `StoryFeed` queue, `StoryLine`, and the comms dwell and fade timing
 /// constants. The accent a line carries is `nova_gameplay`'s, because both
@@ -284,6 +285,7 @@ fn spawn_comms_panel(mut commands: Commands) {
     commands.spawn((
         Name::new("CommsPanelHUD"),
         CommsPanelMarker,
+        HudKeepOutPanel,
         HudTier::Chrome,
         HudSelfDrivenVisibility,
         Visibility::Hidden,
@@ -1507,46 +1509,13 @@ mod tests {
     /// With every verb shown the row is the tallest it gets (the AIM chip
     /// draws a mouse cap) and the furthest left.
     fn card_over_the_dock(scale: f32, width: u32, text: &str) -> CardOverDock {
-        use bevy::ecs::system::RunSystemOnce;
-
         use crate::{
-            chip_layout_rig::{measure, set_rig_width, settle},
+            chip_layout_rig::{measure, settle},
             hud_notice::prelude::{hud_notice_hud, HudNoticeText},
-            keybind_dock::{keycap_sizing_tests::dock_app, prelude::KeybindDockMarker},
             pickup_tick::prelude::pickup_tick_hud,
         };
 
-        let (mut app, chips) = dock_app();
-        set_rig_width(&mut app, width);
-        app.insert_resource(UiScale(scale));
-        // The rig runs no visibility propagation, and the panel yields only
-        // to a dock that is on screen.
-        let dock = app
-            .world_mut()
-            .query_filtered::<Entity, With<KeybindDockMarker>>()
-            .single(app.world())
-            .expect("the rig spawned one dock");
-        app.world_mut()
-            .entity_mut(dock)
-            .insert(InheritedVisibility::VISIBLE);
-        app.init_resource::<StoryFeed>();
-        app.init_resource::<CommsQueue>();
-        app.world_mut()
-            .run_system_once(spawn_comms_panel)
-            .expect("the panel spawns");
-        app.add_systems(
-            Update,
-            (
-                (
-                    enqueue_new_lines.run_if(resource_changed::<StoryFeed>),
-                    drive_comms_stack,
-                    reconcile_comms_cards,
-                    paint_comms_cards,
-                )
-                    .chain(),
-                stand_the_cards_on_the_column_floor,
-            ),
-        );
+        let (mut app, chips) = comms_over_dock_app(scale, width);
         let tick = app.world_mut().spawn(pickup_tick_hud()).id();
         let notice = app.world_mut().spawn(hud_notice_hud()).id();
         let mut q_notice = app
@@ -1580,6 +1549,51 @@ mod tests {
         }
     }
 
+    /// The real dock with every verb on the row, on screen, and the comms
+    /// panel standing on it, at UI scale `scale` on a `width` px wide window.
+    /// Returns the app and the dock's chips.
+    fn comms_over_dock_app(scale: f32, width: u32) -> (App, Vec<Entity>) {
+        use bevy::ecs::system::RunSystemOnce;
+
+        use crate::{
+            chip_layout_rig::set_rig_width,
+            keybind_dock::{keycap_sizing_tests::dock_app, prelude::KeybindDockMarker},
+        };
+
+        let (mut app, chips) = dock_app();
+        set_rig_width(&mut app, width);
+        app.insert_resource(UiScale(scale));
+        // The rig runs no visibility propagation, and the panel yields only
+        // to a dock that is on screen.
+        let dock = app
+            .world_mut()
+            .query_filtered::<Entity, With<KeybindDockMarker>>()
+            .single(app.world())
+            .expect("the rig spawned one dock");
+        app.world_mut()
+            .entity_mut(dock)
+            .insert(InheritedVisibility::VISIBLE);
+        app.init_resource::<StoryFeed>();
+        app.init_resource::<CommsQueue>();
+        app.world_mut()
+            .run_system_once(spawn_comms_panel)
+            .expect("the panel spawns");
+        app.add_systems(
+            Update,
+            (
+                (
+                    enqueue_new_lines.run_if(resource_changed::<StoryFeed>),
+                    drive_comms_stack,
+                    reconcile_comms_cards,
+                    paint_comms_cards,
+                )
+                    .chain(),
+                stand_the_cards_on_the_column_floor,
+            ),
+        );
+        (app, chips)
+    }
+
     /// The card and the key row share the bottom-left strip of the screen:
     /// the panel spans to 48 % of the width and the centred row reaches left
     /// of the centre line. The card gives way upward. Its bottom edge stays
@@ -1610,8 +1624,9 @@ mod tests {
                 );
                 last_height = card.height();
                 assert!(
-                    RIG_VIEW.y - row_top > COMMS_BOTTOM_PX * scale,
-                    "delivery guard: the row stands over the panel's floor at {scale}: {row_top}"
+                    RIG_VIEW.y - row_top >= COMMS_BOTTOM_PX * scale,
+                    "delivery guard: the row reaches the panel's no-dock floor at {scale}: \
+                     {row_top}"
                 );
                 assert!(
                     row_left < card.max.x,
@@ -1656,6 +1671,101 @@ mod tests {
                     "the card prints through the notice at {width} px, {scale}: {card:?} vs \
                      {notice:?}"
                 );
+            }
+        }
+    }
+
+    /// The comms cards and an objective chip pinned to the screen edge
+    /// toward `target`, behind the camera, with `lines` cards up, on a
+    /// `width` px wide window at 100 % UI scale.
+    fn cards_and_pinned_chip(width: u32, lines: usize, target: Vec3) -> (Vec<Rect>, Rect) {
+        use std::f32::consts::FRAC_PI_2;
+
+        use nova_gameplay::prelude::ObjectiveMarkerTarget;
+
+        use crate::{
+            anchored_chip::prelude::AnchoredChipNodeMarker,
+            chip_layout_rig::{measure, only_descendant_with, settle},
+            objective_markers::prelude::{ObjectiveMarkerChipHudMarker, ObjectiveMarkersHudPlugin},
+            screen_indicator::prelude::{ScreenIndicatorCamera, ScreenIndicatorPlugin},
+        };
+
+        let (mut app, _) = comms_over_dock_app(1.0, width);
+        app.add_plugins((ScreenIndicatorPlugin, ObjectiveMarkersHudPlugin));
+        // The rig's camera stands at the origin looking down -Z, so a target
+        // at +Z is behind it and its chip pins to the edge it points at.
+        let mut q_camera = app.world_mut().query::<(Entity, &mut Camera)>();
+        let (camera, mut lens) = q_camera
+            .single_mut(app.world_mut())
+            .expect("the rig has one camera");
+        lens.computed.clip_from_view =
+            bevy::math::proj::perspective_infinite_reverse(FRAC_PI_2, width as f32 / 720.0, 0.1);
+        app.world_mut()
+            .entity_mut(camera)
+            .insert(ScreenIndicatorCamera);
+        app.world_mut().spawn((
+            ObjectiveMarkerTarget::new("JOB-1 Escort"),
+            Transform::from_translation(target),
+        ));
+        for n in 0..lines {
+            push_line(&mut app, "STATION CONTROL", &format!("Line {n}."), None);
+        }
+        // The rig runs no visibility propagation, and a chip keeps clear only
+        // of a panel that is on screen.
+        let panel = app
+            .world_mut()
+            .query_filtered::<Entity, With<CommsPanelMarker>>()
+            .single(app.world())
+            .expect("the rig spawned one panel");
+        app.world_mut()
+            .entity_mut(panel)
+            .insert(InheritedVisibility::VISIBLE);
+        // The chip reads the dock's and the stack's last layout, so it
+        // settles a pass after theirs.
+        settle(&mut app);
+        settle(&mut app);
+        settle(&mut app);
+
+        let cards: Vec<Rect> = cards_in_stack_order(&mut app)
+            .into_iter()
+            .map(|card| measure(&app, card).rect)
+            .collect();
+        assert_eq!(cards.len(), lines, "delivery guard: {lines} cards show");
+        let layer = app
+            .world_mut()
+            .query_filtered::<Entity, With<ObjectiveMarkerChipHudMarker>>()
+            .single(app.world())
+            .expect("the marker grew a chip layer");
+        let chip = only_descendant_with::<AnchoredChipNodeMarker>(&mut app, layer);
+        (cards, measure(&app, chip).rect)
+    }
+
+    /// An objective chip pinned to the bottom-left corner or low on the left
+    /// edge, where the comms stack stands, never overlaps a card: with one
+    /// card and with three, on a 1280 and a 1024 px wide window.
+    #[test]
+    fn an_edge_pinned_chip_never_overlaps_a_comms_card() {
+        // Behind the camera, down and left: the bottom-left corner. Behind
+        // and left, a little down: low on the left edge.
+        let corner = Vec3::new(-10.0, -10.0, 10.0);
+        let left_edge = Vec3::new(-10.0, -1.5, 10.0);
+        for width in [1280_u32, 1024] {
+            for lines in [1, 3] {
+                for (place, target) in [("corner", corner), ("left edge", left_edge)] {
+                    let (cards, chip) = cards_and_pinned_chip(width, lines, target);
+                    assert!(
+                        chip.min.x < cards[0].max.x && chip.width() > 0.0,
+                        "delivery guard: the {place} chip stands in the stack's columns at \
+                         {width} px: {chip:?}"
+                    );
+                    for card in &cards {
+                        assert!(
+                            card.intersect(chip).is_empty(),
+                            "the {place} chip prints over a card at {width} px with {lines} \
+                             cards: {chip:?} vs {card:?}"
+                        );
+                    }
+                }
             }
         }
     }

@@ -31,19 +31,19 @@
 //! a tutorial can point at a key BEFORE it applies: the spotlight pulses the
 //! dim chip in the unavailable alpha band.
 
-use bevy::{platform::collections::HashSet, prelude::*, ui::UiSystems};
+use bevy::{platform::collections::HashSet, prelude::*};
 use nova_ship::input::prelude::*;
 use nova_ui::hud as chip;
 
 use super::{
     emphasis::prelude::*,
-    hud_notice::{HudNoticeKeepOut, NOTICE_BOTTOM_PX, NOTICE_MAX_HEIGHT_PX},
+    hud_notice::{NOTICE_BOTTOM_PX, NOTICE_MAX_HEIGHT_PX},
     key_glyphs::prelude::*,
-    screen_indicator::{fit_box, prelude::*},
+    screen_indicator::prelude::*,
     situation::prelude::*,
-    target_inset::{prelude::*, TargetInsetKeepOut},
     NovaHudAssets, OBJECTIVE_GOLD,
 };
+use crate::prelude::HudKeepOutPanel;
 
 /// The keybind-dock and verb-cue spawners, `DockChip` with its state and emphasis, `DOCK_VERBS`
 /// with `DOCK_BOTTOM_PX` and `KeybindDockPlugin`.
@@ -79,9 +79,6 @@ const CUE_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
     gap_px: 16.0,
     min_px: 48.0,
 };
-
-/// The gap (px) a cue keeps from the shown notice box and the target inset.
-const CUE_NOTICE_GAP_PX: f32 = metrics::GAP;
 use nova_ui::{
     hud::chip_node,
     theme::{ActiveUiTheme, UiColorType},
@@ -104,9 +101,9 @@ pub(crate) type LaidOutDock<'w, 's> =
 /// logical px. `None` with no dock on screen: a hidden dock, or one with no
 /// flight rig, which measures zero.
 ///
-/// MEASURED, not assumed: the row is as tall as the tallest keycap picture
-/// in it, and a mouse cap stands 13 px over a letter cap. One frame stale by
-/// construction, because it reads the last layout pass.
+/// MEASURED, not assumed: the row is as tall as its chips, and it wraps to a
+/// second line on a narrow window. One frame stale by construction, because
+/// it reads the last layout pass.
 pub(crate) fn dock_top_px(q_dock: &LaidOutDock) -> Option<f32> {
     let height = q_dock
         .iter()
@@ -119,14 +116,20 @@ pub(crate) fn dock_top_px(q_dock: &LaidOutDock) -> Option<f32> {
 /// Clearance (px) between the column floor and what stands under it.
 const COLUMN_GAP_PX: f32 = metrics::GAP;
 
-/// The lowest a piece may stand over the bottom-centre column, in logical px
-/// off the bottom of the screen: clear of the key row's measured top and of
-/// the notice box's ceiling, whichever stands taller. The notice box is
-/// centred on the midline, so a piece that reaches the centre strip stacks
-/// over it too: an edge-pinned chip, the pickup tick and the comms stack.
-/// `None` with no dock on screen.
+/// The top of the bottom-centre column, in logical px off the bottom of the
+/// screen: the key row's measured top or the notice slot's ceiling, whichever
+/// stands taller. The slot counts while no notice shows, so what stands on
+/// the column does not jump when a notice comes. `None` with no dock on
+/// screen.
+pub(crate) fn column_top_px(q_dock: &LaidOutDock) -> Option<f32> {
+    dock_top_px(q_dock).map(|top| top.max(NOTICE_BOTTOM_PX + NOTICE_MAX_HEIGHT_PX))
+}
+
+/// The lowest a panel may stand over the bottom-centre column, in logical px
+/// off the bottom of the screen: [`column_top_px`] and a gap. The pickup tick
+/// and the comms stack stand here. `None` with no dock on screen.
 pub(crate) fn column_floor_px(q_dock: &LaidOutDock) -> Option<f32> {
-    dock_top_px(q_dock).map(|top| top.max(NOTICE_BOTTOM_PX + NOTICE_MAX_HEIGHT_PX) + COLUMN_GAP_PX)
+    column_top_px(q_dock).map(|top| top + COLUMN_GAP_PX)
 }
 
 /// The margin the dock row keeps from the left and right screen edges: the
@@ -134,8 +137,12 @@ pub(crate) fn column_floor_px(q_dock: &LaidOutDock) -> Option<f32> {
 const DOCK_SIDE_PX: f32 = metrics::GAP_XL;
 
 /// Space between dock chips, across a line and between wrapped lines: the
-/// kit's chip-group gap.
-const DOCK_CHIP_GAP_PX: f32 = metrics::GAP;
+/// kit's tight gap, so the row stays a compact strip.
+const DOCK_CHIP_GAP_PX: f32 = metrics::GAP_S;
+
+/// A dock chip's padding on every side: the kit's tight gap, the same as the
+/// gap between its keycap and word, so the row stays a compact strip.
+const DOCK_CHIP_PAD_PX: f32 = metrics::GAP_S;
 
 /// The verb names, in dock display order (left to right): the core group,
 /// then the situational group, then the weapon group.
@@ -343,6 +350,7 @@ pub fn keybind_dock_hud() -> impl Bundle {
                 // A chip keeps its content width: a squeezed chip breaks its
                 // word onto two lines. A row that does not fit wraps instead.
                 flex_shrink: 0.0,
+                padding: UiRect::all(Val::Px(DOCK_CHIP_PAD_PX)),
                 ..chip_node()
             },
             ThemedRadius::control(),
@@ -410,6 +418,7 @@ pub fn keybind_dock_hud() -> impl Bundle {
     (
         Name::new("KeybindDockHUD"),
         KeybindDockMarker,
+        HudKeepOutPanel,
         Node {
             position_type: PositionType::Absolute,
             bottom: Val::Px(DOCK_BOTTOM_PX),
@@ -438,6 +447,7 @@ pub fn keybind_dock_hud() -> impl Bundle {
 pub fn verb_cues_hud() -> impl Bundle {
     let cue = |label: &'static str| {
         (
+            ScreenLabelType::InputCue,
             screen_indicator_node(
                 ScreenIndicatorConfig {
                     anchor: None,
@@ -530,91 +540,6 @@ impl Plugin for KeybindDockPlugin {
             )
                 .in_set(super::NovaHudSystems),
         );
-        // The fit needs the cue box the indicator pass just wrote, and must
-        // land before layout reads the cue's `left`/`top`.
-        app.add_systems(
-            PostUpdate,
-            clear_cues_of_notice
-                .after(ScreenIndicatorSystems)
-                .before(UiSystems::Layout),
-        );
-    }
-}
-
-/// Move a cue off the shown notice. The notice holds its place: a cue follows
-/// a lock anywhere on the screen, so no fixed notice slot can avoid it.
-///
-/// Only a cue within [`CUE_NOTICE_GAP_PX`] of the box moves. Its room ends at
-/// the notice's bottom edge, so the move cannot land on the keybind dock row,
-/// and a move that would reach the shown target inset or a cue already placed
-/// clears those too.
-/// The indicator pass rewrites `left`/`top` from the anchor every frame, so
-/// the shift does not accumulate and the cue returns when the notice ends.
-fn clear_cues_of_notice(
-    notice: HudNoticeKeepOut,
-    inset: TargetInsetKeepOut,
-    q_camera: Query<&Camera, With<ScreenIndicatorCamera>>,
-    ui_scale: Res<UiScale>,
-    mut q_cue: Query<
-        (&mut Node, &ComputedNode, &Visibility),
-        (
-            Or<(With<GotoCueUIMarker>, With<OrbitCueUIMarker>)>,
-            Without<TargetInsetHudMarker>,
-        ),
-    >,
-) {
-    let Some(view) = q_camera
-        .iter()
-        .next()
-        .and_then(|camera| camera.logical_viewport_size())
-        .map(|size| size / ui_scale.0)
-    else {
-        return;
-    };
-    let Some(keep_out) = notice.rect(view) else {
-        return;
-    };
-    let room = Vec2::new(view.x, view.y - NOTICE_BOTTOM_PX);
-    let mut taken: Vec<Rect> = inset.rect(view).into_iter().collect();
-    for (mut node, computed, visibility) in &mut q_cue {
-        if *visibility == Visibility::Hidden {
-            continue;
-        }
-        let (Val::Px(left), Val::Px(top)) = (node.left, node.top) else {
-            continue;
-        };
-        let min = Vec2::new(left, top);
-        let cue = Rect::from_corners(min, min + computed.size() * computed.inverse_scale_factor());
-        if cue
-            .intersect(keep_out.inflate(CUE_NOTICE_GAP_PX))
-            .is_empty()
-        {
-            taken.push(cue);
-            continue;
-        }
-        let moved = |shift: Vec2| Rect::from_corners(cue.min + shift, cue.max + shift);
-        let mut blocked = keep_out;
-        let mut shift = fit_box(cue, room, 0.0, Some(blocked), CUE_NOTICE_GAP_PX);
-        // A refit can land on a rect the last fit cleared, so each pass adds
-        // what it hit. Every pass adds a rect, which bounds the loop.
-        for _ in 0..taken.len() {
-            let hit = taken
-                .iter()
-                .filter(|rect| {
-                    !moved(shift)
-                        .intersect(rect.inflate(CUE_NOTICE_GAP_PX))
-                        .is_empty()
-                })
-                .fold(blocked, |all, rect| all.union(*rect));
-            if hit == blocked {
-                break;
-            }
-            blocked = hit;
-            shift = fit_box(cue, room, 0.0, Some(blocked), CUE_NOTICE_GAP_PX);
-        }
-        node.left = Val::Px(left + shift.x);
-        node.top = Val::Px(top + shift.y);
-        taken.push(moved(shift));
     }
 }
 
@@ -707,12 +632,13 @@ fn dock_verb(index: usize) -> &'static str {
 ///
 /// Shared by the dock and the anchored cues (generic over their query filters,
 /// which differ only in the `Without` terms each system needs to stay disjoint
-/// from its own root query). `height_px` is the SITE's keycap height; the width
-/// comes from the cap's own aspect, via [`KeyCap::apply`].
+/// from its own root query). `size_of` is the SITE's keycap sizing rule
+/// ([`KeyCap::row_size`] or [`KeyCap::node_size`] at its height), applied via
+/// [`KeyCap::apply`].
 fn paint_key_visual<FG, FT>(
     key: &str,
     cap: Option<KeyCap>,
-    height_px: f32,
+    size_of: fn(&KeyCap) -> Vec2,
     tint: Color,
     children: &Children,
     q_glyph: &mut Query<(&mut ImageNode, &mut Node), FG>,
@@ -734,8 +660,9 @@ fn paint_key_visual<FG, FT>(
             if let Some(cap) = cap.as_ref() {
                 // Guarded: `apply` writes the node's box, and dirtying a `Node`
                 // costs a UI relayout even when the numbers are unchanged.
-                if !cap.is_applied(&image, &node, height_px) {
-                    cap.apply(height_px, &mut image, &mut node);
+                let size = size_of(cap);
+                if !cap.is_applied(&image, &node, size) {
+                    cap.apply(size, &mut image, &mut node);
                 }
             }
             image.color = tint;
@@ -852,7 +779,7 @@ fn update_dock(
         paint_key_visual(
             &hint.key,
             cap,
-            GLYPH_PX,
+            |cap| cap.row_size(GLYPH_PX),
             glyph_tint(next),
             children,
             &mut q_glyph,
@@ -864,7 +791,7 @@ fn update_dock(
             Some(modifier) => paint_key_visual(
                 modifier,
                 glyphs.and_then(|glyphs| glyphs.get(modifier)),
-                GLYPH_PX,
+                |cap| cap.row_size(GLYPH_PX),
                 glyph_tint(next),
                 children,
                 &mut q_modifier_glyph,
@@ -1040,7 +967,7 @@ fn drive_orbit_cue(
         paint_key_visual(
             &hints.orbit.key,
             cap.clone(),
-            CUE_GLYPH_PX,
+            |cap| cap.node_size(CUE_GLYPH_PX),
             Color::WHITE,
             children,
             &mut q_glyph,
@@ -1088,7 +1015,7 @@ fn drive_goto_cue(
         paint_key_visual(
             &hints.goto.key,
             cap.clone(),
-            CUE_GLYPH_PX,
+            |cap| cap.node_size(CUE_GLYPH_PX),
             Color::WHITE,
             children,
             &mut q_glyph,

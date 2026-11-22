@@ -54,6 +54,7 @@ pub mod edge_indicators;
 pub mod emphasis;
 pub mod flight_status;
 pub mod holo_instruments;
+pub mod hud_keep_out;
 pub mod hud_notice;
 pub mod hull_shell;
 pub mod key_glyphs;
@@ -88,15 +89,16 @@ pub mod prelude {
         cinematic_prompt::prelude::*, cinematic_title::prelude::*, comms_panel::prelude::*,
         component_lock::prelude::*, docking_sight::prelude::*, edge_indicators::prelude::*,
         emphasis::prelude::*, flight_status::prelude::*, holo_instruments::prelude::*,
-        hud_notice::prelude::*, hull_shell::prelude::*, key_glyphs::prelude::*,
-        keybind_dock::prelude::*, lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*,
-        maneuver_instruments::prelude::*, objective_feedback::prelude::*,
-        objective_markers::prelude::*, objective_stack::prelude::*, pickup_sight::prelude::*,
-        pickup_tick::prelude::*, preview::prelude::*, readout::prelude::*,
-        screen_indicator::prelude::*, situation::prelude::*, target_inset::prelude::*,
-        torpedo_target::prelude::*, velocity::prelude::*, waypoint_chip::prelude::*,
-        HudContextGate, HudInterfaceExempt, HudSelfDrivenVisibility, HudSituationSensingSystems,
-        HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
+        hud_keep_out::prelude::*, hud_notice::prelude::*, hull_shell::prelude::*,
+        key_glyphs::prelude::*, keybind_dock::prelude::*, lock_crosshairs::prelude::*,
+        lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
+        objective_feedback::prelude::*, objective_markers::prelude::*, objective_stack::prelude::*,
+        pickup_sight::prelude::*, pickup_tick::prelude::*, preview::prelude::*,
+        readout::prelude::*, screen_indicator::prelude::*, situation::prelude::*,
+        target_inset::prelude::*, torpedo_target::prelude::*, velocity::prelude::*,
+        waypoint_chip::prelude::*, HudContextGate, HudInterfaceExempt, HudSelfDrivenVisibility,
+        HudSituationSensingSystems, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin,
+        NovaHudSystems,
     };
 }
 
@@ -349,6 +351,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(cinematic_title::CinematicTitlePlugin);
         app.add_plugins(readout::HudReadoutPlugin);
         app.add_plugins(screen_indicator::ScreenIndicatorPlugin);
+        app.add_plugins(hud_keep_out::HudKeepOutPlugin);
         app.add_plugins(torpedo_target::TorpedoTargetHudPlugin);
         app.add_plugins(ammo_readout::AmmoReadoutPlugin);
         app.add_plugins(component_lock::ComponentLockHudPlugin);

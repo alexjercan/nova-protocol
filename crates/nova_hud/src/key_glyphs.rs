@@ -320,26 +320,38 @@ impl KeyCap {
         Vec2::new(height * aspect, height)
     }
 
-    /// Point an existing image node at this cap, sized for `height_px`. The one
-    /// path every keycap site goes through, whether it spawns the node
-    /// ([`KeyCap::node`]) or repaints it every frame.
-    pub fn apply(&self, height_px: f32, image: &mut ImageNode, node: &mut Node) {
+    /// [`KeyCap::node_size`] held inside one row `height_px` tall: a portrait
+    /// cap draws at the row's height instead of growing past it. For a strip
+    /// that must stay one line tall (the keybind dock), where the word beside
+    /// each cap names the verb.
+    pub fn row_size(&self, height_px: f32) -> Vec2 {
+        let size = self.node_size(height_px);
+        if size.y > height_px {
+            size * (height_px / size.y)
+        } else {
+            size
+        }
+    }
+
+    /// Point an existing image node at this cap, drawn at `size` (from
+    /// [`KeyCap::node_size`] or [`KeyCap::row_size`]). The one path every
+    /// keycap site goes through, whether it spawns the node ([`KeyCap::node`])
+    /// or repaints it every frame.
+    pub fn apply(&self, size: Vec2, image: &mut ImageNode, node: &mut Node) {
         if image.image != self.image {
             image.image = self.image.clone();
         }
         if image.rect != self.cap {
             image.rect = self.cap;
         }
-        let size = self.node_size(height_px);
         node.width = Val::Px(size.x);
         node.height = Val::Px(size.y);
     }
 
-    /// Whether `image`/`node` already draw this cap at `height_px` - the guard
-    /// a per-frame repainter needs so it does not dirty a `Node` (and with it a
+    /// Whether `image`/`node` already draw this cap at `size` - the guard a
+    /// per-frame repainter needs so it does not dirty a `Node` (and with it a
     /// UI relayout) on every quiet pass.
-    pub fn is_applied(&self, image: &ImageNode, node: &Node, height_px: f32) -> bool {
-        let size = self.node_size(height_px);
+    pub fn is_applied(&self, image: &ImageNode, node: &Node, size: Vec2) -> bool {
         image.image == self.image
             && image.rect == self.cap
             && node.width == Val::Px(size.x)
@@ -351,7 +363,7 @@ impl KeyCap {
     pub fn node(&self, height_px: f32) -> (ImageNode, Node) {
         let mut image = ImageNode::default();
         let mut node = Node::default();
-        self.apply(height_px, &mut image, &mut node);
+        self.apply(self.node_size(height_px), &mut image, &mut node);
         (image, node)
     }
 }
@@ -595,7 +607,7 @@ mod tests {
     /// pixels. `keybind_dock`'s own sizing tests caught it; the rule lives
     /// here, so its guard belongs here.
     #[test]
-    fn only_portrait_art_is_sized_by_its_width() {
+    fn only_portrait_art_is_sized_by_its_width_and_a_row_holds_it() {
         let cap = |width: f32, height: f32| KeyCap {
             image: Handle::default(),
             cap: Some(Rect::new(0.0, 0.0, width, height)),
@@ -620,6 +632,17 @@ mod tests {
         assert!(
             mouse.y <= 20.0 * MAX_PORTRAIT_GROWTH,
             "bounded, so one tall glyph cannot set the height of its row"
+        );
+        let held = cap(76.0, 128.0).row_size(20.0);
+        assert!(
+            (held.y - 20.0).abs() < 1e-4 && (held.x - 76.0 / 128.0 * 20.0).abs() < 1e-4,
+            "in a one-line row (the keybind dock) the mouse draws at the row's \
+             height, got {held:?}"
+        );
+        assert_eq!(
+            cap(200.0, 130.0).row_size(20.0),
+            cap(200.0, 130.0).node_size(20.0),
+            "a keycap is the same in a row"
         );
     }
 
