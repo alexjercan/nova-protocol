@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Menu Lines Proposal</title>
+<style>
+:root {
+  --bg: #f4f6f4; --fg: #14201a; --muted: #5a6b61; --card: #ffffff; --rule: #cfd8d2;
+  --ph-bg: #04140b; --ph-fg: #3cff8a; --ph-dim: #1f7a46; --ph-fill: #0b3d22;
+  --danger: #e2413b; --accent: #f0a020;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1210; --fg: #dde6e0; --muted: #8fa198; --card: #151c18; --rule: #26322b;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1210; --fg: #dde6e0; --muted: #8fa198; --card: #151c18; --rule: #26322b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 15px/1.45 system-ui, sans-serif; padding: 24px 16px 64px; }
+main { max-width: 1200px; margin: 0 auto; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+h2 { font-size: 17px; margin: 0 0 6px; }
+p.lede { color: var(--muted); margin: 0 0 20px; }
+section { background: var(--card); border: 1px solid var(--rule); border-radius: 2px;
+  padding: 16px; margin: 0 0 16px; }
+.where { font: 12px/1.4 ui-monospace, monospace; color: var(--muted); margin-bottom: 6px; }
+.line { font: 13px ui-monospace, monospace; border-left: 3px solid var(--danger);
+  padding: 4px 8px; margin: 6px 0 10px; }
+.frames { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+.frames figure { margin: 0; }
+.frames img { width: 100%; height: auto; display: block; border: 1px solid var(--rule); }
+.frames figcaption { font-size: 12px; color: var(--muted); }
+.rec { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.rec ol { margin: 0; padding-left: 18px; }
+.rec b { color: var(--fg); }
+.pick { font-weight: 600; }
+.walks { font-size: 13px; color: var(--muted); margin-top: 8px; }
+/* phosphor-style mock, square corners per the theme */
+.mock { background: var(--ph-bg); color: var(--ph-fg); border: 1px solid var(--ph-dim);
+  padding: 12px; font: 12px ui-monospace, monospace; border-radius: 0; }
+.mock .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 4px 0; }
+.mock .btn { border: 1px solid var(--ph-dim); padding: 4px 12px; min-width: 90px; text-align: center; background: var(--ph-fill); }
+.mock .btn.danger { color: var(--danger); border-color: var(--danger); background: #3a0f0d; }
+.mock .btn.off { opacity: .4; background: transparent; }
+.mock .field { border: 1px solid var(--ph-dim); padding: 6px 8px; flex: 1; min-width: 140px; background: var(--ph-fill); }
+.mock .field.bad { border-color: var(--accent); }
+.mock .chip { border: 1px solid var(--ph-dim); padding: 2px 6px; min-width: 24px; text-align: center; }
+.mock .chip.sel { background: var(--ph-fg); color: var(--ph-bg); min-width: 110px; }
+.mock .chip.hold { border-color: var(--danger); color: var(--danger); }
+.mock .tag { border: 1px solid var(--accent); color: var(--accent); padding: 0 6px; font-size: 11px; }
+.mock .lab { color: var(--ph-dim); }
+.mock .empty { height: 60px; border: 1px dashed var(--ph-dim); opacity: .5; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+td, th { border-top: 1px solid var(--rule); padding: 6px; text-align: left; vertical-align: top; }
+th { color: var(--muted); font-weight: 600; }
+code { font: 12px ui-monospace, monospace; }
+@media (max-width: 760px) {
+  .frames, .rec { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<main>
+<h1>Menu explanation lines: proposal</h1>
+<p class="lede">Task 20261122-122247, 2026-11-22. Each block: the line today (phosphor left, hardware right, 1920x1080 lavapipe frames downscaled), then the recommended state with a mock. Every option deletes the line and adds no sentence. The owner picks per block; the table in TASK.md has the same rows.</p>
+
+<section>
+<h2>A1. Reset Defaults armed</h2>
+<div class="where">crates/nova_menu/src/settings.rs:303, spawn :1565</div>
+<div class="line">Resets key and pad bindings in every group.</div>
+<div class="frames">
+<figure><img src="before/reset-defaults-armed-phosphor.png" alt="Armed Reset Defaults, phosphor"><figcaption>phosphor</figcaption></figure>
+<figure><img src="before/reset-defaults-armed-hardware.png" alt="Armed Reset Defaults, hardware"><figcaption>hardware: the danger Confirm reads as a plain button</figcaption></figure>
+</div>
+<div class="rec">
+<ol>
+<li>Delete only. Cancel plus danger Confirm carry it.</li>
+<li class="pick">Recommended: delete; idle Reset Defaults is disabled with 0 changed bindings; armed Confirm reads the count, <code>Reset 3</code>.</li>
+</ol>
+<div class="mock">
+<div class="row"><span class="lab">idle, nothing changed</span></div>
+<div class="row"><span class="btn off">Reset Defaults</span></div>
+<div class="row"><span class="lab">armed, 3 changed</span></div>
+<div class="row"><span class="btn">Cancel</span><span class="btn danger">Reset 3</span></div>
+</div>
+</div>
+<div class="walks">Changes: screenshot_menu.rs (RESET_PROMPT in assert_armed_row).</div>
+</section>
+
+<section>
+<h2>A2. Create disabled reason</h2>
+<div class="where">world_setup.rs:82, tooltip :605, label :612, details :857</div>
+<div class="line">Create is unavailable: no start role is loaded. / No start role is loaded.</div>
+<div class="frames">
+<figure><img src="before/create-disabled-phosphor.png" alt="Role step with no roles, phosphor"><figcaption>phosphor (roles cleared by the capture patch)</figcaption></figure>
+<figure><img src="before/create-disabled-hardware.png" alt="Role step with no roles, hardware"><figcaption>hardware</figcaption></figure>
+</div>
+<div class="rec">
+<ol>
+<li>Delete label, tooltip and details line. Disabled Create and the empty role list carry it.</li>
+<li class="pick">Recommended: 1, plus New Game disabled on the main menu when no start role is loaded. Only a broken mod set reaches this.</li>
+</ol>
+<div class="mock">
+<div class="row"><span class="btn off">New Game</span></div>
+<div class="row"><span class="lab">role step, if reached</span></div>
+<div class="row"><span class="btn">Back</span><span class="btn">Cancel</span><span class="btn off">Create</span></div>
+</div>
+</div>
+<div class="walks">Changes: none.</div>
+</section>
+
+<section>
+<h2>A3. "Select a ..." empty details</h2>
+<div class="where">mods.rs:470, scenarios.rs:463, training.rs:919; siblings scenarios.rs:244, training.rs:743</div>
+<div class="line">Select a mod to see its details. / Select a scenario to see its details. / Select a lesson. / No scenarios available. / No lessons installed.</div>
+<div class="frames">
+<figure><img src="before/mods-explore-empty-phosphor.png" alt="Explore tab with no catalog, phosphor"><figcaption>phosphor: Explore with no catalog (portal pointed at a closed port)</figcaption></figure>
+<figure><img src="before/mods-explore-empty-hardware.png" alt="Explore tab with no catalog, hardware"><figcaption>hardware</figcaption></figure>
+</div>
+<div class="rec">
+<ol>
+<li class="pick">Recommended: the empty pane and the empty list draw nothing. Every list selects its first row, so the pane is empty only when the list is.</li>
+<li>A muted icon in the empty pane.</li>
+</ol>
+<div class="mock"><div class="row"><span class="lab">details pane</span></div><div class="empty"></div></div>
+</div>
+<div class="walks">Changes: crates/nova_menu/src/tests/mods.rs:260. Scenarios and Lessons have no shipped path to their empty state, so no frame.</div>
+</section>
+
+<section>
+<h2>A4. Preview hints and the seed caption</h2>
+<div class="where">load_screen.rs:1392; world_setup.rs:1069, :1084</div>
+<div class="line">Right-drag turns, wheel zooms. / The sectors round the start of seed 115: 1 station in reach. Right-drag turns, wheel zooms.</div>
+<div class="frames">
+<figure><img src="before/load-preview-hint-phosphor.png" alt="Load details with hint, phosphor"><figcaption>Load, phosphor</figcaption></figure>
+<figure><img src="before/load-preview-hint-hardware.png" alt="Load details with hint, hardware"><figcaption>Load, hardware</figcaption></figure>
+<figure><img src="before/seed-caption-phosphor.png" alt="World step caption, phosphor"><figcaption>New Game, phosphor</figcaption></figure>
+<figure><img src="before/seed-caption-hardware.png" alt="World step caption, hardware"><figcaption>New Game, hardware</figcaption></figure>
+</div>
+<div class="rec">
+<ol>
+<li class="pick">Recommended: delete both. The chart shows the stations and the seed is in its field. A seed with no start marks the seed field invalid and greys Next (today only Create refuses it).</li>
+<li>1, plus a grab cursor over a preview. New: the game sets no cursor icon yet.</li>
+</ol>
+<div class="mock">
+<div class="row"><span class="field">115</span><span class="btn">Randomize</span></div>
+<div class="empty"></div>
+<div class="row"><span class="btn">Cancel</span><span class="btn">Next</span></div>
+</div>
+</div>
+<div class="walks">Changes: tests/world_setup.rs:360; news_0160_world_setup.rs:60,266 waits on the caption; ui_gallery mock text new_game.rs:302, load.rs:232.</div>
+</section>
+
+<section>
+<h2>B1. Field refusal messages</h2>
+<div class="where">nova_ui text_field.rs:196; world_setup.rs:94, :123; nova_world_base save/mod.rs:2116-2139</div>
+<div class="line">'!' is not allowed; use letters, digits, space, _ and - / Enter a whole number from 0 to 4294967295</div>
+<div class="frames">
+<figure><img src="before/field-refusals-phosphor.png" alt="Refused fields, phosphor"><figcaption>phosphor: the message overlaps the next label</figcaption></figure>
+<figure><img src="before/field-refusals-hardware.png" alt="Refused fields, hardware"><figcaption>hardware</figcaption></figure>
+</div>
+<div class="rec">
+<ol>
+<li class="pick">Recommended: menu fields keep the invalid outline and draw no message (a TextFieldSpec flag; the editor keeps its messages). The seed field takes digits only. Next stays disabled.</li>
+<li>Widget-wide: TextFieldError becomes a marker; the editor's messages die too. Owner call.</li>
+</ol>
+<div class="mock">
+<div class="row"><span class="field bad">New World!</span></div>
+<div class="row"><span class="field bad">9999999999</span><span class="btn">Randomize</span></div>
+<div class="row"><span class="btn">Cancel</span><span class="btn off">Next</span></div>
+</div>
+</div>
+<div class="walks">Changes: tests/world_setup.rs:280-284 (asserts "exists" in the message).</div>
+</section>
+
+<section>
+<h2>B2. Uninstall armed</h2>
+<div class="where">portal.rs:81, spawn :565</div>
+<div class="line">Deletes Uninstall Fixture from this computer.</div>
+<div class="frames">
+<figure><img src="before/uninstall-armed-phosphor.png" alt="Armed Uninstall, phosphor"><figcaption>phosphor</figcaption></figure>
+<figure><img src="before/uninstall-armed-hardware.png" alt="Armed Uninstall, hardware"><figcaption>hardware</figcaption></figure>
+</div>
+<div class="rec">
+<ol><li class="pick">Recommended: delete. Cancel in Uninstall's place plus danger Confirm carry it.</li></ol>
+<div class="mock"><div class="row"><span class="btn">Enable</span><span class="btn">Cancel</span><span class="btn danger">Confirm</span></div></div>
+</div>
+<div class="walks">Changes: screenshot_menu.rs (UNINSTALL_PROMPT in assert_armed_row).</div>
+</section>
+
+<section>
+<h2>B3. Load delete armed</h2>
+<div class="where">load_screen.rs:1539</div>
+<div class="line">Delete New World? This removes its save files and cannot be undone.</div>
+<div class="frames">
+<figure><img src="before/load-delete-prompt-phosphor.png" alt="Delete prompt, phosphor"><figcaption>phosphor</figcaption></figure>
+<figure><img src="before/load-delete-prompt-hardware.png" alt="Delete prompt, hardware"><figcaption>hardware: Delete world reads as a plain button</figcaption></figure>
+</div>
+<div class="rec">
+<ol>
+<li>Delete the sentence.</li>
+<li class="pick">Recommended: delete, and use the Reset/Uninstall shape: Cancel takes Delete's box, danger Confirm beside it.</li>
+</ol>
+<div class="mock"><div class="row"><span class="btn">Load</span><span class="btn">Cancel</span><span class="btn danger">Delete world</span></div></div>
+</div>
+<div class="walks">Changes: tests/load_screen.rs:461.</div>
+</section>
+
+<section>
+<h2>B5. Empty Load</h2>
+<div class="where">load_screen.rs:781, :767</div>
+<div class="line">No saved worlds yet / This system has no folder for saved worlds</div>
+<div class="frames">
+<figure><img src="before/load-empty-phosphor.png" alt="Empty Load, phosphor"><figcaption>phosphor</figcaption></figure>
+<figure><img src="before/load-empty-hardware.png" alt="Empty Load, hardware"><figcaption>hardware</figcaption></figure>
+</div>
+<div class="rec">
+<ol>
+<li class="pick">Recommended: main-menu Load is disabled with no world listed; the note dies.</li>
+<li>Load opens on the column head with no rows.</li>
+</ol>
+<div class="mock"><div class="row"><span class="btn">New Game</span></div><div class="row"><span class="btn off">Load</span></div></div>
+</div>
+<div class="walks">Changes: none on the text.</div>
+</section>
+
+<section>
+<h2>B6. Rebind refusal and the armed chip</h2>
+<div class="where">settings.rs:1413, :267; nova_input registry.rs:285, :290, :558</div>
+<div class="line">Q is already bound to Roll Left / Left Mouse stays the pointer / PRESS A KEY</div>
+<div class="frames">
+<figure><img src="before/rebind-refusal-phosphor.png" alt="Rebind refusal, phosphor"><figcaption>phosphor: the line pushes the rows down</figcaption></figure>
+<figure><img src="before/rebind-refusal-hardware.png" alt="Rebind refusal, hardware"><figcaption>hardware</figcaption></figure>
+</div>
+<div class="rec">
+<ol>
+<li class="pick">Recommended: the refusal names the holder, not a line. The holder's chip flashes danger (in another group: its group tab), with the deny cue. The armed chip shows its Selected face, blank.</li>
+<li>Keep the refusal; drop PRESS A KEY only.</li>
+</ol>
+<div class="mock">
+<div class="row"><span style="flex:1">Main Drive</span><span class="chip sel">&nbsp;</span></div>
+<div class="row"><span style="flex:1">Roll Left</span><span class="chip hold">Q</span></div>
+<div class="row"><span style="flex:1">Roll Right</span><span class="chip">E</span></div>
+</div>
+</div>
+<div class="walks">Changes: tests/settings.rs:731, :789, :1078; nova_input registry.rs:1260.</div>
+</section>
+
+<section>
+<h2>B8. Mod portal status notes</h2>
+<div class="where">mods.rs:403, :427, :449; portal.rs:723</div>
+<div class="line">Fetching the mod portal catalog... / portal catalog fetch failed: io: Connection refused / offline - showing the last fetched catalog / offline - reconnect to install or update</div>
+<div class="rec">
+<ol><li class="pick">Recommended: one tag on the Explore tab, FETCHING or OFFLINE, like the Load CHECKING and INVALID badges. Retry stays. Install and Update draw disabled. Frame: see A3.</li></ol>
+<div class="mock"><div class="row"><span class="btn">Installed</span><span class="btn">Explore online</span><span class="tag">OFFLINE</span></div><div class="row"><span class="btn">Retry</span></div></div>
+</div>
+<div class="walks">Changes: tests/mods.rs:255; tests/portal.rs error cases.</div>
+</section>
+
+<section>
+<h2>Other lines, no frame</h2>
+<table>
+<tr><th>#</th><th>Where</th><th>Text</th><th>Recommendation</th></tr>
+<tr><td>B4</td><td><code>load_screen.rs:931, :1493, :1343</code></td><td>Cannot load / refusal text / Cannot delete {slug}: {reason}</td><td>Row line dies (INVALID shows it). Details show one tag per WorldRefusal kind. Refused delete plays deny, row stays.</td></tr>
+<tr><td>B7</td><td><code>settings.rs:1341</code></td><td>{theme}: {message}</td><td>The failed theme stays in the Theme row as a disabled segment with a danger outline; the message goes to the log.</td></tr>
+<tr><td>B9</td><td><code>leave.rs:230, :244, :239</code></td><td>Progress since the last save is discarded... / wait reason / The last save is kept.</td><td>Delete the bodies; the title carries. SAVE FAILED keeps the error only.</td></tr>
+<tr><td>B10</td><td><code>safe_mode.rs:100</code></td><td>The game started without these mods, because...</td><td>Delete; banner and rows carry.</td></tr>
+<tr><td>B11</td><td><code>outcome.rs:372</code></td><td>Failed to start '{name}':</td><td>Scenario name only.</td></tr>
+<tr><td>B12</td><td><code>world_setup.rs:403</code> (web)</td><td>Saved worlds need the desktop build.</td><td>Delete.</td></tr>
+</table>
+<p class="walks">Kept as data or authored content: field notes, New pilot card, Full manual link, lesson counts, mod dependency lines, install progress, CHECKING/INVALID badges, the save notice. Editor inspector "Nothing selected..." is outside the menus: owner call.</p>
+</section>
+</main>
+</body>
+</html>
