@@ -1,6 +1,6 @@
 # GOTO line: always draw the computed flight path, never a straight line
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.19.0, navigation, hud
 
@@ -185,3 +185,6 @@ Paths and lines are at HEAD a82db744d, before the change.
   `docked-goto-map-reach.png` after the wheel shows the whole route ending
   inside the viewport. Log: camera 17681 m out; the contacts alone allowed
   5202 m; the route end is 2388 m out.
+
+## Owner check (2026-11-22, Map follow-up)
+- Owner: "the line looks good close it". Closed.
