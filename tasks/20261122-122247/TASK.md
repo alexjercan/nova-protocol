@@ -76,3 +76,12 @@ selected. Pick a row, or a body on the stage."
   (`before/field-refusals-*.png`).
 - The rebind refusal line pushes every row down one line
   (`before/rebind-refusal-*.png`).
+
+## Decision (owner 2026-11-22)
+- Build every recommended option (A1-A4, B1-B12). On A2 the owner asked why
+  Create is clickable with no role; it is not (disabled, first role always
+  selected). Then: "the rest looks good".
+- B1: menu fields only; the editor keeps its field messages.
+- The editor inspector line stays.
+- First: make the hardware danger paint visible, since the danger buttons
+  carry the state once the prompts go.
