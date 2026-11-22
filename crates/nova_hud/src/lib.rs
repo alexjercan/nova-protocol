@@ -73,6 +73,7 @@ pub mod situation;
 pub mod target_inset;
 pub mod torpedo_target;
 pub mod velocity;
+pub mod waypoint_chip;
 
 /// Live-tree UI layout rig shared by the world-anchored chip tests.
 #[cfg(test)]
@@ -93,9 +94,9 @@ pub mod prelude {
         objective_markers::prelude::*, objective_stack::prelude::*, pickup_sight::prelude::*,
         pickup_tick::prelude::*, preview::prelude::*, readout::prelude::*,
         screen_indicator::prelude::*, situation::prelude::*, target_inset::prelude::*,
-        torpedo_target::prelude::*, velocity::prelude::*, HudContextGate, HudInterfaceExempt,
-        HudSelfDrivenVisibility, HudSituationSensingSystems, HudTier, HudVisibility, NovaHudAssets,
-        NovaHudPlugin, NovaHudSystems,
+        torpedo_target::prelude::*, velocity::prelude::*, waypoint_chip::prelude::*,
+        HudContextGate, HudInterfaceExempt, HudSelfDrivenVisibility, HudSituationSensingSystems,
+        HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
     };
 }
 
@@ -356,6 +357,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(target_inset::TargetInsetHudPlugin);
         app.add_plugins(edge_indicators::EdgeIndicatorsHudPlugin);
         app.add_plugins(beacon_chips::BeaconChipsHudPlugin);
+        app.add_plugins(waypoint_chip::WaypointChipHudPlugin);
         app.add_plugins(allegiance_markers::AllegianceMarkerHudPlugin);
         app.add_plugins(objective_markers::ObjectiveMarkersHudPlugin);
         app.add_plugins(cargo_canister_chips::CargoCanisterChipsHudPlugin);

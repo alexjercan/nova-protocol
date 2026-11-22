@@ -8,12 +8,14 @@
 
 use bevy::{
     camera::{visibility::RenderLayers, ImageRenderTarget, RenderTarget},
+    ecs::system::SystemParam,
     picking::hover::Hovered,
     prelude::*,
     // The activatable Button (fires `Activate` on click or keyboard
     // activation), matching the terminal's own buttons.
     ui_widgets::{Activate, Button},
 };
+use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
@@ -21,6 +23,8 @@ use nova_ui::{
     theme::{ActiveUiTheme, UiColorType, BORDER_W},
     widget::{ButtonCueType, ThemedBorder, ThemedFill, ThemedImageTint, ThemedRadius, ThemedText},
 };
+use nova_world::prelude::FrozenSectors;
+use nova_world_base::prelude::waypoint_mark;
 
 use super::{app::*, contacts::*, *};
 use crate::{
@@ -299,17 +303,23 @@ pub(crate) fn map_focus_follow(
 /// `viewer_pan_*`, `viewer_orbit_*`, `viewer_reframe`, `viewer_next` /
 /// `viewer_prev`, and `map_goto`. The GOTO button's request joins `map_goto`
 /// here, so both pass the same checks; the CANCEL button's request ends the
-/// player's GOTO here too.
+/// player's GOTO here too. In the chart view GOTO flies to the selected
+/// station or cell ([`chart_goto`]).
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the input, the camera, the ship, its dock and the chart it flies to"
+)]
 pub(crate) fn map_input(
     mut input: NovaOsAppInput,
     mut runtime: ResMut<MapRuntime>,
     contacts: MapContacts,
     mut commands: Commands,
     mut q_camera: Query<(&mut MapOrbit, &Transform), With<MapCameraMarker>>,
-    q_ship: Query<(Option<&Autopilot>, Option<&TravelLock>)>,
+    q_ship: Query<(Option<&Autopilot>, Option<&TravelLock>, Option<&Waypoint>)>,
     q_docked: Query<&DockedShip>,
     q_connections: Query<&DockingConnection>,
     q_panel: Query<&Hovered, With<MapPanelMarker>>,
+    chart_world: ChartWorld,
 ) {
     // Taken before the gate: a request the map cannot act on now is dropped,
     // not held for a later frame.
@@ -391,36 +401,62 @@ pub(crate) fn map_input(
         }
     }
 
-    // Cancel the player's GOTO: CANCEL in the contact view, whatever became
-    // of its target, or GOTO on the contact the GOTO already flies to. The
-    // travel lock clears only while it names the cancelled target; a lock the
-    // pilot holds on another body stays.
+    // Cancel the player's GOTO: CANCEL, whatever became of its target, or
+    // GOTO on what the GOTO already flies to: the contact in the contact
+    // view, the waypoint's mark in the chart. The travel lock clears only
+    // while it names the cancelled target; a lock the pilot holds on another
+    // body stays. A `GotoPos` is the player's GOTO only while a waypoint
+    // names it: a scenario's move order is not the Map's to end.
     let goto_pressed = input.just_pressed("map_goto") || button_goto;
     let flying = contacts
         .player_frame()
         .and_then(|(player, _, _)| match q_ship.get(player) {
-            Ok((
-                Some(Autopilot {
-                    action: AutopilotAction::Goto { target },
-                    ..
-                }),
-                travel,
-            )) => Some((player, *target, travel)),
+            Ok((Some(autopilot), travel, waypoint)) => match autopilot.action {
+                AutopilotAction::Goto { target } => Some((player, Some(target), travel, waypoint)),
+                AutopilotAction::GotoPos { .. } if waypoint.is_some() => {
+                    Some((player, None, travel, waypoint))
+                }
+                _ => None,
+            },
             _ => None,
         });
-    let toggled = !runtime.chart
-        && goto_pressed
-        && flying.is_some_and(|(_, target, _)| runtime.selected == Some(target));
-    if let Some((player, target, travel)) = flying.filter(|_| button_cancel || toggled) {
+    let toggled = goto_pressed
+        && flying.is_some_and(|(_, target, _, waypoint)| {
+            if runtime.chart {
+                waypoint.is_some_and(|waypoint| {
+                    runtime.chart_selected.as_ref() == Some(&waypoint_chart_mark(&waypoint.target))
+                })
+            } else {
+                target.is_some() && runtime.selected == target
+            }
+        });
+    if let Some((player, target, travel, _)) = flying.filter(|_| button_cancel || toggled) {
         let mut ship = commands.entity(player);
-        ship.remove::<Autopilot>();
-        if travel.is_some_and(|travel| travel.0 == Some(target)) {
+        ship.remove::<(Autopilot, Waypoint)>();
+        if target.is_some() && travel.is_some_and(|travel| travel.0 == target) {
             ship.insert(TravelLock(None));
         }
     }
 
-    // The chart view selects by its own labels and has nothing to fly to.
+    // The chart view selects by its own labels and flies to its own marks.
     if runtime.chart {
+        if goto_pressed && !toggled {
+            if let Some((player, _, _)) = contacts.player_frame() {
+                let partner = q_docked
+                    .get(player)
+                    .ok()
+                    .and_then(|docked| q_connections.get(docked.connection).ok());
+                let mark = runtime.chart_selected.clone();
+                chart_goto(
+                    &mut commands,
+                    &mut runtime,
+                    &chart_world,
+                    player,
+                    mark.as_ref(),
+                    partner,
+                );
+            }
+        }
         return;
     }
 
@@ -467,6 +503,96 @@ pub(crate) fn map_input(
                     }
                 }
             }
+        }
+    }
+}
+
+/// What a chart GOTO resolves its mark from: the chart, the cell edge, the
+/// frozen ledger and the live stations.
+#[derive(SystemParam)]
+pub(crate) struct ChartWorld<'w, 's> {
+    chart: Res<'w, Chart>,
+    /// Absent over a fixed scene, which has no chart to fly to.
+    edge: Option<Res<'w, ChartSectorEdge>>,
+    /// Absent until a streamed world arms its ledger; an absent ledger holds
+    /// no record.
+    frozen: Option<Res<'w, FrozenSectors>>,
+    stations: Query<
+        'w,
+        's,
+        (Entity, &'static GeneratedBodyId, &'static GlobalTransform),
+        With<StationMarker>,
+    >,
+}
+
+/// The chart mark a waypoint target is drawn as.
+pub(crate) fn waypoint_chart_mark(target: &WaypointTargetType) -> MapChartMarkType {
+    match target {
+        WaypointTargetType::Station(id) => MapChartMarkType::Station(id.clone()),
+        WaypointTargetType::Sector(coord) => MapChartMarkType::Cell(*coord),
+    }
+}
+
+/// The chart GOTO on `mark`. A live station flies a `Goto` of it with the
+/// travel lock on it at once; a station out of the window and a cell fly
+/// `GotoPos` at the mark [`waypoint_mark`] resolves. Either way the player
+/// ship wears the [`Waypoint`]. A wreck or a job has no GOTO, the docked
+/// partner moves with the pair, and a mark that does not resolve is a broken
+/// chart: each plays the deny cue and sets nothing, and a fault logs why.
+fn chart_goto(
+    commands: &mut Commands,
+    runtime: &mut MapRuntime,
+    world: &ChartWorld,
+    player: Entity,
+    mark: Option<&MapChartMarkType>,
+    partner: Option<&DockingConnection>,
+) {
+    let Some(mark) = mark else {
+        return;
+    };
+    let target = match mark {
+        MapChartMarkType::Station(id) => WaypointTargetType::Station(id.clone()),
+        MapChartMarkType::Cell(coord) => WaypointTargetType::Sector(*coord),
+        MapChartMarkType::Wreck(_) | MapChartMarkType::Job(_) => {
+            runtime.cue.raise(ActionOutcomeType::Refused);
+            return;
+        }
+    };
+    let Some(edge) = world.edge.as_deref().copied() else {
+        runtime.cue.raise(ActionOutcomeType::Refused);
+        return;
+    };
+    if let WaypointTargetType::Station(id) = &target {
+        if let Some((station, _, transform)) =
+            world.stations.iter().find(|(_, found, _)| *found == id)
+        {
+            if partner.is_some_and(|connection| connection.joins(station)) {
+                runtime.cue.raise(ActionOutcomeType::Refused);
+                return;
+            }
+            commands.entity(player).insert((
+                Waypoint {
+                    target,
+                    mark: transform.translation(),
+                },
+                Autopilot::engage(AutopilotAction::Goto { target: station }),
+                TravelLock(Some(station)),
+            ));
+            return;
+        }
+    }
+    let empty = FrozenSectors::default();
+    let frozen = world.frozen.as_deref().unwrap_or(&empty);
+    match waypoint_mark(&target, &world.chart, frozen, edge) {
+        Ok(mark) => {
+            commands.entity(player).insert((
+                Waypoint { target, mark },
+                Autopilot::engage(AutopilotAction::GotoPos { position: mark }),
+            ));
+        }
+        Err(fault) => {
+            error!("nova_interface: chart GOTO refused: {fault}");
+            runtime.cue.raise(ActionOutcomeType::Refused);
         }
     }
 }
@@ -649,7 +775,7 @@ pub(crate) fn project_map_route(
     runtime: Res<MapRuntime>,
     contacts: MapContacts,
     time: Res<Time<Fixed>>,
-    q_autopilot: Query<(&Autopilot, Option<&FlightPrediction>)>,
+    q_autopilot: Query<(&Autopilot, Option<&FlightPrediction>, Option<&Waypoint>)>,
     q_camera: Query<(&Camera, &GlobalTransform), With<MapCameraMarker>>,
     q_viewport: Query<(Entity, &ComputedNode), With<MapViewportMarker>>,
     mut q_line: Query<
@@ -657,6 +783,10 @@ pub(crate) fn project_map_route(
         (With<MapRouteLine>, Without<MapGotoMarker>),
     >,
     mut q_marker: Query<(&mut Node, &mut Visibility), (With<MapGotoMarker>, Without<MapRouteLine>)>,
+    q_chart_label: Query<
+        (&MapChartLabel, &Node, &ComputedNode, &Visibility),
+        (Without<MapGotoMarker>, Without<MapRouteLine>),
+    >,
 ) {
     if !runtime.active {
         return;
@@ -669,26 +799,60 @@ pub(crate) fn project_map_route(
         spawn_map_route(&mut commands, viewport);
         return;
     };
-    // The chart view draws in its own frame, where the route has no place.
-    let player = contacts.player_frame().filter(|_| !runtime.chart);
-    let goto = player.and_then(|(player, from, _)| {
-        let Ok((
-            Autopilot {
-                action: AutopilotAction::Goto { target },
-                ..
-            },
-            prediction,
-        )) = q_autopilot.get(player)
-        else {
-            return None;
+    let flight = contacts.player_frame().and_then(|(player, from, _)| {
+        let (autopilot, prediction, waypoint) = q_autopilot.get(player).ok()?;
+        let to = match autopilot.action {
+            AutopilotAction::Goto { target } => {
+                contacts
+                    .collect()
+                    .into_iter()
+                    .find(|contact| contact.entity == target)?
+                    .world_pos
+            }
+            AutopilotAction::GotoPos { position } => position,
+            _ => return None,
         };
-        let to = contacts
-            .collect()
-            .into_iter()
-            .find(|contact| contact.entity == *target)?
-            .world_pos;
-        Some((from, to, prediction))
+        Some((from, to, prediction, waypoint))
     });
+
+    // The chart view draws in its own frame, where the route has no place:
+    // its tag sits on the row of the label of the waypoint's mark, a label
+    // the chart stacked this frame, past its right edge. Above the label it
+    // ran into the cell coordinate at the tile corner.
+    if runtime.chart {
+        for (_, _, mut line_vis) in &mut q_line {
+            line_vis.set_if_neq(Visibility::Hidden);
+        }
+        let tagged = flight
+            .and_then(|(.., waypoint)| waypoint)
+            .map(|waypoint| waypoint_chart_mark(&waypoint.target))
+            .and_then(|mark| {
+                q_chart_label.iter().find(|(label, .., visibility)| {
+                    label.mark.as_ref() == Some(&mark) && **visibility != Visibility::Hidden
+                })
+            });
+        match tagged.and_then(|(_, node, laid_out, _)| match (node.left, node.top) {
+            (Val::Px(left), Val::Px(top)) => Some((
+                left + laid_out.size().x * laid_out.inverse_scale_factor() + metrics::GAP_S,
+                top,
+            )),
+            _ => None,
+        }) {
+            Some((left, top)) => {
+                let (left, top) = (Val::Px(left), Val::Px(top));
+                if marker.left != left || marker.top != top {
+                    marker.left = left;
+                    marker.top = top;
+                }
+                marker_vis.set_if_neq(Visibility::Inherited);
+            }
+            None => {
+                marker_vis.set_if_neq(Visibility::Hidden);
+            }
+        }
+        return;
+    }
+    let goto = flight.map(|(from, to, prediction, _)| (from, to, prediction));
     // The same stale-target rule as the blips: the route must meet them.
     let stale_camera = camera.physical_target_size() != Some(computed.size().round().as_uvec2());
     if goto.is_some() && stale_camera {
@@ -703,8 +867,8 @@ pub(crate) fn project_map_route(
     };
 
     // The tag sits on the target tile's top edge, so it never covers the tile
-    // or the code label beside it. It follows the target even when the route
-    // misses the viewport.
+    // or the code label beside it, and on a `GotoPos` mark where the leg
+    // rests. It follows the target even when the route misses the viewport.
     match goto.and_then(|(_, to, _)| project(to)) {
         Some(to) => {
             let (left, top) = (
@@ -855,6 +1019,7 @@ fn spawn_map_route(commands: &mut Commands, viewport: Entity) {
     }
     commands.spawn((
         MapGotoMarker,
+        Name::new("MapGotoTag"),
         Node {
             position_type: PositionType::Absolute,
             height: Val::Px(MAP_GOTO_MARKER_PX),
@@ -998,6 +1163,15 @@ pub(crate) fn on_map_cancel_button(_activate: On<Activate>, mut runtime: ResMut<
     runtime.cancel_requested = true;
 }
 
+/// Where the player's GOTO flies: a contact, or a waypoint's mark.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum GotoLegType {
+    /// A `Goto` of the contact.
+    Contact(Entity),
+    /// A waypoint's `GotoPos` at the mark.
+    Mark(Vec3),
+}
+
 /// Fill the contact panel from the selection: the player's live GOTO
 /// destination in the contact view, GOTO ready on a contact other than the
 /// own ship and hidden on the docked partner, Cancel ready while a GOTO
@@ -1015,10 +1189,10 @@ pub(crate) fn update_map_panel(
     runtime: Res<MapRuntime>,
     icons: Res<InterfaceIcons>,
     contacts: MapContacts,
-    chart: Res<Chart>,
+    (chart, edge): (Res<Chart>, Option<Res<ChartSectorEdge>>),
     (jobs, encounters): (Res<Jobs>, Res<Encounters>),
     items: Option<Res<GameItems>>,
-    q_autopilot: Query<&Autopilot>,
+    (q_autopilot, q_waypoint): (Query<&Autopilot>, Query<&Waypoint>),
     q_docked: Query<&DockedShip>,
     q_connections: Query<&DockingConnection>,
     mut q_field: Query<
@@ -1058,28 +1232,56 @@ pub(crate) fn update_map_panel(
     let selected = runtime
         .selected
         .and_then(|sel| list.iter().find(|c| c.entity == sel));
-    let goto_target =
-        contacts
-            .player_frame()
-            .and_then(|(player, _, _)| match q_autopilot.get(player) {
-                Ok(Autopilot {
-                    action: AutopilotAction::Goto { target },
-                    ..
-                }) => Some(*target),
-                _ => None,
-            });
+    let player = contacts.player_frame();
+    let waypoint = player.and_then(|(player, _, _)| q_waypoint.get(player).ok());
+    // The player's GOTO: a `Goto` of a contact, or a waypoint's `GotoPos`
+    // at its mark. A `GotoPos` no waypoint names is a scenario's order, not
+    // a GOTO the panel ends.
+    let goto_target = player.and_then(|(player, _, _)| match q_autopilot.get(player) {
+        Ok(Autopilot {
+            action: AutopilotAction::Goto { target },
+            ..
+        }) => Some(GotoLegType::Contact(*target)),
+        Ok(Autopilot {
+            action: AutopilotAction::GotoPos { position },
+            ..
+        }) if waypoint.is_some() => Some(GotoLegType::Mark(*position)),
+        _ => None,
+    });
     // A GOTO whose target left the map still reads as set, so CANCEL under it
     // has something to end: docked without the helm the autopilot is held,
-    // and nothing notices a lost target until the undock.
-    let destination = match goto_target {
-        Some(target) => match list.iter().find(|c| c.entity == target) {
-            Some(contact) => (
-                format!("GOTO {}  {}", contact.code, contact.range_text()),
-                UiColorType::Accent,
-            ),
-            None => ("GOTO LOST".to_string(), UiColorType::Accent),
-        },
-        None => (String::new(), UiColorType::TextMuted),
+    // and nothing notices a lost target until the undock. A waypoint reads
+    // its chart code in either view, and the range to where the leg flies.
+    let destination = match (goto_target, waypoint) {
+        (Some(leg), Some(waypoint)) => {
+            let to = match leg {
+                GotoLegType::Contact(target) => list
+                    .iter()
+                    .find(|c| c.entity == target)
+                    .map(|contact| contact.world_pos),
+                GotoLegType::Mark(position) => Some(position),
+            };
+            match (waypoint.target.chart_code(&chart), to, player) {
+                (Some(code), Some(to), Some((_, from, _))) => (
+                    format!(
+                        "GOTO {code}  {}",
+                        nova_ui::units::distance(Meters::from_engine(from.distance(to)))
+                    ),
+                    UiColorType::Accent,
+                ),
+                _ => ("GOTO LOST".to_string(), UiColorType::Accent),
+            }
+        }
+        (Some(GotoLegType::Contact(target)), None) => {
+            match list.iter().find(|c| c.entity == target) {
+                Some(contact) => (
+                    format!("GOTO {}  {}", contact.code, contact.range_text()),
+                    UiColorType::Accent,
+                ),
+                None => ("GOTO LOST".to_string(), UiColorType::Accent),
+            }
+        }
+        _ => (String::new(), UiColorType::TextMuted),
     };
     let note = match &selected {
         Some(contact) => match &contact.marker {
@@ -1124,9 +1326,6 @@ pub(crate) fn update_map_panel(
     let mut slots_read = Vec::with_capacity(2);
     for (field, mut text, mut themed, mut node) in &mut q_field {
         let (value, color) = match (&selected, field) {
-            (_, MapPanelField::Destination) if runtime.chart => {
-                (String::new(), UiColorType::TextMuted)
-            }
             (_, MapPanelField::Destination) => destination.clone(),
             _ if runtime.chart => chart_panel_field(
                 &chart,
@@ -1229,7 +1428,23 @@ pub(crate) fn update_map_panel(
         .player_frame()
         .and_then(|(player, _, _)| q_docked.get(player).ok())
         .and_then(|docked| q_connections.get(docked.connection).ok());
+    // The chart flies to a station or a cell, and to nothing over a fixed
+    // scene; a wreck or a job has no GOTO, nor has the docked partner.
+    let chart_flies = runtime.chart
+        && edge.is_some()
+        && match &runtime.chart_selected {
+            Some(MapChartMarkType::Station(id)) => !list.iter().any(|contact| {
+                partner.is_some_and(|connection| connection.joins(contact.entity))
+                    && contacts
+                        .generated
+                        .get(contact.entity)
+                        .is_ok_and(|found| found == id)
+            }),
+            Some(MapChartMarkType::Cell(_)) => true,
+            _ => false,
+        };
     let goto_gate = match selected {
+        _ if chart_flies => VerbGate::Ready,
         _ if runtime.chart => VerbGate::Hidden,
         Some(contact) if partner.is_some_and(|connection| connection.joins(contact.entity)) => {
             VerbGate::Hidden
@@ -1237,7 +1452,11 @@ pub(crate) fn update_map_panel(
         Some(contact) if contact.kind != MapContactKind::OwnShip => VerbGate::Ready,
         _ => VerbGate::Disabled,
     };
-    let cancel_gate = if runtime.chart {
+    let cancel_gate = if runtime.chart
+        && !matches!(
+            runtime.chart_selected,
+            Some(MapChartMarkType::Station(_) | MapChartMarkType::Cell(_))
+        ) {
         VerbGate::Hidden
     } else if goto_target.is_some() {
         VerbGate::Ready

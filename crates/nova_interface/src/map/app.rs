@@ -45,8 +45,8 @@ pub(crate) enum MapPanelField {
     /// A marked contact's objective and the held jobs that send the player
     /// to it.
     Note,
-    /// The player ship's live GOTO destination, read from its autopilot, not
-    /// from the selection.
+    /// The player ship's live GOTO destination, read from its autopilot and
+    /// its waypoint, not from the selection. Shown in both views.
     Destination,
 }
 
@@ -78,14 +78,16 @@ pub(crate) struct MapPanelHeaderMarker;
 #[derive(Component)]
 pub(crate) struct MapPanelMarker;
 
-/// The contact panel's GOTO button. Its [`VerbGate`] hides it in the chart
-/// and on the docked partner, and disables it with no contact or the own
-/// ship selected; [`update_map_panel`](super::update_map_panel) writes it.
+/// The contact panel's GOTO button. Its [`VerbGate`] hides it on the docked
+/// partner and, in the chart, unless a station or a cell is selected, and
+/// disables it with no contact or the own ship selected;
+/// [`update_map_panel`](super::update_map_panel) writes it.
 #[derive(Component)]
 pub(crate) struct MapGotoButton;
 
 /// The contact panel's Cancel button. It is enabled while the player ship
-/// flies a GOTO, even if its target left the local map; hidden in the chart.
+/// flies a GOTO or a waypoint, even if its target left the local map; in the
+/// chart it is hidden unless a station or a cell is selected.
 /// [`update_map_panel`](super::update_map_panel) writes its [`VerbGate`].
 #[derive(Component)]
 pub(crate) struct MapCancelButton;
@@ -95,8 +97,9 @@ pub(crate) struct MapCancelButton;
 #[derive(Component)]
 pub(crate) struct MapRouteLine;
 
-/// The `GOTO` text tag over the live GOTO target, so the destination does not
-/// rely on colour alone. It takes no clicks.
+/// The `GOTO` text tag over the live GOTO target, or beside the waypoint's
+/// label in the chart, so the destination does not rely on colour alone. It
+/// takes no clicks.
 #[derive(Component)]
 pub(crate) struct MapGotoMarker;
 

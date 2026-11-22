@@ -417,7 +417,8 @@ pub enum AutopilotAction {
     /// this hull's own face - the same arrival rule as `Goto`, minus a target
     /// radius, because a mark has no size, and the same routing around sized
     /// bodies. The AI patrol loop and helm orders fly their waypoints with
-    /// this; the player input layer never engages it.
+    /// this, and a chart GOTO on the Map flies the mark of a target the
+    /// window does not hold.
     GotoPos {
         /// The destination, world coordinates.
         position: Vec3,

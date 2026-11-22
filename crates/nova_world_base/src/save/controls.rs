@@ -1,5 +1,6 @@
 //! The player's flight controls a save keeps: the autopilot order, the
-//! travel, combat and component locks and the dock. The RCS magazine is the
+//! chart GOTO's waypoint, the travel, combat and component locks and the
+//! dock. The RCS magazine is the
 //! player ship's own [`FrozenShip`](nova_scenario::prelude::FrozenShip)
 //! record, not a control.
 //!
@@ -25,8 +26,9 @@ use avian3d::prelude::{FixedJoint, JointFrame, RigidBody};
 use bevy::prelude::*;
 use nova_events::prelude::{EntityId, GeneratedBodyId};
 use nova_gameplay::prelude::{
-    CargoCanisterRuntimeId, PlayerSpaceshipMarker, SavedBodyRef, SavedTargetRef,
-    SectionInactiveMarker, SpaceshipRootMarker, StationMarker, UnsettledBody,
+    CargoCanisterRuntimeId, Chart, PlayerSpaceshipMarker, SavedBodyRef, SavedTargetRef,
+    SectionInactiveMarker, SpaceshipRootMarker, StationMarker, UnsettledBody, Waypoint,
+    WaypointTargetType,
 };
 use nova_scenario::prelude::echo_restored_dock;
 use nova_ship::prelude::{
@@ -48,6 +50,9 @@ use crate::NovaLayeredWorld;
 pub struct SavedControls {
     /// The engaged autopilot order; `None` flies by hand.
     pub autopilot: Option<SavedAutopilot>,
+    /// The chart GOTO the autopilot flies; `None` when the order is no chart
+    /// GOTO.
+    pub waypoint: Option<SavedWaypoint>,
     /// The travel lock; `None` designates nothing.
     pub travel_lock: Option<SavedLock>,
     /// The combat lock; `None` locks nothing.
@@ -58,6 +63,18 @@ pub struct SavedControls {
     pub component_lock: SavedComponentLock,
     /// The dock the player ship is in; `None` floats free.
     pub dock: Option<SavedDock>,
+}
+
+/// A saved [`Waypoint`]: the charted target and the mark its `GotoPos`
+/// flies, engine units. The autopilot flies `GotoPos` at the mark, or a
+/// `Goto` of the station after the hand-off.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SavedWaypoint {
+    /// The station or cell the chart GOTO names.
+    pub target: WaypointTargetType,
+    /// Where the leg flies before the hand-off.
+    pub mark: Vec3,
 }
 
 /// A saved lock slot: the target and, while the sensor pass holds it, the
@@ -178,6 +195,8 @@ pub(crate) struct SavedReferents<'a> {
     pub section: &'a dyn Fn(&str, &str) -> Option<bool>,
     /// How many transients the save keeps.
     pub transients: usize,
+    /// The saved chart, which every waypoint station is in.
+    pub chart: &'a Chart,
 }
 
 impl SavedControls {
@@ -191,6 +210,8 @@ impl SavedControls {
     /// one the generator mints, as a regenerated planet's is. A component
     /// lock on no combat-locked ship, a dock on a partner that is not a saved
     /// ship or station, or a station helm on a partner that is no station.
+    /// A waypoint whose station the chart lacks, whose mark is not finite,
+    /// or that the autopilot does not fly.
     pub(crate) fn validate(&self, player: &str, saved: &SavedReferents<'_>) -> Result<(), String> {
         let reading = |value: f32, what: &str| {
             if value.is_finite() && value >= 0.0 {
@@ -259,6 +280,12 @@ impl SavedControls {
                 }
             }
         }
+        if let Some(waypoint) = &self.waypoint {
+            waypoint.validate(
+                saved.chart,
+                self.autopilot.as_ref().map(|autopilot| &autopilot.action),
+            )?;
+        }
         if let Some(lock) = &self.travel_lock {
             target("the travel lock's", &lock.target)?;
         }
@@ -316,6 +343,43 @@ impl SavedControls {
     }
 }
 
+impl SavedWaypoint {
+    /// # Errors
+    ///
+    /// A station the chart lacks, a mark that is not finite, or an order
+    /// that is neither `GotoPos` at the mark nor, for a station, a `Goto` of
+    /// it.
+    fn validate(&self, chart: &Chart, action: Option<&SavedAutopilotAction>) -> Result<(), String> {
+        if let WaypointTargetType::Station(id) = &self.target {
+            if chart.station_code(id).is_none() {
+                return Err(format!("the waypoint's station '{id}' is not in the chart"));
+            }
+        }
+        if !self.mark.is_finite() {
+            return Err("the waypoint's mark is not finite".to_string());
+        }
+        if self.flown_by(action) {
+            Ok(())
+        } else {
+            Err("the autopilot does not fly the waypoint".to_string())
+        }
+    }
+
+    /// Whether `action` flies this waypoint.
+    fn flown_by(&self, action: Option<&SavedAutopilotAction>) -> bool {
+        match (action, &self.target) {
+            (Some(SavedAutopilotAction::GotoPos { position }), _) => *position == self.mark,
+            (
+                Some(SavedAutopilotAction::Goto {
+                    target: SavedTargetRef::Body(SavedBodyRef(goal)),
+                }),
+                WaypointTargetType::Station(id),
+            ) => goal.0 == id.to_string(),
+            _ => false,
+        }
+    }
+}
+
 /// The player ship's controls as they stand, frozen.
 ///
 /// `transients` maps each saved transient body to its index in the save's
@@ -325,8 +389,8 @@ impl SavedControls {
 ///
 /// [`SectorSnapshotError::NoDurableId`] for a live target with no durable
 /// key. [`SectorSnapshotError::Unsettled`] for a handle whose body is gone or
-/// is in a cell that is leaving the window: its owner clears it on a later
-/// frame.
+/// is in a cell that is leaving the window, or a waypoint the autopilot no
+/// longer flies: its owner clears it on a later frame.
 ///
 /// # Panics
 ///
@@ -436,6 +500,24 @@ pub(crate) fn freeze_controls(
             })
         })
         .transpose()?;
+    // The waypoint world pass drops a waypoint the order no longer flies.
+    let waypoint = root
+        .get::<Waypoint>()
+        .map(|waypoint| {
+            let saved = SavedWaypoint {
+                target: waypoint.target.clone(),
+                mark: waypoint.mark,
+            };
+            if saved.flown_by(autopilot.as_ref().map(|autopilot| &autopilot.action)) {
+                Ok(saved)
+            } else {
+                Err(unsettled(
+                    "the waypoint",
+                    "the autopilot no longer flies it",
+                ))
+            }
+        })
+        .transpose()?;
     let combat = root.get::<CombatLock>().and_then(|lock| lock.0);
     let travel_lock = root
         .get::<TravelLock>()
@@ -484,6 +566,7 @@ pub(crate) fn freeze_controls(
         .transpose()?;
     Ok(SavedControls {
         autopilot,
+        waypoint,
         travel_lock,
         combat_lock,
         focus_seconds,
@@ -836,7 +919,7 @@ fn restorable_dock(
 }
 
 /// Write the resolved controls onto the player ship: the dock, the
-/// autopilot, the locks with their floors and focus and the component lock.
+/// autopilot, the waypoint, the locks with their floors and focus and the component lock.
 /// `spawned` are the saved transients this frame spawned, in save order.
 ///
 /// # Panics
@@ -896,6 +979,12 @@ pub(crate) fn apply_controls(world: &mut World, resolved: ResolvedControls, spaw
             phase: saved.phase,
             flip_marker_consumed: saved.flip_marker_consumed,
             detour: None,
+        });
+    }
+    if let Some(waypoint) = &controls.waypoint {
+        root.insert(Waypoint {
+            target: waypoint.target.clone(),
+            mark: waypoint.mark,
         });
     }
     let mut contacts = root

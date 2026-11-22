@@ -82,6 +82,7 @@ pub mod test_support;
 pub mod trade_profile;
 pub mod transform;
 pub mod transient_light;
+pub mod waypoint;
 
 /// Test-only helper for asserting on log output: a shared in-memory sink
 /// installed as the thread's tracing subscriber. `EntityCommands::remove` and
@@ -142,8 +143,9 @@ pub mod prelude {
         relations::prelude::*, render_target::prelude::*, rescue::prelude::*,
         role_icon::prelude::*, rounds::prelude::*, saved_refs::prelude::*, settings::prelude::*,
         shake::prelude::*, soft_dot::prelude::*, station_visits::prelude::*,
-        trade_profile::prelude::*, transform::prelude::*, transient_light::prelude::*, EscapeOwner,
-        GameMode, GameStates, GuardedLeave, PauseStates, UnsavedWork,
+        trade_profile::prelude::*, transform::prelude::*, transient_light::prelude::*,
+        waypoint::prelude::*, EscapeOwner, GameMode, GameStates, GuardedLeave, PauseStates,
+        UnsavedWork,
     };
 }
 

@@ -64,6 +64,30 @@ table and the proof plan.
 4. Fail loudly: unknown station, no frozen record, station missing after
    its cell is placed, mark reached without a hand-off, non-finite mark.
 
+## Build findings (2026-11-22)
+The "not verified" points, answered from code and one live walk
+(`examples/playable/waypoint_goto_sandbox.rs`, seed 5, lavapipe):
+- A found station is live when the chart finds it: the sensor finds read
+  live contacts (`nova_world_base/src/chart.rs:110`), and the docked
+  station is charted on the dock (`chart.rs:156`). So it freezes as a
+  `Station` with its pose. A `PendingStation` record holds an identity
+  pose (`nova_world/src/frozen.rs:690-699`); `waypoint_mark` refuses it as
+  `NoFrozenRecord` (`nova_world_base/src/waypoint.rs:69`).
+- The starting station is not in the chart before the dock or a sensor
+  find. In the walk the chart holds it at Playing frame 5, the same frame
+  the dock lands.
+- An orbiting station thaws at its frozen transform and motion
+  (`frozen.rs:1011-1076`). The mark is where it was frozen; after the
+  hand-off the `Goto` tracks the live entity. Live: hand-off at 17 km.
+- The generator does not keep cell centres clear. `goal_outside` pushes a
+  buried goal out of a rock (`nova_ship/src/flight/navigation.rs:148`,
+  `:198`) and the leg arrives there. `report_buried_sector_mark`
+  (`waypoint.rs:248`) warns once per mark and body.
+- Stations are not autopilot obstacles (`nova_ship/src/flight/autopilot.rs:393`),
+  so a cell centre inside a station is not avoided. Not reproduced.
+- Chart marks draw at any cell distance; only visited cells have a cell
+  label, so a sector waypoint targets a visited cell only.
+
 ## Delivery
 1. Map the GOTO slice (map pane, autopilot, HUD indicators, sector loading)
    and propose the hint for an unloaded target: what it points at, how it

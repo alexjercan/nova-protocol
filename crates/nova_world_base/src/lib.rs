@@ -85,6 +85,7 @@ mod start;
 mod station_hulls;
 mod station_layout;
 mod station_visits;
+mod waypoint;
 
 #[cfg(all(not(target_arch = "wasm32"), any(test, feature = "test-support")))]
 pub mod test_support;
@@ -97,8 +98,8 @@ pub use crate::save::{
     write_world, FrozenTransient, FrozenTransientType, RegisteredScenarios, ResumedWorld,
     SaveReason, SavedAutopilot, SavedAutopilotAction, SavedChart, SavedChartCell, SavedChartMark,
     SavedChartMarkType, SavedComponentLock, SavedControls, SavedDock, SavedDockHelm, SavedFleet,
-    SavedLock, SavedObjective, SavedObjectiveLine, SavedObjectiveType, SavedPlayer, WorldFolder,
-    WorldListing, WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused,
+    SavedLock, SavedObjective, SavedObjectiveLine, SavedObjectiveType, SavedPlayer, SavedWaypoint,
+    WorldFolder, WorldListing, WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused,
     WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus, WORLD_RESUME_SECONDS_MAX,
     WORLD_SAVE_VERSION,
 };
@@ -135,6 +136,7 @@ pub use crate::{
         StationArchetypeType, StationLayout, StationLayoutConstraintType, StationLayoutFailure,
         StationLayoutRequest, CRAFT_ADVANCEMENT,
     },
+    waypoint::{waypoint_mark, WaypointFault, WaypointPlugin, WaypointSystems},
 };
 
 /// Glob-import surface: `use nova_world_base::prelude::*` brings the plugin,
@@ -148,8 +150,8 @@ pub mod prelude {
         generate_station, generate_wreck, generated_station, goal_progress, plan_ship,
         post_station_boards, record_merit, retire_dropped_job_bodies, role_style_id,
         sector_clusters, seeded_lawful, seeded_stance, settle, ship_stock, standing, start_preview,
-        start_session, starting_station, station_archetype, station_ceiling, Civilization,
-        CivilizationField, CivilizationReach, CivilizationStatusType, ClusterSummary,
+        start_session, starting_station, station_archetype, station_ceiling, waypoint_mark,
+        Civilization, CivilizationField, CivilizationReach, CivilizationStatusType, ClusterSummary,
         EncounterPlugin, EncounterSystems, Environment, EnvironmentFieldType, EnvironmentFields,
         FieldBodies, GoalFacts, HullLineageType, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin,
         NovaWorldBaseSystems, PlannedShip, PlayerHull, RescueStation, SectorClusters,
@@ -157,12 +159,13 @@ pub mod prelude {
         ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault,
         ShipPartPack, ShipPartSnapshot, ShipSpareDriveType, StanceStanding, StartPreview,
         StationArchetypeType, StationLayout, StationLayoutConstraintType, StationLayoutFailure,
-        StationLayoutRequest, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID,
-        CLEARANCE_MARGIN, CRAFT_ADVANCEMENT, FINE_CR, HAIL_CHIP, HAULER_CRUISE,
-        INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS, OPEN_WORLD_ACTIVE_RADIUS,
-        OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, OPEN_WORLD_SECTOR_EDGE,
-        PATROL_STYLE_ID, SALVAGE_STYLE_ID, SCRAP_STYLE_ID, SIGNAL_CHIP, STANCE_ALLY_SHARE,
-        STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS, START_PREVIEW_REACH, STATION_STYLE_ID,
+        StationLayoutRequest, WaypointFault, WaypointPlugin, WaypointSystems, ARMOURED_STYLE_ID,
+        BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, CRAFT_ADVANCEMENT,
+        FINE_CR, HAIL_CHIP, HAULER_CRUISE, INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS,
+        OPEN_WORLD_ACTIVE_RADIUS, OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID,
+        OPEN_WORLD_SECTOR_EDGE, PATROL_STYLE_ID, SALVAGE_STYLE_ID, SCRAP_STYLE_ID, SIGNAL_CHIP,
+        STANCE_ALLY_SHARE, STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS, START_PREVIEW_REACH,
+        STATION_STYLE_ID,
     };
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::{
@@ -171,9 +174,9 @@ pub mod prelude {
         SaveReason, SavedAutopilot, SavedAutopilotAction, SavedChart, SavedChartCell,
         SavedChartMark, SavedChartMarkType, SavedComponentLock, SavedControls, SavedDock,
         SavedDockHelm, SavedFleet, SavedLock, SavedObjective, SavedObjectiveLine,
-        SavedObjectiveType, SavedPlayer, WorldFolder, WorldListing, WorldLock, WorldRefusal,
-        WorldResumeProgress, WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState,
-        WorldSaveStatus, WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_VERSION,
+        SavedObjectiveType, SavedPlayer, SavedWaypoint, WorldFolder, WorldListing, WorldLock,
+        WorldRefusal, WorldResumeProgress, WorldResumeRefused, WorldSaveHeader, WorldSaveSession,
+        WorldSaveState, WorldSaveStatus, WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_VERSION,
     };
 }
 
@@ -256,6 +259,7 @@ impl Plugin for NovaWorldBasePlugin {
 
         app.add_plugins(NovaWorldPlugin::<NovaLayeredWorld>::default());
         app.add_plugins(EncounterPlugin);
+        app.add_plugins(WaypointPlugin);
         // After the boards and before the held jobs mark their bodies: the
         // `HAIL` chip is off a caller before its accepted job's chip goes on.
         app.configure_sets(

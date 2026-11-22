@@ -23,6 +23,16 @@
 //! `map_goto` on that target cancels the GOTO, on another contact retargets
 //! it, and the panel's CANCEL button ends it in either view.
 //!
+//! In the chart view `map_goto` or GOTO on a selected station or cell sets a
+//! chart GOTO: the player ship wears a
+//! [`Waypoint`](nova_gameplay::prelude::Waypoint) and flies `GotoPos` at its
+//! mark, the frozen pose of a station out of the window or the cell centre,
+//! or a `Goto` of a live station at once. A wreck or a job has no GOTO. A
+//! mark that does not resolve plays the deny cue and sets nothing. The
+//! chart tags the waypoint's label `GOTO` and draws no route; the local view
+//! draws the `GotoPos` prediction like a `Goto`'s, and the panel names the
+//! waypoint by its chart code in both views.
+//!
 //! `map_chart` or the Chart button swaps the local scene for the chart view
 //! while a streamed world runs: the player's [`Chart`] of visited cells,
 //! found stations and found wrecks at cell scale, and the player's held

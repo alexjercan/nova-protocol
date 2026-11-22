@@ -190,6 +190,15 @@ name = "sos_rescue_sandbox"
 path = "examples/playable/sos_rescue_sandbox.rs"
 required-features = ["debug"]
 
+# Chart GOTO by hand: New Game, then a disclosed jump four cells off the
+# starting station. GOTO its chart mark, follow the waypoint chip, and see
+# the leg hand over when the station streams in. Nothing ends it; under
+# NOVA_AUTOPILOT=1 the smoke walk checks the station and the cell GOTO.
+[[example]]
+name = "waypoint_goto_sandbox"
+path = "examples/playable/waypoint_goto_sandbox.rs"
+required-features = ["debug"]
+
 # Low-ammo warning by hand: a gunboat in a void with one PDC and 600 rounds
 # aboard. Hold fire down past LOW (400) and DRY (0). Nothing ends it; under
 # NOVA_AUTOPILOT a smoke walk fires the hold down, checks one LOW then one DRY

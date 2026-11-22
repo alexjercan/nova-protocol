@@ -525,6 +525,15 @@ mod tests {
         world.run_system_once(sync_trajectory_ribbon).unwrap();
         world.run_system_once(sync_trajectory_ribbon).unwrap();
         assert!(ribbon(&mut world).is_empty());
+        // Nor does a chart GOTO's `GotoPos` at a mark far out of the window.
+        world
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::GotoPos {
+                position: Vec3::new(0.0, 0.0, -12_840.0),
+            }));
+        world.run_system_once(sync_trajectory_ribbon).unwrap();
+        world.run_system_once(sync_trajectory_ribbon).unwrap();
+        assert!(ribbon(&mut world).is_empty());
 
         // The first prediction lands: the ribbon is that path alone.
         world

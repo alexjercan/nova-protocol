@@ -8,8 +8,9 @@
 //!
 //! [`Chart`] is a session resource. The open world crate feeds it while a
 //! world streams, a world save carries it, and a Load puts it back. The Map
-//! pane reads it for its chart view; it lives here because the interface
-//! cannot depend on the world crates. It holds no entity: every station and
+//! pane reads it for its chart view, and the HUD reads station codes from
+//! it for the waypoint chip; it lives here because the HUD cannot depend on
+//! the world crates. It holds no entity: every station and
 //! wreck is named by its [`GeneratedBodyId`], so the chart outlives the cell
 //! that held the body.
 

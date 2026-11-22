@@ -1483,7 +1483,8 @@ const MAP_KEY_HINTS: &[PaneKeyHint] = &[
         None,
         HintWhenType::MapContacts,
     ),
-    ("GOTO", &["map_goto"], None, HintWhenType::MapContacts),
+    // The chart flies a station or a cell mark; the button gates the mark.
+    ("GOTO", &["map_goto"], None, HintWhenType::Always),
     ("Chart", &["map_chart"], None, HintWhenType::Always),
 ];
 
@@ -1808,7 +1809,7 @@ pub(crate) fn show_pane_input_hints(
     // The open gallery holds the keys and names its own.
     let browsing = gallery.is_some_and(|gallery| gallery.open);
     let ship = ship.as_deref();
-    // The chart view selects by click and has nothing to fly to.
+    // The chart view selects by click.
     let contacts = map.as_ref().is_some_and(|map| !map.chart);
     let chart = map.is_some_and(|map| map.chart);
     let shown = |when: HintWhenType| {

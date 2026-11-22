@@ -104,6 +104,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** UiTheme drops `metrics.border_width`, the slider `height` and the badge `bracketed`, `padding_x` and `border_width`. Lint refuses a disabled button state that looks live.
 - While Ctrl is held, a translucent white lock-on square at the screen centre shows where the radar picks. It closes in on the press and breathes while held.
 - The GOTO line on the HUD and Map is the predicted flight to where the leg arrives, however long. Before, it ended 30 s out and a dim straight guide ran on to the target.
+- Map chart GOTO: fly to a charted station or sector outside your window. A nav chip shows its code and range, the leg hands over to the station when it streams in, and saves keep it.
 
 ### Audio & Visuals
 

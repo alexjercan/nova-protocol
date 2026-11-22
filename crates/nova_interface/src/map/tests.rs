@@ -3517,3 +3517,418 @@ fn a_ship_that_lands_after_minting_never_labels_its_blip_with_its_name() {
     assert_eq!(contact.code, "NEU-1");
     assert_eq!(contact.name, WRECK, "the panel still reads its name");
 }
+
+const CHART_EDGE: ChartSectorEdge = ChartSectorEdge(nova_events::prelude::Meters(32_000.0));
+
+fn chart_station_id() -> GeneratedBodyId {
+    GeneratedBodyId::new(SectorCoord::new(4, 0, -1), "cluster_4_0_n1_station", 0)
+}
+
+/// A ledger whose station record for `id` froze at `at`, frozen by the
+/// production path and carried through the record's RON form: no ledger
+/// body has a public constructor outside `nova_world`.
+fn frozen_station_ledger(id: &GeneratedBodyId, at: Vec3) -> nova_world::prelude::FrozenSectors {
+    use nova_scenario::prelude::{freeze_station, spaceship_scenario_object, SpaceshipConfig};
+    let mut world = World::new();
+    let station = world
+        .spawn((
+            spaceship_scenario_object(SpaceshipConfig::default()),
+            ShipInventory::new(&nova_gameplay::test_support::test_items(), 10_000, []),
+            DamageMarks::default(),
+            RcsBudget::default(),
+            StationMarker,
+            StationPost::Fixed {
+                position: Vec3::ZERO,
+            },
+            StationServices(Vec::new()),
+            StationBuilds(Vec::new()),
+            StationAdvancement(0.0),
+            StationPdcReserve::full(),
+            StationStorage::new(0),
+        ))
+        .id();
+    let body = nova_world::prelude::FrozenBodyType::Station(
+        Box::new(freeze_station(&world, station).expect("a bare station is settled")),
+        Vec::new(),
+    );
+    ron::from_str(&format!(
+        "{{{}: Visited([(id: Some({}), name: None, transform: {}, visibility: None, \
+         motion: None, body: {}, frozen_at: 0.0)])}}",
+        ron::to_string(&id.origin).unwrap(),
+        ron::to_string(&id.to_string()).unwrap(),
+        ron::to_string(&Transform::from_translation(at)).unwrap(),
+        ron::to_string(&body).unwrap(),
+    ))
+    .unwrap()
+}
+
+/// In the chart view GOTO on a cell flies `GotoPos` at its centre, on a
+/// station out of the window flies the pose its record froze at, and on a
+/// live station flies a `Goto` of it with the travel lock at once; the ship
+/// wears the waypoint each time. GOTO again on the flown mark, or CANCEL,
+/// ends it. A wreck, a job, an uncharted station, a charted station with no
+/// record, the docked partner and a world with no cell edge each play the
+/// deny cue and set nothing.
+#[test]
+fn a_chart_goto_flies_the_mark_of_a_station_or_cell_and_refuses_the_rest() {
+    let mut app = map_input_app();
+    app.insert_resource(CHART_EDGE);
+    app.init_resource::<nova_world::prelude::FrozenSectors>();
+    let player = app
+        .world_mut()
+        .query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
+        .single(app.world())
+        .unwrap();
+    {
+        let mut runtime = app.world_mut().resource_mut::<MapRuntime>();
+        runtime.active = true;
+        runtime.chart = true;
+    }
+    let select = |app: &mut App, mark: MapChartMarkType| {
+        app.world_mut().resource_mut::<MapRuntime>().chart_selected = Some(mark);
+    };
+    let press = |app: &mut App| {
+        app.update();
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        keys.release(KeyCode::KeyG);
+        keys.press(KeyCode::KeyG);
+        app.world_mut().run_system_once(map_input).unwrap();
+    };
+    let take_cue = |app: &mut App| {
+        std::mem::take(&mut app.world_mut().resource_mut::<MapRuntime>().cue).pending()
+    };
+    let flying = |app: &App| {
+        (
+            app.world().get::<Waypoint>(player).cloned(),
+            app.world().get::<Autopilot>(player).map(|a| a.action),
+        )
+    };
+    let refused = |app: &mut App, case: &str| {
+        assert_eq!(take_cue(app), Some(ActionOutcomeType::Refused), "{case}");
+        assert_eq!(flying(app), (None, None), "{case}: nothing set");
+    };
+
+    // A cell: its centre.
+    let cell = SectorCoord::new(-3, 0, 2);
+    let centre = cell.centre(CHART_EDGE.0).to_engine();
+    select(&mut app, MapChartMarkType::Cell(cell));
+    press(&mut app);
+    assert_eq!(take_cue(&mut app), None);
+    assert_eq!(
+        flying(&app),
+        (
+            Some(Waypoint {
+                target: WaypointTargetType::Sector(cell),
+                mark: centre,
+            }),
+            Some(AutopilotAction::GotoPos { position: centre })
+        )
+    );
+    // GOTO again on the flown mark ends it.
+    press(&mut app);
+    assert_eq!(flying(&app), (None, None), "the toggle ends the waypoint");
+
+    // Nothing to fly to.
+    let station = chart_station_id();
+    let wreck = GeneratedBodyId::new(SectorCoord::new(1, 0, 0), "cluster_1_0_0_wreck", 0);
+    select(&mut app, MapChartMarkType::Wreck(wreck.clone()));
+    press(&mut app);
+    refused(&mut app, "a wreck");
+    select(
+        &mut app,
+        MapChartMarkType::Job(JobId {
+            poster: station.clone(),
+            source: JobSourceType::Slot {
+                slot: 0,
+                posting: 0,
+            },
+        }),
+    );
+    press(&mut app);
+    refused(&mut app, "a job");
+    select(&mut app, MapChartMarkType::Station(station.clone()));
+    press(&mut app);
+    refused(&mut app, "an uncharted station");
+    app.world_mut()
+        .resource_mut::<Chart>()
+        .find_station(&station, false, false, None, 0.0);
+    press(&mut app);
+    refused(&mut app, "a charted station with no frozen record");
+
+    // Frozen out of the window: where it froze.
+    let pose = Vec3::new(12_000.0, -30.0, -9_000.0);
+    app.insert_resource(frozen_station_ledger(&station, pose));
+    press(&mut app);
+    assert_eq!(take_cue(&mut app), None);
+    assert_eq!(
+        flying(&app),
+        (
+            Some(Waypoint {
+                target: WaypointTargetType::Station(station.clone()),
+                mark: pose,
+            }),
+            Some(AutopilotAction::GotoPos { position: pose })
+        )
+    );
+    // CANCEL ends it from the chart.
+    app.world_mut()
+        .resource_mut::<MapRuntime>()
+        .cancel_requested = true;
+    app.world_mut().run_system_once(map_input).unwrap();
+    assert_eq!(flying(&app), (None, None), "CANCEL ends the waypoint");
+
+    // Live: a GOTO of the station with the lock on it.
+    let live_at = Vec3::new(0.0, 0.0, -400.0);
+    let live = app
+        .world_mut()
+        .spawn((
+            StationMarker,
+            station.clone(),
+            GlobalTransform::from_translation(live_at),
+        ))
+        .id();
+    press(&mut app);
+    assert_eq!(take_cue(&mut app), None);
+    assert_eq!(
+        flying(&app),
+        (
+            Some(Waypoint {
+                target: WaypointTargetType::Station(station.clone()),
+                mark: live_at,
+            }),
+            Some(AutopilotAction::Goto { target: live })
+        )
+    );
+    assert_eq!(
+        app.world().get::<TravelLock>(player),
+        Some(&TravelLock(Some(live)))
+    );
+    press(&mut app);
+    assert_eq!(flying(&app), (None, None), "the toggle ends the hand-off");
+    assert_eq!(
+        app.world().get::<TravelLock>(player),
+        Some(&TravelLock(None)),
+        "the lock named the cancelled station"
+    );
+
+    // Docked to it: the trip never closes.
+    let connection = app
+        .world_mut()
+        .spawn(DockingConnection {
+            first_ship: player,
+            first_section: Entity::PLACEHOLDER,
+            second_ship: live,
+            second_section: Entity::PLACEHOLDER,
+            helm: DockedHelmType::Neutral,
+            measurement_fault: false,
+        })
+        .id();
+    app.world_mut().entity_mut(player).insert(DockedShip {
+        connection,
+        helm: Quat::IDENTITY,
+        drives: false,
+    });
+    press(&mut app);
+    refused(&mut app, "the docked partner");
+
+    // A fixed scene has no cell edge.
+    app.world_mut().remove_resource::<ChartSectorEdge>();
+    select(&mut app, MapChartMarkType::Cell(cell));
+    press(&mut app);
+    refused(&mut app, "no cell edge");
+}
+
+/// The chart's GOTO and CANCEL show for a station or a cell and hide for a
+/// wreck, a job and nothing selected; a world with no cell edge offers no
+/// chart GOTO. The destination line names a waypoint by its chart code and
+/// the range to its mark, in the chart and the local view alike.
+#[test]
+fn chart_goto_gates_follow_the_mark_and_the_destination_reads_the_chart_code() {
+    let mut rig = pane_pointer_rig();
+    let app = &mut rig.app;
+    app.insert_resource(InterfaceIcons::blank());
+    app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
+    app.init_resource::<Encounters>();
+    app.insert_resource(CHART_EDGE);
+    app.add_systems(Update, update_map_panel);
+    let content = rig.content_root;
+    app.world_mut()
+        .commands()
+        .entity(content)
+        .with_children(|content| spawn_map_panel(content, &InterfaceIcons::blank()));
+    let player = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            GlobalTransform::default(),
+            Name::new("NOVA"),
+        ))
+        .id();
+    let station = chart_station_id();
+    app.world_mut()
+        .resource_mut::<Chart>()
+        .find_station(&station, false, false, None, 0.0);
+    {
+        let mut runtime = app.world_mut().resource_mut::<MapRuntime>();
+        runtime.active = true;
+        runtime.chart = true;
+    }
+    let gates = |app: &mut App, mark: Option<MapChartMarkType>| {
+        app.world_mut().resource_mut::<MapRuntime>().chart_selected = mark;
+        settle(app);
+        let world = app.world_mut();
+        let goto = world
+            .query_filtered::<&VerbGate, With<MapGotoButton>>()
+            .single(world)
+            .unwrap()
+            .clone();
+        let cancel = world
+            .query_filtered::<&VerbGate, With<MapCancelButton>>()
+            .single(world)
+            .unwrap()
+            .clone();
+        (goto, cancel)
+    };
+    let cell = MapChartMarkType::Cell(SectorCoord::new(4, 0, -1));
+    let wreck = MapChartMarkType::Wreck(GeneratedBodyId::new(
+        SectorCoord::new(1, 0, 0),
+        "cluster_1_0_0_wreck",
+        0,
+    ));
+    let job = MapChartMarkType::Job(JobId {
+        poster: station.clone(),
+        source: JobSourceType::Slot {
+            slot: 0,
+            posting: 0,
+        },
+    });
+    let station_mark = MapChartMarkType::Station(station.clone());
+    for mark in [station_mark.clone(), cell.clone()] {
+        assert_eq!(
+            gates(app, Some(mark.clone())),
+            (VerbGate::Ready, VerbGate::Disabled),
+            "{mark:?}"
+        );
+    }
+    for mark in [Some(wreck), Some(job), None] {
+        assert_eq!(
+            gates(app, mark.clone()),
+            (VerbGate::Hidden, VerbGate::Hidden),
+            "{mark:?}"
+        );
+    }
+    assert_eq!(panel_text(app.world_mut(), MapPanelField::Destination), "");
+
+    // Flying a waypoint: CANCEL ends it, and the line reads the chart code.
+    let mark = Vec3::new(0.0, 0.0, -12_840.0);
+    app.world_mut().entity_mut(player).insert((
+        Waypoint {
+            target: WaypointTargetType::Station(station.clone()),
+            mark,
+        },
+        Autopilot::engage(AutopilotAction::GotoPos { position: mark }),
+    ));
+    assert_eq!(
+        gates(app, Some(cell.clone())),
+        (VerbGate::Ready, VerbGate::Ready)
+    );
+    assert_eq!(
+        panel_text(app.world_mut(), MapPanelField::Destination),
+        "GOTO STN-1  128.40 km"
+    );
+    app.world_mut().resource_mut::<MapRuntime>().chart = false;
+    settle(app);
+    assert_eq!(
+        panel_text(app.world_mut(), MapPanelField::Destination),
+        "GOTO STN-1  128.40 km",
+        "the local view reads the same line"
+    );
+    let world = app.world_mut();
+    let cancel = world
+        .query_filtered::<&VerbGate, With<MapCancelButton>>()
+        .single(world)
+        .unwrap()
+        .clone();
+    assert_eq!(cancel, VerbGate::Ready);
+
+    // No cell edge: no chart GOTO.
+    app.world_mut().resource_mut::<MapRuntime>().chart = true;
+    app.world_mut().remove_resource::<ChartSectorEdge>();
+    assert_eq!(gates(app, Some(station_mark)).0, VerbGate::Hidden);
+}
+
+/// A waypoint's `GotoPos` draws no route until its prediction lands, then
+/// exactly the predicted path, and the local view tags the mark. The chart
+/// view draws no route at all and tags the waypoint's label beside it.
+#[test]
+fn a_waypoint_goto_draws_its_prediction_alone_and_the_chart_tags_its_label() {
+    let (mut app, player, _raider, viewport) = goto_route_app();
+    let mark = Vec3::new(10.0, 0.0, -40.0);
+    let station = chart_station_id();
+    app.world_mut().entity_mut(player).insert((
+        Waypoint {
+            target: WaypointTargetType::Station(station.clone()),
+            mark,
+        },
+        Autopilot::engage(AutopilotAction::GotoPos { position: mark }),
+    ));
+    lay_out_map(&mut app, viewport, UVec2::new(1600, 1200), true);
+    project_map_route_nodes(&mut app);
+    assert_eq!(route_strokes(&mut app), [], "no prediction, no route");
+    let at = map_px(&mut app, mark);
+    assert_eq!(
+        goto_tag(&mut app),
+        (tag_on(at), Visibility::Inherited),
+        "the tag marks the mark at once"
+    );
+
+    let points = vec![Vec3::ZERO, Vec3::new(5.0, 0.0, -20.0)];
+    predict(
+        &mut app,
+        player,
+        points.clone(),
+        FlightPredictionEndType::Completed,
+    );
+    project_map_route_nodes(&mut app);
+    let (blip, end) = (blip_centre(&app, player), map_px(&mut app, points[1]));
+    assert_strokes(&mut app, &[(blip, end, 0.8)]);
+
+    // The chart: no route, the tag on the label of the waypoint's mark.
+    let label = app
+        .world_mut()
+        .spawn((
+            MapChartLabel {
+                anchor: Vec3::ZERO,
+                mark: Some(MapChartMarkType::Station(station)),
+            },
+            Node {
+                left: Val::Px(300.0),
+                top: Val::Px(200.0),
+                ..default()
+            },
+            ComputedNode {
+                size: Vec2::new(80.0, 36.0),
+                inverse_scale_factor: 0.5,
+                ..ComputedNode::DEFAULT
+            },
+            Visibility::Inherited,
+        ))
+        .id();
+    app.world_mut().resource_mut::<MapRuntime>().chart = true;
+    project_map_route_nodes(&mut app);
+    assert_eq!(route_strokes(&mut app), [], "the chart draws no route");
+    assert_eq!(
+        goto_tag(&mut app),
+        (
+            Vec2::new(300.0 + 40.0 + metrics::GAP_S, 200.0),
+            Visibility::Inherited
+        ),
+        "the tag stands on the label's row, past its right edge"
+    );
+    app.world_mut().entity_mut(label).insert(Visibility::Hidden);
+    project_map_route_nodes(&mut app);
+    assert_eq!(goto_tag(&mut app).1, Visibility::Hidden, "no label, no tag");
+}

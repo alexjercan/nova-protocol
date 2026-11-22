@@ -85,7 +85,7 @@ mod transients;
 
 pub use controls::{
     SavedAutopilot, SavedAutopilotAction, SavedComponentLock, SavedControls, SavedDock,
-    SavedDockHelm, SavedLock,
+    SavedDockHelm, SavedLock, SavedWaypoint,
 };
 pub(crate) use session::{restore_resumed_world, save_systems};
 pub use session::{resume_world, ResumedWorld, SaveReason, WorldSaveSession, WorldSaveStatus};
@@ -763,6 +763,7 @@ fn check_saved_controls(state: &WorldSaveState) -> Result<(), String> {
             canister: &canister,
             section: &section,
             transients: state.transients.len(),
+            chart: &state.chart,
         },
     )
 }

@@ -596,12 +596,12 @@ pub(super) fn on_autopilot_goto_input(
     }
 
     let (entity, autopilot, travel, docked) = ship.into_inner();
-    // Already flying somewhere? G toggles the trip off. Disengage stays
-    // ungated, ahead of the docked gate too: a verb disabled mid-trip can never
-    // strand the ship in GOTO, and a GOTO the Map set while docked waits for
-    // the undock and is still cancelled here.
+    // Already flying somewhere? G toggles the trip off, a chart GOTO's mark
+    // too. Disengage stays ungated, ahead of the docked gate too: a verb
+    // disabled mid-trip can never strand the ship in GOTO, and a GOTO the Map
+    // set while docked waits for the undock and is still cancelled here.
     if let Some(Autopilot {
-        action: AutopilotAction::Goto { .. },
+        action: AutopilotAction::Goto { .. } | AutopilotAction::GotoPos { .. },
         ..
     }) = autopilot
     {
@@ -2233,6 +2233,24 @@ mod tests {
         assert!(
             app.world().get::<Autopilot>(ship).is_none(),
             "the docked gate still refuses a fresh GOTO without the helm"
+        );
+    }
+
+    /// A chart GOTO flies `GotoPos` at its mark. G toggles it off like a
+    /// `Goto`, and does not swap it for a `Goto` of the travel lock.
+    #[test]
+    fn g_cancels_a_chart_goto_flying_its_mark() {
+        let (mut app, ship, _lock, _pad) = chord_rig_app();
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::GotoPos {
+                position: Vec3::new(0.0, 0.0, -50_000.0),
+            }));
+
+        tap(&mut app, KeyCode::KeyG);
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "G cancels the mark's GotoPos"
         );
     }
 

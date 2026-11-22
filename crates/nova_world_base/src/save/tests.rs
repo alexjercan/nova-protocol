@@ -30,6 +30,7 @@ use nova_gameplay::prelude::{
     SavedOwner, SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
     SpaceshipRootMarker, StanceType, StationServiceType, StationSummary, StationVisits, TempEntity,
     TorpedoProjectileMarker, TradeProfileDesign, TraderMarket, TurretBulletProjectileMarker,
+    Waypoint, WaypointTargetType,
 };
 use nova_scenario::prelude::{
     freeze_asteroid, freeze_fleet, freeze_ore_drop, freeze_ship, freeze_station,
@@ -64,8 +65,9 @@ use super::{
     ResumedTransients, SavedAutopilot, SavedAutopilotAction, SavedChart, SavedChartCell,
     SavedChartMark, SavedChartMarkType, SavedComponentLock, SavedControls, SavedDock,
     SavedDockHelm, SavedFleet, SavedLock, SavedObjective, SavedObjectiveLine, SavedObjectiveType,
-    SavedPlayer, SavedScenario, WorldRefusal, WorldResumeProgress, WorldResumeRefused,
-    WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus, WORLD_SAVE_VERSION,
+    SavedPlayer, SavedScenario, SavedWaypoint, WorldRefusal, WorldResumeProgress,
+    WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus,
+    WORLD_SAVE_VERSION,
 };
 use crate::{
     test_support::{fixture_roles, FIXTURE_ROLE_ID, FIXTURE_SCENARIO_ID},
@@ -77,6 +79,7 @@ use crate::{
 fn free_flight() -> SavedControls {
     SavedControls {
         autopilot: None,
+        waypoint: None,
         travel_lock: None,
         combat_lock: None,
         focus_seconds: 0.0,
@@ -1212,6 +1215,186 @@ fn a_load_restores_a_stop_an_orbit_a_held_velocity_and_a_match() {
             })
         );
     }
+}
+
+/// A chart GOTO's waypoint comes back with its order: a cell's with the
+/// `GotoPos` at the cell centre, a station's after the hand-off with the
+/// `Goto` of the respawned station.
+#[test]
+fn a_load_restores_the_chart_goto_waypoint_with_its_order() {
+    let east = SectorCoord::new(1, 0, 0);
+    let station = GeneratedBodyId::new(east, "cluster_1_0_0_station", 0);
+    let station_key = station.to_string();
+    let orders: [(WaypointTargetType, fn(Entity) -> AutopilotAction); 2] = [
+        (
+            WaypointTargetType::Sector(SectorCoord::new(-3, 0, 2)),
+            |_| AutopilotAction::GotoPos {
+                position: Vec3::new(-9_600.0, 0.0, 6_400.0),
+            },
+        ),
+        (WaypointTargetType::Station(station.clone()), |target| {
+            AutopilotAction::Goto { target }
+        }),
+    ];
+    let mark = Vec3::new(-9_600.0, 0.0, 6_400.0);
+    for (target, order) in orders {
+        let root = tempfile::tempdir().unwrap();
+        let (mut world, player) = armed_session(root.path());
+        run_until_idle(&mut world);
+        world
+            .resource_mut::<Chart>()
+            .find_station(&station, false, false, None, 0.0);
+        world.insert_resource(ledger(&[(east, &[station_key.as_str()])]));
+        let live = spawn_target(&mut world, &station_key);
+        let waypoint = Waypoint {
+            target: target.clone(),
+            mark,
+        };
+        world.entity_mut(player).insert((
+            Autopilot {
+                action: order(live),
+                phase: AutopilotPhase::Burn,
+                flip_marker_consumed: false,
+                detour: None,
+            },
+            waypoint.clone(),
+        ));
+        let digest = leave_and_save(&mut world);
+        drop(world);
+
+        let mut world = load(root.path(), digest);
+        world.spawn(SectorRoot(SectorCoord::ORIGIN));
+        let live = spawn_target(&mut world, &station_key);
+        frame(&mut world);
+        let player = loaded_player(&mut world);
+        assert_eq!(
+            world
+                .get::<Autopilot>(player)
+                .map(|autopilot| autopilot.action),
+            Some(order(live)),
+            "{target:?}"
+        );
+        assert_eq!(world.get::<Waypoint>(player), Some(&waypoint), "{target:?}");
+    }
+}
+
+/// A save holds a waypoint the order no longer flies until the waypoint
+/// pass drops it, and a world whose waypoint names a station the chart
+/// lacks, a mark that is not finite, or a mark the order does not fly is
+/// refused on open.
+#[test]
+fn a_world_whose_waypoint_the_chart_or_the_order_does_not_hold_is_refused_on_open() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, player) = armed_session(root.path());
+    run_until_idle(&mut world);
+    world.entity_mut(player).insert((
+        Autopilot::engage(AutopilotAction::Stop),
+        Waypoint {
+            target: WaypointTargetType::Sector(SectorCoord::new(2, 0, 0)),
+            mark: Vec3::X,
+        },
+    ));
+    world.resource_mut::<WorldSaveSession>().request_leave();
+    for _ in 0..3 {
+        frame(&mut world);
+    }
+    assert!(
+        matches!(
+            world.resource::<WorldSaveSession>().status(),
+            WorldSaveStatus::Waiting(reason) if reason.contains("the waypoint")
+        ),
+        "a stale waypoint holds the save: {:?}",
+        world.resource::<WorldSaveSession>().status()
+    );
+    drop(world);
+
+    let (folder, lock) = create_world(root.path(), "Waypoint").unwrap();
+    drop(lock);
+    let cell = SectorCoord::new(-3, 0, 2);
+    let station = GeneratedBodyId::new(SectorCoord::new(1, 0, 0), "cluster_1_0_0_station", 0);
+    let goto_pos = |position: Vec3| {
+        Some(SavedAutopilot {
+            action: SavedAutopilotAction::GotoPos { position },
+            phase: AutopilotPhase::Align,
+            flip_marker_consumed: false,
+        })
+    };
+    let cases: [(SavedControls, String); 3] = [
+        (
+            SavedControls {
+                autopilot: goto_pos(Vec3::X),
+                waypoint: Some(SavedWaypoint {
+                    target: WaypointTargetType::Station(station.clone()),
+                    mark: Vec3::X,
+                }),
+                ..free_flight()
+            },
+            format!("the waypoint's station '{station}' is not in the chart"),
+        ),
+        (
+            SavedControls {
+                autopilot: goto_pos(Vec3::X),
+                waypoint: Some(SavedWaypoint {
+                    target: WaypointTargetType::Sector(cell),
+                    mark: Vec3::new(f32::NAN, 0.0, 0.0),
+                }),
+                ..free_flight()
+            },
+            "the waypoint's mark is not finite".to_string(),
+        ),
+        (
+            SavedControls {
+                autopilot: goto_pos(Vec3::Y),
+                waypoint: Some(SavedWaypoint {
+                    target: WaypointTargetType::Sector(cell),
+                    mark: Vec3::X,
+                }),
+                ..free_flight()
+            },
+            "the autopilot does not fly the waypoint".to_string(),
+        ),
+    ];
+    let open = || {
+        open_world(
+            root.path(),
+            "waypoint",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios(),
+            &designs(),
+            &profiles(),
+            &recipes(),
+            &GameConsumables::default(),
+            &GameEncounters::default(),
+        )
+        .map(|_| ())
+    };
+    for (generation, (controls, expected)) in (1..).zip(cases) {
+        let mut state = state(generation, 750);
+        state.player.controls = controls;
+        write_world(&folder, &header("Waypoint", generation), &state).unwrap();
+        assert_eq!(
+            open(),
+            Err(WorldRefusal::Unreadable(format!(
+                "state.{generation}.ron: {expected}"
+            ))),
+            "case at generation {generation}"
+        );
+    }
+
+    let generation = 4;
+    let mut state = state(generation, 750);
+    state.player.controls = SavedControls {
+        autopilot: goto_pos(Vec3::X),
+        waypoint: Some(SavedWaypoint {
+            target: WaypointTargetType::Sector(cell),
+            mark: Vec3::X,
+        }),
+        ..free_flight()
+    };
+    write_world(&folder, &header("Waypoint", generation), &state).unwrap();
+    assert_eq!(open(), Ok(()));
 }
 
 /// A GOTO or lock on a live body with no durable key fails the save
