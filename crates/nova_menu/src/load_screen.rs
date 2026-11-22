@@ -9,8 +9,9 @@
 //! The list reads only each world's header. Each world whose header reads is
 //! then checked whole off the main thread with [`check_world`]: its state
 //! file is read and every item it holds is looked up in the loaded catalog.
-//! Until that check ends the row shows "Checking saved state" and Load is
-//! greyed; a refused check replaces the row's header with the refusal. Load
+//! Until that check ends the row shows `CHECKING` and Load is greyed; a
+//! refused check marks the row `INVALID` and the details tag the refusal's
+//! kind, with the full reason in the log. Load
 //! checks again as it opens the world, off the main thread as well
 //! ([`WorldOpen`]); the world resumes on the frame the open lands.
 
@@ -34,13 +35,14 @@ use nova_gameplay::prelude::*;
 use nova_hud::prelude::{ChartSceneCell, ChartSceneMark, ChartSceneMarkType, ChartSceneView};
 use nova_interface::prelude::{icon_node, InterfaceIcons};
 use nova_scenario::prelude::{GameScenarios, GameShipDesigns, GameStartRoles};
+use nova_sound::prelude::*;
 use nova_ui::{
     screen::{scroll_bar, scroll_column, scroll_row, scroll_viewport, EllipsisText},
     theme,
     theme::UiColorType,
     widget::{
         button, button_stack, divider, group_stack, list_row,
-        metrics::{CONTROL_H, GAP, GAP_L, GAP_S},
+        metrics::{CONTROL_H, GAP_L, GAP_S},
         tag, ButtonCueType, ButtonSpec, ButtonVariant, Selected, ThemedBorder, ThemedRadius,
         ThemedText, UiText,
     },
@@ -125,13 +127,6 @@ pub(crate) enum WorldDeleteStep {
     Idle,
     /// Asking to confirm deleting this slug.
     Confirm(String),
-    /// A delete refused for this slug, with the reason.
-    Refused {
-        /// The slug asked about.
-        slug: String,
-        /// Why the delete refused.
-        reason: String,
-    },
 }
 
 /// The scrollable container holding the world rows; `refresh_load_list` swaps
@@ -347,6 +342,8 @@ pub(crate) fn on_delete_world_cancel(_activate: On<Activate>, mut step: ResMut<W
 /// truthfully instead of the stale list.
 pub(crate) fn on_delete_world_confirm(
     _activate: On<Activate>,
+    mut commands: Commands,
+    bank: Option<Res<SoundBank<UiSfx>>>,
     root: Res<WorldsRoot>,
     packs: Res<LoadedSectionPacks>,
     roles: Res<GameStartRoles>,
@@ -380,13 +377,16 @@ pub(crate) fn on_delete_world_confirm(
         &crafting.encounters,
         &mut checks,
     );
-    *step = match result {
-        Ok(()) => WorldDeleteStep::Idle,
-        Err(refusal) => WorldDeleteStep::Refused {
-            slug,
-            reason: refusal.to_string(),
-        },
-    };
+    // A refused delete leaves the row standing; the deny cue is the answer
+    // and the reason goes to the log.
+    match result {
+        Ok(()) => play_menu_select(&mut commands, bank.as_deref()),
+        Err(refusal) => {
+            warn!("delete of world `{slug}` refused: {refusal}");
+            play_menu_deny(&mut commands, bank.as_deref());
+        }
+    }
+    *step = WorldDeleteStep::Idle;
 }
 
 /// Open the world `slug` under `root` off the main thread, checked again as
@@ -549,18 +549,31 @@ pub(crate) fn spawn_primary_actions(
     slot.spawn(new_game_button(latest.is_none()));
 }
 
+/// The main menu's Load button, dead while no world is listed.
+#[derive(Component)]
+pub(crate) struct LoadMenuButton;
+
 /// Redraw [`ContinueSlot`] from [`WorldListings`]. A refused root draws no
-/// Continue, only New Game.
+/// Continue, only New Game. The menu's Load button dies with the last world,
+/// so a delete on the Load screen leaves no live way back to an empty list.
 pub(crate) fn refresh_continue(
     mut commands: Commands,
     listings: Res<WorldListings>,
     slots: Query<Entity, With<ContinueSlot>>,
+    loads: Query<Entity, With<LoadMenuButton>>,
 ) {
+    let rows = listings.0.as_deref().unwrap_or_default();
+    for load in &loads {
+        if rows.is_empty() {
+            commands.entity(load).insert(InteractionDisabled);
+        } else {
+            commands.entity(load).remove::<InteractionDisabled>();
+        }
+    }
     let Ok(slot) = slots.single() else {
         return;
     };
     commands.entity(slot).despawn_related::<Children>();
-    let rows = listings.0.as_deref().unwrap_or_default();
     let now = now_unix();
     commands
         .entity(slot)
@@ -759,28 +772,21 @@ pub(crate) fn refresh_load_list(
     };
     commands.entity(list).despawn_related::<Children>();
 
-    if root.0.is_none() {
-        selected.0 = None;
-        spawn_load_note(
-            &mut commands,
-            list,
-            "This system has no folder for saved worlds",
-        );
-        return;
-    }
-    let rows = match &listings.0 {
-        Ok(rows) => rows,
-        Err(refusal) => {
+    // No folder, a refused one or an empty one lists nothing. The menu's
+    // Load is dead in all three, so this is only reached by deleting the
+    // last world: the empty list is the whole statement.
+    let rows = match (&root.0, &listings.0) {
+        (Some(_), Ok(rows)) if !rows.is_empty() => rows,
+        (_, Err(refusal)) => {
+            warn!("the worlds folder was refused: {refusal}");
             selected.0 = None;
-            spawn_load_note(&mut commands, list, &refusal.to_string());
+            return;
+        }
+        _ => {
+            selected.0 = None;
             return;
         }
     };
-    if rows.is_empty() {
-        selected.0 = None;
-        spawn_load_note(&mut commands, list, "No saved worlds yet");
-        return;
-    }
 
     if !selected
         .0
@@ -895,29 +901,6 @@ fn open_count_text(header: &WorldSaveHeader) -> String {
     }
 }
 
-/// One explanatory line in place of the row list: no root, a refused root, or
-/// an empty one. The only text the screen shows in that state: the details
-/// pane stays empty rather than explaining the empty list a second time.
-fn spawn_load_note(commands: &mut Commands, list: Entity, text: &str) {
-    commands.entity(list).with_children(|list| {
-        list.spawn((
-            Name::new("Load Worlds Note"),
-            UiText,
-            Text::new(text.to_string()),
-            TextFont {
-                font_size: FontSize::Px(13.0),
-                ..default()
-            },
-            TextColor(Color::NONE),
-            ThemedText::new(UiColorType::TextMuted),
-            Node {
-                padding: UiRect::axes(px(LIST_ROW_INSET_X), px(GAP)),
-                ..default()
-            },
-        ));
-    });
-}
-
 /// Every world row's height. Fixed, so a row never grows with its state:
 /// the name sits over one status line, and the state reads as a badge in a
 /// fixed trailing slot.
@@ -926,14 +909,10 @@ const ROW_H: f32 = 58.0;
 /// The trailing badge slot width, sized for the longest badge (`CHECKING`).
 const ROW_BADGE_SLOT_W: f32 = 84.0;
 
-/// The status line of a row whose header or check refused. The reason itself
-/// is one line in the details pane, not in the row.
-const ROW_INVALID_TEXT: &str = "Cannot load";
-
 /// Spawn one clickable world row at [`ROW_H`]: the start role's icon, then
 /// the world's name (or slug,
-/// when the header did not read) over one status line - the start role's name
-/// when the header read, [`ROW_INVALID_TEXT`] when it refused - then, when
+/// when the header did not read) over the start role's name when the header
+/// read - a refused row has no second line, its badge says it - then, when
 /// the header read, its play time, how long ago it was saved and how many
 /// objectives it holds open, and a trailing badge: `CHECKING` while the
 /// state check runs, `INVALID` when it refused.
@@ -958,9 +937,9 @@ fn spawn_load_row(
         .ok()
         .and_then(|header| roles.get_role(&header.role));
     let status = match (&listing.header, role) {
-        (Ok(_), Some(role)) => role.name.clone(),
-        (Ok(header), None) => header.role.to_string(),
-        (Err(_), _) => ROW_INVALID_TEXT.to_string(),
+        (Ok(_), Some(role)) => Some(role.name.clone()),
+        (Ok(header), None) => Some(header.role.to_string()),
+        (Err(_), _) => None,
     };
     let mut row = list.spawn((
         Name::new(format!("Load World Row: {}", listing.folder.slug)),
@@ -1025,7 +1004,9 @@ fn spawn_load_row(
                 TextColor(Color::NONE),
                 ThemedText::new(UiColorType::TextBody),
             ));
-            info.spawn(row_line("Load World Row Status", status));
+            if let Some(status) = status {
+                info.spawn(row_line("Load World Row Status", status));
+            }
         });
         if let Ok(header) = &listing.header {
             row.spawn(row_cell(
@@ -1218,8 +1199,7 @@ fn row_line(name: &'static str, text: String) -> impl Bundle {
     )
 }
 
-/// A one-line note in the details pane at `color`: the refusal of a world,
-/// the reason a delete refused, or the delete prompt.
+/// A one-line note in the details pane at `color`.
 fn details_note(name: &'static str, text: String, color: UiColorType) -> impl Bundle {
     (
         Name::new(name),
@@ -1257,15 +1237,14 @@ pub(crate) fn utc_stamp(unix: u64) -> String {
 }
 
 /// Rebuild the world details pane from the selected world. A scrolling body
-/// holds the reason a delete refused, the world's name and a rule, then the
-/// save's chart preview, one labelled line each for the seed, sector,
-/// credits, play time, saved time and game version, the FLEET block (the hull
-/// flown, then the owned ships, escorts and owned stations the save holds)
-/// and the open objectives, or the one-line refusal. Below the body sit a
-/// button row with Load, greyed on a refusal or while the world is checked,
-/// and Delete; while a delete is asked, Load stays and the delete prompt and
-/// its confirm row replace Delete. With no world selected the pane stays
-/// empty: the list already says why.
+/// holds the world's name and a rule, then the save's chart preview, one
+/// labelled line each for the seed, sector, credits, play time, saved time
+/// and game version, the FLEET block (the hull flown, then the owned ships,
+/// escorts and owned stations the save holds) and the open objectives, or
+/// the refusal's kind as a tag. Below the body sit a button row with Load,
+/// greyed on a refusal or while the world is checked, and Delete; while a
+/// delete is asked, Cancel takes Delete's box and a danger Confirm stands
+/// beside it. With no world selected the pane stays empty.
 pub(crate) fn refresh_load_details(
     mut commands: Commands,
     listings: Res<WorldListings>,
@@ -1338,13 +1317,6 @@ pub(crate) fn refresh_load_details(
         };
         let mut body_commands = details.commands();
         let mut body = body_commands.entity(body);
-        if let WorldDeleteStep::Refused { slug, reason } = &*step {
-            body.with_child(details_note(
-                "Load World Delete Refusal",
-                format!("Cannot delete {slug}: {reason}"),
-                UiColorType::Accent,
-            ));
-        }
 
         let Some(listing) = listing else {
             return;
@@ -1387,11 +1359,6 @@ pub(crate) fn refresh_load_details(
                                 ),
                                 ThemedBorder::new(UiColorType::TextMuted),
                                 ThemedRadius::control(),
-                            ));
-                            group.spawn(details_note(
-                                "Load World Details Preview Hint",
-                                "Right-drag turns, wheel zooms.".to_string(),
-                                UiColorType::TextMuted,
                             ));
                         });
                     let now = now_unix();
@@ -1488,11 +1455,12 @@ pub(crate) fn refresh_load_details(
                             }
                         });
                 }
+                // The kind of refusal as a tag; the full reason is in the log.
                 Err(refusal) => {
-                    body.spawn(details_note(
-                        "Load World Details Refusal",
-                        refusal.to_string(),
-                        UiColorType::Accent,
+                    debug!("world `{}` cannot load: {refusal}", listing.folder.slug);
+                    body.spawn((
+                        Name::new("Load World Details Refusal"),
+                        tag(refusal_tag(refusal), UiColorType::Accent),
                     ));
                 }
             }
@@ -1518,6 +1486,9 @@ pub(crate) fn refresh_load_details(
                             load.insert(InteractionDisabled);
                         }
                     });
+                // Armed, Cancel takes the box Delete had, so the second press
+                // of a double click lands on it, and the danger Confirm stands
+                // beside it: the shape of Reset Defaults and Uninstall.
                 if !confirming {
                     actions
                         .spawn(fitted_button_slot(
@@ -1531,49 +1502,54 @@ pub(crate) fn refresh_load_details(
                                 observe(on_delete_world),
                             ));
                         });
+                    return;
                 }
+                actions
+                    .spawn(fitted_button_slot(
+                        "Load World Delete Cancel Button Slot",
+                        SIDE_SLOT_W,
+                    ))
+                    .with_children(|slot| {
+                        slot.spawn((
+                            Name::new("Load World Delete Cancel Button"),
+                            button(ButtonSpec::control("Cancel").fill()),
+                            ButtonCueType::Back,
+                            observe(on_delete_world_cancel),
+                        ));
+                    });
+                actions
+                    .spawn(fitted_button_slot(
+                        "Load World Delete Confirm Button Slot",
+                        SIDE_SLOT_W,
+                    ))
+                    .with_children(|slot| {
+                        slot.spawn((
+                            Name::new("Load World Delete Confirm Button"),
+                            danger_button("Confirm"),
+                            ButtonCueType::Owned,
+                            observe(on_delete_world_confirm),
+                        ));
+                    });
             });
-
-        if confirming {
-            details.spawn(details_note(
-                "Load World Delete Prompt",
-                format!("Delete {title}? This removes its save files and cannot be undone."),
-                UiColorType::TextBody,
-            ));
-            details
-                .spawn((
-                    Name::new("Load World Delete Confirm Actions"),
-                    fitted_action_row(),
-                ))
-                .with_children(|actions| {
-                    actions
-                        .spawn(fitted_button_slot(
-                            "Load World Delete Confirm Button Slot",
-                            SIDE_SLOT_W,
-                        ))
-                        .with_children(|slot| {
-                            slot.spawn((
-                                Name::new("Load World Delete Confirm Button"),
-                                danger_button("Delete world"),
-                                observe(on_delete_world_confirm),
-                            ));
-                        });
-                    actions
-                        .spawn(fitted_button_slot(
-                            "Load World Delete Cancel Button Slot",
-                            SIDE_SLOT_W,
-                        ))
-                        .with_children(|slot| {
-                            slot.spawn((
-                                Name::new("Load World Delete Cancel Button"),
-                                button(ButtonSpec::control("Cancel").fill()),
-                                ButtonCueType::Back,
-                                observe(on_delete_world_cancel),
-                            ));
-                        });
-                });
-        }
     });
+}
+
+/// The tag word a refused world shows in the details pane, one per kind of
+/// [`WorldRefusal`].
+fn refusal_tag(refusal: &WorldRefusal) -> &'static str {
+    match refusal {
+        WorldRefusal::Foreign(_) => "Foreign",
+        WorldRefusal::InvalidName(_) => "Name",
+        WorldRefusal::NameTaken => "Taken",
+        WorldRefusal::Locked => "Locked",
+        WorldRefusal::Unreadable(_) => "Unreadable",
+        WorldRefusal::Format { .. } => "Format",
+        WorldRefusal::Catalog { .. } => "Catalog",
+        WorldRefusal::Io(_) => "Io",
+        WorldRefusal::Unrestored(_) => "Unrestored",
+        WorldRefusal::Scenario { .. } => "Scenario",
+        WorldRefusal::Role { .. } => "Role",
+    }
 }
 
 #[cfg(test)]

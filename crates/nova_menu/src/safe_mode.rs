@@ -96,15 +96,6 @@ pub(crate) fn sync_mod_report_overlay(
                                 dialog_span("MODS DISABLED", 28.0),
                                 TextColor(theme::semantic::THREAT),
                             ));
-                            parent.spawn((
-                                Name::new("Mods Disabled Summary"),
-                                dialog_span(
-                                    "The game started without these mods, because their content failed to load. They stay installed - open Mods to update, remove or re-enable them.",
-                                    16.0,
-                                ),
-                                TextColor(Color::NONE),
-                                ThemedText::new(UiColorType::TextBody),
-                            ));
                             parent
                                 .spawn(dialog_list("Mods Disabled Rows"))
                                 .with_children(|parent| {

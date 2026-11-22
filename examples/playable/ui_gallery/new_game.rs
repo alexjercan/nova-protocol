@@ -297,14 +297,6 @@ fn world_step(panel: &mut ChildSpawnerCommands, assets: &mut SceneAssets, new_ga
                 },
                 SEED_PREVIEW,
             );
-            group.spawn(text(
-                &format!(
-                    "The sectors around the start of seed {}. Right-drag turns, wheel zooms.",
-                    new_game.seed
-                ),
-                11.0,
-                UiColorType::TextMuted,
-            ));
         });
     });
     panel

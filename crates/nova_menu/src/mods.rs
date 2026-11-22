@@ -14,21 +14,18 @@ use nova_gameplay::prelude::{play_menu_deny, play_menu_select};
 use nova_mod_format::BASE_MOD_ID;
 use nova_sound::prelude::{SoundBank, UiSfx};
 use nova_ui::{
-    theme,
     theme::UiColorType,
     widget::{
-        action_row, button, button_stack, checkbox, divider, group_stack, list_row, metrics::GAP,
-        tag, ButtonCueType, ButtonSpec, Selected, ThemedBorder, ThemedCheckbox, ThemedFill,
-        ThemedRadius, ThemedText, UiText,
+        action_row, button, button_stack, checkbox, divider, group_stack, list_row, tag,
+        ButtonCueType, ButtonSpec, Selected, ThemedCheckbox, ThemedText, UiText,
     },
 };
 
 use crate::{
     portal::{
         explore_entries, on_catalog_retry, portal_display_name, portal_status_tag,
-        portal_version_author_line, spawn_explore_note, spawn_explore_row, spawn_portal_actions,
-        spawn_uninstall_button, spawn_uninstall_prompt, uninstall_prompt, UninstallStep,
-        UpdateRequested,
+        portal_version_author_line, spawn_explore_row, spawn_portal_actions,
+        spawn_uninstall_button, UninstallStep, UpdateRequested,
     },
     widgets::{button_slot, close_screen, row_group, LABEL_LINE_GAP, MAIN_SLOT_W, SIDE_SLOT_W},
 };
@@ -393,63 +390,32 @@ pub(crate) fn refresh_mods_list(
                 }
             }
             commands.entity(list).with_children(|list| {
+                // The catalog's state is one tag over the list - FETCHING,
+                // or OFFLINE beside Retry - in the shape of the Load rows'
+                // CHECKING and INVALID. The fetch error goes to the log.
                 match remote.as_ref().map(|r| &r.state) {
                     // A rig/slim app without the portal plugin never leaves
                     // Idle; in production Idle only renders for the frame the
                     // tab-open fetch trigger is still in flight.
                     None | Some(RemoteCatalogState::Idle | RemoteCatalogState::Fetching) => {
-                        spawn_explore_note(
-                            list,
-                            "Portal Fetching Note",
-                            "Fetching the mod portal catalog...",
-                        );
+                        list.spawn(explore_status_row()).with_child((
+                            Name::new("Portal Fetching Tag"),
+                            tag("Fetching", UiColorType::TextSecondary),
+                        ));
                     }
-                    Some(RemoteCatalogState::Error(error)) => {
-                        list.spawn((
-                            Name::new("Portal Error Row"),
-                            Node {
-                                flex_direction: FlexDirection::Column,
-                                align_self: AlignSelf::Stretch,
-                                row_gap: px(GAP),
-                                padding: UiRect::all(px(GAP)),
-                                flex_shrink: 0.0,
-                                border: UiRect::all(px(theme::BORDER_W)),
-                                ..default()
-                            },
-                            ThemedRadius::control(),
-                            BorderColor::all(Color::NONE),
-                            ThemedBorder::new(UiColorType::TextMuted),
-                            BackgroundColor(Color::NONE),
-                            ThemedFill::new(UiColorType::Background),
-                        ))
-                        .with_children(|row| {
+                    Some(RemoteCatalogState::Error(_)) => {
+                        list.spawn(explore_status_row()).with_children(|row| {
                             row.spawn((
-                                Name::new("Portal Error Text"),
-                                UiText,
-                                Text::new(error.clone()),
-                                TextFont {
-                                    font_size: FontSize::Px(13.0),
-                                    ..default()
-                                },
-                                TextColor(Color::NONE),
-                                ThemedText::new(UiColorType::Accent),
+                                Name::new("Portal Offline Tag"),
+                                tag("Offline", UiColorType::Accent),
                             ));
                             row.spawn(button_slot("Portal Retry Slot", SIDE_SLOT_W))
-                                .with_children(|slot| {
-                                    slot.spawn((
-                                        Name::new("Portal Retry Button"),
-                                        button(ButtonSpec::control("Retry").fill()),
-                                        observe(on_catalog_retry),
-                                    ));
-                                });
+                                .with_child((
+                                    Name::new("Portal Retry Button"),
+                                    button(ButtonSpec::control("Retry").fill()),
+                                    observe(on_catalog_retry),
+                                ));
                         });
-                        if !entries.is_empty() {
-                            spawn_explore_note(
-                                list,
-                                "Portal Offline Note",
-                                "offline - showing the last fetched catalog",
-                            );
-                        }
                     }
                     Some(RemoteCatalogState::Ready(_)) => {}
                 }
@@ -463,20 +429,22 @@ pub(crate) fn refresh_mods_list(
     }
 }
 
-/// The details pane's empty fallback: the hint text plus the (empty) action
-/// container, so [`ModDetailsActions`] exists in every state.
-pub(crate) fn spawn_details_empty(details: &mut ChildSpawnerCommands) {
-    details.spawn((
-        Name::new("Mod Details Empty"),
-        UiText,
-        Text::new("Select a mod to see its details."),
-        TextFont {
-            font_size: FontSize::Px(14.0),
-            ..default()
+/// The row over the Explore list that carries the catalog's state tag.
+fn explore_status_row() -> impl Bundle {
+    (
+        Name::new("Portal Status Row"),
+        Node {
+            align_items: AlignItems::Center,
+            flex_shrink: 0.0,
+            ..action_row(JustifyContent::FlexStart)
         },
-        TextColor(Color::NONE),
-        ThemedText::new(UiColorType::TextMuted),
-    ));
+    )
+}
+
+/// The details pane's empty fallback: only the (empty) action container, so
+/// [`ModDetailsActions`] exists in every state. Every list selects its first
+/// row, so the pane is empty only with an empty list.
+pub(crate) fn spawn_details_empty(details: &mut ChildSpawnerCommands) {
     details.spawn((
         Name::new("Mod Details Actions"),
         ModDetailsActions,
@@ -742,11 +710,7 @@ pub(crate) fn refresh_mod_details(
                             // Installed-tab parity: a DOWNLOADED mod is
                             // uninstallable from here too.
                             if is_downloaded {
-                                let armed = uninstall.armed_on(&m.id);
-                                spawn_uninstall_button(actions, &m.id, armed);
-                                if armed {
-                                    spawn_uninstall_prompt(actions, uninstall_prompt(&m.meta.name));
-                                }
+                                spawn_uninstall_button(actions, &m.id, uninstall.armed_on(&m.id));
                             }
                         }
                     });
@@ -797,9 +761,7 @@ pub(crate) fn refresh_mod_details(
                             installed_version,
                             updating,
                             catalog_ready,
-                            uninstall
-                                .armed_on(&entry.id)
-                                .then(|| uninstall_prompt(&portal_display_name(&entry))),
+                            uninstall.armed_on(&entry.id),
                         );
                     });
             });

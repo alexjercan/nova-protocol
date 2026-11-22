@@ -739,17 +739,6 @@ pub(crate) fn refresh_training_list(
             )],
         ));
         if catalog.is_empty() {
-            list.spawn((
-                Name::new("Training Empty Note"),
-                UiText,
-                Text::new("No lessons installed."),
-                TextFont {
-                    font_size: FontSize::Px(13.0),
-                    ..default()
-                },
-                TextColor(Color::NONE),
-                ThemedText::new(UiColorType::TextMuted),
-            ));
             return;
         }
         for (category, lessons) in catalog.by_category() {
@@ -914,18 +903,9 @@ pub(crate) fn refresh_training_details(
         ))
         .id();
     commands.entity(stack).with_children(|details| {
+        // The list selects its first lesson, so no lesson means an empty
+        // catalog: the pane stays empty with it.
         let Some(lesson) = lesson else {
-            details.spawn((
-                Name::new("Training Details Empty"),
-                UiText,
-                Text::new("Select a lesson."),
-                TextFont {
-                    font_size: FontSize::Px(14.0),
-                    ..default()
-                },
-                TextColor(Color::NONE),
-                ThemedText::new(UiColorType::TextMuted),
-            ));
             return;
         };
 

@@ -38,8 +38,8 @@ use crate::world_setup::new_game_button;
 use crate::{
     leave::{begin_leave, LeaveTarget},
     load_screen::{
-        now_unix, on_load_back, on_load_screen, spawn_primary_actions, ContinueSlot, LoadPanel,
-        LoadWorldDetails, LoadWorldList, WorldChecks,
+        now_unix, on_load_back, on_load_screen, spawn_primary_actions, ContinueSlot,
+        LoadMenuButton, LoadPanel, LoadWorldDetails, LoadWorldList, WorldChecks,
     },
     world_setup::WorldsRoot,
 };
@@ -588,12 +588,20 @@ fn spawn_menu_buttons(
             group.spawn(new_game_button(true));
             // Saved worlds are a desktop-build concept; the web build never
             // offers a folder to load from.
+            // Dead with no world to load: no folder, or an empty one.
+            // `refresh_continue` keeps it in step with a delete on Load.
             #[cfg(not(target_arch = "wasm32"))]
-            group.spawn((
-                Name::new("Load Button"),
-                button("Load"),
-                observe(on_load_screen),
-            ));
+            {
+                let mut load = group.spawn((
+                    Name::new("Load Button"),
+                    LoadMenuButton,
+                    button("Load"),
+                    observe(on_load_screen),
+                ));
+                if saves.is_empty() {
+                    load.insert(bevy::ui::InteractionDisabled);
+                }
+            }
         });
     list.spawn(button_group("Menu Learn Group"))
         .with_children(|group| {

@@ -52,6 +52,7 @@ pub mod prelude {
             allow_training_saves, load_training, save_training, PersistedTraining,
             TrainingProgressPlugin, TrainingStoreAccess,
         },
+        world_setup::SeedStart,
         NewGameScenario, NovaMenuPlugin, SurfaceCursorPlugin,
     };
 }
@@ -321,14 +322,18 @@ impl Plugin for NovaMenuPlugin {
         );
         // After the field's own systems, so a name or seed typed this frame is refused
         // or accepted before anything repaints the field. The role details
-        // rebuild on the frame a role is selected or the modal opens.
+        // rebuild on the frame a role is selected or the modal opens. The
+        // preview runs first so its `SeedStart` lands before the check reads it.
         app.add_systems(
             Update,
             (
+                world_setup::refresh_seed_preview
+                    .after(TextFieldSystems)
+                    .before(world_setup::read_world_setup),
                 world_setup::read_world_setup.after(TextFieldSystems),
-                world_setup::refresh_seed_preview.after(TextFieldSystems),
                 world_setup::refresh_start_role_details,
                 world_setup::sync_world_setup_tag,
+                world_setup::gate_new_game,
             )
                 .run_if(in_state(GameStates::MainMenu)),
         );

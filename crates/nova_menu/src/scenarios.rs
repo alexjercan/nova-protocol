@@ -239,19 +239,6 @@ pub(crate) fn refresh_scenarios_list(
         listed.iter().filter(|s| !members.contains(&s.id)).collect();
 
     commands.entity(list).with_children(|list| {
-        if ordered.is_empty() && uncampaigned.is_empty() {
-            list.spawn((
-                Name::new("Scenarios Empty Note"),
-                UiText,
-                Text::new("No scenarios available."),
-                TextFont {
-                    font_size: FontSize::Px(13.0),
-                    ..default()
-                },
-                TextColor(Color::NONE),
-                ThemedText::new(UiColorType::TextMuted),
-            ));
-        }
         for campaign in &ordered {
             let expanded = !collapsed.0.contains(&campaign.id);
             spawn_campaign_header(list, campaign, expanded);
@@ -458,18 +445,9 @@ pub(crate) fn refresh_scenario_details(
         ))
         .id();
     commands.entity(stack).with_children(|stack| {
+        // The list selects its first row, so no scenario means an empty
+        // list: the pane stays empty with it.
         let Some(scenario) = scenario else {
-            stack.spawn((
-                Name::new("Scenario Details Empty"),
-                UiText,
-                Text::new("Select a scenario to see its details."),
-                TextFont {
-                    font_size: FontSize::Px(14.0),
-                    ..default()
-                },
-                TextColor(Color::NONE),
-                ThemedText::new(UiColorType::TextMuted),
-            ));
             stack.spawn((
                 Name::new("Scenario Details Actions"),
                 ScenarioDetailsActions,

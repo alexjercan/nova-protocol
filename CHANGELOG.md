@@ -104,6 +104,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Phosphor draws every box square: buttons, fields, panels, windows, HUD chips and toggles. Hardware draws one 2 px corner on every box, down from 5 to 11 px, and its toggle is no longer a pill.
 - One spacing scale of 4, 8, 12, 16 and 20 px runs through menus, Tab panes, HUD and editor: buttons 8 px apart, groups 12 px, windows pad 20 px, HUD blocks sit 16 px from the screen edge.
 - A menu window (Settings, Lessons, Load, Scenarios, Mods, New Game) hides the menu card and the corner cards, so no window lies half over them. Subtitles that only explained a screen are gone.
+- Menus drop their hint, empty-list and reason lines. A world that cannot load wears a tag such as `CATALOG` and the full reason goes to the log. Load is greyed until a world is saved.
+- Controls: a refused key plays a deny buzz and turns its holder's chip red, and that group's tab when it is another. A failed UI theme is a greyed red choice. Reset Defaults greys until a row moves.
+- Reset Defaults, mod Uninstall and Load's Delete arm a Cancel in place beside a red Confirm and no sentence; Reset's reads `Reset 3`. Hardware danger buttons are red at rest.
+- New Game: the seed field takes digits only, and a seed with no start outlines it red and greys Next. Mods: an unreachable portal reads `OFFLINE`, and Install and Update grey.
 - HUD text draws in the same UI face as the menus and panes. Before, it drew in the engine default font.
 - Tab panes line up: the legend starts on the content edge, the footer's last button ends on the inspector edge with its whole border, and the head rule runs to the balance.
 - Mod editor: top bar buttons stand 4 px apart, list and inspector rows 4 px apart, and modals pad 12 px with their answers 8 px apart and 12 px under the content.

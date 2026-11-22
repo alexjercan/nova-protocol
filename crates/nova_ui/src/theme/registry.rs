@@ -64,9 +64,9 @@ impl Default for SelectedUiTheme {
 
 /// Why the selected theme is not the one showing, or `None` when it is.
 ///
-/// Player-visible: Settings draws it beside the theme row, because a player
-/// whose theme silently reverted has no way to tell a broken mod from a
-/// forgotten setting.
+/// Player-visible: Settings marks the failed theme in the theme row, because a
+/// player whose theme silently reverted has no way to tell a broken mod from a
+/// forgotten setting. The message itself goes to the log.
 #[derive(Resource, Debug, Clone, Default)]
 pub struct UiThemeDiagnostic(pub Option<ThemeIssue>);
 

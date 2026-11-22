@@ -18,7 +18,7 @@ use super::support::{
 use crate::{
     preview::{MenuChartPreview, MenuHullPreview},
     scenarios::NewGameScenario,
-    world_setup::{parse_world_seed, WorldSeedField, WorldSetupOverlay, WorldsRoot},
+    world_setup::{parse_world_seed, SeedStart, WorldSeedField, WorldSetupOverlay, WorldsRoot},
 };
 
 /// A menu app entered the real way, so the menu panel is built and the
@@ -160,6 +160,37 @@ fn a_bad_seed_is_refused_inline_and_greys_next_until_it_is_fixed() {
     assert!(!app.world().entity(next).contains::<InteractionDisabled>());
 }
 
+/// A seed that parses but has no start is refused the same way, off what the
+/// preview found for it: no line under the chart says why, the field and Next
+/// carry it. A result for another seed than the typed one refuses nothing.
+#[test]
+fn a_seed_with_no_start_is_refused_inline_and_greys_next() {
+    let mut app = menu();
+    press(&mut app, "New Game Button");
+    let field = named(&mut app, "World Seed Field");
+    let next = named(&mut app, "World Next Button");
+    type_seed(&mut app, "7");
+    assert!(!app.world().entity(next).contains::<InteractionDisabled>());
+
+    app.world_mut().entity_mut(field).insert(SeedStart {
+        seed: 8,
+        found: false,
+    });
+    app.update();
+    assert!(
+        !app.world().entity(next).contains::<InteractionDisabled>(),
+        "a stale result for another seed refuses nothing"
+    );
+
+    app.world_mut().entity_mut(field).insert(SeedStart {
+        seed: 7,
+        found: false,
+    });
+    app.update();
+    assert!(app.world().entity(field).contains::<TextFieldError>());
+    assert!(app.world().entity(next).contains::<InteractionDisabled>());
+}
+
 /// Create is the one way into the open world: the typed name becomes the
 /// world's folder and its saving session, the typed seed and the selected
 /// start role the session, the picker's override is cleared, and the
@@ -280,7 +311,7 @@ fn create_refuses_a_taken_world_name_inline_and_starts_nothing() {
     let refusal = app
         .world()
         .get::<TextFieldError>(field)
-        .expect("the name is refused under the field");
+        .expect("the name field is marked invalid");
     assert!(refusal.0.contains("exists"), "{}", refusal.0);
     assert_ne!(state(&app), GameStates::Playing);
     assert!(app.world().get_resource::<WorldSaveSession>().is_none());
@@ -291,16 +322,6 @@ fn create_refuses_a_taken_world_name_inline_and_starts_nothing() {
         .map(|entry| entry.unwrap().file_name())
         .collect();
     assert_eq!(files, ["world.lock"]);
-}
-
-/// The text of the one [`Text`] entity named `name`.
-fn text_of(app: &mut App, name: &str) -> String {
-    let entity = named(app, name);
-    app.world()
-        .get::<Text>(entity)
-        .expect("a Text component")
-        .0
-        .clone()
 }
 
 /// The value texts of every `detail_row` named `name`, in spawn order.
@@ -324,9 +345,8 @@ fn row_values(app: &mut App, name: &str) -> Vec<String> {
 }
 
 /// Step 1 draws the typed seed's chart: the cells round its starting
-/// station with the station marked and the start inside its cell, and a
-/// caption counting the stations in reach; a seed with no start draws an
-/// empty chart and says why. Step 2 draws each role row with its role's
+/// station with the station marked and the start inside its cell, and no
+/// caption: the marks are the count. Step 2 draws each role row with its role's
 /// icon, lists the role's milestones as the game states them, and shows no
 /// hull view when the catalog lacks the hull.
 #[test]
@@ -355,13 +375,14 @@ fn new_game_previews_the_seed_s_start_and_lists_the_role_s_milestones() {
     assert!(stations >= 1, "seed 42 has a station in reach");
     assert!(!chart.0.cells.is_empty());
     assert!(chart.0.you.is_some(), "the start sits inside its cell");
-    let plural = if stations == 1 { "station" } else { "stations" };
+    let seed_field = named(&mut app, "World Seed Field");
     assert_eq!(
-        text_of(&mut app, "Seed Preview Caption"),
-        format!(
-            "The sectors round the start of seed 42: {stations} {plural} in reach. \
-             Right-drag turns, wheel zooms."
-        )
+        app.world().get::<SeedStart>(seed_field),
+        Some(&SeedStart {
+            seed: 42,
+            found: true
+        }),
+        "the field knows the seed has a start"
     );
 
     press(&mut app, "World Next Button");

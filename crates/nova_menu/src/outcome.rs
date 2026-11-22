@@ -370,10 +370,7 @@ pub(crate) fn sync_start_failure_overlay(
                             ));
                             parent.spawn((
                                 Name::new("Start Failure Scenario"),
-                                dialog_span(
-                                    format!("Failed to start '{}':", report.scenario_name),
-                                    16.0,
-                                ),
+                                dialog_span(report.scenario_name.clone(), 16.0),
                                 TextColor(Color::NONE),
                                 ThemedText::new(UiColorType::TextBody),
                             ));

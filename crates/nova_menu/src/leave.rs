@@ -225,23 +225,14 @@ pub(crate) fn sync_leave_overlay(
     let wanted =
         pending.zip(session).map(
             |(pending, session)| match (pending.target, session.status()) {
-                (LeaveTarget::Retry, _) => (
-                    "Loading last save...".to_string(),
-                    "Progress since the last save is discarded. The ship resumes exactly as \
-                     saved."
-                        .to_string(),
-                    false,
-                ),
+                // The title is the whole statement: no body explains a
+                // Retry or a wait.
+                (LeaveTarget::Retry, _) => {
+                    ("Loading last save...".to_string(), String::new(), false)
+                }
                 // A spent session wants no leave save, so none can fail.
                 (_, WorldSaveStatus::Failed(error)) if session.is_idle() && !session.is_spent() => {
-                    (
-                        "SAVE FAILED".to_string(),
-                        format!("{error}. The last save is kept."),
-                        true,
-                    )
-                }
-                (_, WorldSaveStatus::Waiting(why)) => {
-                    ("Saving world...".to_string(), why.clone(), false)
+                    ("SAVE FAILED".to_string(), error.to_string(), true)
                 }
                 _ => ("Saving world...".to_string(), String::new(), false),
             },

@@ -340,8 +340,8 @@
                         alpha: 0.0,
                     )),
                     border: (
-                        value: Variable(text),
-                        alpha: 0.15,
+                        value: Variable(danger),
+                        alpha: 0.5,
                     ),
                     text: (
                         value: Variable(text),
@@ -1262,28 +1262,21 @@
                 normal: (
                     fill: Linear(
                         base: (
-                            value: Variable(surface),
+                            value: Variable(danger),
                             alpha: 1.0,
                         ),
                         degrees: 180.0,
                         stops: [
                             (
                                 color: (
-                                    value: Variable(surface_lit),
+                                    value: Variable(danger_face),
                                     alpha: 1.0,
                                 ),
                                 percent: 0.0,
                             ),
                             (
                                 color: (
-                                    value: Variable(surface),
-                                    alpha: 1.0,
-                                ),
-                                percent: 55.0,
-                            ),
-                            (
-                                color: (
-                                    value: Variable(surface_sunken),
+                                    value: Variable(danger_face_dark),
                                     alpha: 1.0,
                                 ),
                                 percent: 100.0,
@@ -1317,14 +1310,14 @@
                         stops: [
                             (
                                 color: (
-                                    value: Variable(danger_face),
+                                    value: Variable(danger),
                                     alpha: 1.0,
                                 ),
                                 percent: 0.0,
                             ),
                             (
                                 color: (
-                                    value: Variable(danger_face_dark),
+                                    value: Variable(danger_face),
                                     alpha: 1.0,
                                 ),
                                 percent: 100.0,
@@ -1477,8 +1470,8 @@
                         alpha: 0.0,
                     )),
                     border: (
-                        value: Variable(text),
-                        alpha: 0.15,
+                        value: Variable(danger),
+                        alpha: 0.5,
                     ),
                     text: (
                         value: Variable(text),

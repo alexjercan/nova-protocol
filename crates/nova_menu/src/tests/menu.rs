@@ -339,6 +339,10 @@ fn the_main_menu_lights_one_primary_action() {
         entity_by_name(&mut bare, "Continue Button").is_none(),
         "no save: no Continue"
     );
+    assert!(
+        is_disabled(&mut bare, "Load Button"),
+        "no save: nothing to load"
+    );
     assert_eq!(
         button_variant_of(&mut bare, "New Game Button"),
         Some(ButtonVariant::Primary),
@@ -347,6 +351,7 @@ fn the_main_menu_lights_one_primary_action() {
 
     let root = tempfile::tempdir().expect("a scratch worlds root");
     let mut saved = menu_with_a_save(root.path(), "Only World");
+    assert!(!is_disabled(&mut saved, "Load Button"));
     assert_eq!(
         button_variant_of(&mut saved, "Continue Button"),
         Some(ButtonVariant::Primary)
@@ -368,6 +373,31 @@ fn the_main_menu_lights_one_primary_action() {
         Some(ButtonVariant::Primary),
         "the last save gone: New Game is lit again"
     );
+    assert!(
+        is_disabled(&mut saved, "Load Button"),
+        "the last save gone: Load dies with it"
+    );
+}
+
+/// Whether the one button named `name` is dead.
+fn is_disabled(app: &mut App, name: &str) -> bool {
+    let entity = entity_by_name(app, name).unwrap_or_else(|| panic!("no `{name}`"));
+    app.world()
+        .get::<bevy::ui::InteractionDisabled>(entity)
+        .is_some()
+}
+
+/// With no start role loaded - a broken mod set - there is nothing to start
+/// as, so New Game is dead on the menu instead of opening on an empty list.
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn new_game_is_dead_with_no_start_role() {
+    let mut app = menu();
+    assert!(!is_disabled(&mut app, "New Game Button"));
+
+    app.world_mut().resource_mut::<GameStartRoles>().0.clear();
+    app.update();
+    assert!(is_disabled(&mut app, "New Game Button"));
 }
 
 /// The visibility of the named overlay root.

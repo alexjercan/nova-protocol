@@ -28,8 +28,8 @@ use nova_ui::{
         action_row, button_stack, divider, group_stack,
         metrics::{GAP, GAP_L, GAP_S},
         segmented_container, segmented_container_wrapping, segmented_option, segmented_option_fit,
-        slider_track, text, ButtonCueType, ButtonSpec, ButtonValue, Selected, TextRole,
-        ThemedImageTint, ThemedText, UiText,
+        slider_track, text, ButtonCueType, ButtonSpec, ButtonValue, ButtonVariant, Selected,
+        TextRole, ThemedImageTint, ThemedText, UiText,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -260,16 +260,6 @@ pub(crate) enum RebindDevice {
     Pad,
 }
 
-impl RebindDevice {
-    /// The prompt the armed chip shows.
-    fn prompt(self) -> &'static str {
-        match self {
-            Self::Desk => "PRESS A KEY",
-            Self::Pad => "PRESS A BUTTON",
-        }
-    }
-}
-
 /// A rebind chip: which action and which half of it a click arms.
 #[derive(Component, Clone, Copy)]
 pub(crate) struct RebindChip {
@@ -298,10 +288,6 @@ pub(crate) enum ResetBindingsStep {
     Confirm,
 }
 
-/// What the armed Reset Defaults says it will do. Short enough to stay on the
-/// buttons' line in a 1280x720 window at a 150% interface.
-const RESET_BINDINGS_PROMPT: &str = "Resets key and pad bindings in every group.";
-
 /// The armed rebind and the last refusal.
 ///
 /// The capture is a resource rather than a component on the chip because it is
@@ -310,9 +296,30 @@ const RESET_BINDINGS_PROMPT: &str = "Resets key and pad bindings in every group.
 #[derive(Resource, Default)]
 pub(crate) struct PendingRebind {
     armed: Option<ArmedRebind>,
-    /// Why the last capture was refused, shown under the rows until the next
-    /// one is armed.
-    refusal: Option<String>,
+    /// The last refused capture. The tab marks its holder in danger paint -
+    /// the holder's chip, or its group tab when the holder is in another
+    /// group - until the next chip is armed or the capture lands.
+    refusal: Option<RebindRefusalType<RebindHolder>>,
+}
+
+/// What already answers on a refused source, as the Controls tab marks it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum RebindHolder {
+    /// A registry action, by the name of the row that draws it: a shadow
+    /// action has no row, so it is named by the action it follows.
+    Action(&'static str),
+    /// A live ship section's trigger, by section id. It has no row here, so
+    /// the armed chip itself takes the mark.
+    Section(String),
+}
+
+impl std::fmt::Display for RebindHolder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Action(name) => f.write_str(name),
+            Self::Section(id) => write!(f, "section {id}"),
+        }
+    }
 }
 
 /// The chip waiting for a press.
@@ -337,6 +344,31 @@ impl PendingRebind {
         self.armed
             .as_ref()
             .is_some_and(|armed| armed.action == action && armed.device == device)
+    }
+
+    /// The row whose chip in the armed column holds the last refused source.
+    fn refused_by(&self) -> Option<(&'static str, RebindDevice)> {
+        let Some(RebindRefusalType::HeldBy {
+            holder: RebindHolder::Action(row),
+            ..
+        }) = &self.refusal
+        else {
+            return None;
+        };
+        Some((*row, self.armed.as_ref()?.device))
+    }
+
+    /// Whether the last refusal has no row to mark: the pointer, or a ship
+    /// section. The armed chip takes the mark instead.
+    fn refused_without_row(&self) -> bool {
+        matches!(
+            &self.refusal,
+            Some(RebindRefusalType::Pointer)
+                | Some(RebindRefusalType::HeldBy {
+                    holder: RebindHolder::Section(_),
+                    ..
+                })
+        )
     }
 }
 
@@ -1320,35 +1352,31 @@ fn build_interface_tab(
         "Theme",
         segmented_container_wrapping(),
         |row| {
-            for (id, name) in themes.listed() {
+            // A selected theme that did not resolve - a broken one, or one
+            // whose mod is gone - stays in the row as a dead danger segment:
+            // the player sees which choice failed and that another look is
+            // showing. The reason is in the log (`resolve_active_theme`).
+            let failed = diagnostic.0.as_ref().map(|issue| issue.theme.as_str());
+            let mut listed = themes.listed();
+            if let Some(failed) = failed {
+                if !listed.iter().any(|(id, _)| *id == failed) {
+                    listed.push((failed, failed));
+                }
+            }
+            for (id, name) in listed {
                 let mut button = row.spawn((
                     Name::new(format!("UI Theme {id}")),
                     segmented_option_fit(name),
                     ButtonValue(SelectedUiTheme(id.to_string())),
                 ));
-                if id == selected.0 {
+                if failed == Some(id) {
+                    button.insert((ButtonVariant::Danger, InteractionDisabled));
+                } else if id == selected.0 {
                     button.insert(Selected);
                 }
             }
         },
     );
-    // A player whose theme silently reverted - they disabled the mod that
-    // declared it, or the mod shipped a broken one - has no way to tell that
-    // from a forgotten setting. Say which theme failed and why, beside the row
-    // that is now showing something else.
-    if let Some(issue) = &diagnostic.0 {
-        list.spawn((
-            Name::new("UI Theme Diagnostic"),
-            UiText,
-            Text::new(format!("{}: {}", issue.theme, issue.message)),
-            TextFont {
-                font_size: FontSize::Px(12.0),
-                ..default()
-            },
-            TextColor(Color::NONE),
-            ThemedText::new(UiColorType::Danger),
-        ));
-    }
 
     list.spawn(divider());
     list.spawn(group_head("Display"));
@@ -1375,11 +1403,11 @@ fn build_interface_tab(
     );
 }
 
-/// The group bar and the refusal, in the strip that does NOT scroll.
+/// The group bar, in the strip that does NOT scroll.
 ///
-/// Split out of [`build_controls_tab`] so the two things a player needs while
-/// they work - which group they are on, and why a press was refused - stay on
-/// screen however far down the rows they are.
+/// Split out of [`build_controls_tab`] so the group a player is on stays on
+/// screen however far down the rows they are. A refused press whose holder is
+/// in ANOTHER group marks that group's tab, because its chip is not drawn.
 fn build_controls_header(
     strip: &mut ChildSpawnerCommands,
     bindings: &InputBindings,
@@ -1390,6 +1418,10 @@ fn build_controls_header(
     let Some(open) = open_group_of(&groups, open_group) else {
         return;
     };
+    let refused_group = rebind
+        .refused_by()
+        .and_then(|(row, _)| bindings.get(row))
+        .map(|holder| holder.group);
     strip
         .spawn((
             Name::new("Controls Group Bar"),
@@ -1405,22 +1437,11 @@ fn build_controls_header(
                 ));
                 if *group == open {
                     button.insert(Selected);
+                } else if refused_group == Some(*group) {
+                    button.insert(ButtonVariant::Danger);
                 }
             }
         });
-    if let Some(reason) = &rebind.refusal {
-        strip.spawn((
-            Name::new("Rebind Refusal"),
-            UiText,
-            Text::new(reason.clone()),
-            TextFont {
-                font_size: FontSize::Px(12.0),
-                ..default()
-            },
-            TextColor(Color::NONE),
-            ThemedText::new(UiColorType::Accent),
-        ));
-    }
 }
 
 /// Every group the Controls tab can open: the table's own, plus the groups that
@@ -1517,13 +1538,13 @@ fn build_controls_tab(
     list.spawn(divider());
     // One row in both states, so arming never grows the list: a Confirm on a
     // row of its own under the last row of a scrolled page was below the fold.
+    // The count of moved rows is the whole statement: idle Reset Defaults is
+    // dead at none, and the armed Confirm reads how many it puts back.
+    let moved = bindings.overrides().len();
     list.spawn((
         Name::new("Reset Bindings Row"),
         Node {
             flex_wrap: FlexWrap::NoWrap,
-            // A prompt that wraps grows the row downward; the buttons keep
-            // the top line, where Reset Defaults was.
-            align_items: AlignItems::FlexStart,
             flex_shrink: 0.0,
             ..action_row(JustifyContent::FlexStart)
         },
@@ -1532,12 +1553,15 @@ fn build_controls_tab(
         if !reset_armed {
             row.spawn(button_slot("Reset Bindings Slot", MAIN_SLOT_W))
                 .with_children(|slot| {
-                    slot.spawn((
+                    let mut reset = slot.spawn((
                         Name::new("Reset Bindings"),
                         segmented_option("Reset Defaults"),
                         ResetBindings,
                         observe(on_reset_bindings),
                     ));
+                    if moved == 0 {
+                        reset.insert(InteractionDisabled);
+                    }
                 });
             return;
         }
@@ -1556,30 +1580,15 @@ fn build_controls_tab(
             .with_children(|slot| {
                 slot.spawn((
                     Name::new("Reset Bindings"),
-                    nova_ui::widget::button(ButtonSpec::control("Confirm").danger().fill()),
+                    nova_ui::widget::button(
+                        ButtonSpec::control(format!("Reset {moved}"))
+                            .danger()
+                            .fill(),
+                    ),
                     ResetBindings,
                     observe(on_reset_bindings),
                 ));
             });
-        row.spawn((
-            Name::new("Reset Bindings Prompt"),
-            UiText,
-            Text::new(RESET_BINDINGS_PROMPT),
-            TextFont {
-                font_size: FontSize::Px(12.0),
-                ..default()
-            },
-            TextColor(Color::NONE),
-            ThemedText::new(UiColorType::TextBody),
-            Node {
-                // Takes the width the buttons leave and wraps inside it.
-                flex_grow: 1.0,
-                flex_basis: px(0),
-                min_width: px(0),
-                align_self: AlignSelf::Center,
-                ..default()
-            },
-        ));
     });
 }
 
@@ -1662,9 +1671,11 @@ pub(crate) fn on_rebind_chip(
 ///
 /// Escape cancels - it is the back-out on every capture surface in the game,
 /// which is why no row can bind it. A press something else already holds in
-/// the same live set is REFUSED with the name of what holds it, and the chip
-/// stays armed so the next press is still the rebind.
+/// the same live set is REFUSED: the deny cue plays, the tab marks the holder,
+/// and the chip stays armed so the next press is still the rebind.
 pub(crate) fn apply_settings_rebind(
+    mut commands: Commands,
+    bank: Option<Res<SoundBank<UiSfx>>>,
     sources: InputSources,
     keys: Res<ButtonInput<KeyCode>>,
     mut rebind: ResMut<PendingRebind>,
@@ -1717,10 +1728,12 @@ pub(crate) fn apply_settings_rebind(
     // refuse-rather-than-warn rule are stated once.
     let held_by = bindings
         .conflict_for(action, source)
-        .map(|taken_by| taken_by.label.to_string())
+        .map(|taken_by| RebindHolder::Action(taken_by.follows.unwrap_or(taken_by.name)))
         .or_else(|| section_conflict(bindings.get(action), source, &sections));
-    if let RebindVerdict::Refuse(line) = rebind_verdict(RebindSurface::Settings, source, held_by) {
-        rebind.refusal = Some(line);
+    if let RebindVerdict::Refuse(refusal) = rebind_verdict(RebindSurface::Settings, source, held_by)
+    {
+        play_menu_deny(&mut commands, bank.as_deref());
+        rebind.refusal = Some(refusal);
         return;
     }
 
@@ -1729,8 +1742,13 @@ pub(crate) fn apply_settings_rebind(
         return;
     };
     let spec = current.spec().captured(source);
+    // The verdict above already refused every collision `commit_rebind`
+    // checks, so what is left is the table refusing the spec itself - not a
+    // press the player can fix by picking another key. The capture stays
+    // armed and the deny cue plays; the reason goes to the log.
     if let Err(reason) = bindings.commit_rebind(action, spec) {
-        rebind.refusal = Some(reason);
+        warn!("settings rebind of `{action}` refused: {reason}");
+        play_menu_deny(&mut commands, bank.as_deref());
         return;
     }
     disarm(&mut rebind);
@@ -1776,7 +1794,7 @@ fn section_conflict(
     action: Option<&ActionBinding>,
     source: InputSource,
     sections: &SectionBindings,
-) -> Option<String> {
+) -> Option<RebindHolder> {
     if !action?.context.overlaps(ActionContext::Flight) {
         return None;
     }
@@ -1792,7 +1810,7 @@ fn section_conflict(
                 || held(railgun.map(|b| &b.0))
                 || held(mining.map(|b| &b.0))
         })
-        .map(|(id, ..)| format!("the ship's {} section", id.0))
+        .map(|(id, ..)| RebindHolder::Section(id.0.to_string()))
 }
 
 /// Drop the armed chip and the refusal beside it, marking the resource changed
@@ -1914,18 +1932,39 @@ fn spawn_chip(
         });
         return;
     }
+    // A refused press marks what holds its source: this chip when its action
+    // is the holder, or the armed chip itself when nothing on the tab holds
+    // it (the pointer, a ship section). The armed chip is otherwise a blank
+    // selected face waiting for its press.
+    let holder = rebind.refused_by() == Some((action.name, device));
+    let refused_here = armed && rebind.refused_without_row();
     cell.with_children(|cell| {
         let mut chip = cell.spawn((
             Name::new(format!("Rebind: {} {:?}", action.name, device)),
-            segmented_option(if armed { device.prompt() } else { "" }),
+            segmented_option(""),
             RebindChip {
                 action: action.name,
                 device,
             },
             observe(on_rebind_chip),
         ));
+        if holder || refused_here {
+            chip.insert(ButtonVariant::Danger);
+        }
         if armed {
-            chip.insert(Selected);
+            if !refused_here {
+                chip.insert(Selected);
+            }
+            // A blank keycap-sized slot: with no child the face collapses to
+            // its padding and the armed chip vanishes from the row.
+            chip.with_child((
+                Name::new("Rebind Armed Slot"),
+                Node {
+                    width: px(CHIP_GLYPH_PX),
+                    height: px(CHIP_GLYPH_PX),
+                    ..default()
+                },
+            ));
         } else {
             chip.with_children(|slot| {
                 spawn_binding_chips(slot, chips, glyphs, UiColorType::TextBody, None);

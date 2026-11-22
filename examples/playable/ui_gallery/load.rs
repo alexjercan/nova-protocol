@@ -228,11 +228,6 @@ fn details(
         },
         LOAD_PREVIEW,
     );
-    side.spawn(text(
-        "Right-drag turns, wheel zooms, T reframes.",
-        11.0,
-        UiColorType::TextMuted,
-    ));
     kv(side, "Seed", &save.seed.to_string());
     kv(side, "Sector", save.sector);
     kv(side, "Credits", &format!("{} cr", thousands(save.credits)));

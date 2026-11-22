@@ -85,3 +85,38 @@ selected. Pick a row, or a body on the stage."
 - The editor inspector line stays.
 - First: make the hardware danger paint visible, since the danger buttons
   carry the state once the prompts go.
+
+## Build (2026-11-22)
+All of A1-A4 and B1-B12 built as recommended; uncommitted on `master`.
+Frames: `after/` (both themes, 960 px), full size in
+`~/Pictures/nova-menu-lines/after/`. `proposal.html` has an After section.
+
+- Theme first: hardware `button_danger` is red at rest (`bevel2(Danger,
+  DangerFace, DangerFaceDark)`); both themes' danger disabled state is a
+  half-alpha danger outline. `crates/nova_ui/src/theme/base.rs`; base RON
+  regenerated (diff is the danger roles only), content lint clean.
+- B1: `TextFieldSpec::outline_only()` (no message node) and `.digits()`
+  (seed field drops non-digits); menu name and seed fields only.
+- A4/B1: `SeedStart { seed, found }` on the seed field from
+  `refresh_seed_preview`; a seed with no start marks the field invalid and
+  greys Next. Walks wait on it (exported from the `nova_menu` prelude).
+- A1: Reset Defaults is dead at 0 overrides; armed Confirm reads `Reset N`.
+- A2: `gate_new_game` greys New Game with no start role.
+- B6: `RebindRefusalType<H>` (`Pointer`, `HeldBy { source, holder }`)
+  replaces the refusal string; menu holder chip and its group tab go Danger,
+  pointer/section refusals turn the armed chip Danger, deny cue plays. The
+  armed chip is a blank selected face with a keycap-sized slot (without it
+  the face collapsed to nothing; seen in the first after frame).
+- B3/B4: Delete arms Cancel in its box and a danger Confirm; a refused delete
+  logs and plays deny; details show one tag per `WorldRefusal` kind.
+- B5: Load is dead with no listed world (`LoadMenuButton`,
+  `refresh_continue` keeps it in step).
+- B7: a failed selected theme is a dead Danger segment in the Theme row.
+- B8: FETCHING / OFFLINE tags; Install and Update draw dead offline.
+- A3, B2, B9-B12: lines deleted.
+
+Proof: `nova_menu --lib` filtered (settings, world_setup, menu, load_screen,
+mods, portal) 95 pass; `nova_ui` text_field+theme 46; `nova_input`
+registry 21; `nova_console` bind 4; `nova_interface` rebind 10. Test count in
+the touched files 113 -> 120. `screenshot_menu` end to end passes (147 steps,
+new `Reset 1` assert); `news_0160_world_setup` passes on the `SeedStart` wait.

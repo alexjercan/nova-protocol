@@ -154,8 +154,6 @@ const SETTINGS_BODY: &str = "Settings Body";
 const RESET_BUTTON: &str = "Reset Bindings";
 #[cfg(feature = "debug")]
 const RESET_CANCEL: &str = "Reset Bindings Cancel";
-#[cfg(feature = "debug")]
-const RESET_PROMPT: &str = "Reset Bindings Prompt";
 
 /// The still of the armed Reset Defaults.
 #[cfg(feature = "debug")]
@@ -186,8 +184,6 @@ const MOD_DETAILS_PANEL: &str = "Mod Details Panel";
 const UNINSTALL_BUTTON: &str = "Mod Details Uninstall Button";
 #[cfg(feature = "debug")]
 const UNINSTALL_CANCEL: &str = "Mod Details Uninstall Cancel";
-#[cfg(feature = "debug")]
-const UNINSTALL_PROMPT: &str = "Mod Details Uninstall Prompt";
 
 /// The still of the armed Uninstall.
 #[cfg(feature = "debug")]
@@ -753,9 +749,18 @@ impl MenuWalk for AutopilotPlugin<GameStates> {
                     idle,
                     RESET_CANCEL,
                     RESET_BUTTON,
-                    RESET_PROMPT,
                     &[SETTINGS_BODY, SETTINGS_PANEL],
                     0.0,
+                );
+            })
+            .add()
+            .step("the armed Reset Defaults counts the one moved row")
+            .on_enter(|world: &mut World| {
+                let label = button_label(world, RESET_BUTTON);
+                info!("screenshot_menu: armed Reset Defaults reads '{label}'");
+                assert_eq!(
+                    label, "Reset 1",
+                    "screenshot_menu: the armed Reset Defaults does not count the moved row"
                 );
             })
             .add()
@@ -851,7 +856,6 @@ impl MenuWalk for AutopilotPlugin<GameStates> {
                     idle,
                     UNINSTALL_CANCEL,
                     UNINSTALL_BUTTON,
-                    UNINSTALL_PROMPT,
                     &[MOD_DETAILS_PANEL, MODS_PANEL],
                     idle.width(),
                 );
@@ -911,34 +915,27 @@ fn fixture_mod_installed() -> bool {
 ///
 /// `cancel` must cover the whole `idle` box, so a second click on the same spot
 /// cancels. `confirm` must not sit on that box, and neither may be narrower
-/// than the idle box (`confirm` against `confirm_min_width`). The `prompt`
-/// sentence must be laid out, and none of the three may be clipped by any of
-/// `clips`. Every rect is logged first, so a failed run still carries the
-/// numbers.
+/// than the idle box (`confirm` against `confirm_min_width`). Neither may be
+/// clipped by any of `clips`. Every rect is logged first, so a failed run
+/// still carries the numbers.
 #[cfg(feature = "debug")]
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one check naming the idle box, the three armed nodes and their clips"
-)]
 fn assert_armed_row(
     world: &World,
     what: &str,
     idle: Rect,
     cancel: &str,
     confirm: &str,
-    prompt: &str,
     clips: &[&str],
     confirm_min_width: f32,
 ) {
     let cancel_rect = rect_of(world, cancel);
     let confirm_rect = rect_of(world, confirm);
-    let prompt_rect = rect_of(world, prompt);
     let clip_rects: Vec<(&str, Rect)> = clips
         .iter()
         .map(|name| (*name, rect_of(world, name)))
         .collect();
     info!(
-        "screenshot_menu: armed {what}: idle {idle:?}, Cancel {cancel_rect:?}, Confirm {confirm_rect:?}, prompt {prompt_rect:?}, clips {clip_rects:?}"
+        "screenshot_menu: armed {what}: idle {idle:?}, Cancel {cancel_rect:?}, Confirm {confirm_rect:?}, clips {clip_rects:?}"
     );
     assert!(
         rect_within(cancel_rect, idle),
@@ -958,17 +955,28 @@ fn assert_armed_row(
         "screenshot_menu: armed {what}: Confirm {confirm_rect:?} is narrower than {confirm_min_width}"
     );
     for (name, clip) in clip_rects {
-        for (button, rect) in [
-            ("Cancel", cancel_rect),
-            ("Confirm", confirm_rect),
-            ("the prompt", prompt_rect),
-        ] {
+        for (button, rect) in [("Cancel", cancel_rect), ("Confirm", confirm_rect)] {
             assert!(
                 rect_within(clip, rect),
                 "screenshot_menu: armed {what}: {button} {rect:?} is clipped by '{name}' {clip:?}"
             );
         }
     }
+}
+
+/// The label text of the one button called `name`: its first [`Text`] child.
+#[cfg(feature = "debug")]
+fn button_label(world: &mut World, name: &str) -> String {
+    let mut query = world.query::<(&Name, &Children)>();
+    let children: Vec<Entity> = query
+        .iter(world)
+        .find(|(node, _)| node.as_str() == name)
+        .map(|(_, children)| children.iter().collect())
+        .unwrap_or_else(|| panic!("screenshot_menu: no button '{name}'"));
+    children
+        .iter()
+        .find_map(|child| world.get::<Text>(*child).map(|text| text.0.clone()))
+        .unwrap_or_else(|| panic!("screenshot_menu: button '{name}' has no label"))
 }
 
 /// Whether a node called `name` exists.

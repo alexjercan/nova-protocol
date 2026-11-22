@@ -60,7 +60,9 @@ impl TextFieldFocused {
     }
 }
 
-/// Marks invalid text and supplies the message rendered below the field.
+/// Marks invalid text and supplies the message rendered below the field. A
+/// field built [`outline_only`](TextFieldSpec::outline_only) draws the
+/// invalid outline and no message.
 #[derive(Component, Clone, Debug, Deref, DerefMut, PartialEq, Eq)]
 pub struct TextFieldError(pub String);
 
@@ -84,6 +86,11 @@ pub struct TextFieldSpec {
     pub max_chars: usize,
     /// Draw it at the size of a tool surface: see [`density`].
     pub tool: bool,
+    /// Show a [`TextFieldError`] by the invalid outline alone, with no message
+    /// under the field: a menu field, where state is drawn, not written.
+    pub outline_only: bool,
+    /// Take ASCII digits only; any other typed character is dropped.
+    pub digits: bool,
 }
 
 impl TextFieldSpec {
@@ -94,6 +101,8 @@ impl TextFieldSpec {
             placeholder: String::new(),
             max_chars: 256,
             tool: false,
+            outline_only: false,
+            digits: false,
         }
     }
 
@@ -115,6 +124,19 @@ impl TextFieldSpec {
         self.tool = true;
         self
     }
+
+    /// Draw a refusal as the invalid outline only, with no message under the
+    /// field.
+    pub fn outline_only(mut self) -> Self {
+        self.outline_only = true;
+        self
+    }
+
+    /// Take ASCII digits only.
+    pub fn digits(mut self) -> Self {
+        self.digits = true;
+        self
+    }
 }
 
 /// Marks a themed single-line text entry root.
@@ -126,6 +148,7 @@ pub(super) struct TextFieldConfig {
     placeholder: String,
     max_chars: usize,
     tool: bool,
+    digits: bool,
 }
 
 #[derive(Component)]
@@ -151,6 +174,7 @@ pub fn text_field(spec: TextFieldSpec) -> impl Bundle {
     } else {
         (SIDE_PAD, FONT_SIZE)
     };
+    let message = !spec.outline_only;
     (
         TextField,
         TextFieldValue(spec.value),
@@ -158,6 +182,7 @@ pub fn text_field(spec: TextFieldSpec) -> impl Bundle {
             placeholder: spec.placeholder,
             max_chars: spec.max_chars,
             tool: spec.tool,
+            digits: spec.digits,
         },
         Button,
         Hovered::default(),
@@ -193,6 +218,9 @@ pub fn text_field(spec: TextFieldSpec) -> impl Bundle {
                     ..default()
                 },
             ));
+            if !message {
+                return;
+            }
             parent.spawn((
                 TextFieldErrorDisplay,
                 UiText,
@@ -409,13 +437,17 @@ pub(super) fn text_field_keyboard(
             }
             Key::Home => focus.caret = 0,
             Key::End => focus.caret = value.0.len(),
-            Key::Space if value.0.chars().count() < config.max_chars => {
+            Key::Space if !config.digits && value.0.chars().count() < config.max_chars => {
                 value.0.insert(focus.caret, ' ');
                 focus.caret += 1;
             }
             Key::Character(text) if !chord => {
                 let room = config.max_chars.saturating_sub(value.0.chars().count());
-                let inserted: String = text.chars().take(room).collect();
+                let inserted: String = text
+                    .chars()
+                    .filter(|c| !config.digits || c.is_ascii_digit())
+                    .take(room)
+                    .collect();
                 value.0.insert_str(focus.caret, &inserted);
                 focus.caret += inserted.len();
             }
@@ -642,6 +674,53 @@ mod tests {
         }
 
         assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "13");
+    }
+
+    /// A digits field is the seed's: a letter or a space typed into it is
+    /// dropped, so the field cannot hold what is not a number.
+    #[test]
+    fn a_digits_field_drops_everything_but_digits() {
+        let mut app = themed_app(PHOSPHOR_THEME_ID);
+        app.init_resource::<ButtonInput<KeyCode>>();
+        app.add_message::<KeyboardInput>();
+        let field = app
+            .world_mut()
+            .spawn((
+                text_field(TextFieldSpec::new("13").digits()),
+                TextFieldFocused::at_end("13"),
+            ))
+            .id();
+
+        press(&mut app, KeyCode::KeyA, Key::Character("a".into()));
+        press(&mut app, KeyCode::Space, Key::Space);
+        press(&mut app, KeyCode::Digit2, Key::Character("2".into()));
+
+        assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "132");
+    }
+
+    /// An outline-only field has no message node, so an error marks the
+    /// outline and writes nothing under the field.
+    #[test]
+    fn an_outline_only_field_draws_no_message() {
+        let mut app = themed_app(PHOSPHOR_THEME_ID);
+        let field = app
+            .world_mut()
+            .spawn((
+                text_field(TextFieldSpec::new("x").outline_only()),
+                TextFieldError("refused".to_string()),
+            ))
+            .id();
+        app.update();
+
+        let children: Vec<Entity> = app
+            .world()
+            .get::<Children>(field)
+            .expect("the field draws its text")
+            .iter()
+            .collect();
+        assert!(children
+            .iter()
+            .all(|child| app.world().get::<TextFieldErrorDisplay>(*child).is_none()));
     }
 
     /// AltGr reaches Windows as Ctrl and Alt together, and it types: `@` on a

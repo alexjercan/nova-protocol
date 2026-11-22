@@ -247,19 +247,11 @@ fn tab_switch_swaps_list_to_the_explore_states() {
         entity_by_name(&mut app, "Mod Details Toggle Button").is_none(),
         "no live Enable/Disable next to the portal content"
     );
+    assert!(
+        entity_by_name(&mut app, "Portal Fetching Tag").is_some(),
+        "the Explore tab tags the fetch state"
+    );
     let texts = all_texts(&mut app);
-    assert!(
-        texts
-            .iter()
-            .any(|t| t == "Fetching the mod portal catalog..."),
-        "the Explore tab shows the fetch state: {texts:?}"
-    );
-    assert!(
-        texts
-            .iter()
-            .any(|t| t == "Select a mod to see its details."),
-        "the details pane shows its fallback on the Explore tab: {texts:?}"
-    );
     assert!(
         !texts.iter().any(|t| t == "A demo mod for testing."),
         "the previously selected mod's details are gone"
@@ -278,12 +270,9 @@ fn tab_switch_swaps_list_to_the_explore_states() {
         Some("base"),
         "switching back re-runs the default selection"
     );
-    let texts = all_texts(&mut app);
     assert!(
-        !texts
-            .iter()
-            .any(|t| t == "Fetching the mod portal catalog..."),
-        "the fetch note is gone again"
+        entity_by_name(&mut app, "Portal Fetching Tag").is_none(),
+        "the fetch tag is gone again"
     );
 }
 
@@ -359,10 +348,12 @@ fn uninstall_needs_a_second_press() {
         "armed label: {texts:?}"
     );
     assert!(
-        texts
-            .iter()
-            .any(|t| t == "Deletes Demo Mod from this computer."),
-        "the sentence says what happens: {texts:?}"
+        entity_by_name(&mut app, "Mod Details Uninstall Cancel").is_some(),
+        "Cancel takes Uninstall's box"
+    );
+    assert!(
+        !texts.iter().any(|t| t.starts_with("Deletes ")),
+        "no sentence beside the armed pair: {texts:?}"
     );
 
     // Any other press withdraws the ask, so the next press asks again.

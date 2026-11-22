@@ -111,7 +111,7 @@ pub mod prelude {
         registry::{
             captured_binds, rebind_verdict, wire_name, ActionAxes, ActionBinding, BindingChip,
             BindingSpec, ConflictRule, GamepadStick, InputBindings, PointerRule, RebindPolicy,
-            RebindSurface, RebindVerdict, WheelDirection,
+            RebindRefusalType, RebindSurface, RebindVerdict, WheelDirection,
         },
         sensitivity::{
             apply_mouse_sensitivity, mouse_sensitivity, MouseInvertY, MousePath, MouseSensitivity,

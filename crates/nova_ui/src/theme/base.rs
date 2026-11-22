@@ -180,25 +180,28 @@ pub fn phosphor_theme() -> UiThemeConfig {
                 state(solid(va(C::Text, 0.2)), var(C::Text), var(C::Text), None),
             )),
             button_primary: Some(phosphor_primary_button()),
-            button_danger: Some(phosphor_button(
-                state(
-                    solid(va(C::Danger, 0.06)),
-                    va(C::Danger, 0.5),
-                    var(C::Danger),
-                    None,
+            button_danger: Some(with_disabled(
+                phosphor_button(
+                    state(
+                        solid(va(C::Danger, 0.06)),
+                        va(C::Danger, 0.5),
+                        var(C::Danger),
+                        None,
+                    ),
+                    state(
+                        solid(va(C::Danger, 0.16)),
+                        var(C::Danger),
+                        var(C::DangerText),
+                        None,
+                    ),
+                    state(
+                        solid(va(C::Danger, 0.2)),
+                        var(C::Danger),
+                        var(C::Danger),
+                        None,
+                    ),
                 ),
-                state(
-                    solid(va(C::Danger, 0.16)),
-                    var(C::Danger),
-                    var(C::DangerText),
-                    None,
-                ),
-                state(
-                    solid(va(C::Danger, 0.2)),
-                    var(C::Danger),
-                    var(C::Danger),
-                    None,
-                ),
+                danger_disabled(),
             )),
             // A live ghost's frame is near three times the disabled one's
             // (0.15), so a ghost verb never reads as a dead one.
@@ -474,20 +477,31 @@ pub fn hardware_theme() -> UiThemeConfig {
                 ),
             )),
             button_primary: Some(hardware_primary_button()),
-            button_danger: Some(hardware_button(
-                hardware_face(var(C::DangerText)),
-                state(
-                    bevel2(C::Danger, C::DangerFace, C::DangerFaceDark),
-                    var(C::Border),
-                    var(C::TextHover),
-                    Some(drop_shadow()),
+            // Danger wears its red face at rest: an armed Confirm or Delete
+            // carries its state with no sentence beside it, so it must read
+            // apart from the neutral face before the pointer reaches it.
+            button_danger: Some(with_disabled(
+                hardware_button(
+                    state(
+                        bevel2(C::Danger, C::DangerFace, C::DangerFaceDark),
+                        var(C::Border),
+                        var(C::DangerText),
+                        Some(drop_shadow()),
+                    ),
+                    state(
+                        bevel2(C::Danger, C::Danger, C::DangerFace),
+                        var(C::Border),
+                        var(C::TextHover),
+                        Some(drop_shadow()),
+                    ),
+                    state(
+                        bevel2(C::Danger, C::DangerFaceDark, C::DangerFace),
+                        var(C::Border),
+                        var(C::Highlight),
+                        None,
+                    ),
                 ),
-                state(
-                    bevel2(C::Danger, C::DangerFaceDark, C::DangerFace),
-                    var(C::Border),
-                    var(C::Highlight),
-                    None,
-                ),
+                danger_disabled(),
             )),
             // Ghost stays fill-less by contract, so its press cannot be a
             // bevel: it is a dark wash under a brightening border instead.
@@ -612,9 +626,20 @@ pub fn hardware_theme() -> UiThemeConfig {
     }
 }
 
+/// `role` with its disabled state replaced.
+fn with_disabled(role: ButtonRole, disabled: StatePaint) -> ButtonRole {
+    ButtonRole { disabled, ..role }
+}
+
+/// A dead danger control, in both looks: the disabled shape - no fill, no
+/// effect, a dim legend - round a faint DANGER frame, so a refused or failed
+/// choice reads apart from a plain dead one.
+fn danger_disabled() -> StatePaint {
+    state(Fill::none(), va(C::Danger, 0.5), va(C::Text, 0.35), None)
+}
+
 /// The idle moulded face: a lit top falling to a shaded bottom, standing on its
-/// drop shadow. The look's default surface - a button and a resting danger
-/// button are both this face under different legends.
+/// drop shadow. The look's default surface for a neutral button.
 fn hardware_face(text: ThemeColor) -> StatePaint {
     state(
         bevel3(C::Surface, C::SurfaceLit, C::Surface, C::SurfaceSunken),

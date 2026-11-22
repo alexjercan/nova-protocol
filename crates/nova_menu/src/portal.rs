@@ -7,6 +7,7 @@ use bevy::{
     picking::hover::Hovered,
     platform::time::Instant,
     prelude::*,
+    ui::InteractionDisabled,
     ui_widgets::{observe, Activate, Button},
 };
 use nova_assets::prelude::{
@@ -19,10 +20,8 @@ use nova_ui::{
     theme,
     theme::UiColorType,
     widget::{
-        action_row, button,
-        metrics::{GAP, MENU_H},
-        ButtonCueType, ButtonSpec, Selected, ThemedBorder, ThemedButton, ThemedFill, ThemedRadius,
-        ThemedText, UiText,
+        action_row, button, metrics::GAP, ButtonCueType, ButtonSpec, Selected, ThemedBorder,
+        ThemedButton, ThemedFill, ThemedRadius, ThemedText, UiText,
     },
 };
 
@@ -74,11 +73,6 @@ impl UninstallStep {
     pub(crate) fn armed_on(&self, id: &str) -> bool {
         matches!(self, Self::Confirm(armed) if armed == id)
     }
-}
-
-/// The sentence beside an armed Uninstall, naming what the second press does.
-pub(crate) fn uninstall_prompt(name: &str) -> String {
-    format!("Deletes {name} from this computer.")
 }
 
 /// One in-flight update request (see [`UpdateRequested`]).
@@ -295,7 +289,7 @@ pub(crate) fn on_catalog_retry(
 
 /// The Explore tab's VISIBLE entries: Ready's own, or - when the fetch failed
 /// but a last-good catalog survives - the stale fallback's (rendered under
-/// the offline note). Idle/Fetching (and an Error with no fallback) show
+/// the OFFLINE tag). Idle/Fetching (and an Error with no fallback) show
 /// none.
 pub(crate) fn explore_entries(remote: &RemoteCatalog) -> Option<&[PortalEntry]> {
     match &remote.state {
@@ -338,38 +332,6 @@ pub(crate) fn portal_display_name(entry: &PortalEntry) -> String {
     } else {
         entry.meta.name.clone()
     }
-}
-
-/// One muted informational row in the Explore list (fetching/offline notes).
-pub(crate) fn spawn_explore_note(list: &mut ChildSpawnerCommands, name: &'static str, text: &str) {
-    list.spawn((
-        Name::new(name),
-        Node {
-            align_self: AlignSelf::Stretch,
-            min_height: px(MENU_H),
-            flex_shrink: 0.0,
-            padding: UiRect::all(px(GAP)),
-            justify_content: JustifyContent::Center,
-            align_items: AlignItems::Center,
-            border: UiRect::all(px(theme::BORDER_W)),
-            ..default()
-        },
-        ThemedRadius::control(),
-        BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColorType::TextMuted),
-        BackgroundColor(Color::NONE),
-        ThemedFill::new(UiColorType::Background),
-        children![(
-            UiText,
-            Text::new(text.to_string()),
-            TextFont {
-                font_size: FontSize::Px(13.0),
-                ..default()
-            },
-            TextColor(Color::NONE),
-            ThemedText::new(UiColorType::TextMuted),
-        )],
-    ));
 }
 
 /// Spawn one portal-entry row: a clickable ThemedButton row (selection reuse -
@@ -488,6 +450,27 @@ pub(crate) fn spawn_portal_button(
     );
 }
 
+/// [`spawn_portal_button`], drawn dead: an Install or Update the stale
+/// last-good catalog cannot honor.
+pub(crate) fn spawn_dead_portal_button(
+    row: &mut ChildSpawnerCommands,
+    name: &'static str,
+    label: &str,
+    id: &str,
+    kind: PortalActionKind,
+) {
+    spawn_portal_slot(
+        row,
+        name,
+        id,
+        kind,
+        (
+            button(ButtonSpec::control(label).fill()),
+            InteractionDisabled,
+        ),
+    );
+}
+
 /// [`spawn_portal_button`] around a caller-built button.
 fn spawn_portal_slot(
     row: &mut ChildSpawnerCommands,
@@ -552,35 +535,6 @@ pub(crate) fn spawn_uninstall_button(row: &mut ChildSpawnerCommands, id: &str, a
     }
 }
 
-/// Narrowest width (px) the armed Uninstall sentence takes beside Confirm
-/// before it wraps to a row of its own.
-const UNINSTALL_PROMPT_MIN_W: f32 = 120.0;
-
-/// The sentence of an armed Uninstall, as the last item of its button row. It
-/// takes the width the buttons leave and wraps with the row, so arming adds
-/// no line of its own under the row: a line there fell below a short details
-/// pane, which does not scroll.
-pub(crate) fn spawn_uninstall_prompt(row: &mut ChildSpawnerCommands, prompt: String) {
-    row.spawn((
-        Name::new("Mod Details Uninstall Prompt"),
-        UiText,
-        Text::new(prompt),
-        TextFont {
-            font_size: FontSize::Px(13.0),
-            ..default()
-        },
-        TextColor(Color::NONE),
-        ThemedText::new(UiColorType::TextBody),
-        Node {
-            flex_grow: 1.0,
-            flex_basis: px(UNINSTALL_PROMPT_MIN_W),
-            min_width: px(0),
-            align_self: AlignSelf::Center,
-            ..default()
-        },
-    ));
-}
-
 /// A progress/status text line in the details action area.
 pub(crate) fn spawn_action_text(
     actions: &mut ChildSpawnerCommands,
@@ -609,8 +563,8 @@ pub(crate) fn spawn_action_text(
 ///
 /// `catalog_ready` is false when the entry renders from the stale last-good
 /// fallback: Install/Update need the READY catalog to succeed, and an offline
-/// Update would uninstall a working mod it cannot replace - so only Uninstall
-/// renders, under a muted offline note.
+/// Update would uninstall a working mod it cannot replace - so they draw
+/// dead, and the Explore list's OFFLINE tag says why.
 pub(crate) fn spawn_portal_actions(
     actions: &mut ChildSpawnerCommands,
     id: &str,
@@ -619,7 +573,7 @@ pub(crate) fn spawn_portal_actions(
     installed_version: Option<String>,
     updating: bool,
     catalog_ready: bool,
-    uninstall_prompt: Option<String>,
+    uninstall_armed: bool,
 ) {
     match job {
         Some(InstallStatus::Failed(reason)) => {
@@ -672,59 +626,41 @@ pub(crate) fn spawn_portal_actions(
             );
         }
         None => {
-            // An Install/Update that the stale fallback cannot honor is
-            // replaced by the offline note (set when a button was withheld).
-            let mut offline_note = false;
-            if installed_version.is_some() || catalog_ready {
-                actions
-                    .spawn((
-                        Name::new("Mod Details Action Buttons"),
-                        // A narrow pane wraps the last slot under the row;
-                        // the slots keep their width and place.
-                        action_row(JustifyContent::FlexStart),
-                    ))
-                    .with_children(|row| match installed_version {
+            actions
+                .spawn((
+                    Name::new("Mod Details Action Buttons"),
+                    // A narrow pane wraps the last slot under the row;
+                    // the slots keep their width and place.
+                    action_row(JustifyContent::FlexStart),
+                ))
+                .with_children(|row| {
+                    let portal_button = if catalog_ready {
+                        spawn_portal_button
+                    } else {
+                        spawn_dead_portal_button
+                    };
+                    match installed_version {
                         Some(installed) => {
-                            spawn_uninstall_button(row, id, uninstall_prompt.is_some());
+                            spawn_uninstall_button(row, id, uninstall_armed);
                             if installed != remote_version {
-                                if catalog_ready {
-                                    spawn_portal_button(
-                                        row,
-                                        "Mod Details Update Button",
-                                        "Update",
-                                        id,
-                                        PortalActionKind::Update,
-                                    );
-                                } else {
-                                    offline_note = true;
-                                }
-                            }
-                            if let Some(prompt) = uninstall_prompt {
-                                spawn_uninstall_prompt(row, prompt);
+                                portal_button(
+                                    row,
+                                    "Mod Details Update Button",
+                                    "Update",
+                                    id,
+                                    PortalActionKind::Update,
+                                );
                             }
                         }
-                        None => {
-                            // catalog_ready holds here (the guard above).
-                            spawn_portal_button(
-                                row,
-                                "Mod Details Install Button",
-                                "Install",
-                                id,
-                                PortalActionKind::Install,
-                            );
-                        }
-                    });
-            } else {
-                offline_note = true;
-            }
-            if offline_note {
-                spawn_action_text(
-                    actions,
-                    "Mod Details Offline Note",
-                    "offline - reconnect to install or update".to_string(),
-                    UiColorType::TextMuted,
-                );
-            }
+                        None => portal_button(
+                            row,
+                            "Mod Details Install Button",
+                            "Install",
+                            id,
+                            PortalActionKind::Install,
+                        ),
+                    }
+                });
         }
     }
 }

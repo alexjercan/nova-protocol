@@ -258,14 +258,52 @@ pub enum ConflictRule {
 }
 
 /// What a surface does with a captured source, once its policy is applied.
+///
+/// `H` is however the surface names what already holds the source: a label on
+/// a text surface, an id the Settings screen marks on its own rows.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum RebindVerdict {
+pub enum RebindVerdict<H> {
     /// Bind it. `Some` is the line to show beside it: what ELSE the source
     /// drives, on a surface whose policy is to say so rather than refuse.
     Bind(Option<String>),
-    /// Do not bind it, and show this line. A refusal is a wrong press, not a
-    /// cancelled rebind, so the capture stays armed for the next one.
-    Refuse(String),
+    /// Do not bind it. A refusal is a wrong press, not a cancelled rebind, so
+    /// the capture stays armed for the next one.
+    Refuse(RebindRefusalType<H>),
+}
+
+/// Why a surface refused a captured source.
+///
+/// A kind and the holder, not a sentence: the Settings screen marks the holder's
+/// own row, and a text surface (the console, the editor's notes) prints the
+/// [`Display`](std::fmt::Display) line.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RebindRefusalType<H> {
+    /// Left Mouse, on a surface that keeps it as the pointer.
+    Pointer,
+    /// `source` already drives `holder`.
+    HeldBy {
+        /// The captured source.
+        source: InputSource,
+        /// What already answers on it.
+        holder: H,
+    },
+}
+
+impl<H: std::fmt::Display> std::fmt::Display for RebindRefusalType<H> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Pointer => f.write_str("Left Mouse stays the pointer"),
+            Self::HeldBy { source, holder } => {
+                write!(f, "{} is already bound to {holder}", source.readout_label())
+            }
+        }
+    }
+}
+
+impl<H: std::fmt::Display> From<RebindRefusalType<H>> for String {
+    fn from(refusal: RebindRefusalType<H>) -> Self {
+        refusal.to_string()
+    }
 }
 
 /// Apply `surface`'s [`policy`](RebindSurface::policy) to a captured `source`.
@@ -276,23 +314,20 @@ pub enum RebindVerdict {
 /// section is being bound over, a live ship section's own trigger - and
 /// `nova_input` is a leaf below the crates that can answer it, so the surface
 /// asks and this decides what to do with the answer.
-pub fn rebind_verdict(
+pub fn rebind_verdict<H: std::fmt::Display>(
     surface: RebindSurface,
     source: InputSource,
-    held_by: Option<String>,
-) -> RebindVerdict {
+    held_by: Option<H>,
+) -> RebindVerdict<H> {
     let policy = surface.policy();
     if policy.pointer == PointerRule::Reserved && source == InputSource::Mouse(MouseButton::Left) {
-        return RebindVerdict::Refuse("Left Mouse stays the pointer".to_string());
+        return RebindVerdict::Refuse(RebindRefusalType::Pointer);
     }
     let Some(holder) = held_by else {
         return RebindVerdict::Bind(None);
     };
     match policy.conflict {
-        ConflictRule::Refuse => RebindVerdict::Refuse(format!(
-            "{} is already bound to {holder}",
-            source.readout_label()
-        )),
+        ConflictRule::Refuse => RebindVerdict::Refuse(RebindRefusalType::HeldBy { source, holder }),
         ConflictRule::Warn => RebindVerdict::Bind(Some(format!(
             "{} also drives {holder}",
             source.readout_label()
@@ -1194,7 +1229,7 @@ mod tests {
         let space = InputSource::Keyboard(KeyCode::Space);
         for surface in RebindSurface::ALL {
             let said = match rebind_verdict(surface, space, Some("Main Drive".to_string())) {
-                RebindVerdict::Refuse(line) => line,
+                RebindVerdict::Refuse(refusal) => refusal.to_string(),
                 RebindVerdict::Bind(note) => note.unwrap_or_default(),
             };
             assert!(
@@ -1203,7 +1238,7 @@ mod tests {
             );
             assert!(
                 matches!(
-                    rebind_verdict(surface, space, None),
+                    rebind_verdict::<String>(surface, space, None),
                     RebindVerdict::Bind(None)
                 ),
                 "{surface:?} refused a free source"
@@ -1253,11 +1288,11 @@ mod tests {
     fn a_surface_refuses_left_mouse_only_when_it_reserves_the_pointer() {
         let click = InputSource::Mouse(MouseButton::Left);
         for surface in RebindSurface::ALL {
-            let verdict = rebind_verdict(surface, click, None);
+            let verdict = rebind_verdict::<String>(surface, click, None);
             match surface.policy().pointer {
                 PointerRule::Reserved => assert_eq!(
                     verdict,
-                    RebindVerdict::Refuse("Left Mouse stays the pointer".to_string()),
+                    RebindVerdict::Refuse(RebindRefusalType::Pointer),
                     "{surface:?} reserves the pointer"
                 ),
                 PointerRule::Bindable => assert_eq!(

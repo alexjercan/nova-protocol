@@ -7,6 +7,7 @@ use std::time::Duration;
 use bevy::{
     platform::time::Instant,
     prelude::*,
+    ui::InteractionDisabled,
     ui_widgets::{observe, Activate},
 };
 use nova_assets::prelude::{
@@ -148,8 +149,8 @@ fn explore_ready_lists_entries_with_status_tags() {
 }
 
 /// Opening the Explore tab fetches the catalog ONLY from Idle: Ready is
-/// left alone (no gratuitous refetch), and the Idle/Fetching list renders
-/// the muted fetching note.
+/// left alone (no gratuitous refetch), and the Idle/Fetching list wears the
+/// FETCHING tag.
 #[test]
 fn opening_explore_fetches_only_from_idle() {
     let mut app = explore_app(RemoteCatalog::default(), DownloadedMods::default());
@@ -158,12 +159,9 @@ fn opening_explore_fetches_only_from_idle() {
         1,
         "Idle fetches on tab open"
     );
-    let texts = all_texts(&mut app);
     assert!(
-        texts
-            .iter()
-            .any(|t| t == "Fetching the mod portal catalog..."),
-        "the fetching note renders: {texts:?}"
+        entity_by_name(&mut app, "Portal Fetching Tag").is_some(),
+        "the fetching tag renders"
     );
 
     let app = explore_app(
@@ -183,8 +181,8 @@ fn opening_explore_fetches_only_from_idle() {
     );
 }
 
-/// A failed fetch renders the error + Retry; a surviving last-good
-/// catalog renders below an offline note, browsable and selectable.
+/// A failed fetch renders the OFFLINE tag + Retry and no error text; a
+/// surviving last-good catalog renders under it, browsable and selectable.
 /// Retry force-resets the state to Idle BEFORE re-triggering (the wedge
 /// recovery: the fetch observer refuses re-triggers while Fetching, so a
 /// reset-less retry could be refused forever).
@@ -209,20 +207,16 @@ fn catalog_error_renders_retry_and_the_stale_fallback() {
 
     let texts = all_texts(&mut app);
     assert!(
-        texts
-            .iter()
-            .any(|t| t == "portal catalog fetch failed: boom"),
-        "the error text renders: {texts:?}"
+        !texts.iter().any(|t| t.contains("boom")),
+        "the error goes to the log, not the list: {texts:?}"
     );
     assert!(
-        texts
-            .iter()
-            .any(|t| t == "offline - showing the last fetched catalog"),
-        "the stale note renders over a surviving last_good: {texts:?}"
+        entity_by_name(&mut app, "Portal Offline Tag").is_some(),
+        "the OFFLINE tag renders"
     );
     assert!(
         mod_row(&mut app, "alpha").is_some(),
-        "the last-good entries render below the note"
+        "the last-good entries render below the tag"
     );
     assert_eq!(
         selected_mod(&app).as_deref(),
@@ -245,10 +239,10 @@ fn catalog_error_renders_retry_and_the_stale_fallback() {
     );
 }
 
-/// An Error with NO last-good catalog renders the error + Retry alone -
-/// no offline note, no phantom rows.
+/// An Error with NO last-good catalog renders the OFFLINE tag + Retry
+/// alone - no phantom rows.
 #[test]
-fn catalog_error_without_last_good_renders_no_stale_note() {
+fn catalog_error_without_last_good_renders_no_rows() {
     let mut app = explore_app(
         RemoteCatalog {
             state: RemoteCatalogState::Error("boom".to_string()),
@@ -256,14 +250,7 @@ fn catalog_error_without_last_good_renders_no_stale_note() {
         },
         DownloadedMods::default(),
     );
-    let texts = all_texts(&mut app);
-    assert!(texts.iter().any(|t| t == "boom"));
-    assert!(
-        !texts
-            .iter()
-            .any(|t| t == "offline - showing the last fetched catalog"),
-        "no stale note without a last_good: {texts:?}"
-    );
+    assert!(entity_by_name(&mut app, "Portal Offline Tag").is_some());
     assert!(entity_by_name(&mut app, "Portal Retry Button").is_some());
     assert_eq!(selected_mod(&app), None, "nothing to select");
 }
@@ -521,14 +508,14 @@ fn update_preserves_the_enabled_bit() {
     // charlie was disabled there and stays disabled after the update.
 }
 
-/// Entries rendered from the STALE last-good fallback must not offer Install
-/// or Update - an offline install can only fail, and an offline Update would
-/// uninstall a working mod it cannot replace. Uninstall stays (purely local),
-/// under the muted offline note; and the action handler itself refuses
+/// Entries rendered from the STALE last-good fallback draw Install and
+/// Update dead - an offline install can only fail, and an offline Update
+/// would uninstall a working mod it cannot replace. Uninstall stays (purely
+/// local), with no note beside it; and the action handler itself refuses
 /// Install/Update without a Ready catalog (defense in depth), so even a stale
 /// button cannot destroy an install.
 #[test]
-fn stale_entries_offer_no_install_or_update() {
+fn stale_entries_draw_install_and_update_dead() {
     // An update-available installed entry, rendered from last_good.
     let mut app = explore_app(
         RemoteCatalog {
@@ -547,34 +534,30 @@ fn stale_entries_offer_no_install_or_update() {
     app.world_mut().trigger(Activate { entity: charlie });
     app.update();
 
+    let dead = |app: &mut App, name: &str| {
+        let button = entity_by_name(app, name).unwrap_or_else(|| panic!("no {name}"));
+        app.world().get::<InteractionDisabled>(button).is_some()
+    };
     assert!(
-        entity_by_name(&mut app, "Mod Details Update Button").is_none(),
-        "no Update on a stale entry"
+        dead(&mut app, "Mod Details Update Button"),
+        "Update on a stale entry is dead"
     );
     assert!(
-        entity_by_name(&mut app, "Mod Details Uninstall Button").is_some(),
-        "Uninstall (purely local) stays available"
+        !dead(&mut app, "Mod Details Uninstall Button"),
+        "Uninstall (purely local) stays live"
     );
     assert!(
-        all_texts(&mut app)
-            .iter()
-            .any(|t| t == "offline - reconnect to install or update"),
-        "the withheld action is explained by the offline note"
+        !all_texts(&mut app).iter().any(|t| t.starts_with("offline")),
+        "no offline note"
     );
 
-    // A not-installed stale entry: no Install either, just the note.
+    // A not-installed stale entry: Install dead too.
     let alpha = mod_row(&mut app, "alpha").expect("alpha row");
     app.world_mut().trigger(Activate { entity: alpha });
     app.update();
     assert!(
-        entity_by_name(&mut app, "Mod Details Install Button").is_none(),
-        "no Install on a stale entry"
-    );
-    assert!(
-        all_texts(&mut app)
-            .iter()
-            .any(|t| t == "offline - reconnect to install or update"),
-        "the offline note renders for the not-installed entry too"
+        dead(&mut app, "Mod Details Install Button"),
+        "Install on a stale entry is dead"
     );
 
     // Defense in depth: even a synthetic Update/Install action (a stale

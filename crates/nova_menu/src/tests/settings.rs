@@ -4,6 +4,7 @@
 
 use bevy::{
     prelude::*,
+    ui::InteractionDisabled,
     ui_widgets::{SliderValue, ValueChange},
 };
 use nova_gameplay::prelude::*;
@@ -15,7 +16,10 @@ use nova_ui::{
     theme::{
         base::base_ui_themes, ActiveUiTheme, SelectedUiTheme, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID,
     },
-    widget::{button_on_setting, segmented_option, ButtonValue, Selected, SliderBlock, SliderFill},
+    widget::{
+        button_on_setting, segmented_option, ButtonValue, ButtonVariant, Selected, SliderBlock,
+        SliderFill,
+    },
 };
 
 use super::support::{
@@ -259,6 +263,30 @@ fn settings_panel_builds_one_tab_at_a_time() {
         themes.iter().filter(|&&s| s).count(),
         1,
         "exactly one theme is highlighted as current"
+    );
+}
+
+/// A selected theme that did not resolve stays in the row as a dead danger
+/// segment, so the player sees which choice failed. No line explains it; the
+/// reason is in the log.
+#[test]
+fn a_theme_that_failed_shows_as_a_dead_danger_segment() {
+    let mut app = mods_app();
+    app.world_mut().resource_mut::<SelectedUiTheme>().0 = "gone/theme".to_string();
+    app.update();
+    open_tab(&mut app, SettingsTabKind::Interface);
+
+    let failed = entity_by_name(&mut app, "UI Theme gone/theme").expect("the failed theme stays");
+    assert_eq!(
+        app.world().get::<ButtonVariant>(failed),
+        Some(&ButtonVariant::Danger)
+    );
+    assert!(app.world().get::<InteractionDisabled>(failed).is_some());
+    assert!(
+        !all_texts(&mut app)
+            .iter()
+            .any(|t| t.starts_with("gone/theme:")),
+        "no diagnostic line"
     );
 }
 
@@ -582,6 +610,18 @@ fn arm_chip(app: &mut App, name: &str) {
     app.update();
 }
 
+/// The paint variant the button named `name` carries, `None` for the default.
+fn variant_of(app: &mut App, name: &str) -> Option<ButtonVariant> {
+    let entity = entity_by_name(app, name).unwrap_or_else(|| panic!("no button named {name}"));
+    app.world().get::<ButtonVariant>(entity).copied()
+}
+
+/// Whether the button named `name` wears the selection mark.
+fn is_selected(app: &mut App, name: &str) -> bool {
+    let entity = entity_by_name(app, name).unwrap_or_else(|| panic!("no button named {name}"));
+    app.world().get::<Selected>(entity).is_some()
+}
+
 /// Press one key for a frame, then let go.
 fn tap_key(app: &mut App, key: KeyCode) {
     app.world_mut()
@@ -601,8 +641,21 @@ fn a_rebind_takes_the_next_key_and_the_table_follows() {
     open_tab(&mut app, SettingsTabKind::Controls);
     arm_chip(&mut app, "Rebind: main_drive Desk");
     assert!(
-        all_texts(&mut app).iter().any(|t| t == "PRESS A KEY"),
-        "the armed chip prompts for the press"
+        is_selected(&mut app, "Rebind: main_drive Desk"),
+        "the armed chip wears the selection mark"
+    );
+    assert!(
+        !all_texts(&mut app).iter().any(|t| t.starts_with("PRESS")),
+        "and no prompt"
+    );
+    // With no child the face collapses to its padding and the armed chip
+    // vanishes from the row.
+    let chip = entity_by_name(&mut app, "Rebind: main_drive Desk").expect("the armed chip");
+    let slot = entity_by_name(&mut app, "Rebind Armed Slot").expect("a blank slot");
+    assert_eq!(
+        app.world().get::<ChildOf>(slot).map(ChildOf::parent),
+        Some(chip),
+        "the armed chip holds a keycap-sized blank slot"
     );
 
     tap_key(&mut app, KeyCode::KeyJ);
@@ -700,11 +753,11 @@ fn a_rebind_takes_a_pad_button() {
     );
 }
 
-/// A key another action already holds in the same live set is REFUSED, with
-/// the name of what holds it, and the chip stays armed so the next press is
-/// still the rebind.
+/// A key another action already holds in the same live set is REFUSED: the
+/// holder's own chip turns danger, no line is written, and the chip stays
+/// armed so the next press is still the rebind.
 #[test]
-fn a_taken_key_is_refused_by_name_and_the_chip_stays_armed() {
+fn a_taken_key_is_refused_by_marking_its_holder_and_the_chip_stays_armed() {
     let mut app = mods_app();
     open_tab(&mut app, SettingsTabKind::Controls);
     arm_chip(&mut app, "Rebind: main_drive Desk");
@@ -725,14 +778,19 @@ fn a_taken_key_is_refused_by_name_and_the_chip_stays_armed() {
         ],
         "the refused capture left the binding alone"
     );
-    assert!(
-        all_texts(&mut app)
-            .iter()
-            .any(|t| t == "X is already bound to Autopilot: Stop"),
-        "the refusal names what holds the key"
+    assert_eq!(
+        variant_of(&mut app, "Rebind: autopilot_stop Desk"),
+        Some(ButtonVariant::Danger),
+        "the chip that holds X is marked"
     );
     assert!(
-        all_texts(&mut app).iter().any(|t| t == "PRESS A KEY"),
+        !all_texts(&mut app)
+            .iter()
+            .any(|t| t.contains("already bound")),
+        "and no refusal line is written"
+    );
+    assert!(
+        is_selected(&mut app, "Rebind: main_drive Desk"),
         "and the chip is still waiting"
     );
 
@@ -745,6 +803,35 @@ fn a_taken_key_is_refused_by_name_and_the_chip_stays_armed() {
             .expect("registered")
             .keyboard,
         vec![InputSource::Keyboard(KeyCode::KeyJ)]
+    );
+    assert_ne!(
+        variant_of(&mut app, "Rebind: autopilot_stop Desk"),
+        Some(ButtonVariant::Danger),
+        "a landed capture clears the mark"
+    );
+}
+
+/// A holder in ANOTHER group has no chip on the page, so its group tab takes
+/// the mark. Left Ctrl is the radar's tap shadow, which has no row of its own:
+/// the mark lands on the group of the row it follows.
+#[test]
+fn a_key_held_in_another_group_marks_that_groups_tab() {
+    let mut app = mods_app();
+    open_tab(&mut app, SettingsTabKind::Controls);
+    arm_chip(&mut app, "Rebind: main_drive Desk");
+
+    tap_key(&mut app, KeyCode::ControlLeft);
+    app.update();
+
+    assert_eq!(
+        variant_of(&mut app, "Controls Group: TARGETING"),
+        Some(ButtonVariant::Danger),
+        "the holder's group tab is marked"
+    );
+    assert_ne!(
+        variant_of(&mut app, "Controls Group: FLIGHT"),
+        Some(ButtonVariant::Danger),
+        "the open group is not"
     );
 }
 
@@ -783,11 +870,10 @@ fn a_key_a_live_ship_section_holds_is_refused_too() {
         vec![InputSource::Gamepad(GamepadButton::RightTrigger)],
         "the capture is refused, not written"
     );
-    assert!(
-        all_texts(&mut app)
-            .iter()
-            .any(|t| t == "Right Trigger 2 is already bound to the ship's turret_dorsal section"),
-        "and the row says which section holds it"
+    assert_eq!(
+        variant_of(&mut app, "Rebind: main_drive Pad"),
+        Some(ButtonVariant::Danger),
+        "a section has no row, so the armed chip takes the mark"
     );
 }
 
@@ -802,7 +888,7 @@ fn escape_backs_out_of_an_armed_rebind() {
     app.update();
 
     assert!(
-        !all_texts(&mut app).iter().any(|t| t == "PRESS A KEY"),
+        !is_selected(&mut app, "Rebind: main_drive Desk"),
         "the capture is disarmed"
     );
     assert_eq!(
@@ -888,6 +974,28 @@ fn press_reset(app: &mut App) {
     app.update();
 }
 
+/// With every row on its default there is nothing to reset, and the button
+/// says so by being dead.
+#[test]
+fn reset_defaults_is_dead_until_a_row_moves() {
+    let mut app = mods_app();
+    open_tab(&mut app, SettingsTabKind::Controls);
+    let reset = entity_by_name(&mut app, "Reset Bindings").expect("the reset button exists");
+    assert!(
+        app.world().get::<InteractionDisabled>(reset).is_some(),
+        "nothing moved, nothing to reset"
+    );
+
+    arm_chip(&mut app, "Rebind: main_drive Desk");
+    tap_key(&mut app, KeyCode::KeyJ);
+    app.update();
+    let reset = entity_by_name(&mut app, "Reset Bindings").expect("the reset button exists");
+    assert!(
+        app.world().get::<InteractionDisabled>(reset).is_none(),
+        "one row moved, the reset is live"
+    );
+}
+
 /// Reset Defaults wipes every binding, so the first press only asks. The
 /// second press does it; any other press, or Back, withdraws the ask.
 #[test]
@@ -910,8 +1018,10 @@ fn reset_defaults_needs_a_second_press() {
         "the first press changes nothing"
     );
     assert!(
-        all_texts(&mut app).iter().any(|t| t == "Confirm"),
-        "the armed button reads Confirm"
+        all_texts(&mut app)
+            .iter()
+            .any(|t| *t == format!("Reset {moved}")),
+        "the armed button reads how many rows it puts back"
     );
 
     // Any other button withdraws the ask.
@@ -1072,11 +1182,10 @@ fn an_armed_chip_does_not_eat_the_pointers_own_button() {
         ],
         "the click did not become the binding"
     );
-    assert!(
-        all_texts(&mut app)
-            .iter()
-            .any(|t| t == "Left Mouse stays the pointer"),
-        "and the row says why"
+    assert_eq!(
+        variant_of(&mut app, "Rebind: main_drive Desk"),
+        Some(ButtonVariant::Danger),
+        "and the armed chip is marked, since nothing on the page holds it"
     );
 
     // Another mouse button is still fair game (Right Mouse is taken - it

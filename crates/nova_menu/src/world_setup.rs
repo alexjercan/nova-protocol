@@ -44,7 +44,7 @@ use nova_ui::{
         metrics::{GAP_S, GAP_XL, PANEL_PAD_MENU},
         panel, panel_head, text_field, ButtonCueType, ButtonVariant, PanelHeadTag, PanelHeadTitle,
         PanelHeadType, Selected, TextFieldError, TextFieldSpec, TextFieldValue, ThemedBorder,
-        ThemedRadius, ThemedText, Tooltip, UiText,
+        ThemedRadius, ThemedText, UiText,
     },
 };
 #[cfg(not(target_arch = "wasm32"))]
@@ -77,10 +77,6 @@ const WORLD_STEP_TAG: &str = "1/2 WORLD";
 /// What the modal head's tag reads on the role step.
 const ROLE_STEP_TAG: &str = "2/2 ROLE";
 
-/// The sentence beside the button row, and the tooltip of Create, when no
-/// start role is loaded.
-const NO_ROLE_REASON: &str = "Create is unavailable: no start role is loaded.";
-
 /// The role list's width on the role step.
 const ROLE_LIST_W: f32 = 240.0;
 
@@ -89,9 +85,6 @@ pub(crate) const ROLE_ICON_PX: f32 = 18.0;
 
 /// The widest seed: `u32::MAX` is ten digits.
 const SEED_DIGITS: usize = 10;
-
-/// The message under the seed field when what is typed is not a seed.
-const SEED_REFUSAL: &str = "Enter a whole number from 0 to 4294967295";
 
 /// The longest name the field takes: where `world_slug` refuses a name.
 #[cfg(not(target_arch = "wasm32"))]
@@ -117,10 +110,6 @@ const WORLD_SETUP_VIEW_MARGIN_PX: f32 = 8.0;
 
 /// The height of the hull's view on the role step.
 const HULL_PREVIEW_H: f32 = 150.0;
-
-/// The refusal under the name field when there is no worlds folder.
-#[cfg(not(target_arch = "wasm32"))]
-const NO_WORLDS_ROOT: &str = "This system has no folder for saved worlds";
 
 /// The folder saved worlds live in, or `None` when this system names none:
 /// Create and Load then refuse visibly and start nothing.
@@ -150,10 +139,25 @@ pub(crate) struct WorldSeedField;
 #[derive(Component)]
 pub(crate) struct SeedPreview;
 
-/// Marker for the line under the seed preview: what it shows, or why the
-/// seed has no start.
+/// Whether the seed the preview last drew has a start, on the seed field.
+///
+/// Written by [`refresh_seed_preview`], which already runs the generator for
+/// the chart; read by [`read_world_setup`], which marks the field invalid and
+/// greys Next for a seed with no start. A value for an older seed than the
+/// one typed is stale and refuses nothing.
+/// Walks wait on it to know the chart drew the typed seed.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SeedStart {
+    /// The seed the preview drew.
+    pub seed: u32,
+    /// Whether that seed has a starting station.
+    pub found: bool,
+}
+
+/// Marker for every New Game button: the menu's, whichever face it wears.
+/// [`gate_new_game`] keeps it dead while no start role is loaded.
 #[derive(Component)]
-pub(crate) struct SeedPreviewCaption;
+pub(crate) struct NewGameButton;
 
 /// Marker for the head of the modal, whose tag names the step shown.
 #[derive(Component)]
@@ -229,9 +233,29 @@ pub(crate) fn new_game_button(lit: bool) -> impl Bundle {
     };
     (
         Name::new("New Game Button"),
+        NewGameButton,
         button_variant("New Game", variant, None),
         observe(on_new_game),
     )
+}
+
+/// Keep every New Game button dead while no start role is loaded: a broken
+/// mod set leaves nothing to start as, and the role step would open on an
+/// empty list. Runs every menu frame over one or two buttons, so a button a
+/// reconciler just respawned is gated on the frame it appears.
+pub(crate) fn gate_new_game(
+    mut commands: Commands,
+    roles: Res<GameStartRoles>,
+    buttons: Query<(Entity, Has<InteractionDisabled>), With<NewGameButton>>,
+) {
+    let dead = roles.0.is_empty();
+    for (button, disabled) in &buttons {
+        if dead && !disabled {
+            commands.entity(button).insert(InteractionDisabled);
+        } else if !dead && disabled {
+            commands.entity(button).remove::<InteractionDisabled>();
+        }
+    }
 }
 
 /// Open the modal on the world step with a fresh seed and the first start
@@ -395,14 +419,13 @@ fn spawn_world_step(seed: String, name: String) -> impl FnOnce(&mut ChildSpawner
                         group.spawn((
                             Name::new("World Name Field"),
                             WorldNameField,
-                            text_field(TextFieldSpec::new(name).max_chars(NAME_CHARS)),
+                            text_field(
+                                TextFieldSpec::new(name)
+                                    .max_chars(NAME_CHARS)
+                                    .outline_only(),
+                            ),
                         ));
                     });
-                #[cfg(target_arch = "wasm32")]
-                fields.spawn(label(
-                    "Web Saves Note",
-                    "Saved worlds need the desktop build.",
-                ));
                 fields
                     .spawn(field_group("World Seed Group"))
                     .with_children(|group| {
@@ -424,7 +447,12 @@ fn spawn_world_step(seed: String, name: String) -> impl FnOnce(&mut ChildSpawner
                                 .with_child((
                                     Name::new("World Seed Field"),
                                     WorldSeedField,
-                                    text_field(TextFieldSpec::new(seed).max_chars(SEED_DIGITS)),
+                                    text_field(
+                                        TextFieldSpec::new(seed)
+                                            .max_chars(SEED_DIGITS)
+                                            .digits()
+                                            .outline_only(),
+                                    ),
                                 ));
                                 row.spawn(button_slot(
                                     "Randomize Seed Button Slot",
@@ -438,7 +466,7 @@ fn spawn_world_step(seed: String, name: String) -> impl FnOnce(&mut ChildSpawner
                             });
                     });
                 // The seed's chart: `refresh_seed_preview` draws it from the
-                // typed seed and writes the caption.
+                // typed seed. The stations on it are the whole statement.
                 fields
                     .spawn(field_group("Seed Preview Group"))
                     .with_children(|group| {
@@ -456,7 +484,6 @@ fn spawn_world_step(seed: String, name: String) -> impl FnOnce(&mut ChildSpawner
                             ThemedBorder::new(UiColorType::TextMuted),
                             ThemedRadius::control(),
                         ));
-                        group.spawn((SeedPreviewCaption, label("Seed Preview Caption", "")));
                     });
             });
         parent
@@ -601,16 +628,10 @@ fn spawn_role_step(
                             observe(on_create_world),
                         ));
                         if selected.is_none() {
-                            create
-                                .insert((InteractionDisabled, Tooltip(NO_ROLE_REASON.to_string())));
+                            create.insert(InteractionDisabled);
                         }
                     });
             });
-        // On screen as well as in the tooltip: a disabled button explains
-        // itself to a player who is not hovering it.
-        if selected.is_none() {
-            parent.spawn(label("Create Disabled Reason", NO_ROLE_REASON));
-        }
     }
 }
 
@@ -852,11 +873,8 @@ pub(crate) fn refresh_start_role_details(
         return;
     };
     commands.entity(pane).despawn_related::<Children>();
+    // No role, no details: the empty list and the dead Create carry it.
     let Some(role) = selection.0.as_ref().and_then(|id| roles.get_role(id)) else {
-        commands.entity(pane).with_child(label(
-            "Start Role Details Empty",
-            "No start role is loaded.",
-        ));
         return;
     };
     let card = hull_card(&role.hull, &designs, &sections);
@@ -996,25 +1014,25 @@ pub(crate) fn refresh_start_role_details(
 /// Draw the typed seed's chart in the world step's preview: the cells round
 /// the seed's starting station as the generator describes them, every
 /// station in reach marked and the start where it stands in its cell. A
-/// seed with no start draws an empty grid and says why under it. Only the
+/// seed with no start draws an empty grid, and the seed field refuses it. Only the
 /// start is labelled, YOU: the gallery mock also labels the starting station
 /// STN-1, but a chart code is the station's place in the found order, and
 /// sensors may find another station first, so no code is known before play.
-/// Runs when
-/// the seed field changes or the preview is new; a seed that is not a number
-/// is the field's refusal and leaves the last chart standing.
+/// Runs when the seed field changes or the preview is new; a seed that is
+/// not a number is the field's refusal and leaves the last chart standing.
+/// Whether the seed has a start goes on the field as [`SeedStart`].
 pub(crate) fn refresh_seed_preview(
     mut commands: Commands,
-    seeds: Query<Ref<TextFieldValue>, With<WorldSeedField>>,
+    seeds: Query<(Entity, Ref<TextFieldValue>), With<WorldSeedField>>,
     previews: Query<(Entity, Has<MenuChartPreview>), With<SeedPreview>>,
-    mut captions: Query<&mut Text, With<SeedPreviewCaption>>,
     loaded: Res<LoadedSectionPacks>,
     styles: Res<GameStyles>,
     items: Res<GameItems>,
     consumables: Res<GameConsumables>,
     profiles: Res<GameTradeProfiles>,
 ) {
-    let (Some(seed), Ok((preview, drawn))) = (seeds.iter().next(), previews.single()) else {
+    let (Some((seed_field, seed)), Ok((preview, drawn))) = (seeds.iter().next(), previews.single())
+    else {
         return;
     };
     if drawn && !seed.is_changed() {
@@ -1035,44 +1053,37 @@ pub(crate) fn refresh_seed_preview(
         );
     let described = generator
         .and_then(|generator| start_preview(seed, &generator).map_err(|fault| fault.to_string()));
-    let (view, caption) = match described {
-        Ok(described) => {
-            let stations = described.stations.len();
-            let view = ChartSceneView {
-                centre: described.cell(),
-                reach: START_PREVIEW_REACH,
-                cells: described
-                    .cells
-                    .iter()
-                    .map(|(at, clusters)| ChartSceneCell {
-                        at: *at,
-                        clusters: clusters.clone(),
-                    })
-                    .collect(),
-                marks: described
-                    .stations
-                    .iter()
-                    .map(|(at, dead)| ChartSceneMark {
-                        at: *at,
-                        kind: ChartSceneMarkType::Station {
-                            dead: *dead,
-                            owned: false,
-                            refusing: false,
-                        },
-                        code: String::new(),
-                    })
-                    .collect(),
-                selected: None,
-                you: Some(described.start_within_cell() * nova_hud::prelude::CHART_CELL),
-            };
-            let caption = format!(
-                "The sectors round the start of seed {seed}: {stations} {} in reach. \
-                 Right-drag turns, wheel zooms.",
-                if stations == 1 { "station" } else { "stations" }
-            );
-            (view, caption)
-        }
-        Err(refusal) => (
+    let found = described.is_ok();
+    let view = match described {
+        Ok(described) => ChartSceneView {
+            centre: described.cell(),
+            reach: START_PREVIEW_REACH,
+            cells: described
+                .cells
+                .iter()
+                .map(|(at, clusters)| ChartSceneCell {
+                    at: *at,
+                    clusters: clusters.clone(),
+                })
+                .collect(),
+            marks: described
+                .stations
+                .iter()
+                .map(|(at, dead)| ChartSceneMark {
+                    at: *at,
+                    kind: ChartSceneMarkType::Station {
+                        dead: *dead,
+                        owned: false,
+                        refusing: false,
+                    },
+                    code: String::new(),
+                })
+                .collect(),
+            selected: None,
+            you: Some(described.start_within_cell() * nova_hud::prelude::CHART_CELL),
+        },
+        Err(refusal) => {
+            debug!("seed {seed} has no start: {refusal}");
             ChartSceneView {
                 centre: SectorCoord::ORIGIN,
                 reach: START_PREVIEW_REACH,
@@ -1080,44 +1091,51 @@ pub(crate) fn refresh_seed_preview(
                 marks: Vec::new(),
                 selected: None,
                 you: None,
-            },
-            format!("Seed {seed} has no start: {refusal}"),
-        ),
+            }
+        }
     };
     commands.entity(preview).insert(MenuChartPreview(view));
-    for mut text in &mut captions {
-        text.0 = caption.clone();
-    }
+    commands
+        .entity(seed_field)
+        .insert(SeedStart { seed, found });
 }
 
 /// Refuse a typed name or seed inline, and grey Next while either stands.
 ///
 /// Reads the fields, not the press: a bad name or seed shows as refused while
-/// it is typed, and Next cannot look like it works on it. A name is checked
-/// for its form here; a taken name is refused by Create itself, which is the
-/// one check that cannot go stale.
+/// it is typed, and Next cannot look like it works on it. A seed is refused
+/// when it does not parse, and when [`SeedStart`] says the preview found no
+/// start for it. A name is checked for its form here; a taken name is refused
+/// by Create itself, which is the one check that cannot go stale. The fields
+/// draw the refusal as their invalid outline only.
 pub(crate) fn read_world_setup(
     mut commands: Commands,
     #[cfg(not(target_arch = "wasm32"))] names: Query<
         (Entity, Ref<TextFieldValue>),
         (With<WorldNameField>, Without<WorldSeedField>),
     >,
-    seeds: Query<(Entity, Ref<TextFieldValue>), With<WorldSeedField>>,
+    seeds: Query<(Entity, Ref<TextFieldValue>, Option<Ref<SeedStart>>), With<WorldSeedField>>,
     buttons: Query<Entity, With<WorldNextButton>>,
 ) {
-    let Some((seed_field, seed)) = seeds.iter().next() else {
+    let Some((seed_field, seed, start)) = seeds.iter().next() else {
         return;
     };
+    let parsed = parse_world_seed(&seed.0);
+    let no_start = start
+        .as_ref()
+        .is_some_and(|start| Some(start.seed) == parsed && !start.found);
     #[cfg_attr(
         target_arch = "wasm32",
         expect(unused_mut, reason = "only the native build adds the name check")
     )]
     let mut checks = vec![(
         seed_field,
-        seed.is_changed(),
-        parse_world_seed(&seed.0)
-            .map(|_| ())
-            .ok_or_else(|| SEED_REFUSAL.to_string()),
+        seed.is_changed() || start.as_ref().is_some_and(Ref::is_changed),
+        if parsed.is_some() && !no_start {
+            Ok(())
+        } else {
+            Err(String::new())
+        },
     )];
     #[cfg(not(target_arch = "wasm32"))]
     if let Some((name_field, name)) = names.iter().next() {
@@ -1235,7 +1253,7 @@ pub(crate) fn on_create_world(
         let (name_entity, name) = *name_field;
         let created = match &root.0 {
             Some(root) => create_world(root, &name.0).map_err(|refusal| refusal.to_string()),
-            None => Err(NO_WORLDS_ROOT.to_string()),
+            None => Err(String::new()),
         };
         let (folder, lock) = match created {
             Ok(created) => created,

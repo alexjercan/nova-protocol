@@ -17,7 +17,7 @@ While a menu window is open - Settings, Lessons, Load, Scenarios, Mods, the New 
 
 - **Continue** - desktop build only, once a save stands: heads the menu, names the newest saved world and how long ago it was saved, and opens it as **Load** would.
 - **New Game** - opens the world setup in two steps. The first step takes a name for the world (desktop build only) and a seed (a fresh one each time, or type your own), with **Randomize**, **Next** and **Cancel**. Under the seed a 3D chart shows the seed's sectors round your starting station before the world exists: right-drag turns it, the wheel zooms. The second step lists the start roles: select one to see how it plays, its hull turning in 3D, its hull's card (name, length, sections, weapons, drives), its kit of credits and cargo, its milestone (the role's goal) and its story, then press **Create**, or **Back** to change the seed. The name opens on **New World**, or the next free **New World 2**, **New World 3**, ... when that world exists. **Create** puts you in the role's ship, docked at your **starting station** - the nearest station of a civilization that begins as your Ally - in an open world of sparse asteroid clusters, planetoids and [generated ships](../ships/#generated-ships), generated from the seed and streamed in around you as you fly. Press <kbd>Tab</kbd> for the [interface](../interface/): its **Jobs** tab lists the station's board and its **Station** tab what the station sells, while you sit there. A fresh world posts one objective, **Take a job**, with the interface key under it; the chip stays up until your first accepted job clears it, and nothing waits on it. A seed whose nearby civilizations keep no allied station is refused on the seed field, so pick another. The role's charter, one finite milestone and not an ending, stands in the Map's chart view as you play; see [the Map](../interface/#the-map). The same seed gives the same world on the same build. On the desktop build the world saves itself as you play, and the pause menu's Retry becomes **Load last save**; see [Saved worlds](#saved-worlds) below. The web build keeps no saved worlds.
-- **Load** - desktop build only: lists your saved world folders and resumes the one you pick, or shows why it cannot. Each row reads the world's name and start role, its play time, how long ago it was saved and how many objectives stand open. The details draw the save's chart in 3D, then its **FLEET** - the ship you fly, and the owned ships, escorts and owned stations when it has any - and its open objectives: each held job, then your start role's goal with its next unmet milestone only, not every milestone line. **Delete** removes the one you pick after you confirm.
+- **Load** - desktop build only, and greyed until a world is saved: lists your saved world folders and resumes the one you pick, or marks one that cannot load. Each row reads the world's name and start role, its play time, how long ago it was saved and how many objectives stand open. The details draw the save's chart in 3D, then its **FLEET** - the ship you fly, and the owned ships, escorts and owned stations when it has any - and its open objectives: each held job, then your start role's goal with its next unmet milestone only, not every milestone line. **Delete** removes the one you pick after you confirm.
 - **Sandbox** - opens the Mod Hub. Create or open a mod, build ships and scenarios in it, and test-fly them.
 - **Lessons** - opens the training handbook. Its first row, **Basic Training**, starts the first-flight course. Under it is one screen per topic, with a demonstration, the actions it uses under your own bindings, a link into this manual, and often a focused range to fly. The handbook keeps track of what you have done: a lesson you open is marked **read**, and one is marked **done** only when you win a scenario that teaches it - finishing Basic Training or the topic's own practice range. Both are kept between sessions, in their own file beside your settings.
 - **Scenarios** - opens the complete scenario picker, every scenario your enabled mods ship included.
@@ -72,28 +72,28 @@ A Load that cannot bring its sectors and transients back within 240 seconds is r
 
 ### A refused Load
 
-The Load screen lists every world folder, with the start role each world began as, and shows why one cannot be opened, on its row. It checks each saved state in the background: while a check runs, the row reads `Checking saved state` and **Load** stays greyed. **Load** checks the world again before it starts.
+The Load screen lists every world folder, with the start role each world began as, and marks one that cannot be opened `INVALID` on its row. It checks each saved state in the background: while a check runs, the row reads `CHECKING` and **Load** stays greyed. **Load** checks the world again before it starts. The details of a refused world carry one tag for the kind of refusal; the full reason goes to the game's log.
 
-| Reason | Shown as |
+| Reason | Tag |
 | --- | --- |
-| Another game has it open | `open in another game` |
-| Saved by another game release or a development build | `save format <found>; this build reads <current>` |
-| Saved with other content | `content changed; saved with <mods>` |
-| The scenario the save names is not in this game's content | `its scenario '<id>' is not in the loaded content` |
-| The start role the save names is not in this game's content | `its start role '<id>' is not in the loaded content` |
-| Save file missing, corrupt or of another generation | `unreadable: <reason>` |
-| The saved state holds an item this game's content does not define | `unreadable: state.<n>.ron: unknown item '<id>' held by <owner>`, or `named by the chart` |
-| A file operation failed | the raw I/O error |
-| The sectors or transients did not come back in time | `the world did not come back within 240 s: <reason>` |
-| A saved reference matches two live bodies, or a saved style is not in this game's content | the reason, at once |
+| Another game has it open | `LOCKED` |
+| Saved by another game release or a development build | `FORMAT` |
+| Saved with other content | `CATALOG` |
+| The scenario the save names is not in this game's content | `SCENARIO` |
+| The start role the save names is not in this game's content | `ROLE` |
+| Save file missing, corrupt or of another generation | `UNREADABLE` |
+| The saved state holds an item this game's content does not define | `UNREADABLE` |
+| A file operation failed | `IO` |
+| The sectors or transients did not come back in time | `UNRESTORED` |
+| A saved reference matches two live bodies, or a saved style is not in this game's content | `UNRESTORED`, at once |
 
-The content check runs first. A world saved with a mod item whose mod is now off or changed shows `content changed`, not `unknown item`.
+The content check runs first. A world saved with a mod item whose mod is now off or changed shows `CATALOG`, not `UNREADABLE`.
 
 ### Deleting a world
 
-Select a world on the Load screen and press **Delete**, then **Delete world** to confirm or **Cancel** to keep it. Delete works on a world that cannot load, too. It removes only the files the game writes (`world.ron`, `world.lock`, the `state.<n>.ron` files and the temp files of an interrupted save), then the empty folder. There is no undo.
+Select a world on the Load screen and press **Delete**: **Cancel** takes its place, beside a red **Confirm**. Press **Confirm** to delete or **Cancel** to keep it. Delete works on a world that cannot load, too. It removes only the files the game writes (`world.ron`, `world.lock`, the `state.<n>.ron` files and the temp files of an interrupted save), then the empty folder. There is no undo.
 
-Delete removes nothing and shows `Cannot delete <folder>: <reason>` when another game has the world open, when the folder is gone, is a link or has a name no world gives, or when it holds any other file or folder: move that out first. If a removal fails part way, the world lists as unreadable and cannot load; press **Delete** again to remove the rest.
+Delete removes nothing and answers with a deny buzz when another game has the world open, when the folder is gone, is a link or has a name no world gives, or when it holds any other file or folder: move that out first. If a removal fails part way, the world lists as unreadable and cannot load; press **Delete** again to remove the rest.
 
 For your first flight, pick **Start Basic Training** on the card, the **Basic Training** row at the top of **Lessons**, or **Basic Training** in **Scenarios**. It teaches one gesture at a time and hands you each verb only when you reach the beat that needs it - so a key that answers with a deny buzz early on just is not unlocked yet. Each beat completes as soon as the range sees the gesture done.
 

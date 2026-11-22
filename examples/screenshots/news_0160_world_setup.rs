@@ -57,7 +57,6 @@ const NEW_GAME_BUTTON: &str = "New Game Button";
 const NAME_FIELD: &str = "World Name Field";
 const SEED_FIELD: &str = "World Seed Field";
 const SEED_PREVIEW: &str = "Seed Preview";
-const SEED_CAPTION: &str = "Seed Preview Caption";
 const WORLD_NEXT_BUTTON: &str = "World Next Button";
 const CREATE_WORLD_BUTTON: &str = "Create World Button";
 const ROLE_DETAILS_NAME: &str = "Start Role Details Name";
@@ -139,6 +138,15 @@ fn text_of(world: &World, name: &str) -> Option<String> {
 }
 
 /// The value of the laid-out text field named `name`, if one stands.
+/// What the seed preview last drew for the seed field, once it drew.
+fn seed_start(world: &World) -> Option<SeedStart> {
+    world
+        .try_query::<(&Name, &SeedStart)>()?
+        .iter(world)
+        .find(|(node, _)| node.as_str() == SEED_FIELD)
+        .map(|(_, start)| *start)
+}
+
 fn field_value(world: &World, name: &str) -> Option<String> {
     world
         .try_query::<(&Name, &TextFieldValue)>()?
@@ -201,7 +209,6 @@ fn move_to_seed_field_edge(world: &mut World) {
 /// The walk: New Game, the seed typed, then the recorded drag, Next and the
 /// role steps.
 fn wizard_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
-    let seed_caption = format!("The sectors round the start of seed {WORLD_SEED}:");
     let mut script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("reach the main menu")
         .until(ui_node_present(NEW_GAME_BUTTON))
@@ -263,7 +270,11 @@ fn wizard_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         .step("the chart draws the typed seed")
         .until(when(move |world| {
-            text_of(world, SEED_CAPTION).is_some_and(|text| text.starts_with(&seed_caption))
+            seed_start(world)
+                == Some(SeedStart {
+                    seed: WORLD_SEED,
+                    found: true,
+                })
         }))
         .deadline(BEAT_DEADLINE_SECS)
         .add()

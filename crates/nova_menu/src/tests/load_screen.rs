@@ -204,6 +204,21 @@ pub(super) fn menu_with_a_save(root: &Path, name: &str) -> App {
 }
 
 /// The text of the one [`Text`] entity named `name`.
+/// The word of the one tag named `name`, as drawn.
+fn tag_word(app: &mut App, name: &str) -> String {
+    let entity = named(app, name);
+    let children: Vec<Entity> = app
+        .world()
+        .get::<Children>(entity)
+        .expect("a tag holds its label")
+        .iter()
+        .collect();
+    children
+        .iter()
+        .find_map(|child| app.world().get::<Text>(*child).map(|text| text.0.clone()))
+        .expect("a tag label")
+}
+
 fn text_of(app: &mut App, name: &str) -> String {
     let entity = named(app, name);
     app.world()
@@ -368,14 +383,14 @@ fn load_greys_a_world_while_its_check_runs_and_refuses_one_holding_an_unknown_it
     let row = named(&mut app, "Load World Row: holder-world");
     app.world_mut().trigger(Activate { entity: row });
     app.update();
-    let reason = "unknown item 'HullPlate' held by the player ship";
     assert!(
         has_named(&mut app, "Load World Row Invalid"),
         "the row wears the Invalid badge"
     );
-    assert!(
-        text_of(&mut app, "Load World Details Refusal").contains(reason),
-        "the details pane names the unknown item"
+    assert_eq!(
+        tag_word(&mut app, "Load World Details Refusal"),
+        "UNREADABLE",
+        "the details pane tags the refusal's kind"
     );
     let load_button = named(&mut app, "Load World Button");
     assert!(
@@ -427,9 +442,10 @@ fn load_greys_a_world_while_its_check_runs_and_refuses_one_holding_an_unknown_it
         has_named(&mut app, "Load World Row Invalid"),
         "the row wears the Invalid badge after a refused Load"
     );
-    assert!(
-        text_of(&mut app, "Load World Details Refusal").contains(reason),
-        "the details pane names the unknown item after a refused Load"
+    assert_eq!(
+        tag_word(&mut app, "Load World Details Refusal"),
+        "UNREADABLE",
+        "the details pane tags the refusal after a refused Load"
     );
 }
 
@@ -458,7 +474,9 @@ fn delete_asks_first_then_removes_the_world_and_its_row() {
     app.update();
 
     press(&mut app, "Load World Delete Button");
-    named(&mut app, "Load World Delete Prompt");
+    // Armed: Cancel takes Delete's box, a danger Confirm sits beside it.
+    assert!(!has_named(&mut app, "Load World Delete Button"));
+    named(&mut app, "Load World Delete Confirm Button");
 
     press(&mut app, "Load World Delete Cancel Button");
     assert!(

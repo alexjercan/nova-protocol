@@ -175,15 +175,17 @@ with the keyboard and gamepad columns side by side, drawn as the keycaps and pad
 glyphs you actually press. The same table is laid out on the
 [Keybinds](../keybinds/) page.
 
-Click a chip and it prompts `PRESS A KEY`; the next key, mouse button or pad
+Click a chip and it lights up, waiting; the next key, mouse button or pad
 button you press becomes that column's whole binding. <kbd>Esc</kbd> backs out,
 which is why no row can be bound to it, and **Reset Defaults** puts the whole
-table back. It asks twice: the first press puts **Cancel** where the button
-was, beside a red **Confirm** and what it resets. **Cancel**, <kbd>Esc</kbd>
-or any other button cancels.
+table back. It is greyed until a row differs from its default, and it asks
+twice: the first press puts **Cancel** where the button was, beside a red
+**Reset N** that counts the rows it puts back. **Cancel**, <kbd>Esc</kbd> or any
+other button cancels.
 
-A press something else could answer at the same instant is refused by name -
-`W is already bound to Main Drive` - and the chip stays armed for another try.
+A press something else could answer at the same instant is refused with a deny
+buzz: the chip that holds the key turns red, and so does its group's tab when
+that row is in another group. The armed chip stays armed for another try.
 Sharing a key across screens is fine and deliberate: <kbd>G</kbd> is GO TO in
 flight and the mates overlay on the interface's Ship pane, and only one of them is ever
 listening.
@@ -193,8 +195,9 @@ They are the way out of every other screen, including this one.
 
 A section's weapon, thruster or mining beam key is not here - that is per
 ship, assigned in the editor or on the interface's Ship pane. From the pause
-menu, a flight row cannot take a key that a section of your ship holds:
-`V is already bound to the ship's mining_beam section`.
+menu, a flight row cannot take a key that a section of your ship holds: the
+armed chip turns red instead. So does a chip offered <kbd>Left Mouse</kbd>,
+which stays the pointer.
 
 ### Mouse
 
@@ -234,7 +237,7 @@ to feel like. If the old speed was right for you, put Look at `300%`.
 
 | Row | Choices | What it moves |
 | --- | --- | --- |
-| Theme | Phosphor, Hardware, and any theme an enabled mod declares | The look of every panel, button and readout. A theme that fails to load says so under the row and the game falls back to Phosphor. |
+| Theme | Phosphor, Hardware, and any theme an enabled mod declares | The look of every panel, button and readout. A theme that fails to load shows as a greyed red choice on the row, and the game falls back to Phosphor. |
 | UI scale | 75%, 100%, 125%, 150% | How large the interface draws. Panels are capped at a share of the window, so a larger scale still keeps them on screen. |
 | Training prompt | On, Off | The Basic Training offer in the main menu's corner. |
 | Field notes | On, Off | The handbook hint card beside it. |
