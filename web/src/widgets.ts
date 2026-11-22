@@ -11572,37 +11572,34 @@ function initCollapseBudget(host: HTMLElement): void {
 }
 
 // The cargo intake, from crates/nova_authoring/src/base_content/sections/
-// cargo_intake.rs: INTAKE_CELLS 3 x 2 x 1 (:23), detection_range 40 m (:111),
-// capture_gap 1 m (:112), aperture 22.2 x 15.3 m (:117-118), eject_speed
-// 3 m/s (:119). The runtime is crates/nova_ship/src/sections/
-// cargo_intake_section.rs: CARGO_CANISTER_SIZE 0.94 x 0.58 x 0.58 units (:73);
-// the door opens for a canister whose centre is in front of the face and
-// within detection_range of the face centre, with room in the hold for one
-// whole item (run_cargo_intakes, CargoCanister::fits_any in
-// crates/nova_gameplay/src/inventory.rs); the take is a contact with
-// nonnegative penetration into the trigger box, whatever the door does, and
-// moves every whole item that fits, leaving the rest (take_fitting); a
-// drop is born half a canister deep + capture_gap + CARGO_CANISTER_CLEARANCE
-// 0.05 units (:82) off the face (:602-606). pull_range 40 m and pull_speed
-// 5 m/s (cargo_intake.rs): through the fully open door a canister whose centre
-// is in front of the face within pull_range, with room for an item, moves
-// straight at the trigger at pull_speed (pull_canisters_to_open_intakes).
+// cargo_intake.rs: INTAKE_CELLS 3 x 2 x 1, capture_gap 1 m, aperture
+// 22.2 x 15.3 m, eject_speed 3 m/s, pull_range 120 m, pull_speed 8 m/s. The
+// runtime is crates/nova_ship/src/sections/cargo_intake_section.rs:
+// CARGO_CANISTER_SIZE 0.94 x 0.58 x 0.58 units; a canister whose centre is in
+// front of the face and within pull_range of the face centre is in reach
+// (in_pull_reach); with room in the hold for one whole item
+// (CargoCanister::fits_any in crates/nova_gameplay/src/inventory.rs) it opens
+// the door (run_cargo_intakes) and moves straight at the trigger at
+// pull_speed, door open or not (pull_canisters_to_intakes); the take is a
+// contact with nonnegative penetration into the trigger box, whatever the
+// door does, and moves every whole item that fits, leaving the rest
+// (take_fitting); a drop is born half a canister deep + capture_gap +
+// CARGO_CANISTER_CLEARANCE 0.05 units off the face.
 const INTAKE_HEIGHT_M = 20;
 const INTAKE_DEPTH_M = 10;
 const INTAKE_APERTURE_WIDTH_M = 22.2;
 const INTAKE_APERTURE_HEIGHT_M = 15.3;
-const INTAKE_DETECTION_M = 40;
 const INTAKE_CAPTURE_GAP_M = 1;
 const INTAKE_EJECT_MPS = 3;
-const INTAKE_PULL_M = 40;
-const INTAKE_PULL_MPS = 5;
+const INTAKE_PULL_M = 120;
+const INTAKE_PULL_MPS = 8;
 const CANISTER_LENGTH_M = 9.4;
 const CANISTER_SIDE_M = 5.8;
 const INTAKE_BIRTH_M = CANISTER_SIDE_M / 2 + INTAKE_CAPTURE_GAP_M + 0.5;
 
 /** What one intake does with one canister in the widget's side view. */
 export interface IntakeTake {
-    /** The canister's centre is in front of the face, within 40 m of it, and the hold has room for an item. */
+    /** The canister's centre is in front of the face, within 120 m of it, and the hold has room for an item: it is pulled in and the door opens. */
     doorOpens: boolean;
     /** The canister's outline meets the 1 m slab in front of the opening. */
     touchesSlab: boolean;
@@ -11643,7 +11640,7 @@ export function cargoIntakeTake(
         overlapsOn(long, halfLong) &&
         overlapsOn(side, halfSide);
     return {
-        doorOpens: holdHasRoom && Math.hypot(out, upM) <= INTAKE_DETECTION_M,
+        doorOpens: holdHasRoom && Math.hypot(out, upM) <= INTAKE_PULL_M,
         touchesSlab,
         taken: touchesSlab && holdHasRoom,
     };
@@ -11652,17 +11649,17 @@ export function cargoIntakeTake(
 function initCargoIntakeTake(host: HTMLElement): void {
     header(
         host,
-        "Intake scope: door and take",
+        "Intake scope: pull and take",
         "A side view, door looking right, to scale. Move and turn a canister. " +
-            "The door goes by the canister's centre; the take goes by any " +
-            "part of it in the thin slab in front of the opening."
+            "The pull and the door go by the canister's centre; the take goes " +
+            "by any part of it in the thin slab in front of the opening."
     );
 
     const controls = el("div", "widget__controls");
     const gap = control(
         "gap to the face",
         0,
-        45,
+        120,
         0.5,
         6,
         (v) => meters(v, 1),
@@ -11709,17 +11706,18 @@ function initCargoIntakeTake(host: HTMLElement): void {
     keys.appendChild(roomKey);
 
     // 2.5 px to the meter. The intake's box at the left, its door face at FX
-    // looking right, the door range half-disc in front of the face centre.
+    // looking right, the pull range half-disc in front of the face centre;
+    // the plot clips the disc above and below the face.
     const S = 2.5;
     const FX = 50;
     const FY = 126;
-    const reach = INTAKE_DETECTION_M * S;
+    const reach = INTAKE_PULL_M * S;
     const slabH = INTAKE_APERTURE_HEIGHT_M * S;
     const svg = svgEl("svg", {
-        viewBox: "0 0 360 252",
+        viewBox: "0 0 380 252",
         role: "img",
         "aria-label":
-            "Side view of the intake: the door face, the 40 m door range in " +
+            "Side view of the intake: the door face, the 120 m pull range in " +
             "front of it, the 1 m slab across the opening, and the canister " +
             "you place.",
     });
@@ -11741,8 +11739,13 @@ function initCargoIntakeTake(host: HTMLElement): void {
     });
     add(
         "text",
-        { x: FX + 6, y: FY - reach + 14, class: "widget-mark--axis" },
-        `door range ${INTAKE_DETECTION_M} m`
+        {
+            x: FX + reach - 6,
+            y: 18,
+            "text-anchor": "end",
+            class: "widget-mark--axis",
+        },
+        `pull range ${INTAKE_PULL_M} m`
     );
     add("rect", {
         x: FX - INTAKE_DEPTH_M * S,
@@ -11877,25 +11880,23 @@ function initCargoIntakeTake(host: HTMLElement): void {
             readout.textContent =
                 `DOOR OPEN, pulling. The centre is ` +
                 `${meters(centreM, 1)} from the face centre, inside ` +
-                `${INTAKE_DETECTION_M} m` +
-                (centreM <= INTAKE_PULL_M
-                    ? `, so once the door is open it pulls the canister ` +
-                      `straight at the opening at ${INTAKE_PULL_MPS} m/s.`
-                    : `, past the ${INTAKE_PULL_M} m pull.`);
-        } else if (!room && centreM <= INTAKE_DETECTION_M) {
+                `${INTAKE_PULL_M} m, so the intake pulls the canister ` +
+                `straight at the opening at ${INTAKE_PULL_MPS} m/s while ` +
+                "the door opens.";
+        } else if (!room && centreM <= INTAKE_PULL_M) {
             readout.classList.add("is-warn");
             readout.textContent =
                 `DOOR SHUT: the hold is full. The centre is ` +
                 `${meters(centreM, 1)} from the face centre, inside ` +
-                `${INTAKE_DETECTION_M} m, but the door opens only for a ` +
-                "canister with an item the hold has room for.";
+                `${INTAKE_PULL_M} m, but the intake pulls and opens only ` +
+                "for a canister with an item the hold has room for.";
         } else {
             readout.classList.add("is-warn");
             readout.textContent =
-                `DOOR SHUT. The door reads only the centre, ` +
+                `DOOR SHUT. The pull reads only the centre, ` +
                 `${meters(centreM, 1)} from the face centre, past ` +
-                `${INTAKE_DETECTION_M} m` +
-                (g <= INTAKE_DETECTION_M
+                `${INTAKE_PULL_M} m` +
+                (g <= INTAKE_PULL_M
                     ? `, even with the near end ${meters(g, 1)} out.`
                     : ".");
         }

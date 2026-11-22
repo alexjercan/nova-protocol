@@ -180,10 +180,6 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
         SectionKind::Hull(_) => vec![("Role".to_string(), "passive structure".to_string())],
         SectionKind::CargoIntake(intake) => vec![
             (
-                "Detect".to_string(),
-                format!("{:.0} m", intake.detection_range.0),
-            ),
-            (
                 "Pull".to_string(),
                 format!(
                     "{:.0} m at {:.0} m/s",

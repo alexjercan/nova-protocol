@@ -1172,7 +1172,6 @@ mod tests {
                 door_sound: "door.wav".into(),
                 eject_sound: "eject.wav".into(),
                 take_sound: "take.wav".into(),
-                detection_range: Meters(40.0),
                 capture_gap: Meters(1.0),
                 aperture_width: Meters(8.0),
                 aperture_height: Meters(8.0),

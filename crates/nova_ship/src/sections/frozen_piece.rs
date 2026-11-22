@@ -1045,7 +1045,6 @@ mod tests {
                     door_sound: AssetRef::default(),
                     eject_sound: AssetRef::default(),
                     take_sound: AssetRef::default(),
-                    detection_range: Meters(40.0),
                     capture_gap: Meters(1.0),
                     aperture_width: Meters(22.2),
                     aperture_height: Meters(15.3),

@@ -463,7 +463,7 @@ Select a repair kit in your own column and the inspector shows **Use** at the ri
 
 Undocked, with a working [cargo intake](../sections/cargo-intake/), a click on an item in your column opens a **Jettison** form. **Confirm** takes the whole quantity out of your hold at once and packs it into canisters queued on the intake. A canister holds at most 1,000 kg across all its stacks, so a larger quantity fills several: 6 torpedoes of 150 kg, 50 rail slugs of 20 kg, 100 hull plates of 10 kg or 5,000 PDC rounds of 0.2 kg each. A confirmed stack first tops up the last waiting canister where whole items still fit, even in the same frame. **Confirm** is greyed while the quantity is more than you hold, with the `/ stock` red.
 
-Once you close the interface, the intake's door folds open and the canisters leave through it one at a time. To take a canister back in, or one a [mining beam](../sections/mining-beam/) cut loose, bring the intake's door within 40 m of it and the open door pulls it in. A canister you dropped is pulled only after it has drifted out of that 40 m. [Cargo intake](../sections/cargo-intake/) has the door, the pickup sight, the drop and the canister rules.
+Once you close the interface, the intake's door folds open and the canisters leave through it one at a time. To take a canister back in, or one a [mining beam](../sections/mining-beam/) cut loose, turn the intake's door toward it within 120 m and the intake pulls it in while the door opens. A canister you dropped is pulled only after it has drifted out of that 120 m. [Cargo intake](../sections/cargo-intake/) has the door, the pickup sight, the drop and the canister rules.
 
 ## Crafting
 

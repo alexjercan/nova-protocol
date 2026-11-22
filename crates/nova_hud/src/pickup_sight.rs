@@ -1,42 +1,39 @@
-//! The pickup sight: a face plate on the player's cargo intake and a line
-//! reaching one cargo canister near the player's ship, drawn in world space
-//! the way [`docking_sight`](super::docking_sight) draws its own pair -
-//! alignment you fly INTO rather than a number you read.
+//! The pickup sight: a face plate on each of the player's cargo intakes with
+//! a canister in its reach, and a line from that face to every such
+//! canister, drawn in world space the way
+//! [`docking_sight`](super::docking_sight) draws its own pair - alignment you
+//! fly INTO rather than a number you read.
 //!
 //! # Where the numbers come from
 //!
-//! [`CargoPickupReadiness`], the same fixed pass that decides a take
-//! (`run_cargo_intakes` in `nova_ship::sections::cargo_intake_section`). It
-//! publishes every live intake/canister pair, in or out of range. The
-//! sight reads those published pairs instead of computing a separate gate.
-//! A pair is trusted only while both ends still validate live (the canister
-//! with positive [`Health::current`], the intake with
+//! [`CargoPickupReadiness`], the same fixed pass that decides a take and the
+//! pull (`run_cargo_intakes` in `nova_ship::sections::cargo_intake_section`).
+//! It publishes every live intake/canister pair with its `in_reach` flag:
+//! the canister is in front of the intake's face and within its
+//! `pull_range`. The sight draws exactly the pairs in reach instead of
+//! computing a separate gate, so a line shows for every canister the intake
+//! reaches. A pair is trusted only while both ends still validate live (the
+//! canister with positive [`Health::current`], the intake with
 //! [`CargoIntakeSectionMarker`], without [`SectionInactiveMarker`], and still
 //! parented to the same ship the pair names): `CargoPickupReadiness` is a
 //! snapshot from the last fixed pass and `Update` runs between fixed ticks. A
 //! take that empties the canister despawns it in the same fixed pass that
-//! marks it ready, so the sight clears with it. A take the hold's room cuts
-//! short leaves the rest in the same canister, which stays a candidate. The
-//! take sound, not the sight, confirms the take.
+//! marks it ready, so its line clears with it. A take the hold's room cuts
+//! short leaves the rest in the same canister, which keeps its line while it
+//! is in reach. The take sound, not the sight, confirms the take.
 //!
 //! Every pose the sight draws or measures is the interpolated
 //! `GlobalTransform` of the ship, the intake and the canister, never the raw
 //! fixed-tick pose: the sight is drawn over the rendered models, so the face
 //! comes from [`cargo_intake_face`] on the intake's rendered pose.
 //!
-//! # Which pair is drawn
+//! # Which intake a line runs to
 //!
-//! Only pairs whose canister lies within [`CARGO_PICKUP_SIGHT_RANGE`] of the
-//! player's ship, so the line shows before a lock and before the intake's
-//! own detection range. A travel-locked canister in range is drawn first; a
-//! lock on anything else - a beacon, a ship, a dead canister, a canister out
-//! of range - leaves the pick to distance. The pair with the nearer intake
-//! face to its canister wins, then the lower entity IDs. That pick is a
-//! display convenience only: the intake triggers and hold room, not
-//! distance, decide which intake actually takes which canister.
+//! A canister in the reach of two of the player's intakes draws one line, to
+//! the nearer rendered face, then the lower intake entity: the pull's own
+//! choice. A plate marks each intake with at least one line.
 
 use bevy::{light::NotShadowCaster, prelude::*};
-use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
@@ -46,11 +43,6 @@ use super::holo_instruments::segment_transform;
 pub mod prelude {
     pub use super::{PickupSightPart, PickupSightPlugin};
 }
-
-/// How far from the player's ship a canister draws the sight: past the base
-/// intake's 40 m detection range, so the line guides the approach before
-/// the door opens and without a lock.
-const CARGO_PICKUP_SIGHT_RANGE: Meters = Meters(200.0);
 
 /// Arm span of the intake face plate, world units. The canister's own
 /// footprint sets the scale: [`CargoPickupReadiness`] does not publish the
@@ -74,13 +66,18 @@ const SIGHT_ALPHA: f32 = 0.85;
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub enum PickupSightPart {
-    /// One arm of the cross drawn across the intake's face.
+    /// One arm of the cross drawn across an intake's face.
     Plate {
+        /// The intake whose face it marks.
+        intake: Entity,
         /// Which arm of the cross.
         arm: u8,
     },
-    /// The line from the intake face to the canister.
-    Line,
+    /// The line from an intake face to one canister in its reach.
+    Line {
+        /// The canister it reaches.
+        canister: Entity,
+    },
 }
 
 /// Shared mesh and material, built on the first frame a sight is drawn. A
@@ -135,49 +132,62 @@ struct Drawn {
     pose: Transform,
 }
 
-/// Lay out the whole sight for a live pair. World up
-/// (falling back to world forward) is the plate's reference, not the player
-/// hull's own: unlike
-/// the docking sight this plate has only one end, so there is no shared
-/// clocking for it to agree with.
-fn draw_sight(face: Vec3, normal: Vec3, canister_position: Vec3) -> Vec<Drawn> {
+/// One canister's line this frame, from rendered poses.
+struct SightLine {
+    intake: Entity,
+    canister: Entity,
+    face: Vec3,
+    normal: Vec3,
+    canister_position: Vec3,
+}
+
+/// Lay out the whole sight: a plate on each intake with a line, and every
+/// line. World up (falling back to world forward) is a plate's reference,
+/// not the player hull's own: unlike the docking sight a plate has only one
+/// end, so there is no shared clocking for it to agree with.
+fn draw_sight(lines: &[SightLine]) -> Vec<Drawn> {
     let mut drawn = Vec::new();
-
-    let Some((first_arm, second_arm)) =
-        plate_arms(normal, Vec3::Y).or_else(|| plate_arms(normal, Vec3::Z))
-    else {
-        return drawn;
-    };
-    let centre = face + normal * PLATE_LIFT;
-    for (arm, direction) in [(0_u8, first_arm), (1, second_arm)] {
-        let reach = direction * PLATE_SPAN * 0.5;
+    let mut plated: Vec<Entity> = Vec::new();
+    for line in lines {
         drawn.push(Drawn {
-            part: PickupSightPart::Plate { arm },
-            pose: segment_transform(centre - reach, centre + reach),
+            part: PickupSightPart::Line {
+                canister: line.canister,
+            },
+            pose: segment_transform(line.face, line.canister_position),
         });
+        if plated.contains(&line.intake) {
+            continue;
+        }
+        plated.push(line.intake);
+        let Some((first_arm, second_arm)) =
+            plate_arms(line.normal, Vec3::Y).or_else(|| plate_arms(line.normal, Vec3::Z))
+        else {
+            continue;
+        };
+        let centre = line.face + line.normal * PLATE_LIFT;
+        for (arm, direction) in [(0_u8, first_arm), (1, second_arm)] {
+            let reach = direction * PLATE_SPAN * 0.5;
+            drawn.push(Drawn {
+                part: PickupSightPart::Plate {
+                    intake: line.intake,
+                    arm,
+                },
+                pose: segment_transform(centre - reach, centre + reach),
+            });
+        }
     }
-
-    drawn.push(Drawn {
-        part: PickupSightPart::Line,
-        pose: segment_transform(face, canister_position),
-    });
     drawn
 }
 
-/// The intake face, its outward normal and the canister centre to draw for
-/// `ship` rendered at `ship_position`, all from rendered poses: among
-/// published pairs whose ends still validate live and whose rendered
-/// canister lies within [`CARGO_PICKUP_SIGHT_RANGE`] of the ship, a pair
-/// naming `locked` first, else any pair. Among the chosen set, the nearest
-/// rendered intake face to its canister wins, then the lower canister and
-/// intake entity IDs. `pairs` is a snapshot from the last fixed pass and can
-/// still name a canister that has died or an intake that has gone inactive,
-/// been despawned, or been reparented off `ship`.
-fn select_pair(
+/// One line for every canister in the reach of an intake on `ship`, from
+/// rendered poses: among published pairs in reach whose ends still validate
+/// live, each canister's nearest rendered intake face, then the lower intake
+/// entity. `pairs` is a snapshot from the last fixed pass and can still name
+/// a canister that has died or an intake that has gone inactive, been
+/// despawned, or been reparented off `ship`.
+fn select_lines(
     pairs: &[CargoPickupPair],
     ship: Entity,
-    ship_position: Vec3,
-    locked: Option<Entity>,
     q_live_canisters: &Query<
         (&Health, &GlobalTransform),
         (With<CargoCanister>, Without<HealthZeroMarker>),
@@ -189,55 +199,56 @@ fn select_pair(
             Without<SectionInactiveMarker>,
         ),
     >,
-) -> Option<(Vec3, Vec3, Vec3)> {
-    let range = CARGO_PICKUP_SIGHT_RANGE.to_engine();
-    let candidates = pairs.iter().filter_map(|pair| {
-        if pair.ship != ship {
-            return None;
+) -> Vec<SightLine> {
+    let mut lines: Vec<SightLine> = Vec::new();
+    for pair in pairs {
+        if pair.ship != ship || !pair.in_reach {
+            continue;
         }
-        let (health, canister_pose) = q_live_canisters.get(pair.canister).ok()?;
-        let (&ChildOf(parent), intake_pose, &collider) = q_live_intakes.get(pair.intake).ok()?;
-        let canister_position = canister_pose.translation();
-        if health.current <= 0.0
-            || parent != ship
-            || canister_position.distance_squared(ship_position) > range * range
-        {
-            return None;
+        let Ok((health, canister_pose)) = q_live_canisters.get(pair.canister) else {
+            continue;
+        };
+        let Ok((&ChildOf(parent), intake_pose, &collider)) = q_live_intakes.get(pair.intake) else {
+            continue;
+        };
+        if health.current <= 0.0 || parent != ship {
+            continue;
         }
         let (face, normal) =
             cargo_intake_face(intake_pose.translation(), intake_pose.rotation(), collider);
-        Some((pair, face, normal, canister_position))
-    });
-    let candidates: Vec<_> = candidates.collect();
-    let nearest = |locked: Option<Entity>| {
-        candidates
-            .iter()
-            .filter(|(pair, ..)| locked.is_none_or(|locked| pair.canister == locked))
-            .min_by(|(a, a_face, _, a_canister), (b, b_face, _, b_canister)| {
-                a_face
-                    .distance_squared(*a_canister)
-                    .total_cmp(&b_face.distance_squared(*b_canister))
-                    .then(a.canister.cmp(&b.canister))
-                    .then(a.intake.cmp(&b.intake))
-            })
-            .map(|&(_, face, normal, canister)| (face, normal, canister))
-    };
-    locked
-        .and_then(|locked| nearest(Some(locked)))
-        .or_else(|| nearest(None))
+        let line = SightLine {
+            intake: pair.intake,
+            canister: pair.canister,
+            face,
+            normal,
+            canister_position: canister_pose.translation(),
+        };
+        let distance = face.distance_squared(line.canister_position);
+        match lines.iter_mut().find(|kept| kept.canister == pair.canister) {
+            Some(kept) => {
+                let kept_distance = kept.face.distance_squared(kept.canister_position);
+                if distance
+                    .total_cmp(&kept_distance)
+                    .then(pair.intake.cmp(&kept.intake))
+                    .is_lt()
+                {
+                    *kept = line;
+                }
+            }
+            None => lines.push(line),
+        }
+    }
+    lines
 }
 
-/// Reconcile live readiness against the player's ship and lock.
+/// Reconcile live readiness against the player's ship.
 fn sync_pickup_sight(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut assets: ResMut<PickupSightAssets>,
     readiness: Res<CargoPickupReadiness>,
-    q_player: Query<
-        (Entity, &GlobalTransform, Option<&TravelLock>),
-        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
-    >,
+    q_player: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
     q_live_canisters: Query<
         (&Health, &GlobalTransform),
         (With<CargoCanister>, Without<HealthZeroMarker>),
@@ -254,16 +265,13 @@ fn sync_pickup_sight(
     let drawn = q_player
         .single()
         .ok()
-        .and_then(|(ship, transform, travel)| {
-            let (face, normal, canister_position) = select_pair(
+        .map(|ship| {
+            draw_sight(&select_lines(
                 &readiness.pairs,
                 ship,
-                transform.translation(),
-                travel.and_then(|travel| travel.0),
                 &q_live_canisters,
                 &q_live_intakes,
-            )?;
-            Some(draw_sight(face, normal, canister_position))
+            ))
         })
         .unwrap_or_default();
 
@@ -294,10 +302,10 @@ fn sync_pickup_sight(
     }
 }
 
-/// Draws the world-space pickup sight for one canister near the player's
-/// ship from [`CargoPickupReadiness`]. Inits `PickupSightAssets`, registers
-/// [`PickupSightPart`], and runs `sync_pickup_sight` in `Update` within
-/// [`super::NovaHudSystems`].
+/// Draws the world-space pickup sight for every canister in the reach of the
+/// player's intakes from [`CargoPickupReadiness`]. Inits
+/// `PickupSightAssets`, registers [`PickupSightPart`], and runs
+/// `sync_pickup_sight` in `Update` within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct PickupSightPlugin;
 
@@ -314,6 +322,7 @@ impl Plugin for PickupSightPlugin {
 #[cfg(test)]
 mod tests {
     use avian3d::prelude::*;
+    use nova_events::units::prelude::*;
     use nova_gameplay::{
         asset_ref::AssetRef,
         test_support::{test_items, unfinished_integrity_physics_app},
@@ -353,7 +362,7 @@ mod tests {
     };
 
     /// A live intake entity, parented to `ship`, carrying exactly the
-    /// components `select_pair` reads, and rendered facing -Z with its door
+    /// components `select_lines` reads, and rendered facing -Z with its door
     /// face centred on `face`. `ship` must already carry its rendered pose.
     fn spawn_intake(app: &mut App, ship: Entity, active: bool, face: Vec3) -> Entity {
         let ship_at = app
@@ -405,12 +414,14 @@ mod tests {
             .id()
     }
 
-    fn pair(ship: Entity, intake: Entity, canister: Entity, ready: bool) -> CargoPickupPair {
+    /// A published pair in the intake's reach, not ready.
+    fn in_reach(ship: Entity, intake: Entity, canister: Entity) -> CargoPickupPair {
         CargoPickupPair {
             ship,
             intake,
             canister,
-            ready,
+            in_reach: true,
+            ready: false,
         }
     }
 
@@ -430,23 +441,27 @@ mod tests {
             .map(|(_, pose)| pose)
     }
 
+    fn line(app: &mut App, canister: Entity) -> Option<Transform> {
+        part(app, PickupSightPart::Line { canister })
+    }
+
     /// The direction a drawn segment runs in, and how long it is - the two
     /// things `segment_transform` encodes.
     fn segment(pose: Transform) -> (Vec3, f32) {
         (pose.rotation * Vec3::Y, pose.scale.y)
     }
 
-    /// The line part's own material colour, read back out of the asset
-    /// store rather than compared by handle: the claim under test is the
-    /// exact hue.
+    /// The colour of the first line part's own material, read back out of
+    /// the asset store rather than compared by handle: the claim under test
+    /// is the exact hue.
     fn line_color(app: &mut App) -> Color {
         let world = app.world_mut();
         let mut query = world.query::<(&PickupSightPart, &MeshMaterial3d<StandardMaterial>)>();
         let handle = query
             .iter(world)
-            .find(|(part, _)| matches!(part, PickupSightPart::Line))
+            .find(|(part, _)| matches!(part, PickupSightPart::Line { .. }))
             .map(|(_, material)| material.0.clone())
-            .expect("the line is drawn");
+            .expect("a line is drawn");
         world
             .resource::<Assets<StandardMaterial>>()
             .get(&handle)
@@ -454,151 +469,64 @@ mod tests {
             .base_color
     }
 
-    /// With no lock, the canister whose pair has the nearer intake face is
-    /// drawn: the sight shows before the pilot locks anything.
+    /// Every canister the fixed pass publishes in reach draws its own line
+    /// from the intake face, and one plate marks the face; a canister out of
+    /// reach draws none.
     #[test]
-    fn without_a_lock_the_nearest_canister_draws_the_sight() {
+    fn every_canister_in_reach_draws_a_line_and_none_out_of_reach() {
         let mut app = sight_app();
         let player = spawn_player(&mut app, Vec3::ZERO);
         let face = Vec3::new(0.0, 0.0, -1.0);
         let intake = spawn_intake(&mut app, player, true, face);
-        let near_position = Vec3::new(0.0, 0.0, -5.0);
-        let far = spawn_canister(&mut app, true, Vec3::new(0.0, 0.0, -15.0));
-        let near = spawn_canister(&mut app, true, near_position);
-        app.world_mut().resource_mut::<CargoPickupReadiness>().pairs = vec![
-            pair(player, intake, far, false),
-            pair(player, intake, near, false),
-        ];
+        let reached: Vec<(Entity, Vec3)> = [
+            Vec3::new(0.0, 0.0, -5.0),
+            Vec3::new(4.0, 1.0, -9.0),
+            Vec3::new(-6.0, 0.0, -11.0),
+        ]
+        .into_iter()
+        .map(|at| (spawn_canister(&mut app, true, at), at))
+        .collect();
+        let out = spawn_canister(&mut app, true, Vec3::new(0.0, 0.0, -14.0));
+        let mut pairs: Vec<CargoPickupPair> = reached
+            .iter()
+            .map(|&(canister, _)| in_reach(player, intake, canister))
+            .collect();
+        pairs.push(CargoPickupPair {
+            in_reach: false,
+            ..in_reach(player, intake, out)
+        });
+        app.world_mut().resource_mut::<CargoPickupReadiness>().pairs = pairs;
         app.update();
 
-        let pose = part(&mut app, PickupSightPart::Line).expect("the line is drawn");
+        for &(canister, at) in &reached {
+            let pose = line(&mut app, canister).expect("a canister in reach draws a line");
+            assert!(
+                (pose.translation - (face + at) * 0.5).length() < 1e-3,
+                "the line runs from the face to {canister:?}: {:?}",
+                pose.translation
+            );
+        }
         assert!(
-            (pose.translation - (face + near_position) * 0.5).length() < 1e-3,
-            "the line reaches the nearer canister: {:?}",
-            pose.translation
+            line(&mut app, out).is_none(),
+            "a canister out of reach draws no line"
         );
+        let plates = parts(&mut app)
+            .iter()
+            .filter(|(part, _)| matches!(part, PickupSightPart::Plate { .. }))
+            .count();
+        assert_eq!(plates, 2, "one cross on the one intake face");
     }
 
-    /// A travel-locked canister in range is drawn over a nearer unlocked
-    /// one: the lock names the canister the pilot wants. Once it renders
-    /// past 200 m the lock gives way to the nearer canister still in range.
-    #[test]
-    fn a_locked_canister_in_range_outranks_a_nearer_one() {
-        let mut app = sight_app();
-        let player = spawn_player(&mut app, Vec3::ZERO);
-        let face = Vec3::new(0.0, 0.0, -1.0);
-        let intake = spawn_intake(&mut app, player, true, face);
-        let near_position = Vec3::new(0.0, 0.0, -5.0);
-        let locked_position = Vec3::new(0.0, 0.0, -15.0);
-        let locked = spawn_canister(&mut app, true, locked_position);
-        let near = spawn_canister(&mut app, true, near_position);
-        app.world_mut().resource_mut::<CargoPickupReadiness>().pairs = vec![
-            pair(player, intake, near, false),
-            pair(player, intake, locked, false),
-        ];
-        app.world_mut()
-            .entity_mut(player)
-            .insert(TravelLock(Some(locked)));
-        app.update();
-
-        let pose = part(&mut app, PickupSightPart::Line).expect("the line is drawn");
-        assert!(
-            (pose.translation - (face + locked_position) * 0.5).length() < 1e-3,
-            "the line reaches the locked canister: {:?}",
-            pose.translation
-        );
-
-        let out_of_range = Transform::from_translation(Vec3::NEG_Z * Meters(201.0).to_engine());
-        app.world_mut()
-            .entity_mut(locked)
-            .insert((out_of_range, GlobalTransform::from(out_of_range)));
-        app.update();
-
-        let pose = part(&mut app, PickupSightPart::Line).expect("the line is drawn");
-        assert!(
-            (pose.translation - (face + near_position) * 0.5).length() < 1e-3,
-            "a locked canister past 200 m gives way to the nearer one: {:?}",
-            pose.translation
-        );
-    }
-
-    /// The sight reaches canisters rendered up to and including 200 m from
-    /// the rendered ship itself, not from the intake face, and clears once
-    /// the canister drifts past.
-    #[test]
-    fn only_a_canister_within_200_m_of_the_ship_draws_the_sight() {
-        let mut app = sight_app();
-        let ship_position = Vec3::new(3.0, 0.0, 0.0);
-        let player = spawn_player(&mut app, ship_position);
-        let intake = spawn_intake(&mut app, player, true, Vec3::new(3.0, 0.0, -1.0));
-        let at = |meters: f32| ship_position + Vec3::NEG_Z * Meters(meters).to_engine();
-        let canister = spawn_canister(&mut app, true, at(200.0));
-        app.world_mut().resource_mut::<CargoPickupReadiness>().pairs =
-            vec![pair(player, intake, canister, false)];
-        app.update();
-        assert!(
-            part(&mut app, PickupSightPart::Line).is_some(),
-            "a canister exactly 200 m from the ship draws the sight"
-        );
-
-        let past = Transform::from_translation(at(201.0));
-        app.world_mut()
-            .entity_mut(canister)
-            .insert((past, GlobalTransform::from(past)));
-        app.update();
-        assert!(
-            parts(&mut app).is_empty(),
-            "a canister 201 m from the ship draws nothing"
-        );
-    }
-
-    /// A lock that names a live canister with no published pair draws
-    /// nothing: absence is not "wanting", it is not drawn - a canister no
+    /// A canister without a published pair draws nothing: a canister no
     /// live intake has measured must never draw guidance.
     #[test]
-    fn a_lock_without_a_published_pair_draws_nothing() {
+    fn a_canister_without_a_published_pair_draws_nothing() {
         let mut app = sight_app();
         let player = spawn_player(&mut app, Vec3::ZERO);
-        let canister = spawn_canister(&mut app, true, Vec3::new(0.0, 0.0, -3.0));
-        app.world_mut()
-            .entity_mut(player)
-            .insert(TravelLock(Some(canister)));
+        spawn_intake(&mut app, player, true, Vec3::ZERO);
+        spawn_canister(&mut app, true, Vec3::new(0.0, 0.0, -3.0));
         app.update();
         assert!(parts(&mut app).is_empty());
-    }
-
-    /// A lock on something that is not a canister at all - a beacon, a
-    /// ship - never draws the sight to it, even through a pair that names
-    /// it: the pick falls back to the nearest live canister.
-    #[test]
-    fn a_lock_on_a_non_canister_falls_back_to_the_nearest_canister() {
-        let mut app = sight_app();
-        let player = spawn_player(&mut app, Vec3::ZERO);
-        let intake = spawn_intake(&mut app, player, true, Vec3::ZERO);
-        let other = app
-            .world_mut()
-            .spawn((
-                Name::new("not a canister"),
-                Transform::from_xyz(0.0, 0.0, -3.0),
-            ))
-            .id();
-        let canister_position = Vec3::new(0.0, 0.0, -9.0);
-        let canister = spawn_canister(&mut app, true, canister_position);
-        app.world_mut().resource_mut::<CargoPickupReadiness>().pairs = vec![
-            pair(player, intake, other, true),
-            pair(player, intake, canister, false),
-        ];
-        app.world_mut()
-            .entity_mut(player)
-            .insert(TravelLock(Some(other)));
-        app.update();
-
-        let pose = part(&mut app, PickupSightPart::Line).expect("the line is drawn");
-        assert!(
-            (pose.translation - canister_position * 0.5).length() < 1e-3,
-            "the line reaches the live canister, not the locked non-canister: {:?}",
-            pose.translation
-        );
     }
 
     /// A pair published for a different ship's intake never lights up this
@@ -614,17 +542,17 @@ mod tests {
         let intake = spawn_intake(&mut app, other_ship, true, Vec3::ZERO);
         let canister = spawn_canister(&mut app, true, Vec3::new(0.0, 0.0, -3.0));
         app.world_mut().resource_mut::<CargoPickupReadiness>().pairs =
-            vec![pair(other_ship, intake, canister, true)];
+            vec![in_reach(other_ship, intake, canister)];
         app.update();
         assert!(parts(&mut app).is_empty());
     }
 
     /// A pair naming a canister that has since taken lethal damage (and
-    /// would already be despawned by the intake's own observer) is never
-    /// drawn, even locked and nearer, while `CargoPickupReadiness` has not
-    /// yet refreshed past it: the pick falls back to a live canister.
+    /// would already be despawned by the intake's own observer) draws no
+    /// line while `CargoPickupReadiness` has not yet refreshed past it; a
+    /// live canister beside it keeps its line.
     #[test]
-    fn a_stale_pair_naming_a_dead_canister_falls_back_to_a_live_one() {
+    fn a_stale_pair_naming_a_dead_canister_draws_no_line() {
         let mut app = sight_app();
         let player = spawn_player(&mut app, Vec3::ZERO);
         let intake = spawn_intake(&mut app, player, true, Vec3::ZERO);
@@ -632,18 +560,19 @@ mod tests {
         let live_position = Vec3::new(0.0, 0.0, -9.0);
         let live = spawn_canister(&mut app, true, live_position);
         app.world_mut().resource_mut::<CargoPickupReadiness>().pairs = vec![
-            pair(player, intake, dead, true),
-            pair(player, intake, live, false),
+            in_reach(player, intake, dead),
+            in_reach(player, intake, live),
         ];
-        app.world_mut()
-            .entity_mut(player)
-            .insert(TravelLock(Some(dead)));
         app.update();
 
-        let pose = part(&mut app, PickupSightPart::Line).expect("the line is drawn");
+        assert!(
+            line(&mut app, dead).is_none(),
+            "the dead canister has no line"
+        );
+        let pose = line(&mut app, live).expect("the live canister keeps its line");
         assert!(
             (pose.translation - live_position * 0.5).length() < 1e-3,
-            "the line reaches the live canister, not the dead one: {:?}",
+            "{:?}",
             pose.translation
         );
     }
@@ -658,7 +587,7 @@ mod tests {
         let intake = spawn_intake(&mut app, player, false, Vec3::ZERO);
         let canister = spawn_canister(&mut app, true, Vec3::new(0.0, 0.0, -3.0));
         app.world_mut().resource_mut::<CargoPickupReadiness>().pairs =
-            vec![pair(player, intake, canister, true)];
+            vec![in_reach(player, intake, canister)];
         app.update();
         assert!(parts(&mut app).is_empty());
     }
@@ -678,7 +607,7 @@ mod tests {
         let intake = spawn_intake(&mut app, other_ship, true, Vec3::ZERO);
         let canister = spawn_canister(&mut app, true, Vec3::new(0.0, 0.0, -3.0));
         app.world_mut().resource_mut::<CargoPickupReadiness>().pairs =
-            vec![pair(player, intake, canister, true)];
+            vec![in_reach(player, intake, canister)];
         app.update();
         assert!(parts(&mut app).is_empty());
     }
@@ -695,21 +624,19 @@ mod tests {
         let intake = spawn_intake(&mut app, player, true, face);
         let canister = spawn_canister(&mut app, true, Vec3::new(0.0, 0.0, -4.0));
         app.world_mut().resource_mut::<CargoPickupReadiness>().pairs =
-            vec![pair(player, intake, canister, false)];
-        app.world_mut()
-            .entity_mut(player)
-            .insert(TravelLock(Some(canister)));
+            vec![in_reach(player, intake, canister)];
         app.update();
 
         for arm in 0..2 {
-            let pose = part(&mut app, PickupSightPart::Plate { arm }).expect("both arms drawn");
+            let pose =
+                part(&mut app, PickupSightPart::Plate { intake, arm }).expect("both arms drawn");
             assert!(
                 (pose.translation - (face + Vec3::NEG_Z * PLATE_LIFT)).length() < 1e-3,
                 "arm {arm} floats off the intake face along its normal: {:?}",
                 pose.translation
             );
         }
-        let pose = part(&mut app, PickupSightPart::Line).expect("the line is drawn");
+        let pose = line(&mut app, canister).expect("the line is drawn");
         let (direction, length) = segment(pose);
         assert!(
             (length - 3.0).abs() < 1e-3,
@@ -736,14 +663,15 @@ mod tests {
 
         let face = Vec3::new(1.5, 0.0, -3.0);
         for arm in 0..2 {
-            let pose = part(&mut app, PickupSightPart::Plate { arm }).expect("both arms drawn");
+            let pose =
+                part(&mut app, PickupSightPart::Plate { intake, arm }).expect("both arms drawn");
             assert!(
                 (pose.translation - (face + Vec3::NEG_X * PLATE_LIFT)).length() < 1e-3,
                 "arm {arm} follows the turned face: {:?}",
                 pose.translation
             );
         }
-        let pose = part(&mut app, PickupSightPart::Line).expect("the line is drawn");
+        let pose = line(&mut app, canister).expect("the line is drawn");
         let (direction, length) = segment(pose);
         assert!(
             (pose.translation - (face + canister_pose.translation) * 0.5).length() < 1e-3,
@@ -760,12 +688,12 @@ mod tests {
         );
     }
 
-    /// When the same canister sits in two of this ship's intakes at once,
-    /// the sight follows the pair with the nearer face, even when the
-    /// farther intake is the one that is actually ready: the pick is
-    /// geometry, not readiness.
+    /// When the same canister is in the reach of two of this ship's intakes
+    /// at once, it draws one line, to the nearer face, even when the farther
+    /// intake is the one that is actually ready: the pick is the pull's
+    /// geometry, not readiness. Only the nearer intake is plated.
     #[test]
-    fn two_pairs_for_the_same_canister_draw_the_nearer_face() {
+    fn a_canister_in_reach_of_two_intakes_draws_one_line_to_the_nearer_face() {
         let mut app = sight_app();
         let player = spawn_player(&mut app, Vec3::ZERO);
         let near_face = Vec3::new(0.0, 0.0, -1.0);
@@ -774,27 +702,40 @@ mod tests {
         let canister_position = Vec3::new(0.0, 0.0, -4.0);
         let canister = spawn_canister(&mut app, true, canister_position);
         app.world_mut().resource_mut::<CargoPickupReadiness>().pairs = vec![
-            pair(player, near_intake, canister, false),
-            pair(player, far_intake, canister, true),
+            in_reach(player, near_intake, canister),
+            CargoPickupPair {
+                ready: true,
+                ..in_reach(player, far_intake, canister)
+            },
         ];
-        app.world_mut()
-            .entity_mut(player)
-            .insert(TravelLock(Some(canister)));
         app.update();
 
-        let pose = part(&mut app, PickupSightPart::Line).expect("the nearer pair is drawn");
+        let lines = parts(&mut app)
+            .iter()
+            .filter(|(part, _)| matches!(part, PickupSightPart::Line { .. }))
+            .count();
+        assert_eq!(lines, 1, "one line per canister");
+        let pose = line(&mut app, canister).expect("the nearer pair is drawn");
         let midpoint = (near_face + canister_position) * 0.5;
         assert!(
             (pose.translation - midpoint).length() < 1e-3,
             "the line follows the nearer face, not the farther one: {:?}",
             pose.translation
         );
+        assert!(part(
+            &mut app,
+            PickupSightPart::Plate {
+                intake: far_intake,
+                arm: 0
+            }
+        )
+        .is_none());
     }
 
     /// A real take into a hold with room for every item empties the
     /// canister into the hold, despawns it and voices the take, and the
-    /// sight - drawn with no lock - clears with the canister: nothing confirms
-    /// the take on screen after it is gone.
+    /// sight the real pass drew for it clears with the canister: nothing
+    /// confirms the take on screen after it is gone.
     #[test]
     fn a_real_take_fills_the_hold_and_clears_the_sight() {
         let mut app = unfinished_integrity_physics_app();
@@ -814,7 +755,6 @@ mod tests {
                 PlayerSpaceshipMarker,
                 RigidBody::Dynamic,
                 Transform::default(),
-                TravelLock(None),
                 ShipInventory::new(&test_items(), 400_000, []),
             ))
             .id();
@@ -853,7 +793,6 @@ mod tests {
                     door_sound: AssetRef::from("door.wav"),
                     eject_sound: AssetRef::from("eject.wav"),
                     take_sound: AssetRef::from("take.wav"),
-                    detection_range: Meters(40.0),
                     capture_gap: Meters(1.0),
                     aperture_width: Meters(22.2),
                     aperture_height: Meters(15.3),

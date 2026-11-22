@@ -39,8 +39,7 @@
 //! The diagnostics panel (`F3`) shows the role, the hull, the live balance
 //! and hold. The gizmos ring each generated hull at its containment radius,
 //! labelled with its span; draw each ship's intake face, its pickup area
-//! (the trigger box), its detection range, its pull range (muted) and its
-//! normal, with the player's intake labelled by its face and READY while a
+//! (the trigger box), its pull range and its normal, with the player's intake labelled by its face and READY while a
 //! pickup is armed; and ring
 //! each drifting canister, labelled with its contents. `TAB` is hinted while
 //! nothing drifts and `W` while a canister does. Detail (`Shift+F3`) adds the
@@ -412,7 +411,7 @@ fn note_a_pickup(
     }
 }
 
-/// Each live intake's face, pickup area, detection range and normal, each
+/// Each live intake's face, pickup area, pull range and normal, each
 /// drifting canister with its contents, and the player's intake traffic.
 fn draw_the_intakes(
     mut gizmos: Gizmos<DiagnosticsGizmos>,
@@ -464,16 +463,7 @@ fn draw_the_intakes(
                 )),
             color,
         );
-        // The pull ring first: the base intakes pull to their whole detection
-        // range, and the detection ring's state colour must stay on top.
-        diagnostics::ring(
-            &mut gizmos,
-            face,
-            normal,
-            config.pull_range.to_engine(),
-            palette::MUTED,
-        );
-        let range = config.detection_range.to_engine();
+        let range = config.pull_range.to_engine();
         diagnostics::ring(&mut gizmos, face, normal, range, color);
         diagnostics::vector(&mut gizmos, face, normal, range, color);
         if let Some((_, ship)) = player.filter(|_| mine) {

@@ -377,7 +377,6 @@ mod tests {
                     door_sound: AssetRef::from("base/sounds/bay_door.wav"),
                     eject_sound: AssetRef::from("base/sounds/cargo_eject.wav"),
                     take_sound: AssetRef::from("base/sounds/salvage_pickup.wav"),
-                    detection_range: Meters(40.0),
                     capture_gap: Meters(1.0),
                     aperture_width: Meters(14.1),
                     aperture_height: Meters(16.0),

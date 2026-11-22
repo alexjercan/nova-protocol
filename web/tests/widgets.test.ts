@@ -1093,7 +1093,7 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     assert.equal(small.shedFrames, 1);
 }
 
-// Intake: the door reads the centre and the hold's room, the take any part in
+// Intake: the pull reads the centre and the hold's room, the take any part in
 // the 1 m slab, and a full hold refuses a touching canister.
 {
     const endOn = cargoIntakeTake(0.5, 0, 90, true);
@@ -1110,9 +1110,9 @@ console.log("widgets: the corridor scope reproduces the stand bank");
         "against the face beside the opening is not a take"
     );
     // End-on, the centre sits 4.7 m behind the near end.
-    assert.ok(cargoIntakeTake(35, 0, 90, true).doorOpens);
-    const shut = cargoIntakeTake(35.4, 0, 90, true);
-    assert.ok(!shut.doorOpens, "near end inside 40 m, centre past it");
+    assert.ok(cargoIntakeTake(115, 0, 90, true).doorOpens);
+    const shut = cargoIntakeTake(115.4, 0, 90, true);
+    assert.ok(!shut.doorOpens, "near end inside 120 m, centre past it");
     assert.ok(!shut.touchesSlab);
 }
 

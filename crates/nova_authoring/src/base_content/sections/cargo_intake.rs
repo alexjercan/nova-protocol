@@ -1,8 +1,8 @@
 //! The cargo intake: a 3x2 hold mouth behind an accordion door.
 //!
-//! Bring the door within reach of a drifting canister, and the door folds
-//! open, pulls the canister in and takes every whole item the hold has room
-//! for. The rest stays in the same canister. The Inventory pane's Jettison drops a
+//! Bring a drifting canister within the intake's reach, in front of its
+//! door, and the intake pulls it in while the door folds open, and takes
+//! every whole item the hold has room for. The rest stays in the same canister. The Inventory pane's Jettison drops a
 //! canister out through the same door.
 
 use bevy::prelude::*;
@@ -99,14 +99,13 @@ struct IntakeSpec<'a> {
     advancement: f32,
     draw_weight: f32,
     build: BuildRecipe,
-    /// How far out a fitting canister folds the door open.
-    detection_range: Meters,
     /// How deep the take trigger stands in front of the opening.
     capture_gap: Meters,
     /// The clear opening, inside the 30 x 20 m door face.
     aperture_width: Meters,
     aperture_height: Meters,
-    /// How far out the open door pulls a canister the hold has room for.
+    /// How far out the intake pulls a canister the hold has room for, opens
+    /// the door for it, and shows its label and pickup line.
     pull_range: Meters,
     /// How fast a pulled canister closes on the opening.
     pull_speed: MetersPerSecond,
@@ -137,7 +136,6 @@ fn intake_prototype(meshes: &BaseContentAssets, spec: IntakeSpec<'_>) -> Section
             door_sound: meshes.torpedo_door_sound.clone(),
             eject_sound: meshes.cargo_eject_sound.clone(),
             take_sound: meshes.cargo_take_sound.clone(),
-            detection_range: spec.detection_range,
             capture_gap: spec.capture_gap,
             aperture_width: spec.aperture_width,
             aperture_height: spec.aperture_height,
@@ -156,20 +154,19 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
             IntakeSpec {
                 id: CARGO_INTAKE_SECTION_ID,
                 name: "Cargo Intake Section",
-                description: "A hold mouth behind an accordion door. The door \
-                              folds open for a canister within 40 m of it and \
-                              pulls it in at 5 m/s. When a canister reaches \
-                              into the 1 m in front of its opening, the intake \
-                              takes, at any speed, every whole item the hold \
-                              has room for. The rest stays in the same \
-                              canister. Jettison in the Inventory pane drops a \
-                              canister out through the same door; it is not \
-                              pulled back.",
+                description: "A hold mouth behind an accordion door. It pulls \
+                              a canister within 120 m in front of it in at \
+                              8 m/s and folds the door open for it. When a \
+                              canister reaches into the 1 m in front of its \
+                              opening, the intake takes, at any speed, every \
+                              whole item the hold has room for. The rest \
+                              stays in the same canister. Jettison in the \
+                              Inventory pane drops a canister out through the \
+                              same door; it is not pulled back.",
                 health: CARGO_INTAKE_BASE_HEALTH,
                 advancement: 0.0,
                 draw_weight: 1.0,
                 build: recipes::cargo_intake(),
-                detection_range: Meters(40.0),
                 capture_gap: Meters(1.0),
                 // The clear opening centred on the face, inside the folded
                 // slat stacks and the face ring of intake_accordion_3x2x1.glb.
@@ -178,10 +175,11 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                 // 15.3 m.
                 aperture_width: Meters(22.2),
                 aperture_height: Meters(15.3),
-                // The whole door range: a canister that opens the door
-                // comes to it, about 8 s from the edge.
-                pull_range: Meters(40.0),
-                pull_speed: MetersPerSecond(5.0),
+                // A canister cut at the mining tug's working distance is in
+                // reach: mine_and_sell's rock drops them about 110 m from the
+                // tug's dorsal intake face. About 15 s from the edge.
+                pull_range: Meters(120.0),
+                pull_speed: MetersPerSecond(8.0),
             },
         ),
         intake_prototype(
@@ -190,26 +188,24 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
                 id: WIDE_INTAKE_SECTION_ID,
                 name: "Wide Intake Section",
                 description: "The same door and hold mouth with a wider \
-                              trigger: the door opens for a canister within \
-                              60 m and pulls it in at 8 m/s, the take reaches \
-                              1.5 m out over a 28 x 18 m opening, and the \
-                              machinery takes a third more damage before it \
-                              fails.",
+                              trigger: it pulls a canister within 160 m in at \
+                              10 m/s, the take reaches 1.5 m out over a 28 x \
+                              18 m opening, and the machinery takes a third \
+                              more damage before it fails.",
                 health: 120.0,
                 advancement: 0.3,
                 draw_weight: 0.6,
                 build: recipes::wide_intake(),
-                detection_range: Meters(60.0),
                 capture_gap: Meters(1.5),
                 // Past the slat stacks of the same art, so a canister the
                 // base opening would miss by a cell still goes in. The lint
                 // holds it inside the 30 x 20 m collider face.
                 aperture_width: Meters(28.0),
                 aperture_height: Meters(18.0),
-                // The whole door range again, faster, so the longer pull
-                // takes about as long as the base grade's.
-                pull_range: Meters(60.0),
-                pull_speed: MetersPerSecond(8.0),
+                // The long beam's 160 m reach, faster, so the longer pull
+                // takes about as long as the base grade's: 16 s from the edge.
+                pull_range: Meters(160.0),
+                pull_speed: MetersPerSecond(10.0),
             },
         ),
     ]

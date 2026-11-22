@@ -27,13 +27,12 @@ fn intake_config() -> CargoIntakeSectionConfig {
         door_sound: AssetRef::from("door.wav"),
         eject_sound: AssetRef::from("eject.wav"),
         take_sound: AssetRef::from("take.wav"),
-        detection_range: Meters(40.0),
         capture_gap: CAPTURE_GAP,
         aperture_width: APERTURE_WIDTH,
         aperture_height: Meters(15.3),
         eject_speed: MetersPerSecond(3.0),
-        pull_range: Meters(40.0),
-        pull_speed: MetersPerSecond(5.0),
+        pull_range: Meters(120.0),
+        pull_speed: MetersPerSecond(8.0),
     }
 }
 
@@ -522,7 +521,7 @@ fn published_pickup_readiness_matches_the_take() {
         .resource::<CargoPickupReadiness>()
         .pairs
         .iter()
-        .any(|pair| pair.canister == far && !pair.ready));
+        .any(|pair| pair.canister == far && pair.in_reach && !pair.ready));
 }
 
 #[test]
@@ -717,33 +716,37 @@ fn a_canister_the_hold_cannot_take_is_not_pulled_through_an_open_door() {
     assert!(app.world().get_entity(oversized).is_ok());
 }
 
-/// A canister at rest 30 m out, off the axis, comes to the open door at no
-/// more than the pull speed, closing on the trigger every frame, and is
-/// taken. Without the pull it would never move.
+/// A canister at rest just inside the pull range, off the axis, is pulled
+/// from the first tick, while the door is still opening: it closes on the
+/// trigger every frame at no more than the pull speed and is taken. Without
+/// the pull it would never move.
 #[test]
-fn a_canister_in_pull_range_drifts_to_the_open_intake_and_is_taken() {
+fn a_canister_at_the_pull_range_edge_is_pulled_before_the_door_is_fully_open() {
     let (mut app, ship, intake) = intake_app(12);
-    let start = Vec3::new(1.0, 0.5, FACE_Z - 3.0);
+    let face = Vec3::new(0.0, 0.0, FACE_Z);
+    let reach = intake_config().pull_range.to_engine();
+    let start = face + Vec3::new(0.3, 0.2, -1.0).normalize() * (reach - 0.05);
     let canister = drifting_canister(&mut app, 4, start, Quat::IDENTITY, Vec3::ZERO);
     let trigger = Vec3::new(0.0, 0.0, FACE_Z - CAPTURE_GAP.to_engine() * 0.5);
     let pull_speed = intake_config().pull_speed.to_engine();
 
     let mut last = start.distance(trigger);
-    let mut opened = false;
+    let mut pulled_while_opening = false;
+    let mut published_in_reach = false;
     for _ in 0..PULL_FRAME_CAP {
         app.update();
         let Some(at) = app.world().get::<Position>(canister).map(|at| at.0) else {
             break;
         };
-        if !opened {
-            opened = door(&app, intake) == 1.0;
-            if !opened {
-                assert!(
-                    at.distance(start) < 1e-4,
-                    "it moved before the door was open: {at}"
-                );
-                continue;
-            }
+        published_in_reach |= app
+            .world()
+            .resource::<CargoPickupReadiness>()
+            .pairs
+            .iter()
+            .any(|pair| pair.canister == canister && pair.in_reach);
+        let distance = at.distance(trigger);
+        if door(&app, intake) < 1.0 && distance < start.distance(trigger) - 1e-3 {
+            pulled_while_opening = true;
         }
         let ship_velocity = app.world().get::<LinearVelocity>(ship).unwrap().0;
         let velocity = app.world().get::<LinearVelocity>(canister).unwrap().0;
@@ -751,14 +754,17 @@ fn a_canister_in_pull_range_drifts_to_the_open_intake_and_is_taken() {
             (velocity - ship_velocity).length() <= pull_speed + 1e-3,
             "pulled faster than the pull speed: {velocity}"
         );
-        let distance = at.distance(trigger);
         assert!(
             distance <= last + 1e-4,
             "it fell back from the trigger: {last} -> {distance}"
         );
         last = distance;
     }
-    assert!(opened, "the door opened");
+    assert!(published_in_reach, "the pass published it in reach");
+    assert!(
+        pulled_while_opening,
+        "it was pulled before the door was fully open"
+    );
     assert!(
         app.world().get_entity(canister).is_err(),
         "the pulled canister was never taken"
@@ -767,10 +773,41 @@ fn a_canister_in_pull_range_drifts_to_the_open_intake_and_is_taken() {
     assert_eq!(takes(&app), 1);
 }
 
-/// A full hold keeps the door shut, and a shut door pulls nothing: a
-/// canister at rest 30 m out stays where it is.
+/// A canister just past the pull range, and one well inside it but behind
+/// the face plane, beside the hull: neither is in reach, neither moves, and
+/// the door stays shut though the hold has room for both.
 #[test]
-fn a_canister_before_a_shut_door_does_not_move() {
+fn a_canister_past_the_pull_range_or_behind_the_face_is_not_pulled() {
+    let (mut app, ship, intake) = intake_app(12);
+    let face = Vec3::new(0.0, 0.0, FACE_Z);
+    let reach = intake_config().pull_range.to_engine();
+    let past_at = face + Vec3::new(0.3, 0.2, -1.0).normalize() * (reach + 0.05);
+    let behind_at = Vec3::new(5.0, 0.0, FACE_Z + 1.0);
+    let past = drifting_canister(&mut app, 1, past_at, Quat::IDENTITY, Vec3::ZERO);
+    let behind = drifting_canister(&mut app, 1, behind_at, Quat::IDENTITY, Vec3::ZERO);
+
+    for _ in 0..240 {
+        app.update();
+        assert_eq!(door(&app, intake), 0.0, "the door stays shut");
+    }
+    for (canister, start) in [(past, past_at), (behind, behind_at)] {
+        let at = app.world().get::<Position>(canister).unwrap().0;
+        assert!(at.distance(start) < 1e-4, "{canister:?} moved: {at}");
+        assert!(app
+            .world()
+            .resource::<CargoPickupReadiness>()
+            .pairs
+            .iter()
+            .any(|pair| pair.canister == canister && !pair.in_reach));
+    }
+    assert_eq!(plates(&app, ship), 12);
+    assert_eq!(takes(&app), 0);
+}
+
+/// A full hold keeps the door shut and pulls nothing: a canister at rest
+/// 30 m out, in reach, stays where it is.
+#[test]
+fn a_canister_a_full_hold_cannot_take_is_not_pulled() {
     let (mut app, ship, intake) = intake_app(40);
     let start = Vec3::new(1.0, 0.5, FACE_Z - 3.0);
     let canister = drifting_canister(&mut app, 4, start, Quat::IDENTITY, Vec3::ZERO);
@@ -901,6 +938,11 @@ fn an_ejected_canister_leaves_without_being_taken_back() {
     assert!(position.z < birth.z - 0.5, "it never left: {position}");
     assert_eq!(plates(&app, ship), 8);
     assert_eq!(takes(&app), 0);
+    assert_eq!(
+        door(&app, intake),
+        0.0,
+        "a drop in reach does not hold the door open"
+    );
 
     // Still inside the pull range, it keeps its jettison mark through a
     // freeze and thaw, so a Load does not pull it back either.

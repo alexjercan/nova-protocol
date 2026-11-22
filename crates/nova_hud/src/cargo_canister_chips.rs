@@ -13,29 +13,28 @@
 //! shared amber pill:
 //! this is cargo content over a canister's own model, not a HUD readout.
 //!
-//! The chip shows only while the player ship is within [`CARGO_TAG_RANGE`] of
-//! the canister and hides off-screen: a canister is a pickup near the ship,
-//! not a destination, and the viewport edges stay reserved for threats and the
+//! The chip shows only while the canister is in the reach of one of the
+//! player ship's cargo intakes, as the last fixed intake pass published it in
+//! [`CargoPickupReadiness`] (`in_reach`: in front of the face, within its
+//! `pull_range`), and hides off-screen. The label, the pickup sight's line and
+//! the pull share that one rule: a canister is a pickup near the ship, not a
+//! destination, and the viewport edges stay reserved for threats and the
 //! active objective. The layer, anchor and despawn are
 //! [`anchored_chip`](super::anchored_chip)'s; the tag's own paint is not.
 //!
 //! Chrome tier: a pickup tag, not a flight instrument.
 
-use bevy::prelude::*;
-use nova_events::units::prelude::*;
+use bevy::{ecs::entity::EntityHashSet, prelude::*};
 use nova_gameplay::prelude::*;
+use nova_ship::prelude::*;
 use nova_ui::widget::{metrics, ThemedRadius};
 
 use super::{anchored_chip::prelude::*, screen_indicator::prelude::*};
 
-/// The canister chip layer marker, the tag range and
-/// `CargoCanisterChipsHudPlugin`.
+/// The canister chip layer marker and `CargoCanisterChipsHudPlugin`.
 pub mod prelude {
-    pub use super::{CargoCanisterChipHudMarker, CargoCanisterChipsHudPlugin, CARGO_TAG_RANGE};
+    pub use super::{CargoCanisterChipHudMarker, CargoCanisterChipsHudPlugin};
 }
-
-/// How near the player ship must be for a canister's chip to show.
-pub const CARGO_TAG_RANGE: Meters = Meters(100.0);
 
 /// The chip stands off the canister so the label never sits on the model.
 const CHIP_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
@@ -85,8 +84,9 @@ fn cargo_canister_chip_text(items: &GameItems, canister: &CargoCanister) -> (Str
     (label, kg_text(u64::from(canister.total_mass_g(items))))
 }
 
-/// UI bundle for one canister's chip layer, spawned hidden: the range pass
-/// anchors it once the player ship is near.
+/// UI bundle for one canister's chip layer, spawned hidden: the reach pass
+/// anchors it once the canister is in the reach of the player ship's
+/// intakes.
 ///
 /// `loop_intake_compare`'s `spawn_tag` shape: a dark scrim row holding a thin
 /// amber accent bar beside a padded column of the two text lines.
@@ -155,9 +155,9 @@ fn setup_cargo_canister_chip(add: On<Add<CargoCanister>>, mut commands: Commands
     commands.spawn(cargo_canister_chip_hud(add.entity));
 }
 
-/// Anchor each canister chip while the player ship is within
-/// [`CARGO_TAG_RANGE`], and write what the canister holds. Without a player
-/// ship every chip hides.
+/// Anchor each canister chip while a pair the last fixed intake pass
+/// published puts it in the reach of an intake on the player ship, and write
+/// what the canister holds. Without a player ship every chip hides.
 fn update_cargo_canister_chips(
     q_chips: Query<&AnchoredChipTarget, With<CargoCanisterChipHudMarker>>,
     mut q_nodes: Query<(&mut ScreenIndicatorAnchor, &ChildOf), With<AnchoredChipNodeMarker>>,
@@ -166,20 +166,29 @@ fn update_cargo_canister_chips(
         With<AnchoredChipLabelMarker>,
     >,
     q_lines: Query<&ChildOf>,
-    q_canisters: Query<(&CargoCanister, &GlobalTransform)>,
-    q_player: Query<&GlobalTransform, With<PlayerSpaceshipMarker>>,
+    q_canisters: Query<&CargoCanister>,
+    q_player: Query<Entity, With<PlayerSpaceshipMarker>>,
+    readiness: Res<CargoPickupReadiness>,
     items: Res<GameItems>,
 ) {
-    let player = q_player.iter().next().map(GlobalTransform::translation);
-    let range = CARGO_TAG_RANGE.to_engine();
+    let in_reach: EntityHashSet = q_player
+        .iter()
+        .next()
+        .map(|ship| {
+            readiness
+                .pairs
+                .iter()
+                .filter(|pair| pair.ship == ship && pair.in_reach)
+                .map(|pair| pair.canister)
+                .collect()
+        })
+        .unwrap_or_default();
     for (mut anchor, ChildOf(layer)) in &mut q_nodes {
         let Ok(target) = q_chips.get(*layer) else {
             continue;
         };
-        let near = q_canisters.get(**target).is_ok_and(|(_, transform)| {
-            player.is_some_and(|player| player.distance(transform.translation()) <= range)
-        });
-        let wanted = near.then_some(ScreenIndicatorAnchorKind::Entity(**target));
+        let shown = q_canisters.contains(**target) && in_reach.contains(&**target);
+        let wanted = shown.then_some(ScreenIndicatorAnchorKind::Entity(**target));
         if **anchor != wanted {
             **anchor = wanted;
         }
@@ -194,7 +203,7 @@ fn update_cargo_canister_chips(
         let Ok(target) = q_chips.get(*layer) else {
             continue;
         };
-        let Ok((canister, _)) = q_canisters.get(**target) else {
+        let Ok(canister) = q_canisters.get(**target) else {
             continue;
         };
         let (label, mass) = cargo_canister_chip_text(&items, canister);
@@ -205,10 +214,11 @@ fn update_cargo_canister_chips(
     }
 }
 
-/// Draws one content tag per [`CargoCanister`] near the player ship, reading
-/// its stacks and mass (Chrome tier). Adds the spawn and despawn observers and
-/// runs the range and label pass in Update within [`super::NovaHudSystems`],
-/// once the mod merge has published [`GameItems`].
+/// Draws one content tag per [`CargoCanister`] in the reach of the player
+/// ship's intakes, reading its stacks and mass (Chrome tier). Adds the spawn
+/// and despawn observers and runs the reach and label pass in Update within
+/// [`super::NovaHudSystems`], once the mod merge has published [`GameItems`].
+/// Reads [`CargoPickupReadiness`], which `CargoIntakeSectionPlugin` inits.
 #[derive(Default)]
 pub struct CargoCanisterChipsHudPlugin;
 
@@ -257,6 +267,7 @@ mod tests {
 
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
+        app.init_resource::<CargoPickupReadiness>();
         app.add_plugins(CargoCanisterChipsHudPlugin);
 
         app.world_mut().spawn((
@@ -288,5 +299,63 @@ mod tests {
         app.update();
         assert_eq!(app.world().get::<Text>(label).unwrap().0, "2 Fixture core");
         assert_eq!(app.world().get::<Text>(mass).unwrap().0, kg_text(10_000));
+    }
+
+    /// The chip shows for every canister an intake on the player ship has in
+    /// its reach, and for none out of reach or in another ship's reach.
+    #[test]
+    fn a_label_shows_for_every_canister_in_reach_and_none_out_of_reach() {
+        let items = nova_gameplay::test_support::test_items();
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.init_resource::<CargoPickupReadiness>();
+        app.insert_resource(items.clone());
+        app.add_plugins(CargoCanisterChipsHudPlugin);
+
+        let player = app.world_mut().spawn(PlayerSpaceshipMarker).id();
+        let intake = app.world_mut().spawn_empty().id();
+        let other_ship = app.world_mut().spawn_empty().id();
+        let canister = |app: &mut App| {
+            app.world_mut()
+                .spawn((
+                    CargoCanister::new(&items, &ItemRoleType::HullPlate.into(), 1),
+                    CargoCanisterRuntimeId(0),
+                    GlobalTransform::default(),
+                ))
+                .id()
+        };
+        let reached = [canister(&mut app), canister(&mut app), canister(&mut app)];
+        let out = canister(&mut app);
+        let others = canister(&mut app);
+        let pair = |ship, canister, in_reach| CargoPickupPair {
+            ship,
+            intake,
+            canister,
+            in_reach,
+            ready: false,
+        };
+        let mut pairs: Vec<CargoPickupPair> = reached
+            .iter()
+            .map(|&canister| pair(player, canister, true))
+            .collect();
+        pairs.push(pair(player, out, false));
+        pairs.push(pair(other_ship, others, true));
+        app.world_mut().resource_mut::<CargoPickupReadiness>().pairs = pairs;
+        app.update();
+
+        let world = app.world_mut();
+        let shown: Vec<Entity> = world
+            .query_filtered::<(&ScreenIndicatorAnchor, &ChildOf), With<AnchoredChipNodeMarker>>()
+            .iter(world)
+            .filter_map(|(anchor, &ChildOf(layer))| {
+                let target = world.get::<AnchoredChipTarget>(layer)?;
+                (**anchor == Some(ScreenIndicatorAnchorKind::Entity(**target))).then_some(**target)
+            })
+            .collect();
+        let mut expected = reached.to_vec();
+        expected.sort();
+        let mut shown = shown;
+        shown.sort();
+        assert_eq!(shown, expected, "only the canisters in reach are labelled");
     }
 }

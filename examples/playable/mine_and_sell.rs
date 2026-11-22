@@ -17,8 +17,9 @@
 //!
 //! 1. face the rock and hold the mine key (`V`) until ore pays, then let it
 //!    up.
-//! 2. fly the dorsal intake under a canister the rock drops, within 40 m:
-//!    the door opens and pulls the canister in.
+//! 2. fly the dorsal intake under the canisters the rock drops: each one
+//!    within 120 m in front of the door shows its tag and a pickup line, and
+//!    the intake pulls it in while the door opens.
 //! 3. fly the port collar onto the trader's port, lock the trader and
 //!    press the dock key.
 //! 4. press TAB, pick Inventory, click Stone ore on your side, pick Sell and
@@ -33,8 +34,8 @@
 //! tracks the one holding the most ore. It flies the tug with the flight
 //! computer's `MatchVelocity`, the primitive every AI pilot steers with: down
 //! clear of the canisters toward a point under the tracked one. Once the
-//! intake's door is fully open it holds still and the door pulls the canister
-//! in, with any other canister in the pull. It waits for the door to shut,
+//! intake's door is fully open it holds still while the intake pulls in the
+//! canister and every other canister in reach. It waits for the door to shut,
 //! then holds the berth beside the trader and docks with the real key. A
 //! canister out of the pull stays in space, so the ore sold is the ore
 //! collected, not the ore mined. It fails loudly if the rock's lost corners,
@@ -765,6 +766,47 @@ mod walk {
         );
     }
 
+    /// Frame the intake face and every canister in its reach from starboard,
+    /// aft and above, far enough out to hold them all, and log how many there
+    /// are: the pickup frame shows a tag and a line on each.
+    fn frame_reach(world: &mut World) {
+        let ship = root(world, PLAYER_ID);
+        let reached: Vec<Entity> = world
+            .resource::<CargoPickupReadiness>()
+            .pairs
+            .iter()
+            .filter(|pair| pair.ship == ship && pair.in_reach)
+            .map(|pair| pair.canister)
+            .collect();
+        let mut intakes = world
+            .query_filtered::<(&GlobalTransform, &SectionCollider), With<CargoIntakeSectionMarker>>(
+            );
+        let (intake, collider) = intakes.iter(world).next().expect("the tug has an intake");
+        let (face, _) = cargo_intake_face(intake.translation(), intake.rotation(), *collider);
+        let mut canisters = world.query_filtered::<&GlobalTransform, With<CargoCanister>>();
+        let points: Vec<Vec3> = reached
+            .iter()
+            .filter_map(|&canister| canisters.get(world, canister).ok())
+            .map(GlobalTransform::translation)
+            .chain([face])
+            .collect();
+        info!(
+            "mine_and_sell: {} canisters in reach at the pickup frame",
+            points.len() - 1
+        );
+        let subject = points.iter().sum::<Vec3>() / points.len() as f32;
+        let extent = points
+            .iter()
+            .map(|point| point.distance(subject))
+            .fold(0.0, f32::max);
+        let eye = Vec3::new(4.0, 2.5, 4.0).normalize() * (2.2 * extent).max(6.0);
+        pose_camera(
+            world,
+            Meters3::from_engine(subject + eye),
+            Meters3::from_engine(subject),
+        );
+    }
+
     /// Frame the intake face and the canister over it from starboard, aft and
     /// above.
     fn frame_intake(world: &mut World) {
@@ -887,7 +929,7 @@ mod walk {
             }))
             .deadline(FLIGHT_DEADLINE)
             .add();
-        let script = shoot_checkpoint(script, "pickup", frame_intake, PICKUP_SHOT)
+        let script = shoot_checkpoint(script, "pickup", frame_reach, PICKUP_SHOT)
             .step("open the intake loop")
             .on_enter(|world: &mut World| loop_start(world, INTAKE_LOOP))
             .until(frames(1))

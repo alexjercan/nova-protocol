@@ -141,11 +141,11 @@ Nothing on it flies for you, and the **roll is not drawn at all** - the ports ar
 
 ## Pickup sight and canister tags
 
-<!-- Behavior verified against crates/nova_hud/src/pickup_sight.rs (CARGO_PICKUP_SIGHT_RANGE 200 m from the player's ship, no lock needed, a travel-locked canister first, then the nearest intake face) and crates/nova_hud/src/cargo_canister_chips.rs (CARGO_TAG_RANGE 100 m, "Mixed cargo" past one stack, mass line). -->
+<!-- Behavior verified against crates/nova_hud/src/pickup_sight.rs (one line per canister published `in_reach` of a player intake, to the nearer face, no lock needed) and crates/nova_hud/src/cargo_canister_chips.rs (a tag per canister in reach, "Mixed cargo" past one stack, mass line); the reach is the intake's pull_range, 120 m for the base intake. -->
 
-A hull carrying a [cargo intake](../sections/cargo-intake/#taking-a-canister-in) draws a **pickup sight** for a canister within **200 m** of your ship, with no lock needed: a cross on the intake's face and a line to the canister. A travel-locked canister in range takes the line first; otherwise the canister nearest an intake does. Stand the line perpendicular to the cross, then close to within 40 m; the open door pulls the canister in. The sight goes with the canister when the intake takes all of it, and stays on a canister with items your hold had no room for.
+A hull carrying a [cargo intake](../sections/cargo-intake/#taking-a-canister-in) draws a **pickup sight** for every canister in the intake's **120 m** pull range in front of its door, with no lock needed: a cross on the intake's face and a cyan line to each canister. A line means the intake reaches that canister; one your hold has room for comes in while the door opens. A canister's line goes with it when the intake takes all of it, and stays on a canister with items your hold had no room for while it is in reach.
 
-Within **100 m**, each canister carries an amber **tag** that reads what it holds, such as `4 Hull plate`, or `Mixed cargo` for more than one item, with its total mass under it.
+In the same range, each canister carries an amber **tag** that reads what it holds, such as `4 Hull plate`, or `Mixed cargo` for more than one item, with its total mass under it.
 
 - **Pickup tick.** The moment your intake takes a canister, one line per stack prints above the key row, such as `+4 HULL PLATE`, and leaves after 1.5 s. A take your hold's room cut short lists only what came aboard. At most three lines show; a fourth pushes the oldest out. The intake blinks warm at the same moment. The tick has no sound of its own: the take sound is the intake's.
 

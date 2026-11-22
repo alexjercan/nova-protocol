@@ -3560,7 +3560,7 @@
         base: (
             id: "cargo_intake_section",
             name: "Cargo Intake Section",
-            description: "A hold mouth behind an accordion door. The door folds open for a canister within 40 m of it and pulls it in at 5 m/s. When a canister reaches into the 1 m in front of its opening, the intake takes, at any speed, every whole item the hold has room for. The rest stays in the same canister. Jettison in the Inventory pane drops a canister out through the same door; it is not pulled back.",
+            description: "A hold mouth behind an accordion door. It pulls a canister within 120 m in front of it in at 8 m/s and folds the door open for it. When a canister reaches into the 1 m in front of its opening, the intake takes, at any speed, every whole item the hold has room for. The rest stays in the same canister. Jettison in the Inventory pane drops a canister out through the same door; it is not pulled back.",
             health: 90.0,
             build: (
                 credits: 60,
@@ -3815,20 +3815,19 @@
             door_sound: "self://sounds/bay_door.wav",
             eject_sound: "self://sounds/cargo_eject.wav",
             take_sound: "self://sounds/salvage_pickup.wav",
-            detection_range: 40.0,
             capture_gap: 1.0,
             aperture_width: 22.2,
             aperture_height: 15.3,
             eject_speed: 3.0,
-            pull_range: 40.0,
-            pull_speed: 5.0,
+            pull_range: 120.0,
+            pull_speed: 8.0,
         )),
     )),
     Section((
         base: (
             id: "wide_intake_section",
             name: "Wide Intake Section",
-            description: "The same door and hold mouth with a wider trigger: the door opens for a canister within 60 m and pulls it in at 8 m/s, the take reaches 1.5 m out over a 28 x 18 m opening, and the machinery takes a third more damage before it fails.",
+            description: "The same door and hold mouth with a wider trigger: it pulls a canister within 160 m in at 10 m/s, the take reaches 1.5 m out over a 28 x 18 m opening, and the machinery takes a third more damage before it fails.",
             health: 120.0,
             build: (
                 credits: 90,
@@ -4084,13 +4083,12 @@
             door_sound: "self://sounds/bay_door.wav",
             eject_sound: "self://sounds/cargo_eject.wav",
             take_sound: "self://sounds/salvage_pickup.wav",
-            detection_range: 60.0,
             capture_gap: 1.5,
             aperture_width: 28.0,
             aperture_height: 18.0,
             eject_speed: 3.0,
-            pull_range: 60.0,
-            pull_speed: 8.0,
+            pull_range: 160.0,
+            pull_speed: 10.0,
         )),
     )),
     Section((

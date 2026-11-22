@@ -54,11 +54,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New look for the six start hulls, each in its own style and colour: a pusher tug with a bow boom, a fork-bowed hauler, a necked freighter, a dart interceptor, a hammerhead raider and a tower picket.
 - The new start hull shapes reach further from their centre and turn slower. Sustained deg/s: hauler 71 to 59, freighter 75 to 67, interceptor 86 to 76, raider 82 to 73, picket 78 to 76, tug 64 to 63.
 - Industrial plating is now ochre, armoured plating dark blue-grey and salvage plating rust, on every ship, wreck and station in those styles.
-- An open cargo intake pulls a canister its hold has room for to its door: 40 m at 5 m/s, wide intake 60 m at 8 m/s. A canister you jettison is not pulled back.
+- A cargo intake pulls a canister its hold has room for: 120 m at 8 m/s, wide intake 160 m at 10 m/s. Each canister in reach shows its tag and a pickup line. A jettisoned one is not pulled back.
 
 ### Modding & Mod Portal
 
-- **(breaking)** A `CargoIntake` section needs `pull_range` (m) and `pull_speed` (m/s). Lint requires `capture_gap < pull_range <= detection_range`.
+- **(breaking)** A `CargoIntake` section replaces `detection_range` with `pull_range` (m) and needs `pull_speed` (m/s). Lint requires `capture_gap < pull_range`.
 - `OnRepaired` now fires when a repair job ends, with every plate it fitted. `OnRebuilt` also fires for a field rebuild, with `price_cr: 0` and no `OnCreditsChanged`.
 - `OnCreditsChanged` gains cause `Rescue`: an SOS rescue takes its charge in one change at the answer. Its `OnRebuilt` events carry hold parts and each section's share.
 - New base styles `scrap` and `patrol`, worn by the Raider and the Patrol Picket. Each lists fixtures of other base kits under its own palette and greeble rules.

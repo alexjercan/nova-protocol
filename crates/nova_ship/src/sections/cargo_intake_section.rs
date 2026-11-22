@@ -15,28 +15,35 @@
 //! same two step poses and the rendered trigger stays on the rendered door
 //! face. The intake's despawn takes the trigger with it.
 //!
-//! - detection: the canister centre is in front of the face and within
-//!   `detection_range` of its centre. A canister here with at least one whole
-//!   item that fits the hold's free mass, or a waiting drop, opens the door.
+//! - reach: the canister centre is in front of the face and within
+//!   `pull_range` of its centre ([`CargoPickupPair::in_reach`]). The door,
+//!   the pull and the HUD's canister label and pickup line read this one
+//!   rule.
+//! - door: a canister in reach with at least one whole item that fits the
+//!   hold's free mass, and that the intake did not drop, or a waiting drop,
+//!   opens the door.
 //! - take: an avian contact point has nonnegative penetration into the
 //!   trigger. Speculative separated contacts do not count. Speed, rotation
 //!   and the door play no part. The report is one physics step old, and a
 //!   canister that closes on the face ends its step against the face, inside
 //!   the trigger, so a fast head-on canister is still reported.
-//! - pull: while the door is fully open, a canister whose centre is in front
-//!   of the face and within `pull_range` of its centre, with at least one
-//!   whole item that fits the hold's free mass after this pass's takes, moves
-//!   straight at the trigger centre at `pull_speed` relative to the intake.
-//!   The pass sets the canister's linear velocity every fixed tick, so its
-//!   mass plays no part and its relative speed never exceeds `pull_speed`;
-//!   its spin is kept. A canister in reach of two intakes goes to the nearer
-//!   face centre, then the lower intake entity. A canister the intake
-//!   dropped carries [`CargoCanisterJettisoned`] and is not pulled until it
-//!   is out of every intake's `pull_range`.
+//! - pull: a canister in reach with at least one whole item that fits the
+//!   hold's free mass after this pass's takes moves straight at the trigger
+//!   centre at `pull_speed` relative to the intake, from the tick it comes in
+//!   reach. The door does not gate it: the door starts to open on the same
+//!   tick, and a canister that reaches the trigger before the door is open
+//!   is taken through the shut door, as any take is. A remainder the hold
+//!   has no room for is no longer pulled and keeps its last velocity onto
+//!   the face. The pass sets the canister's linear velocity every fixed
+//!   tick, so its mass plays no part and its relative speed never exceeds
+//!   `pull_speed`; its spin is kept. A canister in reach of two intakes goes
+//!   to the nearer face centre, then the lower intake entity. A canister the
+//!   intake dropped carries [`CargoCanisterJettisoned`] and is not pulled
+//!   until it is out of every intake's `pull_range`.
 //!
 //! The same fixed pass publishes [`CargoPickupReadiness`] for every live
-//! intake/canister pair, including canisters outside detection. Each pair's
-//! `ready` flag is the take decision. A pair carries no pose: the pass reads
+//! intake/canister pair, including canisters out of reach. Each pair's
+//! `ready` flag is the take decision and its `in_reach` flag the reach. A pair carries no pose: the pass reads
 //! raw fixed-tick poses, so a reader on the render clock recomputes the face
 //! with [`cargo_intake_face`] from rendered poses. A zero-health canister is
 //! destroyed rather than offered to the intake or shown as a pickup
@@ -101,6 +108,7 @@ const CARGO_CANISTER_CLEARANCE: f32 = 0.05;
 /// Authorable config for a cargo intake section. Every field is required.
 #[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CargoIntakeSectionConfig {
     /// The intake's scene: the frame and the `intake_slat_` nodes the
     /// `IntakeDoor` track folds.
@@ -121,11 +129,7 @@ pub struct CargoIntakeSectionConfig {
     pub eject_sound: AssetRef<AudioSource>,
     /// Played as a canister is taken into the hold.
     pub take_sound: AssetRef<AudioSource>,
-    /// How far from the face centre a canister in front of the face that fits
-    /// the hold opens the door.
-    pub detection_range: Meters,
-    /// The trigger's depth out from the face plane. Less than
-    /// `detection_range`.
+    /// The trigger's depth out from the face plane. Less than `pull_range`.
     pub capture_gap: Meters,
     /// The trigger's width: the clear opening across the face, along the
     /// section's local X, with the door fully open.
@@ -135,9 +139,9 @@ pub struct CargoIntakeSectionConfig {
     /// The speed a dropped canister leaves the face at, relative to the
     /// intake's own point velocity.
     pub eject_speed: MetersPerSecond,
-    /// How far from the face centre a canister in front of the fully open
-    /// door is pulled to the trigger. More than `capture_gap`, at most
-    /// `detection_range`.
+    /// The intake's reach: how far from the face centre a canister in front
+    /// of the face is pulled to the trigger, opens the door, and shows its
+    /// label and pickup line. More than `capture_gap`.
     pub pull_range: Meters,
     /// The speed a pulled canister moves at toward the trigger, relative to
     /// the intake's own point velocity.
@@ -164,7 +168,8 @@ pub struct CargoIntakeSectionConfigHelper(CargoIntakeSectionConfig);
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct CargoIntakeEjectionQueue(pub VecDeque<CargoCanister>);
 
-/// On a canister an intake dropped: no intake pulls it. The pull removes it
+/// On a canister an intake dropped: no intake pulls it or opens its door for
+/// it. The pull removes it
 /// once the canister centre is beyond every live intake's `pull_range`, so a
 /// drop leaves its ship and can be pulled back in only after it was clear.
 /// A take on contact still works. Saved as [`FrozenCanister`]'s `jettisoned`.
@@ -223,8 +228,12 @@ pub struct CargoPickupPair {
     pub ship: Entity,
     /// Live intake section.
     pub intake: Entity,
-    /// Live canister candidate, including candidates outside detection.
+    /// Live canister candidate, including candidates out of reach.
     pub canister: Entity,
+    /// True when the canister centre is in this intake's reach: in front of
+    /// its face and within `pull_range` of the face centre, on this pass's
+    /// poses.
+    pub in_reach: bool,
     /// True exactly when this pass takes at least one item of this candidate
     /// through this intake.
     pub ready: bool,
@@ -445,6 +454,14 @@ pub fn cargo_intake_face(
     (position + normal * collider.aabb_half_extents().z, normal)
 }
 
+/// Whether a canister centre at `at` is in the reach of an intake whose face
+/// centre is `face_centre` with outward `normal`: in front of the face and
+/// within `range` of its centre, in the same units and frame.
+fn in_pull_reach(at: Vec3, face_centre: Vec3, normal: Vec3, range: f32) -> bool {
+    let offset = at - face_centre;
+    offset.dot(normal) >= 0.0 && offset.length() <= range
+}
+
 /// The world pose of the trigger of an intake at `position` with `rotation`:
 /// the centre of the capture gap in front of the door face, square to it.
 fn cargo_intake_trigger_pose(
@@ -546,6 +563,9 @@ struct CanisterRead {
     id: CargoCanisterRuntimeId,
     canister: CargoCanister,
     position: Vec3,
+    /// Dropped by an intake and not yet clear of every reach: it opens no
+    /// door.
+    jettisoned: bool,
     /// Emptied and despawned by this pass.
     taken: bool,
     /// Gave up items this pass; a remainder is written back after every
@@ -553,8 +573,8 @@ struct CanisterRead {
     changed: bool,
 }
 
-/// Run every live intake on a spaceship root: steer its door from the hold's
-/// free mass before this pass's takes, take the whole items that fit the hold
+/// Run every live intake on a spaceship root: steer its door from the
+/// canisters in reach and the hold's free mass before this pass's takes, take the whole items that fit the hold
 /// from every canister overlapping its trigger, and drop the front of its
 /// ejection queue once the door is open and no canister is near the birth
 /// point.
@@ -598,6 +618,7 @@ fn run_cargo_intakes(
             &mut CargoCanister,
             &Position,
             &Health,
+            Has<CargoCanisterJettisoned>,
         ),
         Without<HealthZeroMarker>,
     >,
@@ -610,15 +631,18 @@ fn run_cargo_intakes(
     readiness.pairs.clear();
     let mut canisters: Vec<CanisterRead> = q_canisters
         .iter()
-        .filter(|(.., health)| health.current > 0.0)
-        .map(|(entity, &id, canister, position, _)| CanisterRead {
-            entity,
-            id,
-            canister: canister.clone(),
-            position: position.0,
-            taken: false,
-            changed: false,
-        })
+        .filter(|(.., health, _)| health.current > 0.0)
+        .map(
+            |(entity, &id, canister, position, _, jettisoned)| CanisterRead {
+                entity,
+                id,
+                canister: canister.clone(),
+                position: position.0,
+                jettisoned,
+                taken: false,
+                changed: false,
+            },
+        )
         .collect();
     canisters.sort_by_key(|read| read.entity);
 
@@ -646,14 +670,15 @@ fn run_cargo_intakes(
         let point_velocity =
             |point: Vec3| rigid_body_point_velocity(lin_vel.0, ang_vel.0, center_of_mass, point);
         let (face_centre, normal) = cargo_intake_face(intake_position, intake_rotation, *collider);
-        let detection_range = config.detection_range.to_engine();
+        let reach = config.pull_range.to_engine();
+        let in_reach = |at: Vec3| in_pull_reach(at, face_centre, normal, reach);
 
+        // A drop is not pulled, so it does not hold the door open either.
         let wanted = ejections.is_some()
             || canisters.iter().any(|read| {
-                let offset = read.position - face_centre;
                 !read.taken
-                    && offset.dot(normal) >= 0.0
-                    && offset.length() <= detection_range
+                    && !read.jettisoned
+                    && in_reach(read.position)
                     && read.canister.fits_any(&items, inventory.free_g(&items))
             });
         let target = if wanted { 1.0 } else { 0.0 };
@@ -682,6 +707,7 @@ fn run_cargo_intakes(
                 ship,
                 intake,
                 canister: read.entity,
+                in_reach: in_reach(read.position),
                 ready,
             });
             if !ready {
@@ -752,14 +778,14 @@ fn run_cargo_intakes(
         .into_iter()
         .filter(|read| read.changed && !read.taken)
     {
-        let (_, _, mut canister, _, _) = q_canisters
+        let (_, _, mut canister, ..) = q_canisters
             .get_mut(read.entity)
             .expect("run_cargo_intakes: a canister read this pass left the query");
         *canister = read.canister;
     }
 }
 
-/// One open intake as the pull reads it.
+/// One live intake as the pull reads it.
 struct PullingIntake {
     intake: Entity,
     ship: Entity,
@@ -772,20 +798,21 @@ struct PullingIntake {
     velocity: Vec3,
 }
 
-/// Steer every canister an open intake pulls straight at that intake's
-/// trigger centre, at its `pull_speed` relative to the intake, and clear the
-/// jettison mark of every canister out of all pull ranges.
+/// Steer every canister in an intake's reach whose hold has room for it
+/// straight at that intake's trigger centre, at its `pull_speed` relative to
+/// the intake, and clear the jettison mark of every canister out of every
+/// reach.
 ///
 /// Runs after [`run_cargo_intakes`]: the chain's sync point has despawned
-/// each canister taken whole, the door targets are this pass's, and the
-/// hold's free mass is the one after this pass's takes. Runs before avian
-/// steps, which moves the canister on the new velocity. A missing
-/// `IntakeDoor` track counts as an open door, as in the take pass.
+/// each canister taken whole, and the hold's free mass is the one after this
+/// pass's takes. Runs before avian steps, which moves the canister on the new
+/// velocity. The door plays no part: the take pass opens it for the same
+/// canisters.
 #[expect(
     clippy::type_complexity,
-    reason = "ship motion and hold, intake pose and door, canister motion"
+    reason = "ship motion and hold, intake pose, canister motion"
 )]
-fn pull_canisters_to_open_intakes(
+fn pull_canisters_to_intakes(
     mut commands: Commands,
     q_ships: Query<
         (
@@ -804,7 +831,6 @@ fn pull_canisters_to_open_intakes(
             &ChildOf,
             &CargoIntakeSectionConfigHelper,
             &SectionCollider,
-            &SectionAnimations,
         ),
         (
             With<CargoIntakeSectionMarker>,
@@ -825,11 +851,8 @@ fn pull_canisters_to_open_intakes(
     q_chain: Query<(&Transform, &ChildOf)>,
     items: Res<GameItems>,
 ) {
-    // Every live intake's face and reach, open or not: the jettison mark
-    // clears against all of them.
-    let mut reaches: Vec<(Vec3, f32)> = Vec::new();
     let mut pulling: Vec<PullingIntake> = Vec::new();
-    for (intake, &ChildOf(ship), config, collider, animations) in &q_intakes {
+    for (intake, &ChildOf(ship), config, collider) in &q_intakes {
         let Ok((position, rotation, lin_vel, ang_vel, center, _)) = q_ships.get(ship) else {
             continue;
         };
@@ -840,14 +863,6 @@ fn pull_canisters_to_open_intakes(
         let intake_position = position.0 + rotation.0 * local_position;
         let intake_rotation = rotation.0 * local_rotation;
         let (face_centre, normal) = cargo_intake_face(intake_position, intake_rotation, *collider);
-        let range = config.pull_range.to_engine();
-        reaches.push((face_centre, range));
-        let open = animations
-            .cue_progress(SectionAnimationCue::IntakeDoor)
-            .is_none_or(|progress| progress >= 1.0);
-        if !open {
-            continue;
-        }
         let trigger_centre = face_centre + normal * (config.capture_gap.to_engine() * 0.5);
         let center_of_mass = position.0 + rotation.0 * center.0;
         pulling.push(PullingIntake {
@@ -856,7 +871,7 @@ fn pull_canisters_to_open_intakes(
             face_centre,
             normal,
             trigger_centre,
-            range,
+            range: config.pull_range.to_engine(),
             speed: config.pull_speed.to_engine(),
             velocity: rigid_body_point_velocity(
                 lin_vel.0,
@@ -874,9 +889,9 @@ fn pull_canisters_to_open_intakes(
         }
         let at = position.0;
         if jettisoned {
-            if reaches
+            if pulling
                 .iter()
-                .all(|&(face, range)| at.distance(face) > range)
+                .all(|pull| at.distance(pull.face_centre) > pull.range)
             {
                 commands
                     .entity(canister)
@@ -887,9 +902,7 @@ fn pull_canisters_to_open_intakes(
         // Nearest face first; a tie keeps the lower intake, as sorted.
         let mut best: Option<(&PullingIntake, f32)> = None;
         for pull in &pulling {
-            let offset = at - pull.face_centre;
-            let distance = offset.length();
-            if offset.dot(pull.normal) < 0.0 || distance > pull.range {
+            if !in_pull_reach(at, pull.face_centre, pull.normal, pull.range) {
                 continue;
             }
             let Ok((.., inventory)) = q_ships.get(pull.ship) else {
@@ -898,6 +911,7 @@ fn pull_canisters_to_open_intakes(
             if !contents.fits_any(&items, inventory.free_g(&items)) {
                 continue;
             }
+            let distance = at.distance(pull.face_centre);
             if best.is_none_or(|(_, nearest)| distance < nearest) {
                 best = Some((pull, distance));
             }
@@ -1033,7 +1047,7 @@ impl Plugin for CargoIntakeSectionPlugin {
             (
                 sync_cargo_intake_triggers,
                 run_cargo_intakes,
-                pull_canisters_to_open_intakes,
+                pull_canisters_to_intakes,
             )
                 .chain()
                 .in_set(CargoIntakeSystems),
