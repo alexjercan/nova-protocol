@@ -58,11 +58,13 @@
 //! the same pane visit. The dwell runs on virtual time, so a paused game,
 //! and an open interface, holds the notice and the line behind it.
 //!
-//! The box's left edge sits on the screen midline, not centred on it: the comms
-//! panel spans the bottom-left from 16 px to 48 % of the width (`comms_panel`),
-//! so a centred box at this height would print through a comms card on any
-//! window narrower than 2 x the notice width. A box that starts at 50 % clears
-//! it on every window wider than 800 px.
+//! The box is centred on the screen midline over the key row, so its centre
+//! stays on the dock's centre for any line length.
+//!
+//! TODO(20261122-175849): a comms card stands at the same height and spans
+//! to 16 px + 48 % of the width (`comms_panel`), so a notice shown under a
+//! card prints over the card's right end. Remove when one of the two keeps
+//! clear of the other.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
@@ -103,8 +105,8 @@ const NOTICE_FADE_SECS: f32 = 0.4;
 /// keybind dock row.
 pub(crate) const NOTICE_BOTTOM_PX: f32 = 72.0;
 
-/// The widest the box grows, as a share of the window. From the midline that
-/// leaves a 5 % right margin; a longer line clips instead of wrapping.
+/// The widest the box grows, as a share of the window. Centred, that leaves
+/// 27.5 % at each side; a longer line clips instead of wrapping.
 const NOTICE_MAX_WIDTH_PERCENT: f32 = 45.0;
 
 /// Notice text size (px).
@@ -229,6 +231,9 @@ pub fn hud_notice_hud() -> impl Bundle {
         Name::new("HudNotice"),
         HudNoticeMarker,
         node,
+        // Back by half the box's own width, so the midline `left` names its
+        // centre for a line of any length.
+        UiTransform::from_translation(Val2::percent(-50.0, 0.0)),
         ThemedRadius::control(),
         BackgroundColor(Color::NONE),
         BorderColor::all(Color::NONE),
@@ -250,7 +255,7 @@ pub fn hud_notice_hud() -> impl Bundle {
 
 /// The shown notice box as a rect other HUD pieces keep clear of.
 ///
-/// The box's `left` and `bottom` are fixed, so only its size needs layout. On
+/// The box's centre and `bottom` are fixed, so only its size needs layout. On
 /// the frame the text changes, layout has not measured the new line yet, so
 /// the rect takes the widest and tallest box the node allows: a pass before
 /// layout would otherwise clear last frame's line.
@@ -276,7 +281,7 @@ impl HudNoticeKeepOut<'_, '_> {
         } else {
             computed.size() * computed.inverse_scale_factor()
         };
-        let left = view.x / 2.0;
+        let left = (view.x - size.x) / 2.0;
         let bottom = view.y - NOTICE_BOTTOM_PX;
         Some(Rect::new(left, bottom - size.y, left + size.x, bottom))
     }
@@ -1478,6 +1483,43 @@ mod tests {
             rendered(&mut app).0,
             "",
             "nothing waits after the goal's line"
+        );
+    }
+
+    /// The notice box stands centred on the screen midline for a short and a
+    /// long line, on a 1280 and a 1024 px wide window, the same as the key
+    /// row's centred chips under it.
+    #[test]
+    fn a_notice_box_of_any_length_is_centred_on_the_midline() {
+        use crate::chip_layout_rig::{chip_layout_app, measure, set_rig_width, settle};
+
+        let mut app = chip_layout_app();
+        let notice = app.world_mut().spawn(hud_notice_hud()).id();
+        let mut widths = Vec::new();
+        for view_width in [1280_u32, 1024] {
+            set_rig_width(&mut app, view_width);
+            for line in ["UNDOCKED", "HULL-3 REPAIR STOPPED: NO PLATES"] {
+                let mut q_text = app
+                    .world_mut()
+                    .query_filtered::<&mut Text, With<HudNoticeText>>();
+                q_text
+                    .single_mut(app.world_mut())
+                    .expect("one notice text")
+                    .0 = line.to_string();
+                settle(&mut app);
+                let rect = measure(&app, notice).rect;
+                let midline = view_width as f32 / 2.0;
+                assert!(
+                    (rect.center().x - midline).abs() <= 1.0,
+                    "`{line}` at {view_width} px: box {rect:?} centres at {} not {midline}",
+                    rect.center().x
+                );
+                widths.push(rect.width());
+            }
+        }
+        assert!(
+            widths[1] > 2.0 * widths[0],
+            "delivery guard: the long line draws a much wider box: {widths:?}"
         );
     }
 }
