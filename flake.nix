@@ -39,114 +39,6 @@
           targets = ["wasm32-unknown-unknown"];
         };
 
-        # Dev shell `cargo`. It shadows the toolchain cargo on PATH and calls
-        # it by store path. The box has 31 GB shared by agent lanes, other
-        # Bevy repos and running games; parallel lane builds went 24 GB into
-        # swap on 2026-10-15. So a heavy cargo command here takes ONE
-        # machine-wide lock (other repos can share the same file) and runs in
-        # its own systemd user scope with a memory cap. CI does not use this
-        # shell.
-        cargoWrapper = pkgs.writeShellScriptBin "cargo" ''
-          real=${rustNightly}/bin/cargo
-          flock=${pkgs.util-linux}/bin/flock
-
-          # NOVA_CARGO_LOCKED=1 marks a cargo whose parent holds the lock. The
-          # wrapper sets it on each cargo it runs under the lock, so a cargo
-          # that a test or build script spawns skips the lock and the scope
-          # and does not wait for its parent. A `cargo run` program, such as
-          # nova_probe_cli, runs after the lock is released and without the
-          # mark, so a cargo it spawns takes the lock itself.
-          if [ "''${NOVA_CARGO_LOCKED:-}" = 1 ]; then exec "$real" "$@"; fi
-
-          # Find the subcommand after +toolchain and global flags.
-          args=("$@")
-          i=0
-          sub=
-          while [ "$i" -lt "''${#args[@]}" ]; do
-            case ''${args[$i]} in
-              +*) ;;
-              -Z | --config | -C | --color | --explain) i=$((i + 1)) ;;
-              -*) ;;
-              *) sub=''${args[$i]}; break ;;
-            esac
-            i=$((i + 1))
-          done
-
-          case $sub in
-            build | b | check | c | test | t | bench | run | r | clippy | doc | d | rustc | install | fix) ;;
-            *) exec "$real" "$@" ;;
-          esac
-
-          scope=()
-          if command -v systemd-run >/dev/null && [ -S "''${XDG_RUNTIME_DIR:-}/bus" ]; then
-            scope=(systemd-run --user --scope --quiet --collect -p MemoryHigh=10G -p MemoryMax=12G --)
-          else
-            echo "cargo: no systemd user bus, running without the memory cap" >&2
-          fi
-
-          # The lock lives on fd 9 of this shell. Children get `9>&-` so a
-          # daemon they start, such as the sccache server, cannot keep it.
-          take_lock() {
-            exec 9>>"''${XDG_RUNTIME_DIR:-/tmp}/cargo-build.lock"
-            if ! "$flock" -n 9; then
-              echo "cargo: waiting for the build lock (another build is running)" >&2
-              "$flock" 9
-            fi
-            ensure_sccache
-          }
-
-          # With RUSTC_WRAPPER=sccache, rustc and the linker are children of
-          # the sccache server, not of cargo, so the cargo scope does not cap
-          # them. Keep the server in its own capped scope. The server is per
-          # user and other repos share it, but our lock does not cover their
-          # builds, so a stop can fail their compiles. Restart only when the
-          # scope is not active, which is once per boot or after the server's
-          # idle exit. A scope (not a service) keeps this shell's SCCACHE_*
-          # environment.
-          ensure_sccache() {
-            case ''${RUSTC_WRAPPER:-} in */sccache | sccache) ;; *) return ;; esac
-            [ "''${#scope[@]}" -gt 0 ] || return
-            [ "$(systemctl --user show nova-sccache.scope -p ActiveState --value 2>/dev/null)" = active ] && return
-            "$RUSTC_WRAPPER" --stop-server >/dev/null 2>&1
-            systemd-run --user --scope --unit=nova-sccache --quiet --collect \
-              -p MemoryHigh=10G -p MemoryMax=12G -- "$RUSTC_WRAPPER" --start-server >/dev/null 2>&1 9>&- ||
-              echo "cargo: could not start sccache in nova-sccache.scope, compiles run uncapped" >&2
-          }
-
-          if [ "$sub" = run ] || [ "$sub" = r ]; then
-            # A running game must not hold the lock. Build the same target
-            # under the lock, release the lock, then run unlocked; its compile
-            # step is then a no-op. The build gets cargo's options only. The
-            # program args start at `--` or at the first positional that is
-            # not an option value, as in `cargo run content lint`.
-            build=("''${args[@]:0:i}" build)
-            j=$((i + 1))
-            while [ "$j" -lt "''${#args[@]}" ]; do
-              a=''${args[$j]}
-              case $a in
-                --) break ;;
-                -p | --package | --bin | --example | -F | --features | --profile | --target | \
-                  --manifest-path | --config | -Z | --color | -j | --jobs | --message-format | \
-                  --target-dir | --lockfile-path | -C)
-                  build+=("$a")
-                  j=$((j + 1))
-                  [ "$j" -lt "''${#args[@]}" ] && build+=("''${args[$j]}")
-                  ;;
-                -*) build+=("$a") ;;
-                *) break ;;
-              esac
-              j=$((j + 1))
-            done
-            take_lock
-            NOVA_CARGO_LOCKED=1 "''${scope[@]}" "$real" "''${build[@]}" 9>&- || exit
-            exec 9>&-
-            exec "''${scope[@]}" "$real" "$@"
-          fi
-
-          take_lock
-          NOVA_CARGO_LOCKED=1 "''${scope[@]}" "$real" "$@" 9>&-
-        '';
-
         # mdbook-mermaid 0.17.x implements mdBook's 0.5.0 preprocessor
         # protocol and warns when a newer mdBook invokes it. Keep the producer
         # and preprocessor on the same protocol so doc builds are warning-free.
@@ -319,7 +211,6 @@
 
         devShells.default = pkgs.mkShell rec {
           nativeBuildInputs = with pkgs; [
-            cargoWrapper # first, so it shadows the toolchain cargo
             openssl
             trunk
             wasm-pack
