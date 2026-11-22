@@ -17,7 +17,8 @@
 //! role; a station's rotation, clearance and civilization) sit beside the
 //! config, never inside a hidden default. Materialization adds only the pose,
 //! the id, the derived name and the derelict marker; rocks and planetoids
-//! spawn at identity rotation, named by their id.
+//! spawn at identity rotation, a rock named by its kind and a planetoid by the
+//! name its record carries.
 //!
 //! OWNERSHIP. A worker reads the configs and never resolves an asset or a
 //! catalog. Every asset ref in a record must be a path, so the record saves
@@ -91,6 +92,10 @@ pub struct SectorPlanet {
     pub id: GeneratedBodyId,
     /// Where it stands, in meters from the world origin.
     pub position: Meters3,
+    /// What the world is called: the target inset and the Map read it. The
+    /// generator names it, so the same seed names it the same on every visit
+    /// and after a Load. Never blank; [`validate_manifest`] refuses one.
+    pub name: String,
     /// The world it is, ready for `prepare_planet`.
     pub config: PlanetConfig,
 }
@@ -364,9 +369,10 @@ impl SectorDescription {
         }
         for planet in &self.planets {
             out.push_str(&format!(
-                "planet {} {} {:?} r{:.2} s{} relief {:?} sea_level {:?} mass {:?} \
+                "planet {} {:?} {} {:?} r{:.2} s{} relief {:?} sea_level {:?} mass {:?} \
                  lock_signature {:?}\n",
                 planet.id,
+                planet.name,
                 point(planet.position),
                 planet.config.planet_type,
                 planet.config.radius.get(),
@@ -630,7 +636,7 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> GeneratedBodyI
 /// it; no two bodies overlapping; shipped asteroid kinds; finite initial
 /// velocities; every asset ref a path, not a runtime handle; asteroid lock
 /// signatures that [`AsteroidConfig::validate_lock_signature`] accepts; and
-/// planet configs that [`PlanetConfig::validate`] accepts. How many bodies a
+/// planet configs that [`PlanetConfig::validate`] accepts, each planet named. How many bodies a
 /// generator places and how far apart it spaces them is its own policy; this
 /// check only refuses what cannot be materialized. A ship's rotation must be
 /// a finite unit quaternion, its declared clearance positive and at most
@@ -651,7 +657,7 @@ pub fn sector_id(coord: SectorCoord, name: &str, index: usize) -> GeneratedBodyI
 /// overlapping another, an id another cell owns, a non-finite initial
 /// velocity, a rock with no silhouette seed, a texture or destroy sound that
 /// is a runtime handle or a lock signature that is not a finite positive
-/// length, a planet config [`PlanetConfig::validate`] refuses, a ship
+/// length, a blank planet name or a planet config [`PlanetConfig::validate`] refuses, a ship
 /// clearance above the maximum, a ship design that names a catalog prototype,
 /// has no sections, a repeated section id, an inline section, a non-finite
 /// section pose or a presentation sound that is a runtime handle, a ship with
@@ -756,6 +762,9 @@ pub fn validate_manifest(
     }
     for planet in &manifest.planets {
         own(&planet.id)?;
+        if planet.name.trim().is_empty() {
+            return Err(refuse(&planet.id, "name", format!("{:?}", planet.name)));
+        }
         planet
             .config
             .validate()

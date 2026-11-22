@@ -73,6 +73,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** Goal kind `StationNetwork` is gone. `CargoRuns(jobs: n)` counts Procure, Supply and Escort hand-ins; `Outlaw(hulls: n)` counts each trading hull you neutralize, at any stance.
 - A UiTheme's `segmented` border colour is no longer painted: the options draw the control's only line. A box takes its corner from the theme's `radius` or `panel_radius`.
 - New content kind `MusicTrack` adds an `.ogg` song to a situation's playlist with its licence. Actions `PlayMusic` and `StopMusic` play a scenario's own song.
+- A scenario planet with a blank `name` is a lint error and refuses the load: the target inset and the Map show that name.
 
 ### Interface & HUD
 
@@ -107,6 +108,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The GOTO line on the HUD and Map is the predicted flight to where the leg arrives, however long. Before, it ended 30 s out and a dim straight guide ran on to the target.
 - Map chart GOTO: fly to a charted station or sector outside your window. A nav chip shows its code and range, the leg hands over to the station when it streams in, and saves keep it.
 - The Map panel keeps the GOTO destination and the GOTO and Cancel buttons at its foot; a long station stock list scrolls above them.
+- Generated planets have names, as `Quelcorgar II`, on the target inset, HUD labels and Map: the cluster's seeded name and a numeral, the same after a Load. Before, they showed their id.
+- The Map contact panel names a body as the target inset does: a generated asteroid by its kind, as `Ice asteroid`, and a planet by its name.
 
 ### Audio & Visuals
 

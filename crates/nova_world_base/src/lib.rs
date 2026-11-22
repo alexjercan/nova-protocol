@@ -108,7 +108,7 @@ pub use crate::{
         role_style_id, Civilization, CivilizationField, CivilizationReach, CivilizationStatusType,
         LAWFUL_SHARE, STANCE_ALLY_SHARE, STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS,
     },
-    clusters::{sector_clusters, ClusterSummary, SectorClusters},
+    clusters::{generated_planet_name, sector_clusters, ClusterSummary, SectorClusters},
     encounters::{EncounterPlugin, EncounterSystems, HAIL_CHIP, SIGNAL_CHIP},
     environment::{Environment, EnvironmentFieldType, EnvironmentFields},
     goal::{goal_progress, GoalFacts},
@@ -147,8 +147,8 @@ pub use crate::{
 pub mod prelude {
     pub use super::{
         apply_offence, enemy_neighbours, find_rescue_station, fine_cr, generate_ship,
-        generate_station, generate_wreck, generated_station, goal_progress, plan_ship,
-        post_station_boards, record_merit, retire_dropped_job_bodies, role_style_id,
+        generate_station, generate_wreck, generated_planet_name, generated_station, goal_progress,
+        plan_ship, post_station_boards, record_merit, retire_dropped_job_bodies, role_style_id,
         sector_clusters, seeded_lawful, seeded_stance, settle, ship_stock, standing, start_preview,
         start_session, starting_station, station_archetype, station_ceiling, waypoint_mark,
         Civilization, CivilizationField, CivilizationReach, CivilizationStatusType, ClusterSummary,

@@ -1633,6 +1633,13 @@ name = "news_0160_chart_view"
 path = "examples/screenshots/news_0160_chart_view.rs"
 required-features = ["debug"]
 
+# Stills of a generated planet and asteroid by name: the inset locked on the
+# planet, and the Map's contact panel on the asteroid and on the planet.
+[[example]]
+name = "wiki_map_names"
+path = "examples/screenshots/wiki_map_names.rs"
+required-features = ["debug"]
+
 # The v0.16.0 news station loop: a generated ring station on a planetoid
 # orbit with two generated hulls docked, its turrets on a passing hull.
 [[example]]

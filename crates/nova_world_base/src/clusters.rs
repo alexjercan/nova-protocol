@@ -79,8 +79,9 @@ use bevy::prelude::{Quat, Vec3};
 use nova_assets::prelude::ASTEROID_TEXTURE_PATH;
 use nova_events::prelude::{Meters, Meters3, MetersPerSecond3, MetersPerSecondSquared};
 use nova_gameplay::prelude::{
-    circular_orbit_speed, unit_sphere_point, Allegiance, AssetRef, CivilizationId, ClusterType,
-    Fnv32, GameConsumables, GameItems, GravitySettings, GravityWell, SeedStream, TraderMarket,
+    circular_orbit_speed, seeded_name, unit_sphere_point, Allegiance, AssetRef, CivilizationId,
+    ClusterType, Fnv32, GameConsumables, GameItems, GravitySettings, GravityWell, SeedStream,
+    TraderMarket,
 };
 use nova_scenario::prelude::{
     asteroid_seed_from_id, station_orbit_velocity, AsteroidConfig, PlanetConfig, PlanetType,
@@ -104,6 +105,43 @@ use crate::{
 /// About one interesting place per 50 km of travel on each axis, so a 160 km
 /// window holds a few clusters and long runs of open space between them.
 pub(crate) const CLUSTER_LATTICE: Meters = Meters(50_000.0);
+
+/// The numerals a cluster's worlds are told apart by, in draw order. One per
+/// world a cluster can hold: [`WORLD_CORNERS`] lays out none to four.
+const WORLD_NUMERALS: [&str; 4] = ["I", "II", "III", "IV"];
+
+const _: () = assert!(WORLD_CORNERS.len() == WORLD_NUMERALS.len() + 1);
+
+/// The name of world `index` of the cluster at lattice `node` in the world of
+/// `seed`: the cluster's seeded name and the world's numeral, as `Halmar II`.
+///
+/// PURE, and keyed by the seed and the node alone, like the cluster: every
+/// cell, every visit and every Load names the world the same. The name comes
+/// off its own stream, so it moves no cluster draw. Two clusters can draw the
+/// same name; the numeral tells the worlds of one cluster apart.
+///
+/// # Panics
+///
+/// On an `index` past the four worlds a cluster can hold.
+pub fn generated_planet_name(seed: u32, node: [i32; 3], index: usize) -> String {
+    let mut stream = SeedStream::new(
+        Fnv32::new()
+            .write(&seed.to_le_bytes())
+            .write(b"cluster-name")
+            .write(&node[0].to_le_bytes())
+            .write(&node[1].to_le_bytes())
+            .write(&node[2].to_le_bytes())
+            .finish(),
+    );
+    let numeral = WORLD_NUMERALS.get(index).unwrap_or_else(|| {
+        panic!(
+            "nova_world_base: world {index} of {} is past the {} a cluster holds",
+            Cluster::slug(node),
+            WORLD_NUMERALS.len()
+        )
+    });
+    format!("{} {numeral}", seeded_name(&mut stream))
+}
 
 /// How many seeded phases around a world a station tries for an orbit that
 /// clears every member of its cluster before the world is given up.
@@ -769,6 +807,8 @@ fn seeded_orbit_velocity(
 /// Everything one cell planned.
 #[derive(Clone, Debug)]
 pub(crate) struct SectorPlan {
+    /// The world seed, which names the cell's planetoids.
+    seed: u32,
     coord: SectorCoord,
     edge: Meters,
     environment: Environment,
@@ -1048,11 +1088,20 @@ impl SectorPlan {
                     id,
                     position,
                 }),
-                ClusterBody::Planetoid(config) => manifest.planets.push(SectorPlanet {
-                    id,
-                    position,
-                    config: config.clone(),
-                }),
+                ClusterBody::Planetoid(config) => {
+                    let BodySource::Parent(node, index) = planned.source else {
+                        panic!(
+                            "nova_world_base: planetoid '{id}' is not a cluster parent; only a \
+                             cluster plans a world"
+                        );
+                    };
+                    manifest.planets.push(SectorPlanet {
+                        name: generated_planet_name(self.seed, node, index),
+                        id,
+                        position,
+                        config: config.clone(),
+                    });
+                }
                 ClusterBody::Ship(ship) => manifest.ships.push(SectorShip {
                     id,
                     position,
@@ -2056,6 +2105,7 @@ fn plan_sector_with(
         .chain(traffic)
         .chain(background);
     let mut plan = SectorPlan {
+        seed: input.seed,
         coord,
         edge,
         environment,
@@ -3046,6 +3096,53 @@ mod tests {
             scatters > 0 && empty > 0,
             "{scatters} scatters, {empty} empty"
         );
+    }
+
+    /// A generated planet is named, not labelled by its id, and the seed names
+    /// it the same when its cell is generated again. A save keeps no planet:
+    /// a Load re-arms the saved seed and the cell regenerates, so this is the
+    /// name it has after a save and a Load. The worlds of one cluster read
+    /// one name with their own numerals.
+    #[test]
+    fn a_generated_planet_is_named_and_keeps_its_name_after_a_save_and_load() {
+        let mut named = Vec::new();
+        for (coord, plan) in window_plans() {
+            let manifest = plan
+                .manifest()
+                .unwrap_or_else(|fault| panic!("{coord}: {fault}"));
+            if manifest.planets.is_empty() {
+                continue;
+            }
+            let reloaded = generate_sector(&config(), coord)
+                .unwrap_or_else(|fault| panic!("{coord}: {fault}"));
+            let first: Vec<(String, String)> = manifest
+                .planets
+                .iter()
+                .map(|planet| (planet.id.to_string(), planet.name.clone()))
+                .collect();
+            let again: Vec<(String, String)> = reloaded
+                .planets()
+                .iter()
+                .map(|planet| (planet.id.to_string(), planet.name.clone()))
+                .collect();
+            assert_eq!(first, again, "{coord} renamed its planets");
+            named.extend(first);
+        }
+        assert!(!named.is_empty(), "the window must hold planets");
+        for (id, name) in &named {
+            assert!(
+                !name.contains(id.as_str()),
+                "{id} is named by its id: {name}"
+            );
+            let (stem, numeral) = name
+                .rsplit_once(' ')
+                .unwrap_or_else(|| panic!("{id} has no numeral: {name}"));
+            assert!(WORLD_NUMERALS.contains(&numeral), "{id}: {name}");
+            assert!(
+                stem.chars().next().is_some_and(char::is_uppercase),
+                "{id}: {name}"
+            );
+        }
     }
 
     /// Every planetoid carries the mass that reaches [`PLANETOID_SOI_REACH`]

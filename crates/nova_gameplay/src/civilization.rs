@@ -28,8 +28,8 @@ use crate::{
 /// Glob-import surface: `use nova_gameplay::civilization::prelude::*`.
 pub mod prelude {
     pub use super::{
-        CivilizationId, CivilizationStances, SetStanceRequest, StanceChanged, StanceRecord,
-        StanceStep, StanceType, ENEMY_DECAY_SECONDS, MERIT_STEP, OFFENCE_STEP,
+        seeded_name, CivilizationId, CivilizationStances, SetStanceRequest, StanceChanged,
+        StanceRecord, StanceStep, StanceType, ENEMY_DECAY_SECONDS, MERIT_STEP, OFFENCE_STEP,
         OFFENCE_WINDOW_SECONDS, PROVOKED_WINDOW_SECONDS,
     };
 }
@@ -38,7 +38,7 @@ pub mod prelude {
 const NAME_THREE_SYLLABLE_CHANCE: f32 = 0.5;
 
 /// The syllables a name is composed from. Content: a change renames every
-/// civilization in every world.
+/// civilization and every generated planet in every world.
 const NAME_SYLLABLES: [&str; 24] = [
     "an", "bel", "cor", "da", "el", "fen", "gar", "hal", "is", "jor", "ka", "lun", "mar", "nor",
     "os", "pra", "quel", "ren", "sol", "tev", "ur", "vas", "wen", "zo",
@@ -65,23 +65,7 @@ impl CivilizationId {
     /// A pure function of the identity. Names repeat across a world, so a
     /// name must not be used to find a civilization.
     pub fn name(self) -> String {
-        let mut stream = self.stream(b"name");
-        let syllables = if stream.unit() < 1.0 - NAME_THREE_SYLLABLE_CHANCE {
-            2
-        } else {
-            3
-        };
-        // Three syllable draws every time, so the syllable count does not
-        // shift any later draw.
-        let drawn: [&str; 3] = std::array::from_fn(|_| {
-            let index = (stream.unit() * NAME_SYLLABLES.len() as f32) as usize;
-            NAME_SYLLABLES[index.min(NAME_SYLLABLES.len() - 1)]
-        });
-        let joined = drawn[..syllables].concat();
-        let mut letters = joined.chars();
-        letters.next().map_or_else(String::new, |first| {
-            first.to_uppercase().chain(letters).collect()
-        })
+        seeded_name(&mut self.stream(b"name"))
     }
 
     /// The draw stream for one aspect of this civilization: the FNV-1a 32
@@ -106,6 +90,29 @@ impl CivilizationId {
                 .finish(),
         )
     }
+}
+
+/// A proper name drawn from `stream`: two or three syllables, first letter
+/// capitalized. A civilization and a generated planet are named by it, each
+/// off its own stream.
+///
+/// Four draws every time - the count and three syllables - so the syllable
+/// count does not shift any later draw.
+pub fn seeded_name(stream: &mut SeedStream) -> String {
+    let syllables = if stream.unit() < 1.0 - NAME_THREE_SYLLABLE_CHANCE {
+        2
+    } else {
+        3
+    };
+    let drawn: [&str; 3] = std::array::from_fn(|_| {
+        let index = (stream.unit() * NAME_SYLLABLES.len() as f32) as usize;
+        NAME_SYLLABLES[index.min(NAME_SYLLABLES.len() - 1)]
+    });
+    let joined = drawn[..syllables].concat();
+    let mut letters = joined.chars();
+    letters.next().map_or_else(String::new, |first| {
+        first.to_uppercase().chain(letters).collect()
+    })
 }
 
 impl fmt::Display for CivilizationId {

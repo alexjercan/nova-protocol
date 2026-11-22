@@ -30,11 +30,11 @@ use nova_gameplay::{
     test_support::test_items,
 };
 use nova_scenario::prelude::{
-    AIControllerConfig, AsteroidConfig, AsteroidMarker, AsteroidPlugin, PlanetConfig, PlanetType,
-    PlayerControllerConfig, SectionSource, ShipDesign, ShipDesignSource, ShipIntegrityConfig,
-    SpaceshipConfig, SpaceshipController, SpaceshipPlugin, SpaceshipSectionConfig, StationConfig,
-    StationDesign, StationDesignSource, StationServiceType, ASTEROID_GEOMETRIC_FACTOR_MAX,
-    KIND_ROCK,
+    AIControllerConfig, AsteroidConfig, AsteroidMarker, AsteroidPlugin, PlanetConfig, PlanetMarker,
+    PlanetType, PlayerControllerConfig, SectionSource, ShipDesign, ShipDesignSource,
+    ShipIntegrityConfig, SpaceshipConfig, SpaceshipController, SpaceshipPlugin,
+    SpaceshipSectionConfig, StationConfig, StationDesign, StationDesignSource, StationServiceType,
+    ASTEROID_GEOMETRIC_FACTOR_MAX, KIND_ROCK,
 };
 use nova_ship::prelude::{
     BaseSectionConfig, GameSections, HullSectionConfig, SectionConfig, SectionKind,
@@ -346,7 +346,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
         &str,
         fn(SectorGenerationInput) -> SectorManifest,
         fn(&SectorFault) -> bool,
-    ); 30] = [
+    ); 31] = [
         (
             "the wrong cell",
             |input| empty(input.coord.offset(1, 0, 0), Vec::new()),
@@ -521,11 +521,26 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
                 manifest.planets.push(SectorPlanet {
                     id: sector_id(input.coord, "planet", 0),
                     position: input.coord.centre(input.geometry.sector_edge),
+                    name: "Test I".to_string(),
                     config: PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3, f32::NAN),
                 });
                 manifest
             },
             |fault| matches!(fault, SectorFault::Manifest { field: "mass", .. }),
+        ),
+        (
+            "a planetoid with a blank name",
+            |input| {
+                let mut manifest = empty(input.coord, Vec::new());
+                manifest.planets.push(SectorPlanet {
+                    id: sector_id(input.coord, "planet", 0),
+                    position: input.coord.centre(input.geometry.sector_edge),
+                    name: " ".to_string(),
+                    config: PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3, 5.0),
+                });
+                manifest
+            },
+            |fault| matches!(fault, SectorFault::Manifest { field: "name", .. }),
         ),
         (
             "a rock at a non-finite position",
@@ -851,6 +866,7 @@ fn populated(input: SectorGenerationInput, rocks: usize, count: usize) -> Sector
     manifest.planets.push(SectorPlanet {
         id: sector_id(coord, "planet", 0),
         position: point(rocks),
+        name: "Test I".to_string(),
         config: PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3, 5.0),
     });
     manifest.ships = (rocks + 1..count)
@@ -926,6 +942,7 @@ fn every_planetoid_field_changes_the_canonical_description() {
             manifest.planets.push(SectorPlanet {
                 id: sector_id(input.coord, "planet", 0),
                 position: input.coord.centre(input.geometry.sector_edge),
+                name: "Test I".to_string(),
                 config,
             });
             validate_manifest(input, manifest)
@@ -1138,6 +1155,39 @@ fn canonical_text_tells_ship_design_fields_and_identity_apart() {
             assert_ne!(text, other, "{label} and {other_label} described the same");
         }
     }
+}
+
+/// A streamed planetoid wears its record's name, not its generated id: the
+/// target inset and the Map read that name.
+#[test]
+fn a_streamed_planetoid_is_named_by_its_record_not_its_id() {
+    let config = answering(|input| {
+        let mut manifest = empty(input.coord, Vec::new());
+        manifest.planets.push(SectorPlanet {
+            id: sector_id(input.coord, "planet", 0),
+            position: input.coord.centre(input.geometry.sector_edge),
+            name: "Halmar I".to_string(),
+            config: PlanetConfig::new(PlanetType::BarrenRock, Meters(800.0), 3, 5.0),
+        });
+        manifest
+    });
+    let prepared =
+        prepare_sector(config.clone(), SectorCoord::ORIGIN).expect("one planetoid must prepare");
+    let mut world = World::new();
+    materialize_sector(
+        &mut world.commands(),
+        prepared,
+        &test_sections(),
+        observer_at(config.input(SectorCoord::ORIGIN), 20_000.0),
+        &WorldClock::default(),
+    );
+    world.flush();
+    let names: Vec<String> = world
+        .query_filtered::<&Name, With<PlanetMarker>>()
+        .iter(&world)
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(names, ["Halmar I"]);
 }
 
 /// The observer's body where it overlaps [`one_ship`]'s clearance, and where

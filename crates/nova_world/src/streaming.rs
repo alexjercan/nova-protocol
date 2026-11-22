@@ -318,7 +318,7 @@ pub fn materialize_sector(
         let mut entity = commands.spawn((
             base_scenario_object(&BaseScenarioObjectConfig {
                 id: body.id.to_string(),
-                name: body.id.to_string(),
+                name: body.name.clone(),
                 position: body.position,
                 rotation: Quat::IDENTITY,
             }),

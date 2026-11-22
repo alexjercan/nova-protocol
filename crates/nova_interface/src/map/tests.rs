@@ -3965,3 +3965,40 @@ fn app_entity<T: Component>(app: &mut App) -> Entity {
         .single(app.world())
         .unwrap_or_else(|_| panic!("one {}", std::any::type_name::<T>()))
 }
+
+/// The Map names a rock and a world as the target inset captions them, by
+/// the body's own `Name`: a streamed rock by its kind, a world by its name.
+#[test]
+fn the_map_names_an_asteroid_by_its_type_and_a_planet_by_its_name_as_the_lock_does() {
+    let (mut world, _player, _raider) = scripted_world();
+    let rock = world
+        .spawn((
+            EntityTypeName::new(ASTEROID_TYPE_NAME),
+            GlobalTransform::from(Transform::from_xyz(0.0, 0.0, 90.0)),
+            Name::new("Ice asteroid"),
+        ))
+        .id();
+    let planet = world
+        .spawn((
+            EntityTypeName::new(nova_events::prelude::PLANET_TYPE_NAME),
+            GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -900.0)),
+            Name::new("Halmar I"),
+        ))
+        .id();
+    world.run_system_once(assign_map_contact_codes).unwrap();
+    let contacts = world.run_system_once(|c: MapContacts| c.collect()).unwrap();
+    let name_of = |entity: Entity| {
+        contacts
+            .iter()
+            .find(|contact| contact.entity == entity)
+            .map(|contact| (contact.kind, contact.name.as_str()))
+    };
+    assert_eq!(
+        name_of(rock),
+        Some((MapContactKind::Terrain, "Ice asteroid"))
+    );
+    assert_eq!(
+        name_of(planet),
+        Some((MapContactKind::Planet, "Halmar I"))
+    );
+}

@@ -155,6 +155,9 @@ with a big radius is a rock the size of a planet, and it looks like one.
 A planet can never be destroyed. Weapons fire leaves it alone, and its gravity
 well lasts the whole scenario.
 
+The base `name` is what the target inset and the Map show for the planet. It
+is required, and a blank one is a `content lint` error and refuses the load.
+
 | field | type | default | meaning |
 |---|---|---|---|
 | `planet_type` | type name | required | `BarrenRock`, `DustWorld`, `IceWorld`, `Volcanic`, `Greenhouse` or `Temperate`. A name outside that list is a LOAD ERROR, not a fallback |

@@ -212,7 +212,12 @@ pub struct MapContacts<'w, 's> {
     pub(crate) terrain: Query<
         'w,
         's,
-        (Entity, &'static GlobalTransform, &'static EntityTypeName),
+        (
+            Entity,
+            &'static GlobalTransform,
+            &'static EntityTypeName,
+            Option<&'static Name>,
+        ),
         Without<SpaceshipRootMarker>,
     >,
     /// The marker on a ship or a piece of terrain, which the stance and
@@ -257,7 +262,7 @@ impl MapContacts<'_, '_> {
             || self
                 .terrain
                 .get(entity)
-                .is_ok_and(|(_, _, type_name)| is_terrain(type_name))
+                .is_ok_and(|(_, _, type_name, _)| is_terrain(type_name))
     }
 
     /// The player ship's entity, world position and orientation, if one exists.
@@ -325,7 +330,7 @@ impl MapContacts<'_, '_> {
             }
             out.push((entity, MapContactKind::Objective, self.sort_key(entity)));
         }
-        for (entity, _, type_name) in &self.terrain {
+        for (entity, _, type_name, _) in &self.terrain {
             if !is_terrain(type_name) {
                 continue;
             }
@@ -472,7 +477,7 @@ impl MapContacts<'_, '_> {
                 mark_deg: mark,
             });
         }
-        for (entity, gt, type_name) in &self.terrain {
+        for (entity, gt, type_name, name) in &self.terrain {
             if !is_terrain(type_name) {
                 continue;
             }
@@ -487,7 +492,13 @@ impl MapContacts<'_, '_> {
             let Some(code) = self.code_for(entity, kind) else {
                 continue;
             };
-            let name = terrain_name(type_name).to_string();
+            // The body's own name, as the target inset captions it: a
+            // streamed rock reads its kind (`Ice asteroid`), a world its
+            // name. A body spawned without one reads its kind word.
+            let name = name.map_or_else(
+                || terrain_name(type_name).to_string(),
+                |name| name.as_str().to_string(),
+            );
             contacts.push(MapContact {
                 entity,
                 kind,
@@ -577,7 +588,7 @@ fn terrain_kind(type_name: &EntityTypeName) -> MapContactKind {
     }
 }
 
-/// What the map calls one piece of terrain.
+/// What the map calls one piece of terrain that carries no [`Name`].
 fn terrain_name(type_name: &EntityTypeName) -> &'static str {
     if type_name.0 == PLANET_TYPE_NAME {
         "PLANET"

@@ -2069,14 +2069,26 @@ fn check_spawned_patrol_stops(
     }
 }
 
-/// Every authored figure on a planet has to be one the generator can use.
+/// Every authored figure on a planet has to be one the generator can use, and
+/// it needs a name.
 ///
-/// [`PlanetConfig::validate`] owns the rules; this names the file and says how
-/// to fix the first field it refuses.
+/// The name is what the target inset and the Map print for the world, so a
+/// blank one would show the player nothing. A planet with no `name` field does
+/// not parse at all. [`PlanetConfig::validate`] owns the figure rules; this
+/// names the file and says how to fix the first field it refuses.
 fn check_planet(config: &ScenarioObjectConfig, scenario: &str, issues: &mut Vec<LintIssue>) {
     let ScenarioObjectKind::Planet(planet) = &config.kind else {
         return;
     };
+    if config.base.name.trim().is_empty() {
+        issues.push(LintIssue::error(
+            scenario,
+            format!(
+                "planet '{}' has a blank name; author the name the HUD and the Map show for it",
+                config.base.id
+            ),
+        ));
+    }
     let Err(PlanetConfigFault { field, value }) = planet.validate() else {
         return;
     };
@@ -4429,6 +4441,69 @@ mod tests {
                 .iter()
                 .any(|issue| issue.message.contains("planet 'sound'")),
             "a well-authored planet stays clean: {issues:?}"
+        );
+    }
+
+    /// A planet's name is what the HUD and the Map print for it. A planet that
+    /// authors no `name` does not parse, and a blank one is a lint error.
+    #[test]
+    fn a_scenario_planet_without_a_name_fails_lint() {
+        let unnamed = r#"(
+            base: (
+                id: "unnamed_world",
+                position: (0.0, 0.0, 0.0),
+                rotation: (0.0, 0.0, 0.0, 1.0),
+            ),
+            kind: Planet((
+                planet_type: DustWorld,
+                radius: 900.0,
+                seed: 7,
+                mass: 1000.0,
+            )),
+        )"#;
+        let refusal = ron::from_str::<ScenarioObjectConfig>(unnamed)
+            .expect_err("a planet with no name must not parse")
+            .to_string();
+        assert!(
+            refusal.contains("`name`"),
+            "the refusal names the field: {refusal}"
+        );
+
+        let planet = |id: &str, name: &str| {
+            EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: id.to_string(),
+                    name: name.to_string(),
+                    position: Meters3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Planet(PlanetConfig::new(
+                    PlanetType::DustWorld,
+                    Meters(900.0),
+                    7,
+                    1_000.0,
+                )),
+            })
+        };
+        let s = scenario(
+            vec![planet("blank", "  "), planet("named", "Halmar I")],
+            vec![],
+        );
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &stations(&[]),
+            &known(&["test_scenario"]),
+            &GameItems::default(),
+            &GameStyles::default(),
+            &GameTradeProfiles::default(),
+        );
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 1, "{issues:?}");
+        assert!(
+            errs[0].message.contains("planet 'blank' has a blank name"),
+            "{issues:?}"
         );
     }
 

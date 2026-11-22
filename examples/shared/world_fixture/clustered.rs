@@ -420,6 +420,8 @@ pub struct PlannedBody {
 /// it owns with its outcome.
 #[derive(Clone, Debug)]
 pub struct CellPlan {
+    /// The world seed, which names the cell's planetoids.
+    pub seed: u32,
     /// The cell.
     pub coord: SectorCoord,
     /// The fields at the cell's centre, which the background rock reads.
@@ -477,11 +479,17 @@ impl CellPlan {
                     id,
                     position,
                 }),
-                ClusterBody::Planetoid(config) => manifest.planets.push(SectorPlanet {
-                    id,
-                    position,
-                    config: config.clone(),
-                }),
+                ClusterBody::Planetoid(config) => {
+                    let BodySource::Parent(group, index) = planned.source else {
+                        panic!("world_fixture: planetoid '{id}' is not a group parent");
+                    };
+                    manifest.planets.push(SectorPlanet {
+                        name: generated_planet_name(self.seed, group.0, index),
+                        id,
+                        position,
+                        config: config.clone(),
+                    });
+                }
                 ClusterBody::Ship(ship) => manifest.ships.push(SectorShip {
                     id,
                     position,
@@ -1002,6 +1010,7 @@ pub fn plan_cell(
 
     let candidates = parents.into_iter().chain(members).chain(background);
     Ok(CellPlan {
+        seed: input.seed,
         coord,
         environment,
         groups,
