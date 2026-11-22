@@ -3,7 +3,7 @@
 //! fine-adjust.
 
 use avian3d::prelude::LinearVelocity;
-use bevy::{ecs::system::SystemParam, prelude::*};
+use bevy::{ecs::system::SystemParam, input::mouse::AccumulatedMouseMotion, prelude::*};
 use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_input::prelude::*;
@@ -98,6 +98,30 @@ pub(super) struct RcsAimInput;
 /// resolution, and a resting hand ticks it.
 const MOUSE_REST_COUNTS: f32 = 1.0;
 
+/// Whether one frame of raw mouse counts is a hand at rest: no axis past
+/// [`MOUSE_REST_COUNTS`].
+fn mouse_at_rest(counts: Vec2) -> bool {
+    counts.abs().max_element() <= MOUSE_REST_COUNTS
+}
+
+/// The raw mouse counts a pilot moves under SHIFT, summed over the frames
+/// past [`MouseRestFloor`], before a SHIFT + X MATCH lets go of the hull
+/// ([`on_rcs_aim`]). Below it the motion is dropped and MATCH keeps flying.
+///
+/// 32 is about one full-intent RCS frame at the shipped sensitivity
+/// (`1 / 0.03` = 33 counts), or 1 mm of travel at 800 DPI. A hand settling on
+/// the mouse with SHIFT held moves 2-3 counts a frame for a few frames, under
+/// 20 in all. A push meant to strafe reaches full intent at 7 counts a frame
+/// on the 500% top gain, so it passes 32 within about five frames. Raw counts
+/// make the bar the same at every sensitivity.
+const MATCH_BREAKOUT_COUNTS: f32 = 32.0;
+
+/// The raw mouse counts moved under SHIFT since SHIFT + X engaged MATCH. The
+/// chord inserts it at zero with MATCH; [`on_rcs_aim`] adds to it until the
+/// sum passes [`MATCH_BREAKOUT_COUNTS`]. A MATCH with none counts from zero.
+#[derive(Component, Debug, Default, Clone, Copy)]
+pub(super) struct MatchBreakout(f32);
+
 /// Drop a frame of RCS mouse motion no larger than [`MOUSE_REST_COUNTS`] on
 /// either axis. Sits on the mouse binding ahead of the gain, so it reads raw
 /// counts at every sensitivity.
@@ -115,7 +139,7 @@ impl InputModifier for MouseRestFloor {
         _time: &ContextTime,
         value: ActionValue,
     ) -> ActionValue {
-        if value.as_axis2d().abs().max_element() <= MOUSE_REST_COUNTS {
+        if mouse_at_rest(value.as_axis2d()) {
             ActionValue::zero(value.dim())
         } else {
             value
@@ -566,9 +590,10 @@ pub(super) fn on_autopilot_stop_input(
             return;
         }
         debug!("on_autopilot_stop_input: engaging MATCH {target:?}");
-        commands
-            .entity(entity)
-            .insert(Autopilot::engage(AutopilotAction::MatchTarget { target }));
+        commands.entity(entity).insert((
+            Autopilot::engage(AutopilotAction::MatchTarget { target }),
+            MatchBreakout::default(),
+        ));
         return;
     }
     match action {
@@ -990,24 +1015,49 @@ pub(super) fn release_rcs_without_the_helm(
 /// RCS is active: mouse X -> strafe (+X), mouse Y -> forward/back (Z). A no-op
 /// unless the ship is [`RcsActive`], so the shared mouse_motion binding does
 /// nothing outside RCS mode. A maneuver engaged under SHIFT (the MATCH chord)
-/// ends on the first motion and the motion flies at once
-/// ([`command_manual_rcs`](super::control::command_manual_rcs)).
+/// ends and the motion flies at once
+/// ([`command_manual_rcs`](super::control::command_manual_rcs)) - for MATCH,
+/// once the mouse has moved [`MATCH_BREAKOUT_COUNTS`] since it engaged.
 pub(super) fn on_rcs_aim(
     fire: On<Fire<RcsAimInput>>,
     mut commands: Commands,
     ship: Single<
-        (Entity, &mut RcsIntent, Has<RcsActive>, Has<Autopilot>),
+        (
+            Entity,
+            &mut RcsIntent,
+            Has<RcsActive>,
+            Option<&Autopilot>,
+            Option<&MatchBreakout>,
+        ),
         With<PlayerSpaceshipMarker>,
     >,
+    mouse: Res<AccumulatedMouseMotion>,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
     if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
         return;
     }
-    let (entity, mut intent, active, engaged) = ship.into_inner();
+    let (entity, mut intent, active, autopilot, breakout) = ship.into_inner();
     if !active {
         return;
+    }
+    let matching = matches!(
+        autopilot,
+        Some(Autopilot {
+            action: AutopilotAction::MatchTarget { .. },
+            ..
+        })
+    );
+    // The binding reads this same resource, so the counts are this frame's
+    // raw mouse motion. With the mouse at rest the value is the stick's,
+    // which ends MATCH at once.
+    if matching && !mouse_at_rest(mouse.delta) {
+        let moved = breakout.map_or(0.0, |breakout| breakout.0) + mouse.delta.length();
+        if moved < MATCH_BREAKOUT_COUNTS {
+            commands.entity(entity).insert(MatchBreakout(moved));
+            return;
+        }
     }
     // DELTA-driven: SET the intent from THIS frame's mouse motion rather than
     // accumulating a persistent offset - the held-direction joystick was too
@@ -1019,6 +1069,7 @@ pub(super) fn on_rcs_aim(
     let delta = fire.value.clamp(Vec2::splat(-1.0), Vec2::splat(1.0));
     // Bevy mouse-motion Y is +down; pushing the mouse forward (up, -y) drives
     // the ship forward (ship-local -Z), pulling back drives it aft.
+    let engaged = autopilot.is_some();
     super::control::command_manual_rcs(&mut commands, entity, &mut intent, engaged, |held| {
         Vec3::new(delta.x, held.y, delta.y)
     });

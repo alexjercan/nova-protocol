@@ -114,12 +114,9 @@ fn a_held_manual_burn_still_holds_the_refill_off() {
     assert!(velocity_of(&app, ship).x > 0.0, "the sweep strafed +X");
 }
 
-/// Mouse RCS input during the SHIFT + X MATCH takes the hull back: MATCH
-/// ends and the manual command flies on the same frame.
-#[test]
-fn manual_rcs_input_ends_the_shift_x_match_and_flies_the_manual_command() {
-    let mut app = piloted_app();
-    let ship = spawn_pilot(&mut app);
+/// Lock a body moving -Z and engage MATCH on it with SHIFT + X, SHIFT left
+/// held, then let MATCH fly for a few frames.
+fn engage_match(app: &mut App, ship: Entity) {
     let target = app
         .world_mut()
         .spawn((
@@ -133,21 +130,31 @@ fn manual_rcs_input_ends_the_shift_x_match_and_flies_the_manual_command() {
     app.world_mut()
         .entity_mut(ship)
         .insert(TravelLock(Some(target)));
-    settle(&mut app);
+    settle(app);
 
-    press(&mut app, KeyCode::ShiftLeft);
+    press(app, KeyCode::ShiftLeft);
     app.update();
-    press(&mut app, KeyCode::KeyX);
+    press(app, KeyCode::KeyX);
     app.update();
     app.update();
-    assert!(
-        matches!(
-            app.world().get::<Autopilot>(ship).map(|ap| ap.action),
-            Some(AutopilotAction::MatchTarget { .. })
-        ),
-        "SHIFT + X engages MATCH"
-    );
-    run(&mut app, 10);
+    assert!(matching(app, ship), "SHIFT + X engages MATCH");
+    run(app, 10);
+}
+
+fn matching(app: &App, ship: Entity) -> bool {
+    matches!(
+        app.world().get::<Autopilot>(ship).map(|ap| ap.action),
+        Some(AutopilotAction::MatchTarget { .. })
+    )
+}
+
+/// Mouse RCS input during the SHIFT + X MATCH takes the hull back: MATCH
+/// ends and the manual command flies on the same frame.
+#[test]
+fn manual_rcs_input_ends_the_shift_x_match_and_flies_the_manual_command() {
+    let mut app = piloted_app();
+    let ship = spawn_pilot(&mut app);
+    engage_match(&mut app, ship);
     let before = velocity_of(&app, ship).x;
 
     mouse(&mut app, Vec2::new(40.0, 0.0));
@@ -167,4 +174,38 @@ fn manual_rcs_input_ends_the_shift_x_match_and_flies_the_manual_command() {
         velocity.x > before + 1e-3,
         "the manual strafe pushed +X on that frame ({velocity:?})"
     );
+}
+
+/// A hand settling on the mouse under SHIFT moves a few counts a frame for a
+/// few frames. MATCH holds the hull through it; a push that keeps going ends
+/// MATCH once it adds up, and that frame flies.
+#[test]
+fn a_hand_settling_on_the_mouse_does_not_end_the_shift_x_match() {
+    let mut app = piloted_app();
+    let ship = spawn_pilot(&mut app);
+    engage_match(&mut app, ship);
+
+    for (x, y) in [(2.0, 0.0), (3.0, -1.0), (-2.0, 2.0), (0.0, 3.0), (2.0, 1.0)] {
+        mouse(&mut app, Vec2::new(x, y));
+        app.update();
+        assert!(
+            matching(&app, ship),
+            "a settling hand ({x}, {y}) keeps MATCH"
+        );
+    }
+
+    let mut frames = 0;
+    while matching(&app, ship) {
+        assert!(frames < 10, "a steady push ends MATCH once it adds up");
+        let before = velocity_of(&app, ship).x;
+        mouse(&mut app, Vec2::new(4.0, 0.0));
+        app.update();
+        frames += 1;
+        if !matching(&app, ship) {
+            assert!(
+                velocity_of(&app, ship).x > before + 1e-4,
+                "the push that ends MATCH strafes +X on that frame"
+            );
+        }
+    }
 }

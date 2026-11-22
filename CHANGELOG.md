@@ -39,7 +39,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A kill is an offence only when your ship or a fleet escort landed the last hit no more than 30 s before the hull went dead. Before, one old hit made a later kill by anything yours.
 - Start credits are 2,200 cr for the industrial and the transport, 1,800 cr for the bounty hunter, the military and the pirate, and 1,500 cr for the scavenger. Before, 1,000 to 2,200 cr.
 - A station board asks for raw material by the lot of four: 8 to 32 units of an ore, up from 2 to 8, so an ore run pays about what another job pays for its time.
-- RCS mouse or wheel input now ends a MATCH engaged with Shift held and flies at once. Before, the mouse did nothing until MATCH ended or Shift + X was pressed again.
+- RCS input with Shift held now ends a MATCH and flies at once: a wheel step or a deliberate mouse move, not a settling hand. Before, the mouse did nothing until MATCH ended or Shift + X again.
 - A ship with no live flight computer, undocked, now settles its tumble: the spin halves every 8 s, under the 5 deg/s dock limit in about 30 s. Its drift stays. Before, a wreck kept its spin.
 - The 5 m/s dock limit is now measured between the two port faces, spin included. Before, it compared the hull centres, so a port a turning hull swung could dock too fast.
 

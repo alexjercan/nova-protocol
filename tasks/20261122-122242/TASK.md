@@ -78,3 +78,40 @@
 - Today: `MouseRestFloor` drops a frame at or under 1 raw count
   (`flight_rig.rs:100`), and any RCS command ends the autopilot
   (`control.rs:40`).
+
+## Build (2026-11-22, MATCH cancel threshold)
+- Cause: `on_rcs_aim` sent every frame past `MouseRestFloor` (over 1 count)
+  to `command_manual_rcs` (`control.rs:40`), which ends any engaged
+  autopilot. One 2-count frame ended MATCH.
+- Rule: while MATCH is engaged, mouse frames past the rest floor sum their
+  raw counts (`|delta|`) into `MatchBreakout` (`flight_rig.rs:123`), which
+  the chord inserts at zero with MATCH (`flight_rig.rs:595`). Under
+  `MATCH_BREAKOUT_COUNTS = 32.0` (`flight_rig.rs:117`) the frame is dropped
+  and MATCH flies on; the frame that passes it ends MATCH and flies as before
+  (`flight_rig.rs:1055`). Counts come from `AccumulatedMouseMotion`, the
+  resource the binding reads, so the bar is raw and sensitivity-free. The
+  rest floor for plain RCS is unchanged.
+- Why 32: about one full-intent RCS frame at the shipped gain (1 / 0.03 =
+  33 counts), about 1 mm at 800 DPI. A settling hand: 2-3 counts a frame for
+  a few frames, under 20. A strafe push at 500% hits full intent at 7 counts
+  a frame and passes 32 in about five frames. The 40-count flick in the old
+  breakout test still ends MATCH on its first frame.
+- Not gated: the wheel and the `]`/`[` cycle keys (keyboard RCS vertical
+  steps) still end MATCH on one step; a left-stick push still ends it at
+  once (the stick frame has the mouse at rest).
+- Alternative not built: a decaying window (counts that leak away over a
+  fraction of a second) instead of a sum since the press. Pick it if small
+  adjustments over a long MATCH add up and end it.
+- Tests: new `flight/tests/piloted_rcs.rs`
+  a_hand_settling_on_the_mouse_does_not_end_the_shift_x_match (failed
+  before: "a settling hand (2, 0) keeps MATCH"; passes after; also proves a
+  steady 4-count push ends MATCH and strafes on that frame). Existing
+  manual_rcs_input_ends_the_shift_x_match_and_flies_the_manual_command
+  (40-count flick) and a_held_manual_burn_still_holds_the_refill_off
+  (2 counts a frame flies without MATCH) pass. `cargo test -p nova_ship
+  --lib -- piloted_rcs flight::tests::match_target input::player`: 71 passed.
+- Docs: `web/src/wiki/flight-autopilot.md`, `web/src/wiki/keybinds.md`;
+  the CHANGELOG Gameplay & Flight MATCH line edited in place.
+- Owner check: `nix develop --command cargo run --example
+  spin_dock_sandbox --features debug`; lock the wreck, Shift + X, keep Shift
+  held, rest or nudge the mouse (MATCH stays), then push it (MATCH ends).
