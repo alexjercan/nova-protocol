@@ -45,16 +45,23 @@
 //! Like the other combat overlays the layer is `HudTier::Instrument` and is
 //! spawned/despawned with the player ship by the hud/mod.rs observers.
 //!
-//! A gauge whose weapon reloads from a hold reserve under one magazine
-//! carries a small `LOW` tag above it, `DRY` once that reserve is empty
-//! ([`AmmoReserveWarnings`] on the player root). The breath says the magazine
-//! is nearly spent; the tag says no full refill is left behind it.
+//! A gauge whose weapon's hold reserve crosses under one magazine
+//! ([`AmmoReserveCrossed`] into LOW) gives one short flash: the whole gauge
+//! brightens in its own hue three times over about a second and a half, then
+//! stops ([`AmmoReadoutReserveFlash`]). No text marks the reserve. The breath
+//! says the magazine is nearly spent; the flash says no full refill is left
+//! behind it. A DRY reserve adds nothing: the magazine runs down to a dark
+//! track and the reload pulse never comes.
 //!
 //! CONTEXTUAL: the gauges are a combat instrument, not on whenever a weapon
 //! has ammo - the layer carries a [`HudContextGate`] driven by
 //! `sync_ammo_gate`, open in combat mode (weapons hot) or under a combat lock
-//! and shut in normal flight, travel lock or not. The low-ammo breath and the
-//! reload pulse paint a gauge that is already shown; neither opens the gate.
+//! and shut in normal flight, travel lock or not. The low-ammo breath, the
+//! reload pulse and the reserve flash paint a gauge that is already shown;
+//! none of them opens the gate. A reserve crossing that lands while the gauge
+//! is not drawn waits and flashes the next time it is, if the reserve is still
+//! LOW: reloads run off the trigger with the weapons cold, so that is where a
+//! drain usually crosses the line.
 
 use std::f32::consts::{FRAC_PI_2, TAU};
 
@@ -127,7 +134,7 @@ pub mod prelude {
     pub use super::{
         ammo_readout_hud, AmmoReadoutCluster, AmmoReadoutClusterBadge, AmmoReadoutClustered,
         AmmoReadoutHudMarker, AmmoReadoutKind, AmmoReadoutMarker, AmmoReadoutPip,
-        AmmoReadoutPipFill, AmmoReadoutPlugin, AmmoReadoutReserveMark, AmmoReadoutSection,
+        AmmoReadoutPipFill, AmmoReadoutPlugin, AmmoReadoutReserveFlash, AmmoReadoutSection,
         RING_SEGMENTS,
     };
     #[cfg(feature = "debug")]
@@ -199,11 +206,36 @@ pub struct AmmoReadoutClustered;
 #[derive(Component, Debug, Clone, Copy, Reflect)]
 pub struct AmmoReadoutClusterBadge;
 
-/// The reserve tag child of a gauge: `LOW` or `DRY` while the hold reserve
-/// its weapon reloads from is warned, blank and hidden otherwise. Public so
-/// probes and walks can read the tag the player sees.
-#[derive(Component, Debug, Clone, Copy, Reflect)]
-pub struct AmmoReadoutReserveMark;
+/// The one flash a gauge gives when its weapon's hold reserve crosses into
+/// LOW. Removed when the flash ends, so a gauge carries it at most once per
+/// crossing. Public so walks can wait on the flash the player sees.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Reflect)]
+pub enum AmmoReadoutReserveFlash {
+    /// Crossed while the gauge was not drawn. Flashes the first frame it is,
+    /// if the reserve is still LOW; dropped once it is not.
+    Pending,
+    /// Flashing since `started`, in seconds of the virtual clock.
+    Running {
+        /// `Time::elapsed_secs` on the frame the flash began.
+        started: f32,
+    },
+}
+
+impl AmmoReadoutReserveFlash {
+    /// The flash's strength at `now` seconds, `0.0..=1.0`: [`RESERVE_FLASH_PULSES`]
+    /// smooth pulses that start and end at rest. `None` once the flash is over,
+    /// and `0.0` while it is still pending.
+    pub fn glow(&self, now: f32) -> Option<f32> {
+        match *self {
+            Self::Pending => Some(0.0),
+            Self::Running { started } => {
+                let t = now - started;
+                let period = RESERVE_FLASH_SECS / RESERVE_FLASH_PULSES as f32;
+                (t < RESERVE_FLASH_SECS).then(|| 0.5 - 0.5 * (t.max(0.0) * TAU / period).cos())
+            }
+        }
+    }
+}
 
 /// The debug `rounds/capacity` text child of a readout. Debug-only: only
 /// compiled under the `debug` feature.
@@ -314,30 +346,6 @@ fn cluster_badge() -> impl Bundle {
     )
 }
 
-/// The reserve tag child of a readout, above the gauge, hidden until
-/// `drive_ammo_reserve_marks` reads a warning on its weapon's reload item.
-fn reserve_mark() -> impl Bundle {
-    (
-        Name::new("AmmoReadoutReserveMark"),
-        AmmoReadoutReserveMark,
-        Text::new(""),
-        TextFont::from_font_size(BADGE_FONT_PX),
-        UiText,
-        TextColor(Color::NONE),
-        TextLayout {
-            linebreak: LineBreak::NoWrap,
-            ..default()
-        },
-        Node {
-            position_type: PositionType::Absolute,
-            left: Val::Px(0.0),
-            bottom: Val::Percent(100.0),
-            ..default()
-        },
-        Visibility::Hidden,
-    )
-}
-
 /// The debug number child (hidden until [`AmmoReadoutDebug`] is on). Debug-only.
 #[cfg(feature = "debug")]
 fn readout_number() -> impl Bundle {
@@ -389,7 +397,6 @@ fn spawn_turret_readout(commands: &mut Commands, layer: Entity, turret: Entity) 
                     ));
                 }
                 readout.spawn(cluster_badge());
-                readout.spawn(reserve_mark());
                 #[cfg(feature = "debug")]
                 readout.spawn(readout_number());
             });
@@ -459,7 +466,6 @@ fn spawn_bar_readout(
                     ));
                 }
                 readout.spawn(cluster_badge());
-                readout.spawn(reserve_mark());
                 #[cfg(feature = "debug")]
                 readout.spawn(readout_number());
             });
@@ -783,6 +789,20 @@ const RELOAD_PERIOD_SECS: f32 = 0.65;
 const RELOAD_ALPHA_START: (f32, f32) = (0.24, 0.36);
 const RELOAD_ALPHA_END: (f32, f32) = (0.40, 0.54);
 
+/// The reserve flash: three pulses over 1.5 s, then rest. Quicker than the
+/// warn breath and over in a moment, so it reads as "this just happened"
+/// rather than as a state the gauge is in.
+const RESERVE_FLASH_SECS: f32 = 1.5;
+/// Pulses in one reserve flash.
+const RESERVE_FLASH_PULSES: u32 = 3;
+/// How far a pip's lightness moves toward white at a flash peak. The hue
+/// stays: this is the gauge brightening in its own colour, not a new colour.
+const RESERVE_FLASH_LIGHTEN: f32 = 0.45;
+/// The alpha a spent or incoming pip rises to at a flash peak, so the whole
+/// track flashes and a full magazine still shows it. Under the lit/dim
+/// midpoint, so a flashing spent pip never reads as a loaded round.
+const RESERVE_FLASH_TRACK_ALPHA: f32 = 0.42;
+
 /// Whether a weapon group is nearly dry (see [`LOW_AMMO_FRACTION`]). A group at
 /// zero rounds counts as low too: an empty gauge with a dark track is easy to
 /// mistake for "no weapon", and the amber tells you it is a weapon out of ammo.
@@ -934,44 +954,106 @@ fn drive_ammo_readouts(
     }
 }
 
-/// Show `LOW` or `DRY` above each gauge whose weapon reloads from a warned
-/// hold reserve: accent for LOW, danger for DRY. A weapon with no reload, or
-/// a reserve at or over the line, shows no tag.
-fn drive_ammo_reserve_marks(
-    theme: Res<ActiveUiTheme>,
-    q_readouts: Query<(&AmmoReadoutSection, &Children), With<AmmoReadoutMarker>>,
+/// A pip's colour lifted by a reserve flash of strength `glow`: lighter in
+/// the same hue, and a dark pip raised toward [`RESERVE_FLASH_TRACK_ALPHA`].
+fn reserve_flash_color(color: Color, glow: f32) -> Color {
+    let mut hsla = Hsla::from(color);
+    hsla.lightness += (1.0 - hsla.lightness) * RESERVE_FLASH_LIGHTEN * glow;
+    hsla.alpha += (RESERVE_FLASH_TRACK_ALPHA - hsla.alpha).max(0.0) * glow;
+    hsla.into()
+}
+
+/// The hold reserve that `section` reloads from, as its ship's warnings
+/// record it. `None` for a weapon with no reload or a reserve over the line.
+fn reserve_warning(
+    section: Entity,
+    q_reload: &Query<(&SectionReload, &ChildOf)>,
+    q_warnings: &Query<&AmmoReserveWarnings>,
+) -> Option<AmmoReserveWarningType> {
+    let (reload, &ChildOf(ship)) = q_reload.get(section).ok()?;
+    q_warnings.get(ship).ok()?.warning(&reload.item)
+}
+
+/// Arm the reserve flash on every gauge whose weapon reloads from the item
+/// that just crossed into LOW. A crossing into DRY arms nothing: an empty
+/// reserve already shows as a magazine that runs dark and never refills.
+fn arm_ammo_reserve_flash(
+    crossed: On<AmmoReserveCrossed>,
+    mut commands: Commands,
+    q_readouts: Query<(Entity, &AmmoReadoutSection), With<AmmoReadoutMarker>>,
+    q_reload: Query<(&SectionReload, &ChildOf)>,
+) {
+    if crossed.warning != AmmoReserveWarningType::Low {
+        return;
+    }
+    for (readout, section) in &q_readouts {
+        let feeds = q_reload
+            .get(**section)
+            .is_ok_and(|(reload, &ChildOf(ship))| {
+                ship == crossed.ship && reload.item == crossed.item
+            });
+        if feeds {
+            commands
+                .entity(readout)
+                .insert(AmmoReadoutReserveFlash::Pending);
+        }
+    }
+}
+
+/// Run each gauge's reserve flash over the colours `drive_ammo_readouts` just
+/// wrote. A pending flash starts on the first frame the gauge is drawn, or is
+/// folded into a drawn neighbour that speaks for the same reserve, and is
+/// dropped if the reserve left LOW first. A finished flash is removed.
+///
+/// Drawn is read off the gauge's `Visibility` as last frame's projection,
+/// clustering and gate left it: this runs before the projection.
+#[expect(
+    clippy::type_complexity,
+    reason = "the gauge, its flash, its draw state and its pips"
+)]
+fn drive_ammo_reserve_flash(
+    mut commands: Commands,
+    time: Res<Time>,
+    q_layer: Query<&HudContextGate, With<AmmoReadoutHudMarker>>,
+    mut q_readouts: Query<
+        (
+            Entity,
+            &AmmoReadoutSection,
+            &mut AmmoReadoutReserveFlash,
+            &Visibility,
+            Has<AmmoReadoutClustered>,
+            &Children,
+        ),
+        With<AmmoReadoutMarker>,
+    >,
     q_reload: Query<(&SectionReload, &ChildOf)>,
     q_warnings: Query<&AmmoReserveWarnings>,
-    mut q_marks: Query<(&mut Text, &mut TextColor, &mut Visibility), With<AmmoReadoutReserveMark>>,
+    mut q_pips: Query<&mut BackgroundColor, With<AmmoReadoutPip>>,
 ) {
-    for (section, children) in &q_readouts {
-        let warning = q_reload
-            .get(**section)
-            .ok()
-            .and_then(|(reload, &ChildOf(ship))| {
-                q_warnings
-                    .get(ship)
-                    .ok()
-                    .and_then(|warnings| warnings.warning(&reload.item))
-            });
-        let (text, color) = match warning {
-            Some(AmmoReserveWarningType::Low) => ("LOW", theme.color(UiColorType::Accent)),
-            Some(AmmoReserveWarningType::Dry) => ("DRY", theme.color(UiColorType::Danger)),
-            None => ("", Color::NONE),
+    let gate_open = q_layer.iter().any(|gate| gate.0);
+    let now = time.elapsed_secs();
+    for (readout, section, mut flash, visibility, clustered, children) in &mut q_readouts {
+        if *flash == AmmoReadoutReserveFlash::Pending {
+            if reserve_warning(**section, &q_reload, &q_warnings)
+                != Some(AmmoReserveWarningType::Low)
+            {
+                commands.entity(readout).remove::<AmmoReadoutReserveFlash>();
+                continue;
+            }
+            let drawn = *visibility == Visibility::Visible || (clustered && gate_open);
+            if !drawn {
+                continue;
+            }
+            *flash = AmmoReadoutReserveFlash::Running { started: now };
+        }
+        let Some(glow) = flash.glow(now) else {
+            commands.entity(readout).remove::<AmmoReadoutReserveFlash>();
+            continue;
         };
         for &child in children {
-            let Ok((mut mark, mut mark_color, mut visibility)) = q_marks.get_mut(child) else {
-                continue;
-            };
-            if mark.0 != text {
-                mark.0 = text.to_string();
+            if let Ok(mut color) = q_pips.get_mut(child) {
+                color.0 = reserve_flash_color(color.0, glow);
             }
-            mark_color.set_if_neq(TextColor(color));
-            visibility.set_if_neq(if warning.is_some() {
-                Visibility::Inherited
-            } else {
-                Visibility::Hidden
-            });
         }
     }
 }
@@ -1010,11 +1092,12 @@ fn drive_ammo_readout_numbers(
 
 /// Draws the diegetic per-weapon ammo gauges (turret ring, torpedo bar) on
 /// each player weapon section that carries a finite [`SectionAmmo`], with a
-/// incoming-batch pulse and a debug-only numeric readout.
-/// Registers the readout marker/kind/pip/cluster types, runs
-/// `sync_ammo_readouts` then `drive_ammo_readouts` and
-/// `drive_ammo_reserve_marks` (chained) in PostUpdate
-/// before `ScreenIndicatorSystems` and `cluster_ammo_readouts` after it;
+/// incoming-batch pulse, a reserve flash and a debug-only numeric readout.
+/// Registers the readout marker/kind/pip/cluster/flash types and the
+/// `AmmoReserveCrossed` observer that arms the flash, runs
+/// `sync_ammo_readouts`, `drive_ammo_readouts` then `drive_ammo_reserve_flash`
+/// (chained) in PostUpdate before `ScreenIndicatorSystems` and
+/// `cluster_ammo_readouts` after it;
 /// under the `debug` feature also inits `AmmoReadoutDebug` and adds the
 /// numeric driver.
 #[derive(Default)]
@@ -1033,7 +1116,8 @@ impl Plugin for AmmoReadoutPlugin {
         app.register_type::<AmmoReadoutCluster>();
         app.register_type::<AmmoReadoutClustered>();
         app.register_type::<AmmoReadoutClusterBadge>();
-        app.register_type::<AmmoReadoutReserveMark>();
+        app.register_type::<AmmoReadoutReserveFlash>();
+        app.add_observer(arm_ammo_reserve_flash);
 
         // Reconcile then light the chunks before the indicator projection
         // places the nodes.
@@ -1041,7 +1125,8 @@ impl Plugin for AmmoReadoutPlugin {
             PostUpdate,
             (
                 sync_ammo_readouts,
-                (drive_ammo_readouts, drive_ammo_reserve_marks),
+                drive_ammo_readouts,
+                drive_ammo_reserve_flash,
             )
                 .chain()
                 .before(ScreenIndicatorSystems),
@@ -2233,5 +2318,242 @@ mod tests {
             app.world_mut().entity_mut(player).insert(WeaponsHot(false));
             hold_gauge(&mut app, turret, 1, false, "combat mode left again");
         }
+    }
+
+    // -- reserve flash --
+
+    /// The gauge rig with the reserve tracker wired in and the turret drawing
+    /// on the hold: an 8-round magazine, so the LOW line is 8 PDC rounds.
+    fn reserve_app() -> (App, Entity, Entity) {
+        let (mut app, player, turret) = gauge_app();
+        app.add_systems(
+            Update,
+            nova_ship::sections::ammo_warning::track_player_ammo_reserve.before(NovaHudSystems),
+        );
+        app.world_mut().entity_mut(turret).insert(reload_at(
+            ItemRoleType::PdcRound.into(),
+            3.0,
+            8,
+            0.0,
+        ));
+        set_reserve(&mut app, player, 1000);
+        app.update();
+        (app, player, turret)
+    }
+
+    fn set_reserve(app: &mut App, player: Entity, rounds: u32) {
+        let items = test_items();
+        // An empty hold has no stack at all: a zero stack is refused.
+        let stacks = (rounds > 0).then(|| (ItemRoleType::PdcRound.into(), rounds));
+        app.world_mut()
+            .entity_mut(player)
+            .insert(ShipInventory::new(&items, 10_000_000, stacks));
+    }
+
+    fn set_hot(app: &mut App, player: Entity, hot: bool) {
+        app.world_mut().entity_mut(player).insert(WeaponsHot(hot));
+    }
+
+    fn gauge_of(app: &mut App, section: Entity) -> Entity {
+        let world = app.world_mut();
+        world
+            .query_filtered::<(Entity, &AmmoReadoutSection), With<AmmoReadoutMarker>>()
+            .iter(world)
+            .find(|(_, readout)| ***readout == section)
+            .map(|(entity, _)| entity)
+            .expect("the section has a gauge")
+    }
+
+    /// The colour of every pip of `section`'s gauge, in pip order.
+    fn pip_colors(app: &mut App, section: Entity) -> Vec<Color> {
+        let gauge = gauge_of(app, section);
+        let world = app.world_mut();
+        let mut pips: Vec<(usize, Color)> = world
+            .get::<Children>(gauge)
+            .map(|children| children.iter().collect::<Vec<_>>())
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|child| {
+                let pip = world.get::<AmmoReadoutPip>(child)?;
+                Some((**pip, world.get::<BackgroundColor>(child)?.0))
+            })
+            .collect();
+        pips.sort_by_key(|(index, _)| *index);
+        pips.into_iter().map(|(_, color)| color).collect()
+    }
+
+    /// Run `frames` updates and count the frames on which `section`'s gauge
+    /// differs from `steady`.
+    fn flashing_frames(app: &mut App, section: Entity, steady: &[Color], frames: usize) -> usize {
+        (0..frames)
+            .filter(|_| {
+                app.update();
+                pip_colors(app, section) != steady
+            })
+            .count()
+    }
+
+    /// The text a player can read on or around `section`'s gauge: every
+    /// child `Text` that is not hidden and not blank.
+    fn gauge_text(app: &mut App, section: Entity) -> Vec<String> {
+        let gauge = gauge_of(app, section);
+        let world = app.world_mut();
+        world
+            .get::<Children>(gauge)
+            .map(|children| children.iter().collect::<Vec<_>>())
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|child| world.get::<Visibility>(*child) != Some(&Visibility::Hidden))
+            .filter_map(|child| world.get::<Text>(child).map(|text| text.0.clone()))
+            .filter(|text| !text.is_empty())
+            .collect()
+    }
+
+    /// Owner call: the reserve is not spelled out on the gauge. LOW is a
+    /// flash, DRY is the magazine running dark.
+    #[test]
+    fn a_reserve_warned_gauge_carries_no_text() {
+        let (mut app, player, turret) = reserve_app();
+        set_hot(&mut app, player, true);
+        for reserve in [5, 0] {
+            set_reserve(&mut app, player, reserve);
+            for frame in 0..20 {
+                app.update();
+                assert_eq!(
+                    gauge_text(&mut app, turret),
+                    Vec::<String>::new(),
+                    "reserve {reserve}: frame {frame}"
+                );
+            }
+        }
+    }
+
+    /// The crossing into LOW is news: the drawn gauge brightens in its own hue
+    /// for a moment, then goes back to exactly what it showed before.
+    #[test]
+    fn the_gauge_flashes_once_when_its_reserve_crosses_into_low_and_stops() {
+        let (mut app, player, turret) = reserve_app();
+        set_hot(&mut app, player, true);
+        app.update();
+        let steady = pip_colors(&mut app, turret);
+        assert_eq!(
+            flashing_frames(&mut app, turret, &steady, 10),
+            0,
+            "a reserve over the line does not flash"
+        );
+
+        set_reserve(&mut app, player, 5);
+        let mut flashed = 0;
+        for _ in 0..20 {
+            app.update();
+            let colors = pip_colors(&mut app, turret);
+            if colors == steady {
+                continue;
+            }
+            flashed += 1;
+            for (lit, rest) in colors.iter().zip(&steady) {
+                let (lit, rest) = (Hsla::from(*lit), Hsla::from(*rest));
+                assert!(
+                    (lit.hue - rest.hue).abs() < 0.5,
+                    "the flash keeps the hue: {lit:?} vs {rest:?}"
+                );
+                assert!(
+                    lit.lightness >= rest.lightness && lit.alpha >= rest.alpha,
+                    "the flash only brightens: {lit:?} vs {rest:?}"
+                );
+            }
+        }
+        assert!(
+            flashed >= 3,
+            "the crossing flashes the gauge: {flashed} frames"
+        );
+
+        assert_eq!(
+            flashing_frames(&mut app, turret, &steady, 30),
+            0,
+            "the flash ends and does not loop"
+        );
+        let gauge = gauge_of(&mut app, turret);
+        assert!(
+            app.world().get::<AmmoReadoutReserveFlash>(gauge).is_none(),
+            "a finished flash leaves the gauge"
+        );
+    }
+
+    /// Once per crossing, as the notice: a reserve that stays LOW, or goes on
+    /// to DRY, does not flash again. Buying back over the line re-arms it.
+    #[test]
+    fn the_gauge_does_not_flash_again_until_the_reserve_recovers_and_crosses_again() {
+        let (mut app, player, turret) = reserve_app();
+        set_hot(&mut app, player, true);
+        app.update();
+        let steady = pip_colors(&mut app, turret);
+        set_reserve(&mut app, player, 5);
+        assert!(flashing_frames(&mut app, turret, &steady, 20) > 0);
+
+        set_reserve(&mut app, player, 3);
+        assert_eq!(
+            flashing_frames(&mut app, turret, &steady, 30),
+            0,
+            "still LOW is not news"
+        );
+        set_reserve(&mut app, player, 0);
+        assert_eq!(
+            flashing_frames(&mut app, turret, &steady, 30),
+            0,
+            "DRY adds no cue"
+        );
+        set_reserve(&mut app, player, 20);
+        assert_eq!(flashing_frames(&mut app, turret, &steady, 10), 0);
+
+        set_reserve(&mut app, player, 5);
+        assert!(
+            flashing_frames(&mut app, turret, &steady, 20) > 0,
+            "a restock re-arms the flash"
+        );
+    }
+
+    /// Reloads run off the trigger with the weapons cold, so a reserve
+    /// usually crosses the line while the gauges are shut. The flash waits
+    /// for the next time the gauge is drawn, plays once, and is dropped if
+    /// the reserve recovered first.
+    #[test]
+    fn a_low_crossing_behind_a_shut_gate_flashes_when_the_gauge_next_opens() {
+        let (mut app, player, turret) = reserve_app();
+        app.update();
+        let steady = pip_colors(&mut app, turret);
+
+        set_reserve(&mut app, player, 5);
+        hold_gauge(&mut app, turret, 30, false, "crossed with the gauges shut");
+        set_hot(&mut app, player, true);
+        assert!(
+            flashing_frames(&mut app, turret, &steady, 20) > 0,
+            "the first open after the crossing flashes"
+        );
+        assert_eq!(flashing_frames(&mut app, turret, &steady, 10), 0);
+
+        set_hot(&mut app, player, false);
+        hold_gauge(&mut app, turret, 5, false, "shut again");
+        set_hot(&mut app, player, true);
+        assert_eq!(
+            flashing_frames(&mut app, turret, &steady, 30),
+            0,
+            "the next open does not flash again"
+        );
+
+        // Crossed and recovered while shut: nothing left to say.
+        set_hot(&mut app, player, false);
+        set_reserve(&mut app, player, 20);
+        hold_gauge(&mut app, turret, 3, false, "restocked while shut");
+        set_reserve(&mut app, player, 5);
+        hold_gauge(&mut app, turret, 3, false, "crossed while shut");
+        set_reserve(&mut app, player, 20);
+        hold_gauge(&mut app, turret, 3, false, "recovered while shut");
+        set_hot(&mut app, player, true);
+        assert_eq!(
+            flashing_frames(&mut app, turret, &steady, 30),
+            0,
+            "a crossing the reserve already undid does not flash"
+        );
     }
 }

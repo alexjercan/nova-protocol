@@ -157,7 +157,7 @@ Both curves are anchored at **1,000 m/s**, a PDC round's muzzle speed - what it 
 
 Every weapon with a magazine refills it on its own. A magazine is a **rate limit**, not a hard stop while you have the ammunition to feed it: what a weapon imposes is a rhythm, and it is the same rule for all of them - a batch lands only after a whole quiet interval, and every shot that lands restarts that interval. Each batch draws matching ammunition from your ship's [inventory](../interface/#the-inventory) - PDC rounds, rail slugs, or torpedoes - and moves it into the magazine round for round. With none of that item left in your hold, the delay stops advancing and the magazine stays exactly where it ran dry, until you take on more.
 
-Your ship warns before that. When the hold holds less than one full magazine of an item your weapons load (at least 2), the [HUD](../hud/) posts `PDC ROUND LOW: 400` with one cockpit cue and tags the gauge `LOW`; when it holds none, it posts `PDC ROUND DRY` and the tag reads `DRY`. The rounds already in the magazines are then all you have. Buying back over the line clears the tag and arms the warning again.
+Your ship warns before that. When the hold holds less than one full magazine of an item your weapons load (at least 2), the [HUD](../hud/) posts `PDC ROUND LOW: 400` with one cockpit cue and the gauge flashes; when it holds none, it posts `PDC ROUND DRY`. The rounds already in the magazines are then all you have. Buying back over the line arms the warning again.
 
 **Getting rounds back.** A start hull with point-defense mounts carries **3,000** PDC rounds in its hold, on top of its full magazines. Past that, there are three ways to refill:
 

@@ -18,12 +18,13 @@
 //!
 //! 1. raise the weapons (hold RMB) and hold fire (LMB);
 //! 2. at 400 rounds in the hold the notice posts `PDC ROUND LOW: 400`, the
-//!    ship's ammo gauge sounds once, and a `LOW` tag stands over the PDC's
-//!    ring;
-//! 3. at 0 the notice posts `PDC ROUND DRY` and the tag reads `DRY`;
+//!    ship's ammo gauge sounds once, and the PDC's ring flashes three times
+//!    and goes back to normal;
+//! 3. at 0 the notice posts `PDC ROUND DRY`; the ring adds nothing and runs
+//!    down to a dark track that never refills;
 //! 4. restock: `;` opens the shell, `cheats enable`, then
-//!    `item give player_spaceship PdcRound 600`. The tag clears, and the next drain
-//!    warns LOW again.
+//!    `item give player_spaceship PdcRound 600`. The next drain warns LOW
+//!    again, and the ring flashes again.
 //!
 //! The diagnostics layer (F3) is on at start: the magazine, the hold reserve
 //! against the LOW line, and each crossing so far.
@@ -34,10 +35,11 @@
 //!
 //! No deadline ends the run unless `NOVA_AUTOPILOT=1` is set. Then a smoke
 //! walk raises the weapons, holds the trigger through the reloads, and
-//! checks one LOW crossing at 400, then one DRY at 0, with the notice line
-//! and the gauge tag of each; then it puts 600 rounds back in the hold and
-//! checks that the next drain warns LOW again. `NOVA_CAPTURE=1` shoots the
-//! LOW and the DRY frames.
+//! checks one LOW crossing at 400 with its notice line and one ring flash
+//! that ends, then one DRY at 0 with its notice line and no flash; then it
+//! puts 600 rounds back in the hold and checks that the next drain warns LOW
+//! and flashes again. `NOVA_CAPTURE=1` shoots the ring before the crossing,
+//! at a flash peak, after the flash, and empty on a dry hold.
 
 #[path = "shared/open_world_stage.rs"]
 mod open_world_stage;
@@ -78,6 +80,11 @@ fn main() -> bevy::app::AppExit {
         ));
         app.add_systems(Startup, force_capture_resolution);
     }
+    app.init_resource::<smoke::StopAtTheFlashPeak>();
+    app.add_systems(
+        Update,
+        smoke::stop_at_the_flash_peak.run_if(in_state(GameStates::Playing)),
+    );
     app.add_plugins(smoke::script());
 
     app.run()
@@ -248,8 +255,13 @@ mod smoke {
     const SHOW_SECS: f32 = 30.0;
 
     /// The frames the capture path writes.
+    const BEFORE_SHOT: &str = "ammo-warning-sandbox-before.png";
+    const FLASH_SHOT: &str = "ammo-warning-sandbox-flash.png";
     const LOW_SHOT: &str = "ammo-warning-sandbox-low.png";
     const DRY_SHOT: &str = "ammo-warning-sandbox-dry.png";
+    /// A flash strength the walk stops on to shoot a peak. Two frames a
+    /// quarter pulse apart always reach it: the pulse is a squared sine.
+    const FLASH_PEAK: f32 = 0.45;
 
     const LOW_LINE: &str = "PDC ROUND LOW: 400";
     const DRY_LINE: &str = "PDC ROUND DRY";
@@ -273,12 +285,57 @@ mod smoke {
             .unwrap_or_default()
     }
 
-    /// The HUD shows `line` in the notice slot and `tag` over the gauge.
-    fn shows(line: &'static str, tag: &'static str) -> Arc<Predicate> {
-        when(move |world| {
-            text_of::<HudNoticeText>(world) == line
-                && text_of::<AmmoReadoutReserveMark>(world) == tag
-        })
+    /// The reserve flash on the PDC's gauge, if one is armed or running.
+    fn flash(world: &World) -> Option<AmmoReadoutReserveFlash> {
+        world
+            .try_query_filtered::<&AmmoReadoutReserveFlash, With<AmmoReadoutMarker>>()
+            .and_then(|mut query| query.iter(world).next().copied())
+    }
+
+    /// How bright the gauge's flash is this frame, `0.0` with no flash.
+    fn glow(world: &World) -> f32 {
+        let now = world.resource::<Time<Virtual>>().elapsed_secs();
+        flash(world)
+            .and_then(|flash| flash.glow(now))
+            .unwrap_or(0.0)
+    }
+
+    /// The PDC's gauge is on screen.
+    fn gauge_drawn(world: &World) -> bool {
+        world
+            .try_query_filtered::<&Visibility, With<AmmoReadoutMarker>>()
+            .is_some_and(|mut query| query.iter(world).any(|v| *v == Visibility::Visible))
+    }
+
+    /// While set, the clock stops on the first frame the flash is at least
+    /// [`FLASH_PEAK`] bright, so the shot holds that frame. A walk step
+    /// cannot do this: its `on_enter` runs a frame after its predicate, a
+    /// whole pulse phase later on a software GPU.
+    #[derive(Resource, Default)]
+    pub(super) struct StopAtTheFlashPeak(bool);
+
+    pub(super) fn stop_at_the_flash_peak(world: &mut World) {
+        if world.resource::<StopAtTheFlashPeak>().0 && glow(world) >= FLASH_PEAK {
+            world.resource_mut::<StopAtTheFlashPeak>().0 = false;
+            pause_clock(world);
+        }
+    }
+
+    /// The HUD shows `line` in the notice slot.
+    fn shows(line: &'static str) -> Arc<Predicate> {
+        when(move |world| text_of::<HudNoticeText>(world) == line)
+    }
+
+    fn magazine(world: &World) -> u32 {
+        world
+            .try_query_filtered::<(&SectionAmmo, &ChildOf), With<TurretSectionMarker>>()
+            .and_then(|mut query| {
+                query
+                    .iter(world)
+                    .find(|(_, child)| world.get::<PlayerSpaceshipMarker>(child.parent()).is_some())
+                    .map(|(ammo, _)| ammo.rounds)
+            })
+            .unwrap_or_default()
     }
 
     fn held(world: &mut World) -> u32 {
@@ -321,7 +378,14 @@ mod smoke {
             [(AmmoReserveWarningType::Low, 400)],
             "ammo_warning_sandbox: one LOW crossing at 400"
         );
-        info!("ammo_warning_sandbox: PASS one LOW at 400, notice '{LOW_LINE}', gauge tag LOW");
+        assert_eq!(
+            flash(world),
+            None,
+            "ammo_warning_sandbox: the LOW flash ended on its own"
+        );
+        info!(
+            "ammo_warning_sandbox: PASS one LOW at 400, notice '{LOW_LINE}', one flash that ended"
+        );
     }
 
     fn assert_dry(world: &mut World) {
@@ -334,7 +398,17 @@ mod smoke {
             ],
             "ammo_warning_sandbox: one LOW, then one DRY"
         );
-        info!("ammo_warning_sandbox: PASS one DRY at 0, notice '{DRY_LINE}', gauge tag DRY");
+        assert_eq!(
+            flash(world),
+            None,
+            "ammo_warning_sandbox: DRY flashes nothing"
+        );
+        assert_eq!(
+            magazine(world),
+            0,
+            "ammo_warning_sandbox: the magazine ran out"
+        );
+        info!("ammo_warning_sandbox: PASS one DRY at 0, notice '{DRY_LINE}', no flash, empty magazine");
     }
 
     fn restock(world: &mut World) {
@@ -361,7 +435,9 @@ mod smoke {
             ],
             "ammo_warning_sandbox: the restock re-armed LOW"
         );
-        info!("ammo_warning_sandbox: PASS the restock re-armed: LOW again at 400");
+        info!(
+            "ammo_warning_sandbox: PASS the restock re-armed: LOW again at 400 and a second flash"
+        );
     }
 
     fn pause_clock(world: &mut World) {
@@ -396,13 +472,52 @@ mod smoke {
             .on_enter(assert_the_staging)
             .until(frames(2))
             .add()
-            .step("ammo warning sandbox: raise the weapons and hold fire to LOW")
+            .step("ammo warning sandbox: raise the weapons and hold fire")
             .on_enter(|world: &mut World| world.resource_mut::<HeldTrigger>().0 = true)
+            .until(when(|world| {
+                gauge_drawn(world) && magazine(world) < MAGAZINE
+            }))
+            .deadline(DRAIN_SECS)
+            .add()
+            .step("ammo warning sandbox: shoot the gauge before the crossing")
+            .on_enter(|world: &mut World| {
+                pause_clock(world);
+                shoot(world, BEFORE_SHOT);
+            })
+            .until(shot_written(BEFORE_SHOT))
+            .deadline(SHOT_DEADLINE_SECS)
+            .add()
+            .step("ammo warning sandbox: hold fire to LOW")
+            .on_enter(run_clock)
             .until(when(|world| !crossings(world).is_empty()))
             .deadline(DRAIN_SECS)
             .add()
-            .step("ammo warning sandbox: the HUD shows LOW")
-            .until(shows(LOW_LINE, "LOW"))
+            .step("ammo warning sandbox: the notice posts LOW and the gauge flashes")
+            .on_enter(|world: &mut World| world.resource_mut::<StopAtTheFlashPeak>().0 = true)
+            .until(when(|world| {
+                text_of::<HudNoticeText>(world) == LOW_LINE
+                    && world.resource::<Time<Virtual>>().is_paused()
+            }))
+            .deadline(SHOW_SECS)
+            .add()
+            .step("ammo warning sandbox: shoot the flash")
+            .on_enter(|world: &mut World| {
+                assert!(
+                    glow(world) >= FLASH_PEAK,
+                    "ammo_warning_sandbox: the clock stopped on a flash peak"
+                );
+                info!(
+                    "ammo_warning_sandbox: flash glow {:.2} in the shot",
+                    glow(world)
+                );
+                shoot(world, FLASH_SHOT);
+            })
+            .until(shot_written(FLASH_SHOT))
+            .deadline(SHOT_DEADLINE_SECS)
+            .add()
+            .step("ammo warning sandbox: the flash ends while LOW holds")
+            .on_enter(run_clock)
+            .until(when(|world| flash(world).is_none()))
             .deadline(SHOW_SECS)
             .add()
             .step("ammo warning sandbox: check LOW and shoot it")
@@ -420,8 +535,12 @@ mod smoke {
             .deadline(DRAIN_SECS)
             .add()
             .step("ammo warning sandbox: the HUD shows DRY")
-            .until(shows(DRY_LINE, "DRY"))
+            .until(shows(DRY_LINE))
             .deadline(SHOW_SECS)
+            .add()
+            .step("ammo warning sandbox: fire the magazine out")
+            .until(when(|world| magazine(world) == 0))
+            .deadline(DRAIN_SECS)
             .add()
             .step("ammo warning sandbox: check DRY and shoot it")
             .on_enter(|world: &mut World| {
@@ -439,6 +558,10 @@ mod smoke {
             })
             .until(when(|world| crossings(world).len() >= 3))
             .deadline(DRAIN_SECS)
+            .add()
+            .step("ammo warning sandbox: the gauge flashes again")
+            .until(when(|world| glow(world) > 0.0))
+            .deadline(SHOW_SECS)
             .add()
             .step("ammo warning sandbox: check the re-arm")
             .on_enter(|world: &mut World| {

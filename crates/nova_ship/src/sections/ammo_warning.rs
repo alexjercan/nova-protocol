@@ -12,8 +12,8 @@
 //! root in [`AmmoReserveWarnings`] and triggers [`AmmoReserveCrossed`] on a
 //! WORSENING edge only. The first reading of an item (a spawn, a Load, a
 //! rebuilt mount, unlimited ammunition switched off) records its level and
-//! says nothing: no reserve crossed a line, and a start kit under one
-//! magazine is the steady HUD mark's to show, not news. A restock that lifts
+//! says nothing: no reserve crossed a line, so a start kit under one
+//! magazine is not news. A restock that lifts
 //! the reserve to or over the line clears the level, so the next drain warns
 //! again; one that lifts it only off zero leaves LOW, so the next empty
 //! hold warns DRY again.
@@ -67,7 +67,8 @@ pub fn ammo_reserve_warning(reserve: u32, magazine: u32) -> Option<AmmoReserveWa
 
 /// The last warning level of each ammunition item the player's live weapons
 /// reload from, on the player ship root. An item no live weapon uses has no
-/// entry. Written by [`track_player_ammo_reserve`]; the HUD gauges read it.
+/// entry. Written by [`track_player_ammo_reserve`]; the HUD gauge flash reads
+/// it to drop a crossing the reserve already undid.
 #[derive(Component, Clone, Debug, Default, PartialEq)]
 pub struct AmmoReserveWarnings(BTreeMap<ItemDesignId, Option<AmmoReserveWarningType>>);
 
