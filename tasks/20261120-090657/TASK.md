@@ -1,8 +1,8 @@
 # Faction colour palettes for ships
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,ships,art
+- PRIORITY: 28
+- TAGS: v0.19.0,ships,art
 
 Planned 2026-11-20 from the owner sign-off of the start hull looks
 (`tasks/20261116-132144/TASK.md`).
@@ -75,3 +75,6 @@ Planned 2026-11-20 from the owner sign-off of the start hull looks
 ## Done when
 - Ships of different factions read apart by colour in rendered frames,
   and the owner signs off the frames.
+
+## Owner check (2026-11-22)
+- Owner moved this task into v0.19.0. The open decisions above still stand.
