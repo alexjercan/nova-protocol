@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event Block Corners</title>
+<style>
+  :root {
+    --bg: #0d1117; --fg: #d7e0d9; --muted: #8b998f; --line: #26332b;
+    --accent: #36ff79; --amber: #ffb84a; --card: #121a15;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f6f7f5; --fg: #17201a; --muted: #56635a; --line: #d3dbd5;
+      --accent: #0d6e35; --amber: #8a5a00; --card: #ffffff;
+    }
+  }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 ui-monospace, "JetBrains Mono", monospace; }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 32px 0 8px; color: var(--accent); }
+  p, li { max-width: 80ch; }
+  .sub { color: var(--muted); margin: 0 0 16px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border-bottom: 1px solid var(--line); padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { color: var(--muted); font-weight: normal; }
+  code { color: var(--amber); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--line); padding: 8px; }
+  figure img { width: 100%; height: auto; display: block; image-rendering: pixelated; }
+  figcaption { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .rec { border-left: 3px solid var(--accent); padding-left: 10px; }
+  .note { color: var(--muted); font-size: 13px; }
+  .wide img { image-rendering: auto; }
+</style>
+</head>
+<body>
+<main>
+<h1>Event block corners</h1>
+<p class="sub">Task 20261122-122248, proposal 2026-11-22. Owner rules A, B or C.</p>
+
+<h2>Before: both themes</h2>
+<p>Real frames, 1920x1080, lavapipe on Xvfb, sandboxed profile. Four handlers:
+hats, action stack blocks, a boolean filter, a Sequence C-block with a step,
+and a <code>+</code> reporter. The canvas area is pixel-identical on both
+themes (ImageMagick AE = 0): blocks use fixed colours and literal corners.</p>
+<div class="grid">
+  <figure><img src="before/before-phosphor-detail.png" alt="Canvas detail, phosphor, before"><figcaption>Phosphor, canvas detail (2x)</figcaption></figure>
+  <figure><img src="before/before-hardware-detail.png" alt="Canvas detail, hardware, before"><figcaption>Hardware, canvas detail (2x). Same pixels.</figcaption></figure>
+</div>
+<div class="grid wide" style="margin-top:12px">
+  <figure><img src="before/before-phosphor.png" alt="Full editor frame, phosphor"><figcaption>Phosphor, full frame (downscaled)</figcaption></figure>
+  <figure><img src="before/before-hardware.png" alt="Full editor frame, hardware"><figcaption>Hardware, full frame (downscaled)</figcaption></figure>
+</div>
+
+<h2>What the corner tells today</h2>
+<table>
+  <tr><th>Block</th><th>Corner today</th><th>Also told by</th><th>Corner needed?</th></tr>
+  <tr><td>Hat (Event)</td><td>14 px top</td><td>amber, <code>when</code>, no notch on top, taller pad</td><td>no</td></tr>
+  <tr><td>Stack (Action)</td><td>3 px</td><td>blue, notch on top, tab below</td><td>no</td></tr>
+  <tr><td>C-block (Flow)</td><td>3 px foot, square head</td><td>rust, left bar, foot</td><td>no</td></tr>
+  <tr><td>Boolean (Condition, comparison)</td><td>none</td><td>pointed ends (rotated squares, not a corner)</td><td>no</td></tr>
+  <tr><td>Reporter (Value)</td><td>round ends (height / 2)</td><td>green fill, no points</td><td>weak: the only cue vs a boolean is "no points"</td></tr>
+  <tr><td>Literal chip</td><td>10 px pill</td><td>white fill, dark text</td><td>no</td></tr>
+  <tr><td>Field chip, <code>...</code></td><td>4 px</td><td>dark fill</td><td>no</td></tr>
+</table>
+
+<h2>Options</h2>
+<p class="note">Mocks are real frames of a temporary patch (reverted, diff empty). Option C has no
+mock of its own: it is A on phosphor and "Before" on hardware.</p>
+
+<h3 class="rec">A. Corners follow the theme; type stays on colour and silhouette (recommended)</h3>
+<p>Every block box takes the theme corner: 0 on phosphor, 2 px on hardware. The notch, tab,
+C-bar and boolean points stay. Dots (fault badge, palette rail dot) stay round.</p>
+<div class="grid">
+  <figure><img src="mock/a-phosphor-detail.png" alt="Option A on phosphor"><figcaption>A, phosphor (0 px)</figcaption></figure>
+  <figure><img src="mock/a-hardware-detail.png" alt="Option A on hardware"><figcaption>A, hardware (2 px)</figcaption></figure>
+</div>
+
+<h3>B. A plus a type cap</h3>
+<p>A, and a lighter 3 px band on the hat top and 3 px lighter end bars on a reporter. Adds paint
+and nodes for a cue that colour already gives. The reporter bars read as brackets.</p>
+<div class="grid">
+  <figure><img src="mock/b-phosphor-detail.png" alt="Option B on phosphor"><figcaption>B, phosphor</figcaption></figure>
+  <figure><img src="mock/b-hardware-detail.png" alt="Option B on hardware"><figcaption>B, hardware</figcaption></figure>
+</div>
+
+<h3>C. Type shapes on hardware only</h3>
+<p>Phosphor square (as A). Hardware keeps the 14 px hat and the round reporter and literal. Breaks
+"hardware 2 px everywhere" and needs a per-theme shape branch the theme does not own.</p>
+
+<h2>Recommendation: A</h2>
+<ul>
+  <li><b>End state.</b> No radius literal on the canvas or palette. Block type reads from colour,
+  the <code>when</code> word and the silhouette pieces.</li>
+  <li><b>How.</b> Paint reads <code>theme.metric(UiMetric::Radius)</code> once per pass
+  (partial corners: hat head top-only, C-foot three corners, tabs bottom-only;
+  <code>ThemedRadius</code> writes all four corners only). <code>sync_canvas</code> also marks the board
+  stale on an <code>ActiveUiTheme</code> change. Palette entries do the same. No <code>nova_ui</code> change.</li>
+  <li><b>What dies.</b> <code>RADIUS</code>, <code>HAT_RADIUS</code>, <code>ENTRY_HAT_RADIUS</code>, the
+  10/4 px chip radii, the reporter pill, the 3 px palette heading corner.</li>
+  <li><b>What may break.</b> No test or walk asserts a canvas radius. The drop and select
+  <code>Outline</code> follows the node corner, so it goes square on phosphor. Docs:
+  <code>docs/scenario-system.md:25-26</code> says "a value a round reporter". The v0.18.0 news still is
+  history and stays.</li>
+  <li><b>Size.</b> About 40 lines in <code>paint.rs</code>, <code>palette.rs</code>,
+  <code>canvas/mod.rs</code>; one doc line; one changelog entry.</li>
+</ul>
+
+<h2>Radius sites</h2>
+<table>
+  <tr><th>Site</th><th>Value</th><th>Shapes</th></tr>
+  <tr><td><code>ui/canvas/paint.rs:42</code></td><td>RADIUS 3</td><td>stack block, C-foot, head bottom</td></tr>
+  <tr><td><code>ui/canvas/paint.rs:44</code></td><td>HAT_RADIUS 14</td><td>hat top</td></tr>
+  <tr><td><code>ui/canvas/paint.rs:179,191</code></td><td>10 / 4</td><td>literal chip / field chip</td></tr>
+  <tr><td><code>ui/canvas/paint.rs:256</code></td><td>4</td><td><code>...</code> chip</td></tr>
+  <tr><td><code>ui/canvas/paint.rs:321</code></td><td>10</td><td>literal socket holder (drop outline)</td></tr>
+  <tr><td><code>ui/canvas/paint.rs:386</code></td><td>8 (16 px)</td><td>fault badge: a dot, stays round</td></tr>
+  <tr><td><code>ui/canvas/paint.rs:415</code></td><td>height / 2</td><td>reporter pill</td></tr>
+  <tr><td><code>ui/canvas/paint.rs:557-562</code></td><td>top 14 or 3, bottom 3 or 0</td><td>block head</td></tr>
+  <tr><td><code>ui/canvas/paint.rs:577, 655</code></td><td>bottom 2</td><td>notch, tab</td></tr>
+  <tr><td><code>ui/canvas/paint.rs:619-624</code></td><td>3 on three corners</td><td>C-block foot</td></tr>
+  <tr><td><code>ui/canvas/palette.rs:52, 201-206</code></td><td>9 top / 2 bottom</td><td>hat entry</td></tr>
+  <tr><td><code>ui/canvas/palette.rs:168, 259</code></td><td>bottom 2</td><td>entry tab, chain foot</td></tr>
+  <tr><td><code>ui/canvas/palette.rs:216, 239</code></td><td>2 / top 2</td><td>stack, chain entry</td></tr>
+  <tr><td><code>ui/canvas/palette.rs:287</code></td><td>ENTRY_H / 2</td><td>reporter entry</td></tr>
+  <tr><td><code>ui/canvas/palette.rs:308</code></td><td>RAIL_DOT / 2</td><td>rail dot: stays round</td></tr>
+  <tr><td><code>ui/canvas/palette.rs:447</code></td><td>3</td><td>group heading</td></tr>
+  <tr><td><code>ui/picker.rs:375</code>, <code>ui/assets.rs:1273</code></td><td>ring, dot</td><td>outside the canvas, round by nature, out of scope</td></tr>
+</table>
+<p class="note">All paths under <code>crates/nova_editor/src/</code>. Theme owner:
+<code>nova_ui/src/widget/chrome.rs:210</code> (<code>ThemedRadius</code>), reconciled at
+<code>chrome.rs:233</code>; metrics in <code>nova_ui/src/theme/config.rs:88-92</code>; rule in
+<code>docs/architecture.md:214-220</code>.</p>
+<p class="note">Seen, not in scope: the canvas colours ignore the theme too (fixed
+<code>block_colour</code> and <code>BLOCK_*</code> in <code>crates/nova_editor/src/palette.rs:46-93</code>).</p>
+</main>
+</body>
+</html>
