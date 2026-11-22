@@ -40,3 +40,8 @@
   overlap x 847..937 (91 px), 1280x720 x 527..629 (103 px, over the card text).
   1024x768 computed only (card edge 507, short box 477..547): the walk stops
   earlier on a Jobs-pane label that truncates at 1024 px. Needs an owner call.
+
+## Decision (owner 2026-11-22)
+- Comms overlap: option A, "go with A". The comms panel floor sits above
+  the notice top, so comms cards always sit about 40 px higher and never
+  move when a notice comes or goes.
