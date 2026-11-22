@@ -39,7 +39,17 @@
   a notice under a comms card prints over the card's right end: 1920x1080
   overlap x 847..937 (91 px), 1280x720 x 527..629 (103 px, over the card text).
   1024x768 computed only (card edge 507, short box 477..547): the walk stops
-  earlier on a Jobs-pane label that truncates at 1024 px. Needs an owner call.
+  earlier on a Jobs-pane label that truncates at 1024 px. Owner chose A below.
+- Option A: `stand_the_cards_on_the_column_floor` sets the comms panel bottom to
+  `column_floor_px` (`crates/nova_hud/src/comms_panel.rs:318`), the floor the
+  edge-pinned chips and the pickup tick use: max(dock top, notice top 98 px) +
+  8 px. `COMMS_DOCK_GAP_PX` is gone; the TODO in `hud_notice.rs` is removed.
+- Proof: `a_comms_card_stands_over_the_notice_box` (1280 and 1024 px, 100 % and
+  150 % scale, long notice). On the old floor it fails at 1280: card bottom 651
+  vs notice top 622.
+- Frames `notice-{1920x1080,1280x720}-comms-{phosphor,hardware}-A.png`: card
+  bottom border to notice top border is 8 px at both sizes and themes; notice
+  centre 0 px off the midline.
 
 ## Decision (owner 2026-11-22)
 - Comms overlap: option A, "go with A". The comms panel floor sits above

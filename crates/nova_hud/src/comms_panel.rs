@@ -32,7 +32,7 @@ use nova_ui::{
 };
 
 use super::{
-    keybind_dock::{dock_top_px, LaidOutDock},
+    keybind_dock::{column_floor_px, LaidOutDock},
     HudSelfDrivenVisibility, HudTier,
 };
 
@@ -111,15 +111,12 @@ const COMMS_FADE_IN_SECS: f32 = 0.25;
 /// Fade-out duration (s) after a line's dwell elapses; the pacing layer adds
 /// this to the dwell so the objective posts as the line clears, not mid-fade.
 pub const COMMS_FADE_OUT_SECS: f32 = 0.4;
-/// Screen-relative panel width. The pixel ceiling keeps ultrawide displays
-/// from turning a transmission into one long subtitle line.
 /// How far off the bottom of the screen the newest card sits with no keybind
 /// dock on screen: clear of the cinematic skip prompt, which takes the dock's
 /// place during a scene (the screen edge inset, its 25 px chip and a gap).
 const COMMS_BOTTOM_PX: f32 = 48.0;
-/// Clearance between the keybind dock's top and the newest card. A hot chip
-/// draws 8 % larger than its slot, which this covers.
-const COMMS_DOCK_GAP_PX: f32 = metrics::GAP;
+/// Screen-relative panel width. The pixel ceiling keeps ultrawide displays
+/// from turning a transmission into one long subtitle line.
 const COMMS_PANEL_WIDTH_PERCENT: f32 = 48.0;
 const COMMS_PANEL_MAX_WIDTH_PX: f32 = 960.0;
 /// Square speaker icon size inside a comms card.
@@ -273,7 +270,7 @@ impl Plugin for CommsPanelPlugin {
         );
         app.add_systems(
             Update,
-            keep_the_cards_clear_of_the_dock.in_set(super::NovaHudSystems),
+            stand_the_cards_on_the_column_floor.in_set(super::NovaHudSystems),
         );
     }
 }
@@ -303,20 +300,22 @@ fn spawn_comms_panel(mut commands: Commands) {
     ));
 }
 
-/// Ride above the keybind dock rather than through it.
+/// Stand the stack on the bottom-centre column floor ([`column_floor_px`]):
+/// over the keybind dock and the HUD notice box, not through them.
 ///
-/// The panel spans the bottom-left to 48 % of the width and the dock's
-/// centred row reaches left of the screen's centre line, so the two share a
-/// strip of screen.
+/// The panel spans the bottom-left to 48 % of the width, and the dock's
+/// centred row and the centred notice both reach left of the screen's centre
+/// line, so the three share a strip of screen. The floor counts the notice's
+/// tallest box whether or not a notice shows, so a card never moves when a
+/// notice comes or goes.
 /// The stack grows upward from its bottom edge, so that edge is the one thing
-/// to place: a clearance above the dock's measured top, and never under the
-/// panel's own floor. A card of any length then clears a row of any height.
-fn keep_the_cards_clear_of_the_dock(
+/// to place. A card of any length then clears a row of any height and the
+/// notice. With no dock on screen the stack sits on the panel's own floor.
+fn stand_the_cards_on_the_column_floor(
     q_dock: LaidOutDock,
     mut q_panel: Query<&mut Node, With<CommsPanelMarker>>,
 ) {
-    let over_dock = dock_top_px(&q_dock).map_or(0.0, |top| top + COMMS_DOCK_GAP_PX);
-    let bottom = Val::Px(over_dock.max(COMMS_BOTTOM_PX));
+    let bottom = Val::Px(column_floor_px(&q_dock).unwrap_or(COMMS_BOTTOM_PX));
     for mut node in &mut q_panel {
         if node.bottom != bottom {
             node.bottom = bottom;
@@ -1498,22 +1497,27 @@ mod tests {
         row_left: f32,
         /// The left edge of the pickup tick column.
         tick_left: f32,
+        /// The HUD notice box, showing a long line.
+        notice: Rect,
     }
 
     /// The real dock with every verb on the row, the comms panel with one
-    /// card of `text`, and the pickup tick column, laid out at UI scale
-    /// `scale`. With every verb shown the row is the tallest it gets (the AIM
-    /// chip draws a mouse cap) and the furthest left.
-    fn card_over_the_dock(scale: f32, text: &str) -> CardOverDock {
+    /// card of `text`, the pickup tick column and the HUD notice box showing
+    /// a long line, laid out at UI scale `scale` on a `width` px wide window.
+    /// With every verb shown the row is the tallest it gets (the AIM chip
+    /// draws a mouse cap) and the furthest left.
+    fn card_over_the_dock(scale: f32, width: u32, text: &str) -> CardOverDock {
         use bevy::ecs::system::RunSystemOnce;
 
         use crate::{
-            chip_layout_rig::{measure, settle},
+            chip_layout_rig::{measure, set_rig_width, settle},
+            hud_notice::prelude::{hud_notice_hud, HudNoticeText},
             keybind_dock::{keycap_sizing_tests::dock_app, prelude::KeybindDockMarker},
             pickup_tick::prelude::pickup_tick_hud,
         };
 
         let (mut app, chips) = dock_app();
+        set_rig_width(&mut app, width);
         app.insert_resource(UiScale(scale));
         // The rig runs no visibility propagation, and the panel yields only
         // to a dock that is on screen.
@@ -1540,10 +1544,18 @@ mod tests {
                     paint_comms_cards,
                 )
                     .chain(),
-                keep_the_cards_clear_of_the_dock,
+                stand_the_cards_on_the_column_floor,
             ),
         );
         let tick = app.world_mut().spawn(pickup_tick_hud()).id();
+        let notice = app.world_mut().spawn(hud_notice_hud()).id();
+        let mut q_notice = app
+            .world_mut()
+            .query_filtered::<&mut Text, With<HudNoticeText>>();
+        q_notice
+            .single_mut(app.world_mut())
+            .expect("one notice text")
+            .0 = "HULL-3 REPAIR STOPPED: NO PLATES".to_string();
         push_line(&mut app, "STATION CONTROL", text, None);
         // The panel reads the dock's last layout, so its own layout settles a
         // pass after the dock's.
@@ -1564,6 +1576,7 @@ mod tests {
             row_bottom: shown.iter().map(|chip| chip.max.y).fold(0.0, f32::max),
             row_left: shown.iter().map(|chip| chip.min.x).fold(f32::MAX, f32::min),
             tick_left: measure(&app, tick).rect.min.x,
+            notice: measure(&app, notice).rect,
         }
     }
 
@@ -1582,13 +1595,14 @@ mod tests {
         for scale in [1.0, 1.5] {
             let mut last_height = 0.0;
             for text in [one, two, three] {
-                let found = card_over_the_dock(scale, text);
+                let found = card_over_the_dock(scale, RIG_VIEW.x as u32, text);
                 let CardOverDock {
                     card,
                     row_top,
                     row_bottom,
                     row_left,
                     tick_left,
+                    ..
                 } = found;
                 assert!(
                     card.height() > last_height,
@@ -1619,6 +1633,28 @@ mod tests {
                 assert!(
                     tick_left >= card.max.x,
                     "the card reaches the pickup tick column at {scale}: {card:?} vs {tick_left}"
+                );
+            }
+        }
+    }
+
+    /// The centred HUD notice box reaches left under the comms card's right
+    /// end, so the card stands on the column floor over the notice's top,
+    /// on a 1280 and a 1024 px wide window, at 100 % and 150 % UI scale.
+    #[test]
+    fn a_comms_card_stands_over_the_notice_box() {
+        for width in [1280_u32, 1024] {
+            for scale in [1.0, 1.5] {
+                let CardOverDock { card, notice, .. } = card_over_the_dock(scale, width, "Docked.");
+                assert!(
+                    notice.width() > 100.0 * scale && card.max.x > notice.min.x,
+                    "delivery guard: the long notice reaches under the card at {width} px, \
+                     {scale}: {notice:?} vs {card:?}"
+                );
+                assert!(
+                    card.max.y <= notice.min.y,
+                    "the card prints through the notice at {width} px, {scale}: {card:?} vs \
+                     {notice:?}"
                 );
             }
         }

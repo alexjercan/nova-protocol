@@ -59,12 +59,9 @@
 //! and an open interface, holds the notice and the line behind it.
 //!
 //! The box is centred on the screen midline over the key row, so its centre
-//! stays on the dock's centre for any line length.
-//!
-//! TODO(20261122-175849): a comms card stands at the same height and spans
-//! to 16 px + 48 % of the width (`comms_panel`), so a notice shown under a
-//! card prints over the card's right end. Remove when one of the two keeps
-//! clear of the other.
+//! stays on the dock's centre for any line length. Centred, it reaches left
+//! under the comms panel's right end, so the comms stack stands over the
+//! box's tallest top on the column floor (`column_floor_px`).
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;

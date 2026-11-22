@@ -121,8 +121,9 @@ const COLUMN_GAP_PX: f32 = metrics::GAP;
 
 /// The lowest a piece may stand over the bottom-centre column, in logical px
 /// off the bottom of the screen: clear of the key row's measured top and of
-/// the notice box's ceiling, whichever stands taller. The notice box posts
-/// at the midline, so a piece that can reach the centre stacks over it too.
+/// the notice box's ceiling, whichever stands taller. The notice box is
+/// centred on the midline, so a piece that reaches the centre strip stacks
+/// over it too: an edge-pinned chip, the pickup tick and the comms stack.
 /// `None` with no dock on screen.
 pub(crate) fn column_floor_px(q_dock: &LaidOutDock) -> Option<f32> {
     dock_top_px(q_dock).map(|top| top.max(NOTICE_BOTTOM_PX + NOTICE_MAX_HEIGHT_PX) + COLUMN_GAP_PX)

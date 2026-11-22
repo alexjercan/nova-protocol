@@ -161,7 +161,7 @@ The corner inset renders a live, magnified 3D view of your locked target through
 
 <!-- Accents verified against crates/nova_gameplay/src/narrative_accent.rs (default_comms_accent is nova_ui::theme::BLUE) and crates/nova_hud/src/comms_panel.rs: the border is the accent at CHIP_BORDER_ALPHA (:536), the speaker line is the accent (:553), the body is body_colour(accent) (:560), the fallback icon is the accent (:612-613), the background is CHIP_FILL on every card (:537), and a card's alpha is its fade and nothing else (:414). -->
 
-Scenarios talk to you through a **comms stack**: broad story cards with a distinct speaker header above larger message text. Each card is drawn in its own **accent** colour, so you know what kind of voice it is before you read a word. They rise from the bottom-left like a chat transcript. A newly posted **objective** arrives in the **objective stack** at the top of the screen - a column of larger amber chips, newest on top. Both are notifications, not standing lists: each leaves once it has been read, so a quiet cockpit stays quiet.
+Scenarios talk to you through a **comms stack**: broad story cards with a distinct speaker header above larger message text. Each card is drawn in its own **accent** colour, so you know what kind of voice it is before you read a word. They rise from the bottom-left like a chat transcript, above the key row and the HUD notice. A newly posted **objective** arrives in the **objective stack** at the top of the screen - a column of larger amber chips, newest on top. Both are notifications, not standing lists: each leaves once it has been read, so a quiet cockpit stays quiet.
 
 <details class="explain">
 <summary>Show explanation</summary>
