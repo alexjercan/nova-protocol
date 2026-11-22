@@ -30,6 +30,31 @@ pub(crate) fn player_control_is_suspended(control: Option<Res<PlayerControlSuspe
     control.is_some_and(|control| control.is_suspended())
 }
 
+/// Write one manual RCS command (`command` maps the held intent to the new
+/// one) onto the player's hull.
+///
+/// A maneuver still engaged under SHIFT - the MATCH chord - ends first, as any
+/// manual flight input ends one, and the command still flies this frame: it is
+/// queued after the removal, whose `on_autopilot_removed_cool_engines` observer
+/// zeroes the intent the autopilot left, so it starts from zero.
+pub(crate) fn command_manual_rcs(
+    commands: &mut Commands,
+    ship: Entity,
+    intent: &mut RcsIntent,
+    engaged: bool,
+    command: impl FnOnce(Vec3) -> Vec3,
+) {
+    if engaged {
+        debug!("command_manual_rcs: manual RCS input disengages the autopilot");
+        commands
+            .entity(ship)
+            .remove::<Autopilot>()
+            .insert(RcsIntent(command(Vec3::ZERO)));
+    } else {
+        intent.0 = command(intent.0);
+    }
+}
+
 /// Suspend player gameplay input and clear every held ship-control intent.
 ///
 /// Idempotent so repeated authored suspension cannot accumulate ownership or

@@ -39,6 +39,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A kill is an offence only when your ship or a fleet escort landed the last hit no more than 30 s before the hull went dead. Before, one old hit made a later kill by anything yours.
 - Start credits are 2,200 cr for the industrial and the transport, 1,800 cr for the bounty hunter, the military and the pirate, and 1,500 cr for the scavenger. Before, 1,000 to 2,200 cr.
 - A station board asks for raw material by the lot of four: 8 to 32 units of an ore, up from 2 to 8, so an ore run pays about what another job pays for its time.
+- RCS mouse or wheel input now ends a MATCH engaged with Shift held and flies at once. Before, the mouse did nothing until MATCH ended or Shift + X was pressed again.
 
 ### Combat & Weapons
 
@@ -125,6 +126,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Jobs, Inventory, Scenarios and Load lists: a hovered row on the list's top or bottom edge shows its whole outline. Before, the list's edge cut that line.
 - Parts catalogue: every tile keeps its bottom border. Before, at some window sizes the name strip covered it on a row, often the last one.
 - The wheel turned in the parts catalogue no longer zooms the Ship view when the catalogue closes. Before, all that travel zoomed it at once.
+- The RCS magazine now refills while you hold Shift with your hand resting on the mouse. Before, each one-count tick of a resting mouse pushed the ship and restarted the 2 s refill delay.
 
 ## [0.18.0] - 2026-11-15
 

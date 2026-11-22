@@ -93,6 +93,36 @@ pub(super) struct RcsModifierInput;
 #[action_output(Vec2)]
 pub(super) struct RcsAimInput;
 
+/// The largest per-axis mouse motion in one frame, in raw counts, that
+/// [`MouseRestFloor`] reads as a hand at rest: one count is the sensor's
+/// resolution, and a resting hand ticks it.
+const MOUSE_REST_COUNTS: f32 = 1.0;
+
+/// Drop a frame of RCS mouse motion no larger than [`MOUSE_REST_COUNTS`] on
+/// either axis. Sits on the mouse binding ahead of the gain, so it reads raw
+/// counts at every sensitivity.
+///
+/// Without it a hand resting on the mouse with SHIFT held flew the hull: at
+/// 500% one count is a 15% push, and each one restarted the magazine's
+/// recovery delay, so the RCS never refilled while the pilot held still.
+#[derive(Component, Debug, Clone, Copy, Default)]
+pub(super) struct MouseRestFloor;
+
+impl InputModifier for MouseRestFloor {
+    fn transform(
+        &mut self,
+        _actions: &ActionsQuery,
+        _time: &ContextTime,
+        value: ActionValue,
+    ) -> ActionValue {
+        if value.as_axis2d().abs().max_element() <= MOUSE_REST_COUNTS {
+            ActionValue::zero(value.dim())
+        } else {
+            value
+        }
+    }
+}
+
 pub(super) fn on_player_added_spawn_flight_input(
     add: On<Add<PlayerSpaceshipMarker>>,
     mut commands: Commands,
@@ -321,8 +351,11 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
                     bindings.bundle_with(
                         "rcs_aim",
                         (
+                            // The rest floor before the gain: modifiers run in
+                            // insertion order, and it reads raw counts.
                             Spawn((
                                 Binding::mouse_motion(),
+                                MouseRestFloor,
                                 mouse_sensitivity(MousePath::Rcs),
                             )),
                             // The stick is a HELD position, not a delta: full
@@ -953,25 +986,27 @@ pub(super) fn release_rcs_without_the_helm(
     }
 }
 
-/// Accumulate mouse motion into the ship-local `RcsIntent` XZ plane while RCS is
-/// active: mouse X -> strafe (+X), mouse Y -> forward/back (Z). Held-direction,
-/// so the offset persists when the mouse stops; the pilot pulls back to null it.
-/// A no-op unless the ship is [`RcsActive`] with no maneuver engaged, so the
-/// shared mouse_motion binding does nothing outside RCS mode.
+/// Set the ship-local `RcsIntent` XZ plane from this frame's mouse motion while
+/// RCS is active: mouse X -> strafe (+X), mouse Y -> forward/back (Z). A no-op
+/// unless the ship is [`RcsActive`], so the shared mouse_motion binding does
+/// nothing outside RCS mode. A maneuver engaged under SHIFT (the MATCH chord)
+/// ends on the first motion and the motion flies at once
+/// ([`command_manual_rcs`](super::control::command_manual_rcs)).
 pub(super) fn on_rcs_aim(
     fire: On<Fire<RcsAimInput>>,
-    ship: Single<(&mut RcsIntent, Has<RcsActive>, Has<Autopilot>), With<PlayerSpaceshipMarker>>,
+    mut commands: Commands,
+    ship: Single<
+        (Entity, &mut RcsIntent, Has<RcsActive>, Has<Autopilot>),
+        With<PlayerSpaceshipMarker>,
+    >,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
     if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
         return;
     }
-    let (mut intent, active, engaged) = ship.into_inner();
-    // A MATCH chorded with SHIFT still held owns the RCS command: the mouse
-    // is not a breakout (it never is during a maneuver), and the autopilot
-    // rewrites the intent every tick anyway.
-    if !active || engaged {
+    let (entity, mut intent, active, engaged) = ship.into_inner();
+    if !active {
         return;
     }
     // DELTA-driven: SET the intent from THIS frame's mouse motion rather than
@@ -982,10 +1017,11 @@ pub(super) fn on_rcs_aim(
     // one observer serves the mouse and the stick without asking which sent
     // the value - and only the mouse half answers to the sensitivity setting.
     let delta = fire.value.clamp(Vec2::splat(-1.0), Vec2::splat(1.0));
-    intent.x = delta.x;
     // Bevy mouse-motion Y is +down; pushing the mouse forward (up, -y) drives
     // the ship forward (ship-local -Z), pulling back drives it aft.
-    intent.z = delta.y;
+    super::control::command_manual_rcs(&mut commands, entity, &mut intent, engaged, |held| {
+        Vec3::new(delta.x, held.y, delta.y)
+    });
 }
 
 #[cfg(test)]

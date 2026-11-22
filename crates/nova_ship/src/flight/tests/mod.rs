@@ -20,6 +20,7 @@ mod match_target;
 mod match_velocity;
 mod neutralized_brake;
 mod orbit;
+mod piloted_rcs;
 mod prediction;
 mod rcs;
 mod scripted;

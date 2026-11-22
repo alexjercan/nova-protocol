@@ -222,17 +222,34 @@ pub(crate) fn step_component_lock(
 /// harder than the mouse).
 pub(crate) const RCS_SCROLL_STEP: f32 = 0.75;
 
+/// One cycle key's RCS vertical step, `step` along +Y: a manual RCS command,
+/// so it ends a maneuver engaged under SHIFT as the mouse does.
+fn rcs_vertical_step(
+    commands: &mut Commands,
+    ship: Entity,
+    intent: &mut RcsIntent,
+    engaged: bool,
+    step: f32,
+) {
+    crate::input::player::control::command_manual_rcs(commands, ship, intent, engaged, |held| {
+        held.with_y(crate::flight::accumulate_rcs_axis(held.y, step))
+    });
+}
+
 pub(crate) fn on_component_cycle_next(
     _: On<Start<ComponentCycleNextInput>>,
+    mut commands: Commands,
     time: Res<Time>,
     q_sections: Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>,
     mut q_ship: Query<
         (
+            Entity,
             &CombatLock,
             &LockFocus,
             &mut ComponentLock,
             Has<RcsActive>,
             Option<&mut RcsIntent>,
+            Has<Autopilot>,
         ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
@@ -244,13 +261,13 @@ pub(crate) fn on_component_cycle_next(
     {
         return;
     }
-    for (lock, focus, mut component, rcs_active, rcs_intent) in &mut q_ship {
+    for (ship, lock, focus, mut component, rcs_active, rcs_intent, engaged) in &mut q_ship {
         // While RCS is held the cycle keys drive the RCS vertical axis
         // (next = +Y) instead of stepping the component lock, as the wheel
         // does (`input::player::wheel`).
         if rcs_active {
             if let Some(mut intent) = rcs_intent {
-                intent.y = crate::flight::accumulate_rcs_axis(intent.y, RCS_SCROLL_STEP);
+                rcs_vertical_step(&mut commands, ship, &mut intent, engaged, RCS_SCROLL_STEP);
             }
             continue;
         }
@@ -260,15 +277,18 @@ pub(crate) fn on_component_cycle_next(
 
 pub(crate) fn on_component_cycle_prev(
     _: On<Start<ComponentCyclePrevInput>>,
+    mut commands: Commands,
     time: Res<Time>,
     q_sections: Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>,
     mut q_ship: Query<
         (
+            Entity,
             &CombatLock,
             &LockFocus,
             &mut ComponentLock,
             Has<RcsActive>,
             Option<&mut RcsIntent>,
+            Has<Autopilot>,
         ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
@@ -280,10 +300,10 @@ pub(crate) fn on_component_cycle_prev(
     {
         return;
     }
-    for (lock, focus, mut component, rcs_active, rcs_intent) in &mut q_ship {
+    for (ship, lock, focus, mut component, rcs_active, rcs_intent, engaged) in &mut q_ship {
         if rcs_active {
             if let Some(mut intent) = rcs_intent {
-                intent.y = crate::flight::accumulate_rcs_axis(intent.y, -RCS_SCROLL_STEP);
+                rcs_vertical_step(&mut commands, ship, &mut intent, engaged, -RCS_SCROLL_STEP);
             }
             continue;
         }

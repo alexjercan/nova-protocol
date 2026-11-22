@@ -18,7 +18,7 @@ use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
 
-use super::control::player_control_is_suspended;
+use super::control::{command_manual_rcs, player_control_is_suspended};
 use crate::{
     camera::{action_held, CombatInput},
     input::targeting::{step_component_lock, RCS_SCROLL_STEP},
@@ -65,10 +65,12 @@ pub(crate) struct WheelDownInput;
 /// zoom does not cycle a component when the weapons rise part way through it.
 pub(super) fn on_wheel_step<A: InputAction<Output = f32>>(
     start: On<Start<A>>,
+    mut commands: Commands,
     time: Res<Time>,
     q_sections: Query<(Entity, &ChildOf, &Transform), With<SectionMarker>>,
     mut q_ship: Query<
         (
+            Entity,
             &CombatLock,
             &LockFocus,
             &mut ComponentLock,
@@ -87,16 +89,16 @@ pub(super) fn on_wheel_step<A: InputAction<Output = f32>>(
     }
     let direction: isize = if start.value > 0.0 { 1 } else { -1 };
     let raised = action_held(&q_combat);
-    for (lock, focus, mut component, rcs_active, rcs_intent, engaged) in &mut q_ship {
+    for (ship, lock, focus, mut component, rcs_active, rcs_intent, engaged) in &mut q_ship {
         match wheel_role(rcs_active, raised) {
-            // A MATCH chorded with SHIFT still held owns the RCS command.
-            WheelRoleType::Rcs if engaged => {}
             WheelRoleType::Rcs => {
                 if let Some(mut intent) = rcs_intent {
-                    intent.y = crate::flight::accumulate_rcs_axis(
-                        intent.y,
-                        RCS_SCROLL_STEP * direction as f32,
-                    );
+                    command_manual_rcs(&mut commands, ship, &mut intent, engaged, |held| {
+                        held.with_y(crate::flight::accumulate_rcs_axis(
+                            held.y,
+                            RCS_SCROLL_STEP * direction as f32,
+                        ))
+                    });
                 }
             }
             WheelRoleType::ComponentLock => {

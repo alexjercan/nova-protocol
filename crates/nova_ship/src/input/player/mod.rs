@@ -32,7 +32,7 @@ use flight_rig::{
     on_flight_burn_input_completed, on_flight_burn_input_started,
     on_player_added_spawn_flight_input, on_player_removed_despawn_flight_input, on_rcs_aim,
     on_rcs_modifier_released, on_rcs_modifier_start, rebuild_flight_input_on_rebind,
-    release_rcs_without_the_helm,
+    release_rcs_without_the_helm, MouseRestFloor,
 };
 use hints::update_flight_verb_hints;
 use intent::{
@@ -109,6 +109,7 @@ impl Plugin for SpaceshipPlayerInputPlugin {
         trace!("SpaceshipPlayerInputPlugin: build");
 
         app.register_input_actions(flight_bindings());
+        app.add_input_modifier::<MouseRestFloor>();
         app.init_resource::<PlayerControlSuspended>();
         app.register_type::<PlayerControlSuspended>();
         app.add_systems(PreUpdate, sync_flight_context);

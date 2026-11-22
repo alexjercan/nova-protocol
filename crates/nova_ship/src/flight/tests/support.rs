@@ -90,7 +90,7 @@ fn unfinished_dock_flight_app() -> App {
     app
 }
 
-fn unfinished_flight_app() -> App {
+pub(super) fn unfinished_flight_app() -> App {
     let mut app = unfinished_integrity_physics_app();
     app.init_resource::<FlightSettings>();
     app.init_resource::<GravitySettings>();
