@@ -34,7 +34,10 @@ use drag::{
 };
 use nova_ui::prelude::*;
 use paint::{paint_stacked, ChipText, Paint};
-use palette::{spawn_block_palette, sync_palette_filter, sync_palette_rail, PaletteFolds};
+use palette::{
+    spawn_block_palette, sync_palette_filter, sync_palette_pictures, sync_palette_rail,
+    PaletteFolds,
+};
 pub(crate) use palette::{PaletteEntry, PaletteGroup};
 pub(crate) use popup::{close_block_popup, BlockPopup, PopupLeaveType, POPUP_W};
 use popup::{on_more_chip, place_block_popup, settle_block_popup, MoreChip};
@@ -128,6 +131,9 @@ pub(crate) struct CanvasBoard {
     pub(crate) blocks: usize,
     /// The block a Problems row asked to see, until it can be framed.
     pub(crate) frame: Option<Entity>,
+    /// The theme corner the blocks were drawn with. A theme with another
+    /// corner redraws every block.
+    pub(crate) corner: f32,
 }
 
 /// The line over the canvas: how to start a script on an empty one, and why
@@ -268,14 +274,17 @@ fn sync_canvas(
     mut chips: Query<(&mut CanvasChip, &Children)>,
     mut texts: Query<&mut Text, With<ChipText>>,
     inputs: Query<(), With<ChipInput>>,
+    theme: Res<ActiveUiTheme>,
 ) {
     let faults = block_faults(&problems);
+    let corner = theme.metric(UiMetric::Radius);
     let removed = gone.read().count() > 0;
     if removed
         || !moved.is_empty()
         || rail.is_changed()
         || context.is_changed()
         || faults != board.faults
+        || corner != board.corner
     {
         board.stale = true;
     }
@@ -288,6 +297,8 @@ fn sync_canvas(
     };
     board.stale = false;
     board.faults = faults;
+    let restyle = corner != board.corner;
+    board.corner = corner;
     let builder_faults = board.faults.clone();
     let builder = ViewBuilder {
         script: &script,
@@ -306,7 +317,7 @@ fn sync_canvas(
         blocks += view.count();
         let root = board.roots.get(hat).copied();
         let Some(root) = root.filter(|root| roots.contains(*root)) else {
-            let made = spawn_root(&mut commands, world, view);
+            let made = spawn_root(&mut commands, world, view, corner);
             next.insert(*hat, made);
             continue;
         };
@@ -314,15 +325,15 @@ fn sync_canvas(
         let Ok(mut held) = roots.get_mut(root) else {
             continue;
         };
-        if held.view == view {
+        if !restyle && held.view == view {
             continue;
         }
-        if held.view.same_shape(&view) {
+        if !restyle && held.view.same_shape(&view) {
             repaint(&held, &view, &mut chips, &mut texts);
             held.view = view;
         } else {
             commands.entity(root).despawn_related::<Children>();
-            let mut paint = Paint::live();
+            let mut paint = Paint::live(corner);
             commands.entity(root).with_children(|list| {
                 paint_stacked(list, &view, None, true, &mut paint);
             });
@@ -339,8 +350,8 @@ fn sync_canvas(
     board.blocks = blocks;
 }
 
-fn spawn_root(commands: &mut Commands, world: Entity, view: BlockView) -> Entity {
-    let mut paint = Paint::live();
+fn spawn_root(commands: &mut Commands, world: Entity, view: BlockView, corner: f32) -> Entity {
+    let mut paint = Paint::live(corner);
     let root = commands
         .spawn((
             Name::new(format!("Handler {}", view.path)),
@@ -801,6 +812,7 @@ pub(crate) fn register(app: &mut App) {
                 canvas_frame_key.run_if(in_input_mode(InputMode::Normal)),
                 delete_reporter_key.run_if(in_input_mode(InputMode::Normal)),
                 serve_canvas_frame,
+                sync_palette_pictures,
                 sync_palette_filter,
                 sync_palette_rail,
                 retire_chip_inputs.after(apply_inspector_edits),

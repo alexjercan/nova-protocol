@@ -22,13 +22,16 @@ is what the field's row says about it, through `bevy/reflect_documentation`.
 
 EVENTS draws those nodes as interlocking blocks, and the canvas is a view: it
 holds no second document (`crates/nova_editor/src/ui/canvas/`). A handler is a
-hat, an action a stack block, a sequence or cinematic a C-block whose steps are
-C-blocks of their own, a filter a hexagonal boolean, and a value a round
-reporter. The rules of what fits where live in `event/blocks.rs`: `refusal`
-answers every drop, and the palette, the slot lighting and the drop itself all
-read it. Only a handler stands alone, because a block outside a handler has no
-lowering. A handler's optional `position` is the one thing the canvas adds to
-the file; the runtime ignores it, and absence means auto-layout.
+hat with no notch, an action a stack block, a sequence or cinematic a C-block
+whose steps are C-blocks of their own, a filter a hexagonal boolean, and a value
+a reporter with flat ends. Every block box takes the theme's control corner
+(square on phosphor, 2 px on hardware); the group colour, the notch and tab, the
+C-block bar and the boolean's points tell the kinds apart. The rules of what
+fits where live in `event/blocks.rs`: `refusal` answers every drop, and the
+palette, the slot lighting and the drop itself all read it. Only a handler
+stands alone, because a block outside a handler has no lowering. A handler's
+optional `position` is the one thing the canvas adds to the file; the runtime
+ignores it, and absence means auto-layout.
 
 A condition with an empty socket has no lowering either. It raises an error in
 Problems, which blocks Play, Save and Package until the author fills or removes

@@ -38,10 +38,6 @@ use crate::{
     },
 };
 
-/// Corner radius of a stack block.
-const RADIUS: f32 = 3.0;
-/// Corner radius of a handler's top.
-const HAT_RADIUS: f32 = 14.0;
 /// How far a tab or a notch stands in from the block's left edge.
 const TAB_LEFT: f32 = 14.0;
 /// A tab's width.
@@ -62,29 +58,37 @@ const EDGE_DARK: f32 = 0.12;
 const FONT: f32 = 13.0;
 /// A field name's text size.
 const SMALL_FONT: f32 = 10.0;
+/// The side of a block's problem badge. A dot, so it stays round on every
+/// theme.
+const FAULT_DOT: f32 = 16.0;
 
 /// What one paint pass is drawing and what it made.
 pub(crate) struct Paint {
     /// Off for a ghost or a palette preview: nothing is pressed, nothing
     /// is a target.
     pub(crate) live: bool,
+    /// The theme's control corner. Every block box takes it; where two parts
+    /// of one block meet, the corner stays square.
+    pub(crate) corner: f32,
     /// The chips made, in [`BlockView::chips`] order.
     pub(crate) chips: Vec<Entity>,
 }
 
 impl Paint {
-    /// A pass that draws working blocks.
-    pub(crate) fn live() -> Self {
+    /// A pass that draws working blocks with `corner`.
+    pub(crate) fn live(corner: f32) -> Self {
         Self {
             live: true,
+            corner,
             chips: Vec::new(),
         }
     }
 
-    /// A pass that draws a picture of blocks.
-    pub(crate) fn picture() -> Self {
+    /// A pass that draws a picture of blocks with `corner`.
+    pub(crate) fn picture(corner: f32) -> Self {
         Self {
             live: false,
+            corner,
             chips: Vec::new(),
         }
     }
@@ -176,7 +180,6 @@ fn paint_chip(list: &mut List, chip: &ChipView, literal: bool, paint: &mut Paint
     } else {
         BLOCK_TEXT
     };
-    let radius = if literal { 10.0 } else { 4.0 };
     let shown = chip.shown();
     let mut entity = list.spawn((
         Name::new(format!("Chip {name}")),
@@ -188,7 +191,7 @@ fn paint_chip(list: &mut List, chip: &ChipView, literal: bool, paint: &mut Paint
             padding: UiRect::horizontal(px(6)),
             min_height: px(20),
             min_width: px(if literal { 24 } else { 18 }),
-            border_radius: BorderRadius::all(px(radius)),
+            border_radius: BorderRadius::all(px(paint.corner)),
             flex_shrink: 0.0,
             ..default()
         },
@@ -253,7 +256,7 @@ fn paint_more(list: &mut List, node: Entity, path: &str, paint: &Paint) {
             padding: UiRect::horizontal(px(6)),
             min_height: px(20),
             min_width: px(18),
-            border_radius: BorderRadius::all(px(4)),
+            border_radius: BorderRadius::all(px(paint.corner)),
             flex_shrink: 0.0,
             ..default()
         },
@@ -318,7 +321,7 @@ fn paint_pieces(list: &mut List, view: &BlockView, paint: &mut Paint) {
                     Name::new(format!("Socket {name}")),
                     Node {
                         flex_shrink: 0.0,
-                        border_radius: BorderRadius::all(px(10)),
+                        border_radius: BorderRadius::all(px(paint.corner)),
                         ..default()
                     },
                 ));
@@ -379,11 +382,11 @@ fn paint_pieces(list: &mut List, view: &BlockView, paint: &mut Paint) {
         list.spawn((
             Name::new(format!("Fault {}", view.path)),
             Node {
-                width: px(16),
-                height: px(16),
+                width: px(FAULT_DOT),
+                height: px(FAULT_DOT),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                border_radius: BorderRadius::all(px(8)),
+                border_radius: BorderRadius::all(px(FAULT_DOT / 2.0)),
                 flex_shrink: 0.0,
                 ..default()
             },
@@ -398,7 +401,7 @@ fn paint_pieces(list: &mut List, view: &BlockView, paint: &mut Paint) {
     }
 }
 
-/// A boolean or a reporter: a single pointed or rounded line.
+/// A boolean or a reporter: one line, with pointed ends on a boolean.
 fn paint_pill(list: &mut List, view: &BlockView, paint: &mut Paint) {
     let height = view.pill_height();
     let boolean = view.outline == OutlineType::Boolean;
@@ -412,7 +415,7 @@ fn paint_pill(list: &mut List, view: &BlockView, paint: &mut Paint) {
         node.margin = UiRect::horizontal(px(height / 2.0));
         node.height = px(height);
     } else {
-        node.border_radius = BorderRadius::all(px(height / 2.0));
+        node.border_radius = BorderRadius::all(px(paint.corner));
     }
     let mut block = list.spawn((
         Name::new(format!("Block {}", view.path)),
@@ -517,14 +520,14 @@ pub(crate) fn paint_stacked(
     }
     let hat = view.outline == OutlineType::Hat;
     let chain = view.outline == OutlineType::Chain;
-    let top = if hat { HAT_RADIUS } else { RADIUS };
+    let corner = paint.corner;
     let rows = view.gate.is_some()
         || view.gate_slot.is_some()
         || view
             .filters
             .as_ref()
             .is_some_and(|(_, list)| !list.is_empty());
-    let corner = if chain || rows { 0.0 } else { RADIUS };
+    let foot = if chain || rows { 0.0 } else { corner };
     let mut block = list.spawn((
         Name::new(format!("Block {}", view.path)),
         Node {
@@ -555,10 +558,10 @@ pub(crate) fn paint_stacked(
                             min_height: px(30),
                             border: UiRect::bottom(px(EDGE_H)),
                             border_radius: BorderRadius {
-                                top_left: px(top).into(),
-                                top_right: px(top).into(),
-                                bottom_left: px(corner).into(),
-                                bottom_right: px(corner).into(),
+                                top_left: px(corner).into(),
+                                top_right: px(corner).into(),
+                                bottom_left: px(foot).into(),
+                                bottom_right: px(foot).into(),
                             },
                             ..line()
                         },
@@ -574,7 +577,7 @@ pub(crate) fn paint_stacked(
                                     top: px(0),
                                     width: px(TAB_W),
                                     height: px(TAB_H),
-                                    border_radius: BorderRadius::bottom(px(2)),
+                                    border_radius: BorderRadius::bottom(px(corner)),
                                     ..default()
                                 },
                                 BackgroundColor(colour),
@@ -617,9 +620,9 @@ pub(crate) fn paint_stacked(
                     Node {
                         height: px(FOOT_H),
                         border_radius: BorderRadius {
-                            bottom_left: px(RADIUS).into(),
-                            bottom_right: px(RADIUS).into(),
-                            top_right: px(RADIUS).into(),
+                            bottom_left: px(corner).into(),
+                            bottom_right: px(corner).into(),
+                            top_right: px(corner).into(),
                             top_left: px(0.0).into(),
                         },
                         ..default()
@@ -627,32 +630,32 @@ pub(crate) fn paint_stacked(
                     BackgroundColor(view.colour),
                 ));
                 if last {
-                    paint_tab(inner, view.colour);
+                    paint_tab(inner, view.colour, corner);
                 }
             }
             (Some(stack), false) => {
                 if stack.blocks.is_empty() {
-                    paint_tab(inner, view.colour);
+                    paint_tab(inner, view.colour, corner);
                 }
                 paint_stack(inner, stack, view.colour, &view.path, paint);
             }
             (None, _) => {
                 if last {
-                    paint_tab(inner, view.colour);
+                    paint_tab(inner, view.colour, corner);
                 }
             }
         }
     });
 }
 
-fn paint_tab(list: &mut List, colour: Color) {
+fn paint_tab(list: &mut List, colour: Color, corner: f32) {
     list.spawn((
         Node {
             width: px(TAB_W),
             height: px(TAB_H),
             margin: UiRect::left(px(TAB_LEFT)),
             align_self: AlignSelf::FlexStart,
-            border_radius: BorderRadius::bottom(px(2)),
+            border_radius: BorderRadius::bottom(px(corner)),
             ..default()
         },
         BackgroundColor(colour),

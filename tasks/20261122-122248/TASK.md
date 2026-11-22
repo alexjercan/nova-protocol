@@ -47,3 +47,23 @@
 ## Decision (owner 2026-11-22)
 - Option A: "A recommeded looks good". Every block box takes the theme
   corner; type stays on colour and silhouette; dots stay round.
+
+## Build (2026-11-22)
+- Paint reads the theme: `Paint::live(corner)` / `Paint::picture(corner)`
+  (`ui/canvas/paint.rs:70-93`); every block box, chip, socket holder and
+  reporter takes `paint.corner`. Hat head and C-foot keep joins square
+  (`paint.rs:523-530`). The fault badge stays a dot (`FAULT_DOT`, `paint.rs:63`).
+- `sync_canvas` reads `ActiveUiTheme` and redraws every root when the corner
+  changes (`ui/canvas/mod.rs:280-301`, stored in `CanvasBoard::corner`).
+- Palette pictures draw per entry in `sync_palette_pictures`
+  (`ui/canvas/palette.rs:529-553`, `EntryCorner`); the group heading takes
+  `ThemedRadius::control()`. The rail dot stays round.
+- Died: `RADIUS`, `HAT_RADIUS`, `ENTRY_HAT_RADIUS`, chip 10/4, `...` 4, socket
+  10, reporter pill, heading 3, notch/tab 2 literals.
+- Proof: `ui::canvas::tests::a_theme_change_repaints_the_blocks_with_the_theme_corner`.
+  Before the change it failed (phosphor drew 14, 10, 4, 3, 2 px corners); after,
+  all 30 `ui::canvas` tests pass.
+- After frames in `after/` and `proposal.html` "After" (full size in
+  `~/Pictures/nova-editor-corners/after/`). One walk switches the theme live
+  four times; canvas and palette redraw each time.
+- Docs: `docs/scenario-system.md` block shapes. Changelog: Interface & HUD.

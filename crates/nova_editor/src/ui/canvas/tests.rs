@@ -11,7 +11,10 @@ use bevy::{
     ui_widgets::{observe, Activate},
 };
 use nova_scenario::prelude::EventConfig;
-use nova_ui::prelude::*;
+use nova_ui::{
+    prelude::*,
+    theme::{base::base_ui_themes, resolve_theme},
+};
 
 use super::{
     canvas_hint_text, delete_reporter_key,
@@ -462,6 +465,7 @@ fn drawn_canvas() -> (App, Entity) {
     app.init_resource::<CanvasBoard>();
     app.init_resource::<Problems>();
     app.insert_resource(EditorViewType::Events);
+    app.init_resource::<ActiveUiTheme>();
     app.add_systems(Update, sync_canvas);
     app.world_mut().spawn(CanvasWorld);
     app.update();
@@ -498,6 +502,75 @@ fn a_rebuild_waits_for_an_open_chip_field() {
         .iter(app.world())
         .any(|block| block.faulted);
     assert!(faulted, "the rebuild owed lands once the field is gone");
+}
+
+/// Each corner radius the canvas drew, in px, once, over every node under the
+/// world.
+fn drawn_corners(app: &mut App) -> Vec<f32> {
+    app.world_mut()
+        .run_system_once(
+            |worlds: Query<Entity, With<CanvasWorld>>,
+             children: Query<&Children>,
+             nodes: Query<&Node>| {
+                let world = worlds.single().expect("the rig has one canvas world");
+                children
+                    .iter_descendants(world)
+                    .filter_map(|entity| nodes.get(entity).ok())
+                    .flat_map(|node| {
+                        let corners = node.border_radius;
+                        [
+                            corners.top_left,
+                            corners.top_right,
+                            corners.bottom_left,
+                            corners.bottom_right,
+                        ]
+                    })
+                    .map(|corner| match corner.x {
+                        Val::Px(px) => px,
+                        Val::Auto => 0.0,
+                        other => panic!("a canvas corner is not in px: {other:?}"),
+                    })
+                    .collect::<Vec<f32>>()
+            },
+        )
+        .expect("the corners read")
+        .into_iter()
+        .fold(Vec::new(), |mut seen, corner| {
+            if !seen.contains(&corner) {
+                seen.push(corner);
+            }
+            seen
+        })
+}
+
+/// A theme change repaints every block box with the theme's corner: square
+/// on phosphor, the hardware corner on hardware. No block keeps a radius of
+/// its own.
+#[test]
+fn a_theme_change_repaints_the_blocks_with_the_theme_corner() {
+    let (mut app, _) = drawn_canvas();
+    let phosphor = drawn_corners(&mut app);
+    assert!(!phosphor.is_empty(), "the canvas drew a block");
+    assert!(
+        phosphor.iter().all(|corner| *corner == 0.0),
+        "phosphor draws every block square: {phosphor:?}"
+    );
+
+    let hardware =
+        resolve_theme(HARDWARE_THEME_ID, &base_ui_themes()).expect("the hardware theme resolves");
+    let corner = hardware.metric(UiMetric::Radius);
+    assert!(corner > 0.0, "the hardware theme rounds its corners");
+    app.insert_resource(hardware);
+    app.update();
+    let drawn = drawn_corners(&mut app);
+    assert!(
+        drawn.iter().all(|at| *at == 0.0 || *at == corner),
+        "every corner is the hardware corner or a join: {drawn:?}"
+    );
+    assert!(
+        drawn.contains(&corner),
+        "the theme change repainted the blocks: {drawn:?}"
+    );
 }
 
 /// A press in an open field places the caret. It must not lift the block.

@@ -38,7 +38,7 @@
 <body>
 <main>
 <h1>Event block corners</h1>
-<p class="sub">Task 20261122-122248, proposal 2026-11-22. Owner rules A, B or C.</p>
+<p class="sub">Task 20261122-122248, proposal 2026-11-22. Owner chose A; built 2026-11-22 (After, below).</p>
 
 <h2>Before: both themes</h2>
 <p>Real frames, 1920x1080, lavapipe on Xvfb, sandboxed profile. Four handlers:
@@ -52,6 +52,28 @@ themes (ImageMagick AE = 0): blocks use fixed colours and literal corners.</p>
 <div class="grid wide" style="margin-top:12px">
   <figure><img src="before/before-phosphor.png" alt="Full editor frame, phosphor"><figcaption>Phosphor, full frame (downscaled)</figcaption></figure>
   <figure><img src="before/before-hardware.png" alt="Full editor frame, hardware"><figcaption>Hardware, full frame (downscaled)</figcaption></figure>
+</div>
+
+<h2>After: option A built</h2>
+<p>Same walk, same temporary capture patch, sandboxed profile. One run takes the
+phosphor frame, then switches the theme live to hardware and shoots again, then
+opens the Values and Flow palette groups and switches back and forth. Every block
+box takes the theme corner: square on phosphor, 2 px on hardware. The hat top and
+the reporter ends lost their own round shape. The fault badge and the rail dots
+stay round. The canvas crop now differs between themes at the block corners only
+(AE 23 px, before 0); phosphor before to after differs by 362 px (hat tops,
+reporter ends, chips).</p>
+<div class="grid">
+  <figure><img src="after/after-phosphor-detail.png" alt="Canvas detail, phosphor, after"><figcaption>Phosphor, canvas detail (2x). Every corner square.</figcaption></figure>
+  <figure><img src="after/after-hardware-detail.png" alt="Canvas detail, hardware, after"><figcaption>Hardware after a live switch, canvas detail (2x). 2 px corners.</figcaption></figure>
+</div>
+<div class="grid" style="margin-top:12px">
+  <figure><img src="after/after-palette-values.png" alt="Palette Values group, phosphor and hardware"><figcaption>Palette, Values: phosphor left, hardware right (2x). Reporters have flat ends; booleans keep points; rail dots round.</figcaption></figure>
+  <figure><img src="after/after-palette-flow.png" alt="Palette Flow group, phosphor and hardware"><figcaption>Palette, Flow: phosphor left, hardware right (2x). C-block pictures keep bar and foot.</figcaption></figure>
+</div>
+<div class="grid wide" style="margin-top:12px">
+  <figure><img src="after/after-phosphor.png" alt="Full editor frame, phosphor, after"><figcaption>Phosphor, full frame (downscaled)</figcaption></figure>
+  <figure><img src="after/after-hardware.png" alt="Full editor frame, hardware, after"><figcaption>Hardware, full frame (downscaled)</figcaption></figure>
 </div>
 
 <h2>What the corner tells today</h2>

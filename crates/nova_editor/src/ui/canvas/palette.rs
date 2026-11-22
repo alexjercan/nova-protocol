@@ -48,9 +48,6 @@ const ENTRY_H: f32 = 20.0;
 /// An entry's text size.
 const ENTRY_FONT: f32 = 11.0;
 
-/// A hat's top corner radius on the palette.
-const ENTRY_HAT_RADIUS: f32 = 9.0;
-
 /// Where a stack piece's notch and tab stand in from its left edge.
 const ENTRY_TAB_LEFT: f32 = 8.0;
 
@@ -161,11 +158,11 @@ fn entry_words(text: String) -> impl Bundle {
 }
 
 /// A notch or a tab: a small piece at a stack piece's top or foot.
-fn entry_tab(colour: Color, top: bool) -> impl Bundle {
+fn entry_tab(colour: Color, top: bool, corner: f32) -> impl Bundle {
     let mut node = Node {
         width: px(ENTRY_TAB.x),
         height: px(ENTRY_TAB.y),
-        border_radius: BorderRadius::bottom(px(2)),
+        border_radius: BorderRadius::bottom(px(corner)),
         flex_shrink: 0.0,
         ..default()
     };
@@ -182,7 +179,7 @@ fn entry_tab(colour: Color, top: bool) -> impl Bundle {
 /// What a palette entry shows: one short line in the block's own shape. The
 /// canvas draws the full block; the palette draws only what tells the shapes
 /// apart, so a group of twenty hats stays short.
-fn entry_picture(entry: &mut ChildSpawnerCommands, item: BlockItemType) {
+fn entry_picture(entry: &mut ChildSpawnerCommands, item: BlockItemType, corner: f32) {
     let view = BlockView::preview(item);
     let colour = view.colour;
     let line = |radius: BorderRadius| Node {
@@ -198,30 +195,25 @@ fn entry_picture(entry: &mut ChildSpawnerCommands, item: BlockItemType) {
         OutlineType::Hat => {
             entry
                 .spawn((
-                    line(BorderRadius {
-                        top_left: px(ENTRY_HAT_RADIUS).into(),
-                        top_right: px(ENTRY_HAT_RADIUS).into(),
-                        bottom_left: px(2).into(),
-                        bottom_right: px(2).into(),
-                    }),
+                    line(BorderRadius::all(px(corner))),
                     BackgroundColor(colour),
                     Pickable::IGNORE,
                 ))
                 .with_child(entry_words(item.label()));
-            entry.spawn(entry_tab(colour, false));
+            entry.spawn(entry_tab(colour, false, corner));
         }
         OutlineType::Stack | OutlineType::Gate => {
             entry
                 .spawn((
-                    line(BorderRadius::all(px(2))),
+                    line(BorderRadius::all(px(corner))),
                     BackgroundColor(colour),
                     Pickable::IGNORE,
                 ))
                 .with_children(|head| {
-                    head.spawn(entry_tab(BLOCK_SOCKET, true));
+                    head.spawn(entry_tab(BLOCK_SOCKET, true, corner));
                     head.spawn(entry_words(item.label()));
                 });
-            entry.spawn(entry_tab(colour, false));
+            entry.spawn(entry_tab(colour, false, corner));
         }
         OutlineType::Chain => {
             entry
@@ -236,12 +228,12 @@ fn entry_picture(entry: &mut ChildSpawnerCommands, item: BlockItemType) {
                 .with_children(|block| {
                     block
                         .spawn((
-                            line(BorderRadius::top(px(2))),
+                            line(BorderRadius::top(px(corner))),
                             BackgroundColor(colour),
                             Pickable::IGNORE,
                         ))
                         .with_children(|head| {
-                            head.spawn(entry_tab(BLOCK_SOCKET, true));
+                            head.spawn(entry_tab(BLOCK_SOCKET, true, corner));
                             head.spawn(entry_words(item.label()));
                         });
                     block.spawn((
@@ -256,14 +248,14 @@ fn entry_picture(entry: &mut ChildSpawnerCommands, item: BlockItemType) {
                     block.spawn((
                         Node {
                             height: px(ENTRY_TAB.y),
-                            border_radius: BorderRadius::bottom(px(2)),
+                            border_radius: BorderRadius::bottom(px(corner)),
                             ..default()
                         },
                         BackgroundColor(colour),
                         Pickable::IGNORE,
                     ));
                 });
-            entry.spawn(entry_tab(colour, false));
+            entry.spawn(entry_tab(colour, false, corner));
         }
         OutlineType::Boolean => {
             entry
@@ -284,7 +276,7 @@ fn entry_picture(entry: &mut ChildSpawnerCommands, item: BlockItemType) {
         OutlineType::Reporter => {
             entry
                 .spawn((
-                    line(BorderRadius::all(px(ENTRY_H / 2.0))),
+                    line(BorderRadius::all(px(corner))),
                     BackgroundColor(colour),
                     Pickable::IGNORE,
                 ))
@@ -444,11 +436,11 @@ fn heading(role: BlockRoleType) -> impl Bundle {
             column_gap: px(5),
             padding: UiRect::horizontal(px(5)),
             margin: UiRect::top(px(4)),
-            border_radius: BorderRadius::all(px(3)),
             flex_shrink: 0.0,
             overflow: Overflow::clip(),
             ..default()
         },
+        ThemedRadius::control(),
         BackgroundColor(block_colour(role)),
         observe(on_heading_press),
         children![
@@ -529,9 +521,34 @@ fn spawn_entries(list: &mut ChildSpawnerCommands) {
                     overflow: Overflow::clip_x(),
                     ..default()
                 },
-            ))
-            .with_children(|entry| entry_picture(entry, *item));
+            ));
         }
+    }
+}
+
+/// The theme corner an entry's picture was drawn with. An entry with none has
+/// no picture yet.
+#[derive(Component)]
+pub(crate) struct EntryCorner(f32);
+
+/// Draw each entry's picture in the theme's corner: once when the entry is
+/// new, and again when the theme changes the corner.
+pub(crate) fn sync_palette_pictures(
+    mut commands: Commands,
+    theme: Res<ActiveUiTheme>,
+    entries: Query<(Entity, &PaletteEntry, Option<&EntryCorner>)>,
+) {
+    let corner = theme.metric(UiMetric::Radius);
+    for (entity, entry, drawn) in &entries {
+        if drawn.is_some_and(|drawn| drawn.0 == corner) {
+            continue;
+        }
+        let item = entry.0;
+        commands
+            .entity(entity)
+            .despawn_related::<Children>()
+            .insert(EntryCorner(corner))
+            .with_children(|picture| entry_picture(picture, item, corner));
     }
 }
 

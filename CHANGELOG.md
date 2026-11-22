@@ -108,6 +108,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Tab panes line up: the legend starts on the content edge, the footer's last button ends on the inspector edge with its whole border, and the head rule runs to the balance.
 - Mod editor: top bar buttons stand 4 px apart, list and inspector rows 4 px apart, and modals pad 12 px with their answers 8 px apart and 12 px under the content.
 - Mod editor: Play holds the centre of the top bar in every view with the stage tools right of it, choice rows fit one line, and text fields grow to show every line.
+- Mod editor: Events blocks take the theme corner, square on phosphor and 2 px on hardware, and redraw on a theme change. Before, hats had a round top and values round ends.
 - **(breaking)** UiTheme drops `metrics.border_width`, the slider `height` and the badge `bracketed`, `padding_x` and `border_width`. Lint refuses a disabled button state that looks live.
 - While Ctrl is held, a translucent white lock-on square at the screen centre shows where the radar picks. It closes in on the press and breathes while held.
 - The HUD and Map GOTO line is the predicted flight to the leg's arrival, also for a docked pair you helm or a beacon, and the Map zooms out to its end. Before, it ended 30 s out, then a straight guide.

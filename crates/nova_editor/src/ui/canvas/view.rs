@@ -32,7 +32,7 @@ const MAX_CHIP_CHARS: usize = 26;
 /// The silhouette a block is drawn with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OutlineType {
-    /// Rounded top, holds a stack below it.
+    /// No notch on top, holds a stack below it.
     Hat,
     /// A plain stack block.
     Stack,
@@ -42,7 +42,7 @@ pub(crate) enum OutlineType {
     Gate,
     /// Pointed ends: a condition.
     Boolean,
-    /// Round ends: a value.
+    /// Flat ends: a value.
     Reporter,
 }
 

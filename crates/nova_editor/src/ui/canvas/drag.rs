@@ -464,7 +464,7 @@ impl DragStage<'_, '_> {
                 },
             ))
             .with_children(|ghost| {
-                let mut paint = Paint::picture();
+                let mut paint = Paint::picture(self.board.corner);
                 let last = views.len().saturating_sub(1);
                 let mut notch = None;
                 for (index, view) in views.iter().enumerate() {
