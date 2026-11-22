@@ -1,6 +1,6 @@
 # HUD notice: centre the box above the keybind dock
 
-- STATUS: CLOSED
+- STATUS: OPEN
 - PRIORITY: 62
 - TAGS: v0.19.0, hud, ui
 
@@ -58,3 +58,10 @@
 
 ## Owner check (2026-11-22, option A)
 - Owner: "this one also looks good you can close it". Closed.
+
+## Follow-up (2026-11-22): comms cards over the edge-pinned job chip
+- Owner: messages with a speaker ("Station Control") must not overlap the
+  "JOB-1" directional label (the objective marker) when both sit in the
+  bottom-left corner. Owner idea: more padding on the speaker messages.
+- Likely from option A: comms cards now stand on the same column floor as
+  the edge-pinned chips (build note: both start at 106 px).
