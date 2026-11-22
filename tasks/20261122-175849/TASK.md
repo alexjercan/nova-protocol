@@ -65,3 +65,8 @@
   bottom-left corner. Owner idea: more padding on the speaker messages.
 - Likely from option A: comms cards now stand on the same column floor as
   the edge-pinned chips (build note: both start at 106 px).
+
+## Follow-up (2026-11-22): smaller keybind dock
+- Owner: "make the hotkeys at the bottom smaller like maybe half the size
+  they are now would be ok". Same bottom-centre layout as the notice and the
+  comms column, so it lands with the comms and job chip fix.
