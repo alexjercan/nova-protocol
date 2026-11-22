@@ -1,0 +1,498 @@
+<title>Nova Objective Chips</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap">
+<style>
+/* Layout: one instrument-panel column in the game's phosphor colours; square corners; each section is a panel with a title strip; wide tables and figures scroll in their own frame. Dark is the default; a light set follows the system or data-theme. Mock scenes stay dark in both themes: they stand for a game frame. */
+:root {
+  color-scheme: dark;
+  --bg: #03060b;
+  --panel: #001304;
+  --raised: #002b0f;
+  --rule: #0d6e35;
+  --ink: #b9ffc9;
+  --ink-hi: #36ff79;
+  --ink-dim: #19a64f;
+  --ink-lit: #d6ffe4;
+  --ink-inverse: #04140a;
+  --accent: #ffb84a;
+  --danger: #ff4e42;
+  --nav: #36c8ff;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 40px;
+  /* Game colours for the mock scenes (nova_ui::theme::semantic). */
+  --g-space: #04070c;
+  --g-hull: #7d8794;
+  --g-hull-dark: #4a525c;
+  --g-gold: #ffd94d;
+  --g-threat: #ff594d;
+  --g-phos: #36ff79;
+  --g-chip: #1a1405;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #f3f7f2; --panel: #ffffff; --raised: #e4f2e7; --rule: #7fb894;
+    --ink: #123b20; --ink-hi: #0a7a35; --ink-dim: #4a7a5a; --ink-lit: #06210f; --ink-inverse: #ffffff;
+    --accent: #a35f00; --danger: #b3261e; --nav: #00658f;
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f7f2; --panel: #ffffff; --raised: #e4f2e7; --rule: #7fb894;
+  --ink: #123b20; --ink-hi: #0a7a35; --ink-dim: #4a7a5a; --ink-lit: #06210f; --ink-inverse: #ffffff;
+  --accent: #a35f00; --danger: #b3261e; --nav: #00658f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 15px/1.55 var(--sans); }
+.wrap {
+  max-width: 1080px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: var(--s5) var(--s6);
+  display: grid; gap: var(--s6);
+}
+h1, h2, h3 { font-family: var(--mono); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(26px, 5vw, 40px); font-weight: 700; color: var(--ink-hi); letter-spacing: 0.04em; text-transform: uppercase; }
+h2 { font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-inverse); background: var(--ink-hi); padding: 6px 10px; }
+h3 { font-size: 15px; font-weight: 600; color: var(--ink-hi); letter-spacing: 0.02em; }
+p { margin: 0; max-width: 72ch; }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+code { color: var(--ink-lit); }
+section { display: grid; gap: var(--s4); border: 1px solid var(--rule); background: var(--panel); }
+section > h2 { margin: -1px -1px 0; }
+.body { display: grid; gap: var(--s4); padding: 0 var(--s4) var(--s4); min-width: 0; }
+.body > * { min-width: 0; }
+header { display: grid; gap: var(--s3); }
+.lead { font-size: 17px; color: var(--ink-lit); }
+.chips { display: flex; flex-wrap: wrap; gap: var(--s2); list-style: none; padding: 0; margin: 0; }
+.chips li { font: 600 12px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid var(--rule); padding: 6px 8px; color: var(--ink); }
+.chips b { color: var(--ink-hi); font-weight: 700; }
+.note { font-size: 13px; color: var(--ink-dim); }
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--rule); background: var(--bg); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { font: 600 11px/1.3 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; background: var(--panel); }
+td { padding: 8px 10px; border-bottom: 1px solid color-mix(in srgb, var(--rule) 55%, transparent); vertical-align: top; }
+tbody tr:last-child td { border-bottom: 0; }
+td.path { font: 12px/1.45 var(--mono); color: var(--ink-lit); white-space: nowrap; }
+td.ok { color: var(--ink-hi); font: 700 12px var(--mono); }
+td.bad { color: var(--danger); font: 700 12px var(--mono); }
+td.mid { color: var(--accent); font: 700 12px var(--mono); }
+.wide { min-width: 880px; }
+.mid-t { min-width: 640px; }
+tr.group td { font: 700 11px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-hi); background: color-mix(in srgb, var(--ink-hi) 8%, var(--bg)); border-bottom: 1px solid var(--rule); }
+tr.rec td { background: color-mix(in srgb, var(--accent) 10%, var(--bg)); }
+figure { margin: 0; display: grid; gap: var(--s2); }
+figure img { display: block; width: 100%; height: auto; border: 1px solid var(--rule); background: #000; }
+figure svg { display: block; width: 100%; height: auto; border: 1px solid var(--rule); }
+figcaption { font: 12px/1.45 var(--mono); color: var(--ink-dim); }
+figcaption b { color: var(--ink-hi); }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s4); }
+@media (min-width: 860px) { .grid2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+ul.plain, ol.plain { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; max-width: 74ch; }
+ul.plain li::marker, ol.plain li::marker { color: var(--ink-dim); }
+pre { margin: 0; padding: var(--s3) var(--s4); font: 12.5px/1.5 var(--mono); color: var(--ink-lit); white-space: pre; }
+.tag { font: 700 10px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-inverse); background: var(--accent); padding: 3px 5px; vertical-align: 2px; margin-left: 6px; }
+.tag.dim { background: var(--ink-dim); }
+.rule-box { border: 1px solid var(--nav); background: color-mix(in srgb, var(--nav) 6%, var(--bg)); padding: var(--s3) var(--s4); display: grid; gap: 6px; }
+.rule-box h3 { color: var(--nav); }
+.ask { border: 1px solid var(--accent); padding: var(--s3) var(--s4); color: var(--ink-lit); font-weight: 600; }
+/* Mock scene parts. */
+.mock .space { fill: var(--g-space); }
+.mock .star { fill: #6b7a8c; }
+.mock .hull { fill: var(--g-hull); stroke: var(--g-hull-dark); stroke-width: 1; }
+.mock .tri { fill: var(--g-threat); }
+.mock .pill { fill: var(--g-chip); fill-opacity: 0.85; stroke: var(--g-gold); stroke-opacity: 0.55; stroke-width: 1; }
+.mock .dia { fill: none; stroke: var(--g-gold); stroke-width: 1.6; }
+.mock .dia.solid { fill: var(--g-gold); fill-opacity: 0.25; }
+.mock .lbl { fill: var(--g-gold); font: 600 7px var(--mono); }
+.mock .chev { fill: none; stroke: var(--g-gold); stroke-width: 1.8; }
+.mock .lock { fill: none; stroke: var(--g-threat); stroke-width: 1.6; }
+.mock .dock { fill: #021a08; stroke: var(--g-phos); stroke-opacity: 0.6; stroke-width: 0.8; }
+.mock .tag-mock { fill: #ffffff; fill-opacity: 0.55; font: 700 9px var(--mono); letter-spacing: 0.12em; }
+.mock .faded { opacity: 0.35; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- One raider silhouette, drawn at unit scale and placed with transform. -->
+    <symbol id="raider" viewBox="-20 -8 40 16" overflow="visible">
+      <path fill="#7d8794" stroke="#4a525c" d="M-18 0 L-10 -6 L8 -6 L18 -2 L18 2 L8 6 L-10 6 Z"/>
+      <rect fill="#7d8794" stroke="#4a525c" x="-6" y="-9" width="10" height="4"/>
+    </symbol>
+    <symbol id="player" viewBox="-60 -24 120 48" overflow="visible">
+      <path fill="#7d8794" stroke="#4a525c" d="M-50 10 L-30 -16 L30 -16 L50 10 L30 22 L-30 22 Z"/>
+      <rect fill="#7d8794" stroke="#4a525c" x="-14" y="-24" width="28" height="10"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+
+<header>
+  <h1>Nova Objective Chips</h1>
+  <p class="lead">Every marked body carries a full gold chip for as long as its objective lives: diamond, job code, verb and live range. In a fight with several bounty raiders the chips sit over the ships you shoot at. The proposal: the full chip leads you to the target, then it settles into a small gold diamond on the body.</p>
+  <ul class="chips">
+    <li>Status <b>Proposal</b></li>
+    <li>Task <b>20261122-175849</b></li>
+    <li>Release <b>v0.19.0</b></li>
+    <li>Code at <b>35f979cea</b></li>
+    <li>Built <b>Before frames only</b></li>
+  </ul>
+  <p class="note">Owner, 2026-11-22: "maybe don't show the neutralize chip for objective for too long on the enemy ships because it adds a lot of UI and makes it hard to see; or like figure out a way to make these floating chips for objectives a bit better". Every option here is a proposal. The owner picks. Scene drawings marked MOCK are drawings, not game frames.</p>
+</header>
+
+<section id="summary" aria-labelledby="h-summary">
+  <h2 id="h-summary">Summary</h2>
+  <div class="body">
+    <div class="scroll"><table class="wide">
+      <thead><tr><th>Option</th><th>On screen</th><th>Off screen</th><th>Reads without prose</th><th>Cost</th></tr></thead>
+      <tbody>
+        <tr><td><b>A. Settle</b></td><td>Full chip for 4 s after the tag lands, then the diamond only.</td><td>Full edge chip, as today.</td><td>Count = diamonds. Which = diamond on the body.</td><td class="ok">SMALL</td></tr>
+        <tr><td><b>B. Focus</b></td><td>Full chip on the locked or nearest marked body. Diamonds on the rest.</td><td>Full edge chip, as today.</td><td>Count = chip + diamonds. Which = the chip.</td><td class="mid">MEDIUM</td></tr>
+        <tr><td><b>C. Edge leads</b></td><td>Diamond only, always.</td><td>Full edge chip, as today.</td><td>Count = diamonds + edge chips.</td><td class="ok">SMALL</td></tr>
+        <tr><td><b>D. Group</b></td><td>One chip per verb with a count, on the nearest. Diamonds on the rest.</td><td>One edge chip per verb.</td><td>Count = the number on the chip.</td><td class="bad">LARGE</td></tr>
+        <tr class="rec"><td><b>C + A</b><br><span class="tag" style="margin-left:0">Recommended</span></td><td>Diamond. The full chip rides onto the body for 4 s when the target comes into view or its label changes.</td><td>Full edge chip, as today.</td><td>Count = diamonds + edge chips. Which = diamond on the body. Range = the lock readout.</td><td class="ok">SMALL</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section id="today" aria-labelledby="h-today">
+  <h2 id="h-today">Today: what floats on a world body</h2>
+  <div class="body">
+    <p>Paths and lines are at <code>35f979cea</code> (HEAD). The keep-out lane edits most of <code>crates/nova_hud</code> now, so HUD lines can move.</p>
+    <div class="scroll"><table class="wide">
+      <thead><tr><th>Layer</th><th>Owner</th><th>Text</th><th>Shows</th><th>Goes</th><th>Off screen</th></tr></thead>
+      <tbody>
+        <tr class="group"><td colspan="6">Gold objective chip (the subject of this page)</td></tr>
+        <tr><td>Objective marker chip</td><td class="path">nova_hud/src/objective_markers.rs:87<br>spawn :188, clearance :34<br>anchored_chip.rs:109, label :261</td><td>Diamond + <code>&lt;label&gt;  &lt;range&gt;</code>, 16 px, gold pill. Diamond and chevron breathe (1.25 s).</td><td>When <code>ObjectiveMarkerTarget</code> lands on a body.</td><td>When the tag leaves or the body despawns.</td><td>Clamps to the edge, 30 px margin, chevron points to it.</td></tr>
+        <tr><td>Source: held jobs</td><td class="path">nova_world_base/src/jobs.rs:1900<br>label :1938</td><td><code>JOB-n Neutralize</code>, <code>JOB-n Escort</code>, <code>Recover</code>, <code>Answer</code>, supply verb; <code>JOB-n Hand in</code> on the poster when done. Jobs on one body join: <code>JOB-1, JOB-3 Neutralize</code>.</td><td>On accept, or when the body streams in.</td><td>Job done: the tag moves to the poster as <code>Hand in</code>. Dropped or completed: gone.</td><td>Same chip.</td></tr>
+        <tr><td>Source: encounters</td><td class="path">nova_world_base/src/encounters.rs:1284<br>HAIL :99, SIGNAL :102</td><td><code>HAIL</code> on a hail caller, <code>SIGNAL</code> on a derelict. Ambush raiders: none.</td><td>While the encounter is live.</td><td>Encounter over, or SIGNAL inside 1 km.</td><td>Same chip.</td></tr>
+        <tr><td>Source: scenarios</td><td class="path">nova_scenario/src/actions/mission.rs:335<br>marks.rs:56</td><td>Authored label, e.g. the tutorial drone names.</td><td>On the attach action.</td><td>On the detach action.</td><td>Same chip.</td></tr>
+        <tr class="group"><td colspan="6">Other layers on the same bodies</td></tr>
+        <tr><td>Allegiance triangle</td><td class="path">nova_hud/src/allegiance_markers.rs:274<br>Hide :221</td><td>None. 14 x 9 px triangle, red for Enemy.</td><td>Every non-player ship.</td><td>Ship gone.</td><td>Hidden.</td></tr>
+        <tr><td>Lock crosshairs and box</td><td class="path">nova_hud/src/lock_crosshairs.rs</td><td>Distance only, while the radar gesture is held.</td><td>Combat (red) or travel (white) lock.</td><td>Lock cleared.</td><td>Edge arrow (next row).</td></tr>
+        <tr><td>Edge indicators</td><td class="path">nova_hud/src/edge_indicators.rs:105<br>tracked :228</td><td>Arrow, range while shown.</td><td>Lock, lock candidates, hostile torpedoes.</td><td>Back on screen.</td><td>Only off screen.</td></tr>
+        <tr><td>Beacon chip</td><td class="path">nova_hud/src/beacon_chips.rs:171</td><td>Cyan <code>BEACON n  range</code>.</td><td>Every nav beacon.</td><td>Hands off to the gold chip while the beacon is marked.</td><td>Clamps.</td></tr>
+        <tr><td>Waypoint chip</td><td class="path">nova_hud/src/waypoint_chip.rs</td><td>Cyan <code>STN-4  128.40 km</code>.</td><td>While a chart GOTO flies.</td><td>GOTO ends.</td><td>Clamps.</td></tr>
+        <tr><td>Cargo canister tag</td><td class="path">nova_hud/src/cargo_canister_chips.rs</td><td><code>4 Hull plate</code> + mass.</td><td>Canister in intake reach.</td><td>Out of reach.</td><td>Hidden.</td></tr>
+        <tr><td>Target inset (fixed)</td><td class="path">nova_hud/src/target_inset.rs:130</td><td>Name, faction, <code>NEUTRALIZED</code> flash 1.4 s.</td><td>Combat or travel lock.</td><td>Lock cleared.</td><td>Fixed panel.</td></tr>
+      </tbody>
+    </table></div>
+    <h3>How many gold chips in a fight</h3>
+    <ul class="plain">
+      <li>One chip per marked body. Nothing caps the count: the HUD draws every tagged body, at every range, on screen or pinned to an edge.</li>
+      <li>A Neutralize job names one hull (<code>nova_gameplay/src/jobs.rs:1171</code>). A bounty hunter with N held Neutralize jobs has N raider chips. No cap on held jobs was found.</li>
+      <li>An Escort job marks the hauler only. Its raiders, and ambush raiders, carry no gold chip. In an escort fight the busy layers are the triangles, the lock and the hauler chip.</li>
+      <li>The tutorial live line marks two drones by name (<code>nova_authoring/.../tutorial/mod.rs:631</code>).</li>
+      <li>A marked hostile in view stacks, from the hull up: lock reticle on the hull, red triangle, then the chip at least 36 px above the silhouette (gap 14 px). In the frames below, at 1920 x 1080, the <code>JOB-1 Neutralize  270 m</code> chip is 217 x 28 px over a 180 px wide raider at 270 m, and each chip covers its own red triangle.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="frames" aria-labelledby="h-frames">
+  <h2 id="h-frames">Before frames</h2>
+  <div class="body">
+    <div class="scroll"><table class="mid-t">
+      <thead><tr><th>Seen in the frames</th><th>Where</th></tr></thead>
+      <tbody>
+        <tr><td>Five gold chips with text and range for five raiders: four on screen, one pinned bottom right.</td><td>Both frames</td></tr>
+        <tr><td>Each chip sits on top of its own red allegiance triangle. Only the triangle tip shows under the pill.</td><td>Crop: JOB-1, JOB-2, JOB-4</td></tr>
+        <tr><td>The JOB-1 chip (217 px) is wider than its raider (180 px) at 270 m.</td><td>Crop</td></tr>
+        <tr><td>With the lock, the reticle, the DST/CLS readout, the inset and the chip all point at the same raider. The DST box covers the JOB-4 raider.</td><td>Lock frame, crop</td></tr>
+        <tr><td>The JOB-3 chip stands above its triangle with a chevron over it, on screen. This build carries the keep-out lane's uncommitted HUD edits; the chip is likely pushed off the JOB-1 chip. Not traced.</td><td>Crop, top left</td></tr>
+        <tr><td>JOB-5, behind the player, gets two edge cues: the gold chip and a red edge arrow that reads <code>993 m</code>.</td><td>Both frames, bottom right</td></tr>
+      </tbody>
+    </table></div>
+    <figure>
+      <img src="frames/before-busy.jpg" alt="Game frame: five red raiders ahead of the player hull, four gold JOB-n Neutralize chips over them and one pinned to the bottom-right edge.">
+      <figcaption><b>Before, no lock.</b> 1920 x 1080, lavapipe, phosphor theme, clock held. <code>[----------] 0/30 HP</code> over the station is the sandbox's own diagnostics label.</figcaption>
+    </figure>
+    <figure>
+      <img src="frames/before-busy-lock.jpg" alt="Game frame: the same scene with a red combat lock on the nearest raider, its DST readout, and the target inset at top right.">
+      <figcaption><b>Before, combat lock on JOB-1.</b> Same scene. The lock adds the reticle, the readout, the inset and the AIM and FIRE chips.</figcaption>
+    </figure>
+    <figure>
+      <img src="frames/before-lock-crop.jpg" alt="Full-resolution crop of the lock frame: gold chips over red triangles, the lock reticle and the DST box.">
+      <figcaption><b>Crop at 1:1</b> of the lock frame, x 420-1420, y 180-740.</figcaption>
+    </figure>
+    <p class="note">How the frames were made: a temporary patch of <code>examples/playable/neutral_contact_sandbox.rs</code> made its raider Enemy, added four more Enemy raiders with no controller, held the clock, tagged each raider <code>JOB-n Neutralize</code>, and set the combat lock for the second shot. The file was restored afterwards (md5 equal, diff empty). Raw PNGs: <code>~/Pictures/nova-objective-chips/</code>.</p>
+  </div>
+</section>
+
+<section id="options" aria-labelledby="h-options">
+  <h2 id="h-options">Options</h2>
+  <div class="body">
+    <p>Each mock is the same scene: five Enemy raiders on Neutralize jobs, four ahead at 270 m to 1.46 km and one behind on the right, as in the before frames. The player hull is at the bottom; the key row is the green strip.</p>
+
+    <h3>A. Settle <span class="tag dim">time</span></h3>
+    <div class="grid2">
+      <figure>
+        <svg class="mock" viewBox="0 0 640 360" role="img" aria-labelledby="mA1t">
+          <title id="mA1t">Mock: option A in the first 4 seconds. Every raider wears its full chip.</title>
+          <rect class="space" width="640" height="360"/>
+          <g class="stars"><circle class="star" cx="40" cy="30" r="0.8"/><circle class="star" cx="210" cy="60" r="0.8"/><circle class="star" cx="520" cy="40" r="0.8"/><circle class="star" cx="600" cy="140" r="0.8"/><circle class="star" cx="90" cy="200" r="0.8"/></g>
+          <use href="#raider" x="180" y="150" width="70" height="28"/>
+          <use href="#raider" x="372" y="190" width="40" height="16"/>
+          <use href="#raider" x="236" y="118" width="28" height="11"/>
+          <use href="#raider" x="330" y="96" width="20" height="8"/>
+          <polygon class="tri" points="208,136 222,136 215,145"/>
+          <polygon class="tri" points="385,180 399,180 392,189"/>
+          <polygon class="tri" points="243,107 257,107 250,116"/>
+          <polygon class="tri" points="333,86 347,86 340,95"/>
+          <g><rect class="pill" x="160" y="104" width="118" height="16"/><rect class="dia" x="166" y="108" width="7" height="7" transform="rotate(45 169.5 111.5)"/><text class="lbl" x="178" y="115">JOB-1 Neutralize 270 m</text></g>
+          <g><rect class="pill" x="338" y="156" width="118" height="16"/><rect class="dia" x="344" y="160" width="7" height="7" transform="rotate(45 347.5 163.5)"/><text class="lbl" x="356" y="167">JOB-2 Neutralize 652 m</text></g>
+          <g><rect class="pill" x="194" y="80" width="118" height="16"/><rect class="dia" x="200" y="84" width="7" height="7" transform="rotate(45 203.5 87.5)"/><text class="lbl" x="212" y="91">JOB-3 Neutralize 1.01 km</text></g>
+          <g><rect class="pill" x="284" y="58" width="118" height="16"/><rect class="dia" x="290" y="62" width="7" height="7" transform="rotate(45 293.5 65.5)"/><text class="lbl" x="302" y="69">JOB-4 Neutralize 1.46 km</text></g>
+          <g><rect class="pill" x="500" y="250" width="118" height="16"/><rect class="dia" x="506" y="254" width="7" height="7" transform="rotate(45 509.5 257.5)"/><text class="lbl" x="518" y="261">JOB-5 Neutralize 993 m</text><path class="chev" d="M626 252 l6 6 l-6 6"/></g>
+          <use href="#player" x="270" y="272" width="100" height="40"/>
+          <rect class="dock" x="230" y="336" width="180" height="14"/>
+          <text class="tag-mock" x="10" y="350">MOCK - A, 0-4 S</text>
+        </svg>
+        <figcaption><b>A, first 4 s.</b> Same as today: one full chip per raider.</figcaption>
+      </figure>
+      <figure>
+        <svg class="mock" viewBox="0 0 640 360" role="img" aria-labelledby="mA2t">
+          <title id="mA2t">Mock: option A after 4 seconds. The on-screen chips have shrunk to gold diamonds; the edge chip stays full.</title>
+          <rect class="space" width="640" height="360"/>
+          <g class="stars"><circle class="star" cx="40" cy="30" r="0.8"/><circle class="star" cx="210" cy="60" r="0.8"/><circle class="star" cx="520" cy="40" r="0.8"/><circle class="star" cx="600" cy="140" r="0.8"/><circle class="star" cx="90" cy="200" r="0.8"/></g>
+          <use href="#raider" x="180" y="150" width="70" height="28"/>
+          <use href="#raider" x="372" y="190" width="40" height="16"/>
+          <use href="#raider" x="236" y="118" width="28" height="11"/>
+          <use href="#raider" x="330" y="96" width="20" height="8"/>
+          <polygon class="tri" points="208,136 222,136 215,145"/>
+          <polygon class="tri" points="385,180 399,180 392,189"/>
+          <polygon class="tri" points="243,107 257,107 250,116"/>
+          <polygon class="tri" points="333,86 347,86 340,95"/>
+          <rect class="dia solid" x="211" y="122" width="8" height="8" transform="rotate(45 215 126)"/>
+          <rect class="dia solid" x="388" y="166" width="8" height="8" transform="rotate(45 392 170)"/>
+          <rect class="dia solid" x="246" y="93" width="8" height="8" transform="rotate(45 250 97)"/>
+          <rect class="dia solid" x="336" y="72" width="8" height="8" transform="rotate(45 340 76)"/>
+          <g><rect class="pill" x="500" y="250" width="118" height="16"/><rect class="dia" x="506" y="254" width="7" height="7" transform="rotate(45 509.5 257.5)"/><text class="lbl" x="518" y="261">JOB-5 Neutralize 993 m</text><path class="chev" d="M626 252 l6 6 l-6 6"/></g>
+          <use href="#player" x="270" y="272" width="100" height="40"/>
+          <rect class="dock" x="230" y="336" width="180" height="14"/>
+          <text class="tag-mock" x="10" y="350">MOCK - A, AFTER 4 S</text>
+        </svg>
+        <figcaption><b>A, after 4 s.</b> Diamonds on the hulls. The edge chip stays full: it is the direction cue.</figcaption>
+      </figure>
+    </div>
+    <div class="scroll"><table class="mid-t">
+      <tbody>
+        <tr><td>Player sees</td><td>A new objective announces itself with the full chip, then quiets down to the diamond above the triangle.</td></tr>
+        <tr><td>State without prose</td><td>How many left: the diamonds; one goes when its job is done. Which: the diamond is on the body. Range: gone after 4 s, until the player locks it (the lock readout has DST).</td></tr>
+        <tr><td>Cost</td><td>One per-chip age component and one system in <code>objective_markers.rs</code> that hides the label and the pill paint after the settle. No change to the tag owners.</td></tr>
+        <tr><td>Dies</td><td>The standing on-screen label and range of the gold chip.</td></tr>
+        <tr><td>Weak spot</td><td>A target accepted far away settles while it is still off screen. When the player first turns to it, it is a bare diamond with no name. That is the case C fixes.</td></tr>
+        <tr><td>Keep-out</td><td>A settled diamond is 12 px; it hardly needs a keep-out slot. The full chip still takes one for 4 s.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>B. Focus <span class="tag dim">lock</span></h3>
+    <figure>
+      <svg class="mock" viewBox="0 0 640 360" role="img" aria-labelledby="mBt">
+        <title id="mBt">Mock: option B. The locked raider keeps its full chip; the rest show diamonds.</title>
+        <rect class="space" width="640" height="360"/>
+        <g class="stars"><circle class="star" cx="40" cy="30" r="0.8"/><circle class="star" cx="210" cy="60" r="0.8"/><circle class="star" cx="520" cy="40" r="0.8"/><circle class="star" cx="600" cy="140" r="0.8"/><circle class="star" cx="90" cy="200" r="0.8"/></g>
+        <use href="#raider" x="180" y="150" width="70" height="28"/>
+        <use href="#raider" x="372" y="190" width="40" height="16"/>
+        <use href="#raider" x="236" y="118" width="28" height="11"/>
+        <use href="#raider" x="330" y="96" width="20" height="8"/>
+        <path class="lock" d="M170 146 v-6 h6 M260 146 v-6 h-6 M170 182 v6 h6 M260 182 v6 h-6"/>
+        <polygon class="tri" points="208,126 222,126 215,135"/>
+        <polygon class="tri" points="385,180 399,180 392,189"/>
+        <polygon class="tri" points="243,107 257,107 250,116"/>
+        <polygon class="tri" points="333,86 347,86 340,95"/>
+        <g><rect class="pill" x="110" y="104" width="118" height="16"/><rect class="dia" x="116" y="108" width="7" height="7" transform="rotate(45 119.5 111.5)"/><text class="lbl" x="128" y="115">JOB-1 Neutralize 270 m</text></g>
+        <rect class="dia solid" x="388" y="166" width="8" height="8" transform="rotate(45 392 170)"/>
+        <rect class="dia solid" x="246" y="93" width="8" height="8" transform="rotate(45 250 97)"/>
+        <rect class="dia solid" x="336" y="72" width="8" height="8" transform="rotate(45 340 76)"/>
+        <g><rect class="pill" x="500" y="250" width="118" height="16"/><rect class="dia" x="506" y="254" width="7" height="7" transform="rotate(45 509.5 257.5)"/><text class="lbl" x="518" y="261">JOB-5 Neutralize 993 m</text><path class="chev" d="M626 252 l6 6 l-6 6"/></g>
+        <use href="#player" x="270" y="272" width="100" height="40"/>
+        <rect class="dock" x="230" y="336" width="180" height="14"/>
+        <text class="tag-mock" x="10" y="350">MOCK - B</text>
+      </svg>
+      <figcaption><b>B.</b> The combat-locked raider keeps the full chip. With no lock, the nearest marked body would keep it.</figcaption>
+    </figure>
+    <div class="scroll"><table class="mid-t">
+      <tbody>
+        <tr><td>Player sees</td><td>One full chip on the target in hand; diamonds on the rest.</td></tr>
+        <tr><td>State without prose</td><td>Count: chip + diamonds. Which: the chip.</td></tr>
+        <tr><td>Cost</td><td>A focus pick (lock, else nearest) with hysteresis, so the chip does not jump between two raiders at equal range in a dogfight.</td></tr>
+        <tr><td>Dies</td><td>Labels on the unfocused bodies.</td></tr>
+        <tr><td>Weak spot</td><td>The full chip sits on the one ship the player is shooting at, which is the case the owner named. The lock reticle, the inset and the chip then say the same thing three times.</td></tr>
+        <tr><td>Keep-out</td><td>One full chip on screen at a time, plus edge chips.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>C. Edge leads <span class="tag dim">place</span></h3>
+    <figure>
+      <svg class="mock" viewBox="0 0 640 360" role="img" aria-labelledby="mCt">
+        <title id="mCt">Mock: option C. On-screen raiders carry only diamonds; the off-screen raider has the full edge chip.</title>
+        <rect class="space" width="640" height="360"/>
+        <g class="stars"><circle class="star" cx="40" cy="30" r="0.8"/><circle class="star" cx="210" cy="60" r="0.8"/><circle class="star" cx="520" cy="40" r="0.8"/><circle class="star" cx="600" cy="140" r="0.8"/><circle class="star" cx="90" cy="200" r="0.8"/></g>
+        <use href="#raider" x="180" y="150" width="70" height="28"/>
+        <use href="#raider" x="372" y="190" width="40" height="16"/>
+        <use href="#raider" x="236" y="118" width="28" height="11"/>
+        <use href="#raider" x="330" y="96" width="20" height="8"/>
+        <polygon class="tri" points="208,136 222,136 215,145"/>
+        <polygon class="tri" points="385,180 399,180 392,189"/>
+        <polygon class="tri" points="243,107 257,107 250,116"/>
+        <polygon class="tri" points="333,86 347,86 340,95"/>
+        <rect class="dia solid" x="211" y="122" width="8" height="8" transform="rotate(45 215 126)"/>
+        <rect class="dia solid" x="388" y="166" width="8" height="8" transform="rotate(45 392 170)"/>
+        <rect class="dia solid" x="246" y="93" width="8" height="8" transform="rotate(45 250 97)"/>
+        <rect class="dia solid" x="336" y="72" width="8" height="8" transform="rotate(45 340 76)"/>
+        <g><rect class="pill" x="500" y="250" width="118" height="16"/><rect class="dia" x="506" y="254" width="7" height="7" transform="rotate(45 509.5 257.5)"/><text class="lbl" x="518" y="261">JOB-5 Neutralize 993 m</text><path class="chev" d="M626 252 l6 6 l-6 6"/></g>
+        <use href="#player" x="270" y="272" width="100" height="40"/>
+        <rect class="dock" x="230" y="336" width="180" height="14"/>
+        <text class="tag-mock" x="10" y="350">MOCK - C</text>
+      </svg>
+      <figcaption><b>C.</b> The edge chip finds the target. On screen, the body is the target and the diamond marks it.</figcaption>
+    </figure>
+    <div class="scroll"><table class="mid-t">
+      <tbody>
+        <tr><td>Player sees</td><td>Text only at the screen edge. On screen, a gold diamond above each marked body.</td></tr>
+        <tr><td>State without prose</td><td>Count: diamonds + edge chips. Which: the diamond. Range on screen: the lock readout.</td></tr>
+        <tr><td>Cost</td><td>Smallest: the placement already knows when a chip is clamped (the chevron shows). Hide label and pill while the chevron is hidden.</td></tr>
+        <tr><td>Dies</td><td>Every on-screen gold label and range.</td></tr>
+        <tr><td>Weak spot</td><td>A target accepted while it is on screen, or a far station that is on screen but 40 km out, never shows its name or range in flight. A 40 km station is a dot; a diamond on a dot says little. A range gate (full chip beyond 5 km) would fix the far case; it is a variant, not a fifth option.</td></tr>
+        <tr><td>Keep-out</td><td>Only edge chips need slots on screen. Diamonds ride their bodies.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>D. Group <span class="tag dim">count</span></h3>
+    <figure>
+      <svg class="mock" viewBox="0 0 640 360" role="img" aria-labelledby="mDt">
+        <title id="mDt">Mock: option D. One chip with the count of Neutralize targets rides the nearest raider; the rest show diamonds.</title>
+        <rect class="space" width="640" height="360"/>
+        <g class="stars"><circle class="star" cx="40" cy="30" r="0.8"/><circle class="star" cx="210" cy="60" r="0.8"/><circle class="star" cx="520" cy="40" r="0.8"/><circle class="star" cx="600" cy="140" r="0.8"/><circle class="star" cx="90" cy="200" r="0.8"/></g>
+        <use href="#raider" x="180" y="150" width="70" height="28"/>
+        <use href="#raider" x="372" y="190" width="40" height="16"/>
+        <use href="#raider" x="236" y="118" width="28" height="11"/>
+        <use href="#raider" x="330" y="96" width="20" height="8"/>
+        <polygon class="tri" points="208,136 222,136 215,145"/>
+        <polygon class="tri" points="385,180 399,180 392,189"/>
+        <polygon class="tri" points="243,107 257,107 250,116"/>
+        <polygon class="tri" points="333,86 347,86 340,95"/>
+        <g><rect class="pill" x="170" y="104" width="104" height="16"/><rect class="dia" x="176" y="108" width="7" height="7" transform="rotate(45 179.5 111.5)"/><text class="lbl" x="188" y="115">5 Neutralize 270 m</text></g>
+        <rect class="dia solid" x="388" y="166" width="8" height="8" transform="rotate(45 392 170)"/>
+        <rect class="dia solid" x="246" y="93" width="8" height="8" transform="rotate(45 250 97)"/>
+        <rect class="dia solid" x="336" y="72" width="8" height="8" transform="rotate(45 340 76)"/>
+        <path class="chev" d="M626 252 l6 6 l-6 6"/><rect class="dia solid" x="612" y="254" width="8" height="8" transform="rotate(45 616 258)"/>
+        <use href="#player" x="270" y="272" width="100" height="40"/>
+        <rect class="dock" x="230" y="336" width="180" height="14"/>
+        <text class="tag-mock" x="10" y="350">MOCK - D</text>
+      </svg>
+      <figcaption><b>D.</b> One count chip on the nearest; an off-screen member gets a bare chevron and diamond.</figcaption>
+    </figure>
+    <div class="scroll"><table class="mid-t">
+      <tbody>
+        <tr><td>Player sees</td><td>One chip with a count per verb.</td></tr>
+        <tr><td>State without prose</td><td>Count: the number. Which job each hull is: lost.</td></tr>
+        <tr><td>Cost</td><td>Large. A group owner across tags from three sources (jobs, encounters, scenarios), a pick for the chip host, edge rules for split groups.</td></tr>
+        <tr><td>Dies</td><td>Per-job codes on world bodies; the <code>JOB-n</code> link between the chart and the world.</td></tr>
+        <tr><td>Weak spot</td><td>Groups happen rarely: one Neutralize job names one hull, and jobs spread raiders 6 to 16 km apart. It solves a scene the content seldom makes.</td></tr>
+        <tr><td>Keep-out</td><td>Fewest boxes, but the chip changes host as ranges change.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Recommendation: C + A, settle 4 s</h3>
+    <figure>
+      <svg class="mock" viewBox="0 0 640 360" role="img" aria-labelledby="mRt">
+        <title id="mRt">Mock: recommended C plus A. The raider that just came into view wears its full chip for 4 seconds; settled raiders show diamonds; the off-screen raider has the edge chip.</title>
+        <rect class="space" width="640" height="360"/>
+        <g class="stars"><circle class="star" cx="40" cy="30" r="0.8"/><circle class="star" cx="210" cy="60" r="0.8"/><circle class="star" cx="520" cy="40" r="0.8"/><circle class="star" cx="600" cy="140" r="0.8"/><circle class="star" cx="90" cy="200" r="0.8"/></g>
+        <use href="#raider" x="180" y="150" width="70" height="28"/>
+        <use href="#raider" x="372" y="190" width="40" height="16"/>
+        <use href="#raider" x="236" y="118" width="28" height="11"/>
+        <use href="#raider" x="330" y="96" width="20" height="8"/>
+        <polygon class="tri" points="208,136 222,136 215,145"/>
+        <polygon class="tri" points="385,180 399,180 392,189"/>
+        <polygon class="tri" points="243,107 257,107 250,116"/>
+        <polygon class="tri" points="333,86 347,86 340,95"/>
+        <rect class="dia solid" x="211" y="122" width="8" height="8" transform="rotate(45 215 126)"/>
+        <g><rect class="pill" x="338" y="156" width="118" height="16"/><rect class="dia" x="344" y="160" width="7" height="7" transform="rotate(45 347.5 163.5)"/><text class="lbl" x="356" y="167">JOB-2 Neutralize 652 m</text></g>
+        <rect class="dia solid" x="246" y="93" width="8" height="8" transform="rotate(45 250 97)"/>
+        <rect class="dia solid" x="336" y="72" width="8" height="8" transform="rotate(45 340 76)"/>
+        <g><rect class="pill" x="500" y="250" width="118" height="16"/><rect class="dia" x="506" y="254" width="7" height="7" transform="rotate(45 509.5 257.5)"/><text class="lbl" x="518" y="261">JOB-5 Neutralize 993 m</text><path class="chev" d="M626 252 l6 6 l-6 6"/></g>
+        <use href="#player" x="270" y="272" width="100" height="40"/>
+        <rect class="dock" x="230" y="336" width="180" height="14"/>
+        <text class="tag-mock" x="10" y="350">MOCK - C + A</text>
+      </svg>
+      <figcaption><b>C + A.</b> JOB-2 just came into view: its chip rode in from the edge and settles in 4 s. The others are settled. JOB-5 is behind.</figcaption>
+    </figure>
+    <div class="rule-box">
+      <h3>Rule</h3>
+      <ul class="plain">
+        <li>Off screen (chevron shown): the full chip, as today.</li>
+        <li>On screen: the full chip for <code>4 s</code> after the tag lands, the label changes, or the body comes into view after at least <code>1 s</code> off screen. Then the diamond only, above the triangle, still breathing.</li>
+        <li>A lock on a marked body does not reopen the chip. The reticle readout has the range and the inset has the name.</li>
+        <li>Done or dropped: the tag leaves and the diamond goes. A done job's <code>JOB-n Hand in</code> lands on the poster as a fresh tag, so it shows full.</li>
+      </ul>
+    </div>
+    <ul class="plain">
+      <li><b>Why 4 s.</b> It matches the HUD notice dwell (<code>NOTICE_DWELL_SECS</code>, <code>hud_notice.rs:95</code>), so all short-lived HUD text keeps one rhythm. Long enough to read a 25-character label twice; short enough to be gone before a merge into a fight. One named constant; tests step a manual clock past it and assert the phase, never wall time.</li>
+      <li><b>Why the 1 s off-screen floor.</b> A raider that weaves along the screen edge must not reopen its chip on every pass.</li>
+      <li><b>Why C first.</b> It keys on a fact the placement already has (clamped or not), so the common case needs no timer. A adds the timer only for the hand-off moment, which fixes C's weak spot (a target first seen on screen).</li>
+      <li><b>Why not B or D.</b> B keeps a full chip on the ship in the crosshair, which is the case the owner named. D is large and serves a scene the jobs seldom make.</li>
+      <li><b>Out of scope, seen in the frames.</b> A marked hostile behind the player gets two edge cues (gold chip and red arrow). That is for the keep-out lane or a later pass, not this change.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="delivery" aria-labelledby="h-delivery">
+  <h2 id="h-delivery">Delivery sketch</h2>
+  <div class="body">
+    <pre>today
+  ObjectiveMarkerTarget (jobs.rs:1900 | encounters.rs:1284 | mission.rs:335)
+    -> setup_objective_marker_chip (objective_markers.rs:188)
+       -> anchored_chip_node: ClampToEdge, CHIP_CLEARANCE (min 36 px)
+       -> update_anchored_chip_labels: "&lt;label&gt;  &lt;range&gt;"  every frame
+
+proposed (all inside nova_hud; tag owners unchanged)
+  ObjectiveMarkerTarget
+    -> setup_objective_marker_chip  + ObjectiveChipPhase { open_until, offscreen_since }
+       -> update_screen_indicators   (writes clamped or not; already known)
+       -> settle_objective_chips     (new, after placement)
+            clamped              -> Full
+            on screen, in window -> Full
+            on screen, past 4 s  -> Mark: label Display::None, pill paint clear,
+                                    clearance min shrinks to the triangle stack</pre>
+    <div class="scroll"><table class="mid-t">
+      <thead><tr><th>Item</th><th>Detail</th></tr></thead>
+      <tbody>
+        <tr><td>Owner</td><td><code>crates/nova_hud/src/objective_markers.rs</code>. The pill paint and label come from <code>anchored_chip.rs</code>; beacon and waypoint chips keep their behaviour.</td></tr>
+        <tr><td>Theme</td><td>The diamond is the existing 12 px glyph. The pill keeps <code>chip_node</code> corners from the theme; the mark has no box, so no radius literal.</td></tr>
+        <tr><td>Ordering</td><td>Lands after the keep-out lane. The settle system runs after the placement in <code>NovaHudSystems</code> and reads the clamp state the placement writes. A shrinking chip changes its measured box one frame late, as any Content chip does today.</td></tr>
+        <tr><td>What may break</td><td>Walks that read the on-screen chip text keep working: the label text still updates while hidden. Walks that judge a frame for the label (<code>news_0160_escort_ambush</code> loops, <code>job_board_sandbox</code> HUD shot) will show a diamond after 4 s and need their judgement updated. Tutorial lines that tell the player to "follow the marker" still hold.</td></tr>
+        <tr><td>Docs</td><td><code>web/src/wiki/hud.md</code> objective marker lines (the "Comms and objectives" paragraph); one HUD changelog entry.</td></tr>
+        <tr><td>Proof</td><td>Asserted ECS example on a manual clock: a tag on screen shows label and pill, past the settle shows the diamond only; a clamped chip stays full; a label change reopens it. Frames: the busy scene below at 0 s and 5 s, phosphor and hardware.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section id="unverified" aria-labelledby="h-unverified">
+  <h2 id="h-unverified">Not verified</h2>
+  <div class="body">
+    <ul class="plain">
+      <li>The before frames are a staged scene: a temporary patch of <code>neutral_contact_sandbox</code> (restored, diff empty) spawns five Enemy raiders with no AI and tags each <code>JOB-n Neutralize</code> by hand. No real bounty fight was flown.</li>
+      <li>The mocks are drawings. Sizes are close to the 1920 x 1080 chip (16 px label), not measured.</li>
+      <li>"No cap on held jobs" is from a search of <code>nova_gameplay/src/jobs.rs</code>; a cap elsewhere is not ruled out.</li>
+      <li>Hardware theme frames were not taken.</li>
+      <li>How the settled diamond reads at 2 km and beyond (a dot on a dot) is not tried.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="ask" aria-labelledby="h-ask">
+  <h2 id="h-ask">Decision for you</h2>
+  <div class="body">
+    <p class="ask">Go with C + A: full gold chips only at the screen edge and for 4 s when a target comes into view, a gold diamond on the body after that?</p>
+  </div>
+</section>
+
+</div>

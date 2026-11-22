@@ -83,3 +83,21 @@
   the enemy ships because it adds a lot of UI and makes it hard to see; or
   like figure out a way to make these floating chips for objectives a bit
   better". Design first: options with frames, owner picks.
+
+## Design (2026-11-22, objective chips)
+- Page: `DESIGN-objective-chips.html` (before frames in `frames/`, raw in
+  `~/Pictures/nova-objective-chips/`). Proposal only; the owner picks.
+- Today: every `ObjectiveMarkerTarget` body wears a full gold chip (diamond,
+  `JOB-n Neutralize`, range) at every range, on screen or edge-pinned, until
+  the tag leaves (`crates/nova_hud/src/objective_markers.rs:87`). No cap. In
+  the frames each chip covers its own red triangle and is wider than a raider
+  at 270 m.
+- Options:
+  - A. Settle: full chip for 4 s after the tag lands, then the diamond only.
+  - B. Focus: full chip on the locked or nearest body, diamonds on the rest.
+  - C. Edge leads: full chip only while edge-pinned; diamonds on screen.
+  - D. Group: one count chip per verb on the nearest body.
+- Agent recommendation: C + A. Full chip off screen; on screen the chip
+  rides in for 4 s (the HUD notice dwell) when the target comes into view
+  after 1 s or more off screen, or the tag lands or changes, then settles to
+  the diamond. Lands after the keep-out work.
