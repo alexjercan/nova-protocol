@@ -70,3 +70,10 @@
 - Owner: "make the hotkeys at the bottom smaller like maybe half the size
   they are now would be ok". Same bottom-centre layout as the notice and the
   comms column, so it lands with the comms and job chip fix.
+
+## Follow-up (2026-11-22): floating labels keep clear of the HUD
+- Owner: "try to keep the UI not overlap with eachother, especially the
+  objective labels which are floating, they sometimes overlap with things,
+  let's try to keep the UI clean".
+- Rule: a floating objective label (on screen or edge-pinned) never draws over
+  a fixed HUD panel, and floating labels do not stack on each other.
