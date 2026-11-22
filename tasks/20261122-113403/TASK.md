@@ -1,6 +1,6 @@
 # Docking: dock to spinning neutralized ships
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 55
 - TAGS: v0.19.0, docking, flight
 
@@ -104,3 +104,6 @@
 ## Done when
 - The player can dock to a spinning neutralized ship with a docking port,
   and the owner has played it.
+
+## Owner check (2026-11-22)
+- Played spin_dock_sandbox and approved: "works".

@@ -1,6 +1,6 @@
 # Map: show each asteroid's material type
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 46
 - TAGS: v0.19.0, interface, map
 
@@ -42,3 +42,6 @@
 
 ## Done when
 - The Map shows each asteroid's type and the owner has seen it.
+
+## Owner check (2026-11-22)
+- Played and approved: "works - asteroid type only in the side panel when you select an asteroid". The Map label keeps the code.

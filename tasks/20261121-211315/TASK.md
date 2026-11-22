@@ -145,3 +145,10 @@ Paths and lines are at HEAD a82db744d, before the change.
 - Open, not this defect class: the panel reads `GOTO LOST` for a beacon that
   was never on the Map; the Map zoom reach follows the contact spread, so a
   route to an unplotted target runs off the viewport edge.
+
+## Owner check (2026-11-22)
+- Docked GOTO line played and approved: "works".
+- Owner: fix both open points from the docked build audit: the Map panel
+  reads `GOTO LOST` for a GOTO target the Map does not plot (a scenario
+  beacon), and the Map zoom limit comes from its contacts, so a route to a
+  target it does not plot runs off the edge. Close after these land.

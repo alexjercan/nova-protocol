@@ -23,3 +23,6 @@
 
 ## Done when
 - None of these lines remain and the state shows without prose.
+
+## Owner check (2026-11-22)
+- Keep in v0.19.0 at this priority.

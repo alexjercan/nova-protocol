@@ -1,6 +1,6 @@
 # Role goals: hand in each step from anywhere for a reward
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.19.0, progression, jobs
 
@@ -75,3 +75,6 @@ must fail loudly sections, with the playable example `role_goal_sandbox`.
 - Each role goal step waits for a Hand in from anywhere, pays its reward
   with the payout moment, the pane shows the chain, and the owner has
   played it.
+
+## Owner check (2026-11-22)
+- Played role_goal_sandbox and approved: "works".

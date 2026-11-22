@@ -1,6 +1,6 @@
 # Ammo gauge: soft flash on low reserve, no LOW/DRY tag
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 48
 - TAGS: v0.19.0, hud, combat
 
@@ -57,3 +57,6 @@
 ## Done when
 - The gauge carries no tag text, flashes softly on low, and the owner has
   played it.
+
+## Owner check (2026-11-22)
+- Owner: "whatever, I guess the notification is enough no need to do anything to the chip". The flash stays as built; no more gauge work.

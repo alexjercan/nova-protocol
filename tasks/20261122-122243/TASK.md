@@ -1,6 +1,6 @@
 # Canisters: pull by distance with a larger range, label all in range
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.19.0, mining, hud
 
@@ -82,3 +82,6 @@ Stale media: `assets/loops/loop-section-cargo-intake.webm`,
 
 Not verified: hand play; wide intake live; AI intakes pulling at 120 m
 near stations; overlapping tags for canisters side by side.
+
+## Owner check (2026-11-22)
+- Played and approved: "works".
