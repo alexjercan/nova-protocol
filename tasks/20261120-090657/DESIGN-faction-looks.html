@@ -1,0 +1,440 @@
+<title>Nova Faction Looks Plan</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap">
+<style>
+/* Layout: one instrument-panel column in the game's phosphor colours; square corners; each section is a panel with a title strip; wide tables and figures scroll in their own frame. Dark is the default; a light set follows the system or data-theme. */
+:root {
+  color-scheme: dark;
+  --bg: #03060b;
+  --panel: #001304;
+  --raised: #002b0f;
+  --rule: #0d6e35;
+  --ink: #b9ffc9;
+  --ink-hi: #36ff79;
+  --ink-dim: #19a64f;
+  --ink-lit: #d6ffe4;
+  --ink-inverse: #04140a;
+  --accent: #ffb84a;
+  --danger: #ff4e42;
+  --nav: #36c8ff;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 40px;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #f3f7f2; --panel: #ffffff; --raised: #e4f2e7; --rule: #7fb894;
+    --ink: #123b20; --ink-hi: #0a7a35; --ink-dim: #4a7a5a; --ink-lit: #06210f; --ink-inverse: #ffffff;
+    --accent: #a35f00; --danger: #b3261e; --nav: #00658f;
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f7f2; --panel: #ffffff; --raised: #e4f2e7; --rule: #7fb894;
+  --ink: #123b20; --ink-hi: #0a7a35; --ink-dim: #4a7a5a; --ink-lit: #06210f; --ink-inverse: #ffffff;
+  --accent: #a35f00; --danger: #b3261e; --nav: #00658f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 15px/1.55 var(--sans); }
+.wrap {
+  max-width: 1080px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: var(--s5) var(--s6);
+  display: grid; gap: var(--s6);
+}
+h1, h2, h3 { font-family: var(--mono); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(26px, 5vw, 40px); font-weight: 700; color: var(--ink-hi); letter-spacing: 0.04em; text-transform: uppercase; }
+h2 { font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-inverse); background: var(--ink-hi); padding: 6px 10px; }
+h3 { font-size: 15px; font-weight: 600; color: var(--ink-hi); letter-spacing: 0.02em; }
+p { margin: 0; max-width: 72ch; }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+code { color: var(--ink-lit); }
+section { display: grid; gap: var(--s4); border: 1px solid var(--rule); background: var(--panel); }
+section > h2 { margin: -1px -1px 0; }
+.body { display: grid; gap: var(--s4); padding: 0 var(--s4) var(--s4); min-width: 0; }
+.body > * { min-width: 0; }
+header { display: grid; gap: var(--s3); }
+.lead { font-size: 17px; color: var(--ink-lit); }
+.chips { display: flex; flex-wrap: wrap; gap: var(--s2); list-style: none; padding: 0; margin: 0; }
+.chips li { font: 600 12px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid var(--rule); padding: 6px 8px; color: var(--ink); }
+.chips b { color: var(--ink-hi); font-weight: 700; }
+.note { font-size: 13px; color: var(--ink-dim); }
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--rule); background: var(--bg); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { font: 600 11px/1.3 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; background: var(--panel); }
+td { padding: 8px 10px; border-bottom: 1px solid color-mix(in srgb, var(--rule) 55%, transparent); vertical-align: top; }
+tbody tr:last-child td { border-bottom: 0; }
+td.path { font: 12px/1.45 var(--mono); color: var(--ink-lit); white-space: nowrap; }
+td.ok { color: var(--ink-hi); font: 700 12px var(--mono); }
+td.bad { color: var(--danger); font: 700 12px var(--mono); }
+td.mid { color: var(--accent); font: 700 12px var(--mono); }
+.wide { min-width: 880px; }
+.mid-t { min-width: 640px; }
+tr.group td { font: 700 11px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-hi); background: color-mix(in srgb, var(--ink-hi) 8%, var(--bg)); border-bottom: 1px solid var(--rule); }
+figure { margin: 0; display: grid; gap: var(--s2); }
+figure img { display: block; width: 100%; height: auto; border: 1px solid var(--rule); background: #8c8c8c; }
+figcaption { font: 12px/1.45 var(--mono); color: var(--ink-dim); }
+figcaption b { color: var(--ink-hi); }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s4); }
+@media (min-width: 860px) { .grid2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+ul.plain, ol.plain { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; max-width: 74ch; }
+ul.plain li::marker, ol.plain li::marker { color: var(--ink-dim); }
+pre { margin: 0; padding: var(--s3) var(--s4); font: 12.5px/1.5 var(--mono); color: var(--ink-lit); white-space: pre; }
+.tag { font: 700 10px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-inverse); background: var(--accent); padding: 3px 5px; vertical-align: 2px; margin-left: 6px; }
+.tag.dim { background: var(--ink-dim); }
+.spike { border: 1px dashed var(--accent); padding: var(--s3) var(--s4); color: var(--ink-lit); }
+.spike b { color: var(--accent); font-family: var(--mono); letter-spacing: 0.08em; }
+.decisions { list-style: none; padding: 0; margin: 0; display: grid; border: 1px solid var(--rule); background: var(--bg); counter-reset: d; }
+.decisions > li { counter-increment: d; padding: var(--s3) var(--s4); border-bottom: 1px solid color-mix(in srgb, var(--rule) 55%, transparent); display: grid; gap: 6px; }
+.decisions > li:last-child { border-bottom: 0; }
+.decisions .q { font-weight: 600; color: var(--ink-lit); }
+.decisions .q::before { content: counter(d) ". "; font-family: var(--mono); color: var(--ink-dim); }
+.decisions .opts { margin: 0; padding-left: 1.1em; display: grid; gap: 4px; font-size: 14px; }
+.decisions .opts li::marker { color: var(--ink-dim); }
+.decisions .opts b { font-family: var(--mono); color: var(--ink-hi); font-weight: 600; }
+.decisions .rec { font-size: 14px; }
+.decisions .rec b { font: 700 11px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin-right: 6px; }
+.rule-box { border: 1px solid var(--nav); background: color-mix(in srgb, var(--nav) 6%, var(--bg)); padding: var(--s3) var(--s4); display: grid; gap: 6px; }
+.rule-box h3 { color: var(--nav); }
+.ask { border: 1px solid var(--accent); padding: var(--s3) var(--s4); color: var(--ink-lit); font-weight: 600; }
+.sw { display: inline-block; width: 0.9em; height: 0.9em; vertical-align: -0.1em; border: 1px solid var(--rule); margin-right: 4px; }
+</style>
+
+<div class="wrap">
+
+<header>
+  <h1>Nova Faction Looks Plan</h1>
+  <p class="lead">Yes to both. A civilization can have its own plating colours. It can also have its own build style, within the ranges each role already allows. The colour path is small and safe. The build style path changes what the hull generator makes, so it needs a sweep before it ships.</p>
+  <ul class="chips">
+    <li>Status <b>Proposal</b></li>
+    <li>Task <b>20261120-090657</b></li>
+    <li>Release <b>v0.19.0</b></li>
+    <li>Code at <b>14caadc1a</b></li>
+    <li>Built <b>Spike frames only</b></li>
+  </ul>
+  <p class="note">Owner, 2026-11-22: "do a design document ... I am curious if we can actually do different colors for factions; maybe even ships style (like the way they build the ships, maybe some factions build larger, others longer, thinner, etc different shapes + also different use of greebles)". Every option here is a proposal. The owner picks. Faction means civilization in the code. Engine unit: 1 u = 10 m = one cell.</p>
+</header>
+
+<section id="summary" aria-labelledby="h-summary">
+  <h2 id="h-summary">Summary</h2>
+  <div class="body">
+    <div class="scroll"><table class="wide">
+      <thead><tr><th>Question</th><th>Can we</th><th>How</th><th>Main cost or risk</th></tr></thead>
+      <tbody>
+        <tr><td>Plating colour per faction</td><td class="ok">YES</td><td>The plate material is made per style id and shared by every ship that wears it. Pick a palette from the civilization at plan time and write it into the design. The design already rides in the save.</td><td>10 civilian greeble pieces have the civilian hull colour baked into their model. They must take the palette colour.</td></tr>
+        <tr><td>Greeble use per faction (density, kit accent)</td><td class="ok">YES</td><td>Density is the weight of the empty greeble in the style rules (content). A kit accent is a list of pieces from other kits, as <code>scrap</code> and <code>patrol</code> do now.</td><td>One style variant per (role kit, doctrine) pair, or a density field on the palette record.</td></tr>
+        <tr><td>Proportions per faction (longer, broader, bigger)</td><td class="mid">YES, IN RANGE</td><td>The generator already draws scale, long or broad or compact, waist and taper, cube pattern and drive layout from the hull seed. A civilization can bias those draws from its own seeded stream, as it already picks its station archetype.</td><td>Changes generator output: unvisited space in old saves regenerates differently; layout failures fail the sector; turn rate moves. Needs a sweep over many civilizations.</td></tr>
+        <tr><td>New shapes (thin parts, wedges, wings)</td><td class="bad">NO, NOT NOW</td><td>The build parts are cubes only. The start hull task listed slope, wedge and thin parts as later work.</td><td>New section art and content, out of scope.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section id="today" aria-labelledby="h-today">
+  <h2 id="h-today">How ships get their look today</h2>
+  <div class="body">
+    <pre>world seed + lattice node -> Civilization {id, centroid, status, advancement,
+                               role_preference, stance, lawful}      NO LOOK
+                               (civilizations.rs:158-182)
+        |
+cluster slot / station / encounter / hulls for sale
+        |  PlannedShip.civilization (sector_ships.rs:163)
+        v
+ShipLayoutRequest {seed, civilization, role, advancement, size}  (ship_layout.rs:178-193)
+        |  civilization only filters known parts (ship_layout.rs:1455-1461)
+        v
+generate_ship: role_shape table + hull-seed draws -> ShipDesign
+        |  presentation.style = role_style_id(role)   (ship_layout.rs:1878,
+        |                                               civilizations.rs:147-154)
+        v
+spawn: ShipStyle(Some(id)) on the root                (spaceship.rs:1815)
+   +-> plates: SkinAssets material per (style id, Top|Wall)   (shell_skin.rs:1378-1426)
+   +-> greebles: style GreebleRules, solve seeded by style id, .glb pieces with
+                 their OWN baked materials             (skin_decor.rs:93, greeble_solver.rs:671)
+        |
+freeze / save: FrozenShip.design = ShipDesignSource (inline design, style id inside)
+               (spaceship.rs:591-603); unvisited cells regenerate from the seed
+               (save/mod.rs:102-108)</pre>
+  </div>
+</section>
+
+<section id="colour" aria-labelledby="h-colour">
+  <h2 id="h-colour">Colour</h2>
+  <div class="body">
+    <div class="scroll"><table class="wide">
+      <thead><tr><th>Fact</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr class="group"><td colspan="2">How plating colour flows</td></tr>
+        <tr><td>A style holds the plating palette (<code>StylePalette { top, wall }</code>, a <code>SurfaceFinish</code> each), the greeble pieces and the greeble rules. A ship names one style id.</td><td class="path">nova_ship/src/sections/skin_style.rs:85-121</td></tr>
+        <tr><td>Generated ships and their wrecks take the style of their role only. Every civilization's scavenger is rust.</td><td class="path">nova_world_base/src/civilizations.rs:147-154<br>ship_layout.rs:1878</td></tr>
+        <tr><td>Stations take the style of their archetype (ring <code>station</code>, spire <code>armoured</code>, yard <code>industrial</code>). The archetype is already drawn per civilization from its own stream.</td><td class="path">station_layout.rs:188-194, :397-401</td></tr>
+        <tr><td>The six start hulls are hand-placed with a fixed style each (<code>industrial</code>, <code>salvage</code>, <code>civilian</code>, <code>armoured</code>, <code>scrap</code>, <code>patrol</code>).</td><td class="path">nova_authoring/src/base_content/ships/block.rs:188-797</td></tr>
+        <tr><td>Plate materials are cached per style id and surface: two <code>StandardMaterial</code>s per style, shared by every ship of that style. A missing style finish falls back to the engine plate colour.</td><td class="path">shell_skin.rs:1372-1426</td></tr>
+        <tr><td>The palette values are linear. The rig and tonemapper put a floor under value, so hue is the strong lever and value is weak (measured in the armoured notes).</td><td class="path">nova_authoring/src/base_content/styles.rs:219-240</td></tr>
+        <tr class="group"><td colspan="2">Does every spawned ship know its civilization?</td></tr>
+        <tr><td>Generated traffic, intact: yes at plan time (<code>PlannedShip.civilization</code>), and on the entity through <code>TraderMarket.civilization</code>.</td><td class="path">sector_ships.rs:163<br>nova_gameplay/src/market.rs:291-299</td></tr>
+        <tr><td>Station traffic: yes, the station's civilization (<code>HullLineageType::Station</code>). A cluster hull after the first is another civilization's 10% of the time.</td><td class="path">sector_ships.rs:66, :141-149</td></tr>
+        <tr><td>Derelicts and wrecks: yes at plan time. The entity carries no <code>TraderMarket</code>, so nothing at runtime names it.</td><td class="path">sector_ships.rs:163-176</td></tr>
+        <tr><td>Encounter raiders, callers and wrecks: yes, the strongest civilization in reach that builds the hull.</td><td class="path">encounters.rs:420-440, :571</td></tr>
+        <tr><td>Hulls for sale and escorts for hire: yes, <code>generate_ship</code> with the station's civilization. A bought hull keeps its design.</td><td class="path">station_hulls.rs:69<br>nova_ship/src/sections/hull_buy.rs:1-17</td></tr>
+        <tr><td>Player start hulls and scenario ships: no civilization.</td><td class="path">block.rs:1-2</td></tr>
+        <tr><td>Saved ships: the design is stored inline, style id included. A palette written into the design survives a Load with no new save field for the civilization.</td><td class="path">nova_scenario/src/objects/spaceship.rs:591-603<br>ship_design.rs:126-146</td></tr>
+        <tr><td><b>So:</b> pick the palette at plan time and write it into the design. Nothing at render time has to know the civilization.</td><td></td></tr>
+        <tr class="group"><td colspan="2">How many civilizations</td></tr>
+        <tr><td>One civilization per node of a 240 km lattice, unbounded. 70% are living.</td><td class="path">civilizations.rs:43, :69</td></tr>
+        <tr><td>A place is in reach (320 km) of 7 to 14 civilizations, median 10. <span class="tag dim">script</span> Sampled from the lattice and jitter constants, 2000 points; not read from the game.</td><td class="path">civilizations.rs:43-50</td></tr>
+        <tr><td>Each node has at most 26 neighbours (the 3x3x3 block). Ships in one cluster are the primary civilization's, plus 10% from others in reach.</td><td class="path">civilizations.rs:93, :298-321<br>sector_ships.rs:66</td></tr>
+        <tr class="group"><td colspan="2">Greebles with the hull colour baked in</td></tr>
+        <tr><td><b>10 of 60</b> greeble models have a material named <code>hull</code> set to the civilian top colour exactly (0.42, 0.42, 0.40): civilian <code>beacon</code>, <code>dish</code>, <code>door</code>, <code>fairing</code>, <code>fin</code>, <code>skylight</code>, <code>stripe</code>, <code>tank</code>, <code>vent</code>, <code>windows</code>. On any other palette they show as pale off-white shells. <span class="tag dim">script</span> Recipe colours compared to every style palette.</td><td class="path">scripts/greeble-recipes/civilian_*.json<br>styles.rs:330-336</td></tr>
+        <tr><td>The <code>patrol</code> style already lists <code>civilian_stripe</code>, so the slate picket carries a pale band today.</td><td class="path">styles.rs:678</td></tr>
+        <tr><td>The other kits bake their own neutral or accent colours on purpose (armoured gunmetal rail, industrial yellow, salvage weld, station shadow). They read on any hull colour.</td><td class="path">styles.rs:236-240</td></tr>
+        <tr class="group"><td colspan="2">Material and draw cost</td></tr>
+        <tr><td>One more palette in view adds two plate materials per role kit in view. Plate entities with the same mesh and material share an instanced draw, so ships of two palettes do not share a draw for the same plate shape. The worst case grows with (plate shapes in view) x (palettes in view). A cluster shows one civilization, sometimes two. <span class="tag dim">not run</span></td><td class="path">shell_skin.rs:1365-1381</td></tr>
+        <tr><td>Greeble pieces keep their own glTF materials, so their draws do not change. If the 10 baked pieces take the palette top material, that adds at most one draw group per piece per palette. <span class="tag dim">not run</span></td><td class="path">skin_decor.rs:93-160</td></tr>
+        <tr><td>Lavapipe cost is draw count, not pixels. A sector stays under today's spread of seven styles in most clusters. Whether StandardMaterial is bindless on lavapipe (which would remove the material split) is not checked.</td><td class="path">-</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section id="build" aria-labelledby="h-build">
+  <h2 id="h-build">Build style</h2>
+  <div class="body">
+    <p>The generator is greedy placement, not WFC. It plans a spine from a per-role table, lays cross-sections, paints one of three cube patterns, then places fittings in a fixed order and checks the result. The civilization only filters which parts it knows; it does not touch the shape.</p>
+    <div class="scroll"><table class="wide">
+      <thead><tr><th>Knob</th><th>Today</th><th>Evidence</th><th>Per faction?</th></tr></thead>
+      <tbody>
+        <tr class="group"><td colspan="4">Shape</td></tr>
+        <tr><td>Spine size by role (length, half-width, half-height) and advancement</td><td>Table: civilian 8-40 x 1-1.5 x 0-1; industrial 8-44 x 1-2 x 1-2; scavenger 6-24 x 1-2 x 0-1; armored 9-52 x 1-2 x 1-2 cells</td><td class="path">ship_layout.rs:1176-1186, :1907-1910</td><td class="mid">BIAS ONLY</td></tr>
+        <tr><td>Scale</td><td>Seed draw 0.8 to 1.2</td><td class="path">ship_layout.rs:1912</td><td class="ok">SAFE</td></tr>
+        <tr><td>Long / broad / compact share</td><td>Broad 15% (length x0.85, +1 width, +1 height); compact 15% on civilian and scavenger (length x0.65, +1 width)</td><td class="path">ship_layout.rs:1913-1923</td><td class="ok">SAFE</td></tr>
+        <tr><td>Waist or shoulder at mid, taper or flare at the stern</td><td>Seed draws, +-1 cell</td><td class="path">ship_layout.rs:1929-1930</td><td class="ok">SAFE</td></tr>
+        <tr><td><code>min_aspect</code> (length per body width)</td><td>2.5 / 2.5 / 2.0 / 3.0</td><td class="path">ship_layout.rs:1176-1186</td><td class="bad">BREAKS</td></tr>
+        <tr><td>Nose length</td><td><code>1 + length / 5</code> stations</td><td class="path">ship_layout.rs:1253-1255</td><td class="mid">BIAS ONLY</td></tr>
+        <tr><td>Cube pattern (rings, deck, shell) and ring width</td><td>0.4 / 0.3 / 0.3; width 2-4</td><td class="path">ship_layout.rs:1268-1281</td><td class="ok">SAFE</td></tr>
+        <tr><td>Drive layout (centred single or mirrored pair)</td><td>50/50 when both fit</td><td class="path">ship_layout.rs:1568-1574</td><td class="ok">SAFE</td></tr>
+        <tr><td>Size ceiling</td><td>100 m to 400 m by advancement; 400 m is the sector manifest maximum</td><td class="path">ship_layout.rs:97-101<br>nova_world/src/generation.rs:573</td><td class="bad">BREAKS</td></tr>
+        <tr><td>Section budget</td><td><code>MAX_SHIP_SECTIONS = 2000</code>, 100 kept for fittings</td><td class="path">ship_layout.rs:110-125</td><td class="bad">BREAKS</td></tr>
+        <tr><td>Mirror symmetry, fitting faces (turret top, intake top or bottom, docks on the flanks)</td><td>Enforced by <code>check</code></td><td class="path">ship_layout.rs:1196-1233, :2314-2388</td><td class="bad">BREAKS</td></tr>
+        <tr><td>Weapon slots per role</td><td>Scavenger 1-4, armored 1-9</td><td class="path">nova_gameplay/src/market.rs:81-87</td><td class="bad">BALANCE</td></tr>
+        <tr class="group"><td colspan="4">Greebles</td></tr>
+        <tr><td>Greeble density</td><td>Weight of the empty greeble per style (industrial 5.5, armoured 6.0, civilian 5.0) and <code>max_count</code> caps</td><td class="path">styles.rs:853-969</td><td class="ok">SAFE</td></tr>
+        <tr><td>Greeble kit</td><td>Fixed by the role style; <code>scrap</code> and <code>patrol</code> already mix pieces from other kits</td><td class="path">styles.rs:580-690</td><td class="ok">SAFE</td></tr>
+        <tr><td>Greeble placement seed</td><td>Hashed from the style id alone</td><td class="path">greeble_solver.rs:671</td><td class="ok">FREE</td></tr>
+      </tbody>
+    </table></div>
+    <h3>Seeded doctrine or authored content</h3>
+    <div class="scroll"><table class="wide">
+      <thead><tr><th>Form</th><th>What it is</th><th>Save</th><th>Mods</th><th>Fit</th></tr></thead>
+      <tbody>
+        <tr><td><b>Seeded doctrine</b></td><td>Each civilization draws its biases from <code>id.stream(b"doctrine")</code>, like <code>lawful</code> (civilizations.rs:279) and the station archetype (station_layout.rs:397-401). The generator reads them through the civilization already on the request.</td><td>Nothing new. Visited ships keep their saved design.</td><td>Cannot author a faction.</td><td>Civilizations are seeded, not authored, so this matches.</td></tr>
+        <tr><td><b>Authored catalog, seeded pick</b></td><td>A content kind (palettes, doctrines) with ids. Each civilization takes one entry by its node. Lint checks every entry.</td><td>Palette id in the design (shipped saves read <code>None</code> as the style palette: <code>serde(default)</code>, ship_design.rs:125).</td><td>A mod adds or replaces entries by id.</td><td>Best for colour: a palette is an art choice and must be tuned by eye.</td></tr>
+        <tr><td>Authored per-faction content</td><td>Named factions with hand-made looks.</td><td>New faction ids.</td><td>Yes.</td><td>No: there are no authored factions to hang it on.</td></tr>
+      </tbody>
+    </table></div>
+    <h3>Constraints that must hold</h3>
+    <div class="scroll"><table class="wide">
+      <thead><tr><th>Constraint</th><th>Where it is checked</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td>Berth fit: a hull for sale must fit a free station port.</td><td>Runtime only. A hull that fits no port is not parked, with a warning. Station ceiling 100-300 m against ship hulls up to 400 m. No permanent berth census test exists (an earlier one was a disposable spike).</td><td class="path">nova_scenario/src/objects/parked_hulls.rs:34-37, :518-525<br>station_layout.rs:387-392</td></tr>
+        <tr><td>Role function: hull, flight computer, drive, intake and dock on every ship; a weapon on armed roles; cargo per hull cube.</td><td>Part rules and <code>check</code>.</td><td class="path">ship_parts.rs:113-134<br>nova_scenario/src/objects/ship_design.rs:413</td></tr>
+        <tr><td>Thrust and flight computer floors.</td><td><code>check</code>; the bank grows to meet them.</td><td class="path">nova_ship/src/sections/ship_measure.rs:23-26<br>ship_layout.rs:1505-1535</td></tr>
+        <tr><td>Turn rate: not gated; a longer or wider hull turns slower (measured on the start hulls: 59-76 deg/s after the reshape).</td><td>Runtime physics.</td><td class="path">nova_ship/src/sections/controller_section.rs:41<br>tasks/20261116-132144/TASK.md</td></tr>
+        <tr><td>Layout must not fail: a failed layout fails the whole sector.</td><td>Up to 8 attempts, then a sector fault.</td><td class="path">ship_layout.rs:93<br>sector_ships.rs:33-35</td></tr>
+        <tr><td>Generated hull tests: long for its role and inside the ceiling; floors; style per role; no medium hull in the second ring; full-advancement hulls under 2000 sections; escort raiders 20-40 sections.</td><td>Unit and integration tests, swept over a few civilizations only.</td><td class="path">ship_layout.rs:3184, :3400, :3451<br>nova_authoring/tests/generated_wrecks.rs:136-150<br>generated_armament.rs:178-218</td></tr>
+        <tr><td>Content lint: the role styles exist; the part snapshot builds. Generated hulls are not linted.</td><td>Arming and lint walk.</td><td class="path">layered.rs:110-117<br>nova_authoring/src/lint_walk.rs:1061-1077</td></tr>
+        <tr><td>Save: a generator change silently changes every unvisited cell of an old save.</td><td>By design.</td><td class="path">save/mod.rs:102-108</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section id="options" aria-labelledby="h-options">
+  <h2 id="h-options">Options</h2>
+  <div class="body">
+    <div class="scroll"><table class="wide">
+      <thead><tr><th>Option</th><th>What the player sees</th><th>Cost</th><th>What dies</th><th>What may break</th></tr></thead>
+      <tbody>
+        <tr><td><b>1. Colour only</b></td><td>All ships and stations of one civilization share a hue. The role sets the tone (civilian pale, industrial mid, scavenger dark, armored darkest) and keeps its greeble kit, so role still reads by kit and tone.</td><td>Small to medium: a palette content kind, one field on the design presentation, a material key, the 10 baked pieces, the pick function, lint.</td><td><code>role_style_id</code> as the only colour source for generated hulls and stations; the role palettes on generated hulls (start hulls keep theirs).</td><td><code>every_role_wears_its_style_intact_and_wrecked</code> (ship_layout.rs:3184) changes; media with generated ships need recapture; draw count rises a little.</td></tr>
+        <tr><td><b>2. Colour + greebles</b></td><td>1, plus a civilization's ships are busy or bare (density), and carry one accent piece set (for example antennas from the station kit, or salvage patches).</td><td>Medium: the palette record also carries density and an accent list, or one style variant per pair.</td><td>As 1.</td><td>As 1; a dense doctrine on big hulls adds greeble entities (cost per piece is an entity with a collider).</td></tr>
+        <tr><td><b>3. Colour + proportions</b></td><td>1, plus a civilization builds long and lean, or broad and deep, or small, within each role's range.</td><td>Medium: a doctrine struct drawn from the civilization stream, read in <code>plan</code>, plus a failure-rate sweep over many civilizations and seeds.</td><td>The fixed 15% broad, 15% compact, 50/50 drive and 0.4/0.3/0.3 pattern odds.</td><td>Unvisited space in saves; sector faults if a bias raises the layout failure rate; turn rate and escort difficulty move; hulls for sale fit fewer ports if biased large.</td></tr>
+        <tr><td><b>4. Full doctrine</b></td><td>1 + 2 + 3: a civilization has a colour, a build habit and a greeble habit.</td><td>Largest: the sum, in three slices.</td><td>As 1 and 3.</td><td>As 1, 2 and 3.</td></tr>
+      </tbody>
+    </table></div>
+    <div class="rule-box">
+      <h3>Recommendation: ship 1 + 2 in v0.19.0, then 3 as its own slice</h3>
+      <ul class="plain">
+        <li><b>Why 1 + 2 first.</b> Both live in the style layer. The generator output does not change, so no save, layout or balance risk. The frames below show it reads.</li>
+        <li><b>Why 3 later.</b> The generator already makes long, median and broad hulls of one role (frame <code>shape-range</code>), so a bias gives each civilization a habit. But it changes every unvisited cell and needs a failure sweep and turn-rate numbers first.</li>
+        <li><b>Palette pick with no repeats between neighbours.</b> <code>palette = order[(x + 2y + 4z) mod N]</code> with N at least 8 and <code>order</code> a per-world shuffle of the catalog. For any neighbour offset in {-1, 0, 1}^3 the step <code>dx + 2dy + 4dz</code> is between -7 and 7 and is never 0, so no two of the 26 neighbours share a palette. A function of the node and the world seed, so nothing is saved.</li>
+        <li><b>Explicit content.</b> A palette names a finish for every role and for stations, with no derivation and no default. Lint refuses a missing role, a catalog under 8 entries, and a hue in the HUD red band.</li>
+        <li><b>Tone per role.</b> The palette builder keeps the role tones of today (civilian light, armored darkest), but the civilian tone keeps enough saturation that the hue reads (spike row: teal, green and sand civilians look alike).</li>
+      </ul>
+    </div>
+    <pre>before                                         after (1 + 2)
+plan: style = role_style_id(role)              plan: style = role_style_id(role)
+                                                     palette = civilization_palette(id, catalog)
+design.presentation { style }                  design.presentation { style, palette }
+ShipStyle(Option&lt;String&gt;)                      ShipStyle { style, palette }
+SkinAssets materials[style][surface]           SkinAssets materials[(style, palette)][surface]
+greebles: .glb materials as baked              greebles: material "hull" -> palette Top
+                                                         density + accent from the palette record</pre>
+  </div>
+</section>
+
+<section id="decisions" aria-labelledby="h-decisions">
+  <h2 id="h-decisions">Owner decisions</h2>
+  <div class="body">
+    <ol class="decisions">
+      <li>
+        <span class="q">Full hull colour (A) or role colour plus a faction trim (B)?</span>
+        <ul class="opts">
+          <li><b>A. Full hull colour</b>: the faction hue on the plating; the role sets the tone.</li>
+          <li><b>B. Trim</b>: role plating stays; a third finish on stripes and markings carries the faction.</li>
+        </ul>
+        <span class="rec"><b>Rec</b>A. The frames show the hue reads at range on every role; the pale civilian tone needs more saturation. B would need trim pieces on every kit and still reads weakly at distance.</span>
+      </li>
+      <li>
+        <span class="q">How many palettes, and what when a world has more civilizations?</span>
+        <ul class="opts">
+          <li><b>8+ palettes, lattice pick</b>: no two neighbours alike; reuse only two or more nodes apart.</li>
+          <li><b>6 palettes, hashed pick</b>: about one neighbour pair in six shares a colour.</li>
+        </ul>
+        <span class="rec"><b>Rec</b>8, picked by the lattice formula. A place sees about 10 civilizations in reach but one or two per cluster, so a repeat two nodes away rarely meets in one frame.</span>
+      </li>
+      <li>
+        <span class="q">May a faction have red plating?</span>
+        <ul class="opts">
+          <li><b>No red band</b>: lint refuses hues near the HUD hostile red.</li>
+          <li><b>Red allowed</b>: hostility stays in the HUD only.</li>
+        </ul>
+        <span class="rec"><b>Rec</b>No red band. Stance is per player and changes; a red faction would read hostile when it is an ally. The start raider keeps its <code>scrap</code> red as a start-hull look.</span>
+      </li>
+      <li>
+        <span class="q">Player hulls: start hulls, bought and captured hulls?</span>
+        <ul class="opts">
+          <li><b>Start hulls keep their colours</b>; a bought hull keeps the seller's palette (it is in its design).</li>
+          <li><b>Player colour</b>: every hull the player flies takes one player palette.</li>
+        </ul>
+        <span class="rec"><b>Rec</b>Start hulls keep their colours (owner liked them); a bought hull keeps the seller's colours. A repaint at a station is a later idea, not in this task.</span>
+      </li>
+      <li>
+        <span class="q">Stations, wrecks and extinct civilizations?</span>
+        <ul class="opts">
+          <li><b>Same palette</b>: stations take the palette's station finish; wrecks keep their builder's colours.</li>
+          <li><b>Faded</b>: wrecks and extinct civilizations take a darker finish.</li>
+          <li><b>None</b>: wrecks and stations keep the style palette.</li>
+        </ul>
+        <span class="rec"><b>Rec</b>Same palette, no fade. A wreck already reads by damage and dark drives, and its colour tells the player whose it was.</span>
+      </li>
+      <li>
+        <span class="q">Mods, and hulls with no civilization?</span>
+        <ul class="opts">
+          <li><b>Palettes are content</b>: a mod adds or replaces by id; no civilization means the style's own palette.</li>
+          <li><b>Code table</b>: palettes are constants.</li>
+        </ul>
+        <span class="rec"><b>Rec</b>Content. The style palette stays the defined look for start hulls, scenario ships and the editor. A mod that adds palettes reshuffles unvisited space only; visited ships keep their saved palette id.</span>
+      </li>
+      <li>
+        <span class="q">Build style: which knobs may a civilization bias, and when?</span>
+        <ul class="opts">
+          <li><b>Later slice, safe knobs only</b>: scale centre, broad and compact share, waist and taper, cube pattern, drive layout.</li>
+          <li><b>Also size</b>: a civilization builds bigger at the same advancement.</li>
+          <li><b>Not at all</b>: colour and greebles only.</li>
+        </ul>
+        <span class="rec"><b>Rec</b>Safe knobs only, after slice 1 + 2. Size and <code>min_aspect</code> stay per role: they move berth fit, clearance and turn rate.</span>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section id="frames" aria-labelledby="h-frames">
+  <h2 id="h-frames">Spike frames</h2>
+  <div class="body">
+    <p class="spike"><b>SPIKE FRAMES, NOT THE DESIGN.</b> A temporary patch of <code>screenshot_generated_ships</code> (reverted; <code>git diff</code> empty). Generated hulls of seed 115, civilization node (0, 0, 0), advancement up to 0.4, in the looks rig light and grey backdrop of <code>screenshot_base_fleet -- --looks</code>. Faction palettes are made in the example: a hue per faction and a fixed tone per role (HSL saturation and lightness: civilian 0.20 / 0.68, industrial 0.32 / 0.42, salvage 0.36 / 0.28, armoured 0.26 / 0.20), wall a sixth of the top. The real palettes would be tuned by eye. Lavapipe, Xvfb, 1920x1080, sandboxed profile. Raw frames: <code>~/Pictures/nova-faction-looks/</code>.</p>
+    <figure>
+      <img src="frames/palette-sheet.jpg" alt="Six rows of the same five generated hulls: civilian, industrial, scavenger, armored, armored wreck. Rows: authored role colours, teal, violet, green, sand, red.">
+      <figcaption><b>(a) Same hulls, six palettes.</b> Columns: civilian, industrial, scavenger, armored, armored wreck. Rows: authored role styles (today), teal, violet, green, sand, red. Each faction reads as one family at this range; the role still reads by tone and kit. Weak spots: the pale civilian tone carries little hue (teal, green and sand civilians look alike), so the civilian tone needs more saturation; sand industrial is close to today's ochre; the red row reads hostile.</figcaption>
+    </figure>
+    <div class="grid2">
+      <figure>
+        <img src="frames/civilian-zoom.jpg" alt="The civilian hull at three times zoom in authored, violet and green palettes.">
+        <figcaption><b>Baked colour.</b> Civilian hull, 3x pixel zoom: authored, violet, green. The 10 baked <code>hull</code> pieces (window rows, fin, dish) stay off-white. On this pale tone they barely show; on a darker or stronger tone they would read as pale patches.</figcaption>
+      </figure>
+      <figure>
+        <img src="frames/greeble-kit.jpg" alt="One industrial hull five times in teal: industrial kit normal, dense, sparse; salvage kit; armoured kit.">
+        <figcaption><b>(b) Greeble habit on one hull, teal.</b> Top: industrial kit at normal, dense (empty weight x0.2) and sparse (x5). Bottom: salvage kit, armoured kit. Density reads clearly. The two lower hulls also take their kit's darker tone in this spike.</figcaption>
+      </figure>
+    </div>
+    <figure>
+      <img src="frames/shape-range.jpg" alt="Three industrial hulls of one request: longest, median, broadest.">
+      <figcaption><b>(b) Proportions today.</b> One industrial request, 160 hull seeds searched; length over width spans 1.6 to 4.1 cells per cell. Shown: longest (7 x 6 x 28.5 cells, W x H x L), median (9 x 4 x 25.5) and broadest (13 x 6 x 20.5). A doctrine would bias which of these a civilization draws. Not a generator change.</figcaption>
+    </figure>
+    <figure>
+      <img src="frames/doctrine.jpg" alt="Three industrial hulls, each a different faction doctrine: teal long sparse armoured kit, violet broad dense industrial kit, sand median salvage kit.">
+      <figcaption><b>(b) Full doctrine, three factions, one role (industrial).</b> Teal: long hull, sparse, armoured kit. Violet: broad hull, dense, industrial kit. Sand: median hull, salvage kit. All three are cargo haulers with the same parts rules. This is the most a faction could differ inside today's ranges.</figcaption>
+    </figure>
+    <p class="note">Not cheap and not shown: a doctrine inside the generator (a bias on its own draws). That needs a change in <code>nova_world_base</code>, and a temporary crate patch in the shared checkout would leak into other lanes' builds. The seed search above stands in for it.</p>
+  </div>
+</section>
+
+<section id="delivery" aria-labelledby="h-delivery">
+  <h2 id="h-delivery">Delivery sketch and proof plan</h2>
+  <div class="body">
+    <h3>Slice 1: faction palettes (option 1)</h3>
+    <ol class="plain">
+      <li><code>nova_ship</code>: <code>FactionPaletteConfig { id: FactionPaletteDesignId, name, roles: { civilian, industrial, scavenger, armored, station }: StylePalette }</code> and <code>GamePalettes</code>; <code>ShipStyle</code> carries the palette id; <code>SkinAssets</code> keys materials by (style, palette).</li>
+      <li><code>nova_scenario</code>: <code>ShipPresentationConfig.palette: Option&lt;FactionPaletteDesignId&gt;</code>. <code>None</code> has a defined meaning: the style's own palette (start hulls, scenarios, editor). Lint refuses an unknown id.</li>
+      <li><code>nova_world_base</code>: <code>civilization_palette(id, catalog)</code> with the lattice formula; set in <code>generate_ship</code>, <code>generate_wreck</code>, <code>generate_station</code>; every caller through the compiler.</li>
+      <li><code>nova_authoring</code>: a palette builder (8 hues, no red band), <code>content gen</code>, lint; never hand-edit the generated RON.</li>
+      <li>Greebles: the 10 civilian pieces keep a material named <code>hull</code>; the decor spawn swaps it for the plate Top material. Fix <code>patrol</code>'s pale stripe in passing.</li>
+      <li>Docs: wiki ships page, creator page for palettes, changelog entry (content format addition, not breaking: shipped saves read <code>None</code>).</li>
+    </ol>
+    <h3>Slice 2: greeble habit (option 2)</h3>
+    <p>Density factor and an accent piece list on the palette record (or a sibling doctrine record). Lint: the accent pieces exist; the factor is in a stated range.</p>
+    <h3>Slice 3: build habit (option 3, later)</h3>
+    <p><code>BuildDoctrine</code> drawn from <code>id.stream(b"doctrine")</code>: scale centre, broad and compact share, pattern weights, drive pair share, waist amplitude. Read in <code>plan</code>. Ranges chosen so the tests at ship_layout.rs:3400 and :3451 hold.</p>
+    <h3>Proof</h3>
+    <div class="scroll"><table class="wide">
+      <thead><tr><th>Claim</th><th>Proof</th></tr></thead>
+      <tbody>
+        <tr><td>No two neighbour civilizations share a palette; the same id gives the same palette.</td><td>Unit test over the sweep seeds and every node of a block: <code>neighbour_civilizations_never_share_a_palette</code>.</td></tr>
+        <tr><td>A generated ship, its wreck and its station wear their civilization's palette.</td><td>Unit test in <code>ship_layout.rs</code> and <code>station_layout.rs</code>, replacing <code>every_role_wears_its_style_intact_and_wrecked</code>.</td></tr>
+        <tr><td>Two ships of different palettes have different plate materials; same palette shares them.</td><td>Asserted ECS example on <code>SkinAssets</code>.</td></tr>
+        <tr><td>Colours survive a Load.</td><td><code>nova-probe</code> system flow: seeded world, save, load, compare the palette ids on the ships in a visited cell.</td></tr>
+        <tr><td>Palette content is complete and has no red band.</td><td>Lint tests on a bad palette.</td></tr>
+        <tr><td>Factions read apart.</td><td>Frames: four palettes on every role in the looks rig, plus one sector frame with two civilizations. Owner signs off.</td></tr>
+        <tr><td>Draw cost is acceptable.</td><td><code>nova-probe</code> matched repeat sets on one sector, one palette against four, compared to master as the named reference. No timing assert.</td></tr>
+        <tr><td>(Slice 3) Doctrine never fails a layout.</td><td>Sweep: 200 civilizations x 4 roles x advancement steps x 32 seeds, zero failures; turn-rate table per doctrine extreme.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section id="unverified" aria-labelledby="h-unverified">
+  <h2 id="h-unverified">Not verified</h2>
+  <div class="body">
+    <ul class="plain">
+      <li>Draw-call cost of more palettes: not measured. Whether StandardMaterial batches across materials (bindless) on lavapipe: not checked.</li>
+      <li>The civilizations-in-reach count is from a script over the lattice constants, not read from the game.</li>
+      <li>The baked-colour count compares recipe colours to palettes; models were not opened.</li>
+      <li>Whether any AI tuning reads hull size directly: not found, not ruled out.</li>
+      <li>The spike frames are lavapipe renders under the looks rig light. No hardware render, no in-game sector frame.</li>
+      <li>The spike's proportion row is a seed search inside today's generator, not a doctrine; the greeble row changes only the empty weight.</li>
+      <li>Swapping a glTF material by name at decor spawn is a proposal; the hook was not tried.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="ask" aria-labelledby="h-ask">
+  <h2 id="h-ask">Decision for you</h2>
+  <div class="body">
+    <p class="ask">Ship faction palettes plus a greeble habit per civilization (options 1 + 2) in v0.19.0, with 8 palettes, no red band, start hulls unchanged, and the build habit (option 3) as a later slice?</p>
+  </div>
+</section>
+
+</div>

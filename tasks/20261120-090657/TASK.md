@@ -78,3 +78,20 @@ Planned 2026-11-20 from the owner sign-off of the start hull looks
 
 ## Owner check (2026-11-22)
 - Owner moved this task into v0.19.0. The open decisions above still stand.
+
+## Design (2026-11-22)
+- Page: `DESIGN-faction-looks.html` (spike frames in `frames/`, raw in
+  `~/Pictures/nova-faction-looks/`). Proposal only; the owner picks.
+- Colour per faction: yes. Build style per faction: yes, as seeded biases
+  on draws the generator already makes, inside each role's ranges.
+- Options:
+  - 1. Colour only: an authored palette catalog (8+, no red band); each
+    civilization takes one by its lattice node, so no two neighbours match;
+    the role sets the tone and keeps its greeble kit.
+  - 2. Colour + greebles: 1, plus a greeble density and an accent piece set
+    per civilization.
+  - 3. Colour + proportions: 1, plus seeded biases on scale, broad or
+    compact share, waist and taper, cube pattern and drive layout.
+  - 4. Full doctrine: 1 + 2 + 3.
+- Agent recommendation: 1 + 2 in v0.19.0; 3 as a later slice after a
+  layout failure sweep and turn-rate numbers.
