@@ -1,6 +1,6 @@
 # Faction looks: palettes and greeble habit
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 28
 - TAGS: v0.19.0,ships,art
 
@@ -187,3 +187,7 @@ more colors". Uncommitted on `master`. Frames in
 - `faction_palettes` takes `NOVA_PALETTE_WALK=<id,id,...>`; all 15 PASS, 0
   magenta pixels.
 - The mod editor lists, makes and opens palettes (`KINDS` row `made`).
+
+## Closed (2026-11-23)
+- Owner sign-off: the factions read apart by colour. The close pairs stay
+  as they are.
