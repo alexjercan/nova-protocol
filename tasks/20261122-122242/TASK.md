@@ -1,6 +1,6 @@
 # RCS: refill while Shift is held, mouse cancels Shift+X
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 58
 - TAGS: v0.19.0, flight, input
 
@@ -115,3 +115,6 @@
 - Owner check: `nix develop --command cargo run --example
   spin_dock_sandbox --features debug`; lock the wreck, Shift + X, keep Shift
   held, rest or nudge the mouse (MATCH stays), then push it (MATCH ends).
+
+## Closed (2026-11-23)
+- Owner played it: "The `20261122-122242` task works".
