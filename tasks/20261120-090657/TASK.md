@@ -95,3 +95,8 @@ Planned 2026-11-20 from the owner sign-off of the start hull looks
   - 4. Full doctrine: 1 + 2 + 3.
 - Agent recommendation: 1 + 2 in v0.19.0; 3 as a later slice after a
   layout failure sweep and turn-rate numbers.
+
+## Owner check (2026-11-23)
+- Greebles: recipe slots that follow the hull use a magenta key colour;
+  the greeble takes a tint input (faction palette) that replaces the key.
+  Open: replace or multiply (agent rec: replace).

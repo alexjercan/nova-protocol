@@ -125,7 +125,7 @@ pre { margin: 0; padding: var(--s3) var(--s4); font: 12.5px/1.5 var(--mono); col
     <div class="scroll"><table class="wide">
       <thead><tr><th>Question</th><th>Can we</th><th>How</th><th>Main cost or risk</th></tr></thead>
       <tbody>
-        <tr><td>Plating colour per faction</td><td class="ok">YES</td><td>The plate material is made per style id and shared by every ship that wears it. Pick a palette from the civilization at plan time and write it into the design. The design already rides in the save.</td><td>10 civilian greeble pieces have the civilian hull colour baked into their model. They must take the palette colour.</td></tr>
+        <tr><td>Plating colour per faction</td><td class="ok">YES</td><td>The plate material is made per style id and shared by every ship that wears it. Pick a palette from the civilization at plan time and write it into the design. The design already rides in the save.</td><td>10 civilian greeble pieces have the civilian hull colour baked into their model. Owner plan: those slots use a magenta key colour, and the greeble takes a tint input that replaces the key.</td></tr>
         <tr><td>Greeble use per faction (density, kit accent)</td><td class="ok">YES</td><td>Density is the weight of the empty greeble in the style rules (content). A kit accent is a list of pieces from other kits, as <code>scrap</code> and <code>patrol</code> do now.</td><td>One style variant per (role kit, doctrine) pair, or a density field on the palette record.</td></tr>
         <tr><td>Proportions per faction (longer, broader, bigger)</td><td class="mid">YES, IN RANGE</td><td>The generator already draws scale, long or broad or compact, waist and taper, cube pattern and drive layout from the hull seed. A civilization can bias those draws from its own seeded stream, as it already picks its station archetype.</td><td>Changes generator output: unvisited space in old saves regenerates differently; layout failures fail the sector; turn rate moves. Needs a sweep over many civilizations.</td></tr>
         <tr><td>New shapes (thin parts, wedges, wings)</td><td class="bad">NO, NOT NOW</td><td>The build parts are cubes only. The start hull task listed slope, wedge and thin parts as later work.</td><td>New section art and content, out of scope.</td></tr>
@@ -191,10 +191,11 @@ freeze / save: FrozenShip.design = ShipDesignSource (inline design, style id ins
         <tr class="group"><td colspan="2">Greebles with the hull colour baked in</td></tr>
         <tr><td><b>10 of 60</b> greeble models have a material named <code>hull</code> set to the civilian top colour exactly (0.42, 0.42, 0.40): civilian <code>beacon</code>, <code>dish</code>, <code>door</code>, <code>fairing</code>, <code>fin</code>, <code>skylight</code>, <code>stripe</code>, <code>tank</code>, <code>vent</code>, <code>windows</code>. On any other palette they show as pale off-white shells. <span class="tag dim">script</span> Recipe colours compared to every style palette.</td><td class="path">scripts/greeble-recipes/civilian_*.json<br>styles.rs:330-336</td></tr>
         <tr><td>The <code>patrol</code> style already lists <code>civilian_stripe</code>, so the slate picket carries a pale band today.</td><td class="path">styles.rs:678</td></tr>
+        <tr><td><b>Owner plan (2026-11-23): magenta key + tint.</b> A recipe slot that must follow the hull uses the magenta key colour instead of a baked hull colour. The greeble struct (or the decor spawn) takes a tint; ship greebles get the palette Top finish for their role, ships with no palette get the style's own Top finish. A piece that misses its tint renders magenta, which shows in any frame. Lint refuses a keyed piece with no tint source, and magenta inside any palette. Any kit can opt in, for example a stripe on armoured or industrial pieces. The <code>patrol</code> pale band goes away because the stripe takes the patrol tint.</td><td class="path">scripts/greeble-recipes/civilian_*.json<br>skin_decor.rs:93-160</td></tr>
         <tr><td>The other kits bake their own neutral or accent colours on purpose (armoured gunmetal rail, industrial yellow, salvage weld, station shadow). They read on any hull colour.</td><td class="path">styles.rs:236-240</td></tr>
         <tr class="group"><td colspan="2">Material and draw cost</td></tr>
         <tr><td>One more palette in view adds two plate materials per role kit in view. Plate entities with the same mesh and material share an instanced draw, so ships of two palettes do not share a draw for the same plate shape. The worst case grows with (plate shapes in view) x (palettes in view). A cluster shows one civilization, sometimes two. <span class="tag dim">not run</span></td><td class="path">shell_skin.rs:1365-1381</td></tr>
-        <tr><td>Greeble pieces keep their own glTF materials, so their draws do not change. If the 10 baked pieces take the palette top material, that adds at most one draw group per piece per palette. <span class="tag dim">not run</span></td><td class="path">skin_decor.rs:93-160</td></tr>
+        <tr><td>Greeble pieces keep their own glTF materials, so their draws do not change. Keyed slots (the 10 civilian pieces today) take one material per (piece, palette); that adds at most one draw group per keyed piece per palette. Unkeyed materials still share draws. <span class="tag dim">not run</span></td><td class="path">skin_decor.rs:93-160</td></tr>
         <tr><td>Lavapipe cost is draw count, not pixels. A sector stays under today's spread of seven styles in most clusters. Whether StandardMaterial is bindless on lavapipe (which would remove the material split) is not checked.</td><td class="path">-</td></tr>
       </tbody>
     </table></div>
@@ -281,7 +282,7 @@ plan: style = role_style_id(role)              plan: style = role_style_id(role)
 design.presentation { style }                  design.presentation { style, palette }
 ShipStyle(Option&lt;String&gt;)                      ShipStyle { style, palette }
 SkinAssets materials[style][surface]           SkinAssets materials[(style, palette)][surface]
-greebles: .glb materials as baked              greebles: material "hull" -> palette Top
+greebles: .glb materials as baked              greebles: magenta key slot -> tint (palette Top)
                                                          density + accent from the palette record</pre>
   </div>
 </section>
@@ -296,7 +297,8 @@ greebles: .glb materials as baked              greebles: material "hull" -> pale
           <li><b>A. Full hull colour</b>: the faction hue on the plating; the role sets the tone.</li>
           <li><b>B. Trim</b>: role plating stays; a third finish on stripes and markings carries the faction.</li>
         </ul>
-        <span class="rec"><b>Rec</b>A. The frames show the hue reads at range on every role; the pale civilian tone needs more saturation. B would need trim pieces on every kit and still reads weakly at distance.</span>
+        <span class="rec"><b>Rec</b>A. The frames show the hue reads at range on every role; the pale civilian tone needs more saturation. B still reads weakly at distance.</span>
+        <span class="note">The magenta key makes B cheap later: a second key colour carries a trim finish apart from the plating, so A or B needs no new art per kit, only keyed slots in the recipes.</span>
       </li>
       <li>
         <span class="q">How many palettes, and what when a world has more civilizations?</span>
@@ -391,7 +393,7 @@ greebles: .glb materials as baked              greebles: material "hull" -> pale
       <li><code>nova_scenario</code>: <code>ShipPresentationConfig.palette: Option&lt;FactionPaletteDesignId&gt;</code>. <code>None</code> has a defined meaning: the style's own palette (start hulls, scenarios, editor). Lint refuses an unknown id.</li>
       <li><code>nova_world_base</code>: <code>civilization_palette(id, catalog)</code> with the lattice formula; set in <code>generate_ship</code>, <code>generate_wreck</code>, <code>generate_station</code>; every caller through the compiler.</li>
       <li><code>nova_authoring</code>: a palette builder (8 hues, no red band), <code>content gen</code>, lint; never hand-edit the generated RON.</li>
-      <li>Greebles: the 10 civilian pieces keep a material named <code>hull</code>; the decor spawn swaps it for the plate Top material. Fix <code>patrol</code>'s pale stripe in passing.</li>
+      <li>Greebles: the 10 civilian recipes change their <code>hull</code> slot from (0.42, 0.42, 0.40) to the magenta key; regenerate the .glb pieces. The greeble takes a tint input; the decor spawn gives it the palette Top finish (or the style's own Top with no palette). The tint replaces the key colour outright (Rec: the recipes are flat-colour primitives, so there is no baked shading to keep; multiply would only matter for textured pieces). Lint: keyed piece with no tint source, magenta in a palette. This also fixes <code>patrol</code>'s pale stripe.</li>
       <li>Docs: wiki ships page, creator page for palettes, changelog entry (content format addition, not breaking: shipped saves read <code>None</code>).</li>
     </ol>
     <h3>Slice 2: greeble habit (option 2)</h3>
