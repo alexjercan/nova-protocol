@@ -1,4 +1,4 @@
-# Faction colour palettes for ships
+# Faction looks: palettes and greeble habit
 
 - STATUS: OPEN
 - PRIORITY: 28
@@ -11,8 +11,8 @@ Planned 2026-11-20 from the owner sign-off of the start hull looks
 - The owner likes that the six start hulls have different colours.
 - Owner idea: each faction has a colour palette that its ships use, so
   ships are coloured per faction.
-- The options below stay open. The owner decides when the task is picked
-  up.
+- Owner, 2026-11-23: split into two tasks; this one is options 1 and 2,
+  the second is option 3 ("each faction with different generator").
 
 ## Agent findings
 - A style holds the plating colour and the greeble kit together
@@ -33,38 +33,31 @@ Planned 2026-11-20 from the owner sign-off of the start hull looks
   entity; how many civilizations a world has; how many greeble pieces
   have baked colour.
 
-## Options (agent ideas, not approved)
-- A. Full hull colour per faction. Split colour from style: the style
-  keeps the greeble kit; a new authored palette kind holds the plating
-  finishes. Each civilization draws one palette from its id (like
-  `lawful`; nothing new in the save). A hull with a civilization takes
-  that palette; a hull with none keeps its style's palette. The role
-  shifts the tone of the faction hue. Stations take the same palette.
-  Main cost: greeble pieces with baked hull colour must take the palette
-  material.
-- B. Role colour stays on the plating; each faction adds one trim colour
-  (a third finish on stripes, markings and some edge faces). Less work,
-  no baked-colour problem; the faction reads weaker at a distance.
+## Decisions (owner approved options 1 + 2, 2026-11-23)
+- Scope: options 1 and 2 of `DESIGN-faction-looks.html`. Option 3 (build
+  doctrine) is its own task, `tasks/20261123-093539/`.
+- Full hull colour (A): the faction hue on the plating; the role sets the
+  tone. The magenta key keeps a trim finish (B) cheap later.
+- Palettes are content: 8 or more, picked by `order[(x + 2y + 4z) mod N]`
+  per lattice node, so no two neighbours match. Lint refuses a red band.
+- Start hulls keep their colours; a bought hull keeps the seller's
+  palette (it is in its design). Stations take the palette's station
+  finish; wrecks keep their builder's colours, no fade.
+- `palette: None` means the style's own palette: start hulls, scenario
+  ships, editor. Not a path for old files; old saves are deleted.
+- Greebles: recipe slots that follow the hull use a magenta key colour;
+  the greeble takes a tint input (palette Top finish) that replaces the
+  key. A missed tint renders magenta; lint refuses a keyed piece with no
+  tint source and magenta in a palette. Fixes the patrol pale stripe.
+- Greeble habit: the palette record (or a sibling record) carries a
+  density factor and an accent piece list. Lint: pieces exist, factor in
+  range.
+- Open: tint replaces the key or multiplies a base colour (agent rec:
+  replace; recipes are flat colour).
 
-## Open decisions (owner)
-- A or B, or another form.
-- How many palettes, and what happens when a world has more
-  civilizations than palettes (about six to eight hues read apart on
-  small hulls).
-- Red: the HUD uses red for hostile and the raider is red. Whether a
-  faction may have red plating.
-- Player hulls: the six start hulls keep their colours or not; a bought
-  or captured hull keeps the seller's colour or takes the player's.
-- Stations, wrecks and extinct civilizations: same palette, faded, or
-  none.
-- Whether mods author palettes, and whether the style palette stays as
-  the default for hulls with no civilization.
-
-## Delivery (sketch; fixed after the decisions)
-1. Proof frames first: one hull of each role in four faction palettes,
-   in the `screenshot_base_fleet -- --looks` rig, for the owner.
-2. The chosen form in content, lint, load and the skin.
-3. A hand-run example, wiki, creator pages, changelog.
+## Delivery
+- Slice 1 (palettes) and slice 2 (greeble habit) as on the design page,
+  Delivery sketch. A hand-run example, wiki, creator pages, changelog.
 
 ## Verification
 - Rendered frames of the same hulls in several faction palettes,
@@ -77,7 +70,7 @@ Planned 2026-11-20 from the owner sign-off of the start hull looks
   and the owner signs off the frames.
 
 ## Owner check (2026-11-22)
-- Owner moved this task into v0.19.0. The open decisions above still stand.
+- Owner moved this task into v0.19.0.
 
 ## Design (2026-11-22)
 - Page: `DESIGN-faction-looks.html` (spike frames in `frames/`, raw in
