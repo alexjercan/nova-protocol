@@ -32,7 +32,7 @@ pub mod prelude {
     pub use super::{
         FactionPaletteConfig, FactionPaletteDesignId, FactionPaletteFault, GreebleAccentConfig,
         PaletteRoleType, PaletteRolesConfig, ShipPaletteConfig, SkinLook, DECOR_KEY_COLOR,
-        GREEBLE_DENSITY_RANGE, HOSTILE_BAND_DEGREES, MAGENTA_BAND_DEGREES, MIN_FACTION_PALETTES,
+        GREEBLE_DENSITY_RANGE, MAGENTA_BAND_DEGREES, MIN_FACTION_PALETTES,
     };
 }
 
@@ -49,11 +49,6 @@ pub const MIN_FACTION_PALETTES: usize = 8;
 /// about half. The upper bound keeps the greeble entity count of a large hull
 /// (one collider per piece) inside twice the style's own.
 pub const GREEBLE_DENSITY_RANGE: RangeInclusive<f32> = 0.5..=2.0;
-
-/// How close, in degrees of hue, a palette colour may come to the HUD hostile
-/// red (`nova_ui::theme::semantic::THREAT`) before lint refuses it. A ship's
-/// colour must never read as a stance: stance is per player and changes.
-pub const HOSTILE_BAND_DEGREES: f32 = 25.0;
 
 /// How close, in degrees of hue, a palette colour may come to the greeble key
 /// magenta ([`DECOR_KEY_COLOR`]) before lint refuses it: a missed tint must stay
@@ -209,15 +204,6 @@ pub struct FactionPaletteConfig {
 /// Why a palette is refused.
 #[derive(Clone, Debug, PartialEq)]
 pub enum FactionPaletteFault {
-    /// A finish colour sits in the HUD hostile-red band.
-    HostileHue {
-        /// The role whose finish it is.
-        role: PaletteRoleType,
-        /// `top` or `wall`.
-        surface: &'static str,
-        /// Its hue, in degrees.
-        hue: f32,
-    },
     /// A finish colour sits in the greeble key magenta band.
     KeyHue {
         /// The role whose finish it is.
@@ -253,11 +239,6 @@ pub enum FactionPaletteFault {
 impl fmt::Display for FactionPaletteFault {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::HostileHue { role, surface, hue } => write!(
-                f,
-                "the {role:?} {surface} finish has hue {hue:.0} deg, within \
-                 {HOSTILE_BAND_DEGREES} deg of the HUD hostile red"
-            ),
             Self::KeyHue { role, surface, hue } => write!(
                 f,
                 "the {role:?} {surface} finish has hue {hue:.0} deg, within \
@@ -302,12 +283,11 @@ fn hue_of(color: Color) -> Option<f32> {
 
 impl FactionPaletteConfig {
     /// Every fault of this palette against the loaded `styles`: a finish in
-    /// the hostile or key band, a density out of range, an unknown, repeated
+    /// the key band, a density out of range, an unknown, repeated
     /// or unweighted accent, and a role style whose greebles do not compile
     /// with this habit. Lint and the mod merge both call it.
     pub fn faults(&self, styles: &GameStyles) -> Vec<FactionPaletteFault> {
         let mut faults = Vec::new();
-        let hostile = Hsla::from(nova_ui::theme::semantic::THREAT).hue;
         let key = Hsla::from(DECOR_KEY_COLOR).hue;
         for role in PaletteRoleType::ALL {
             let finish = self.roles.get(role);
@@ -315,9 +295,6 @@ impl FactionPaletteConfig {
                 let Some(hue) = hue_of(colour) else {
                     continue;
                 };
-                if hue_distance(hue, hostile) < HOSTILE_BAND_DEGREES {
-                    faults.push(FactionPaletteFault::HostileHue { role, surface, hue });
-                }
                 if hue_distance(hue, key) < MAGENTA_BAND_DEGREES {
                     faults.push(FactionPaletteFault::KeyHue { role, surface, hue });
                 }
@@ -529,23 +506,6 @@ mod tests {
 
     fn catalog() -> GameStyles {
         GameStyles::new(vec![block_style(Vec3::splat(0.2))], Vec::new())
-    }
-
-    /// A teal palette passes; one whose plating is the HUD hostile red is
-    /// refused, so a ship colour never reads as a stance.
-    #[test]
-    fn a_palette_in_the_hostile_red_band_is_refused() {
-        let styles = catalog();
-        assert!(palette(Color::hsl(180.0, 0.4, 0.4))
-            .faults(&styles)
-            .is_empty());
-        let faults = palette(Color::hsl(8.0, 0.5, 0.4)).faults(&styles);
-        assert!(
-            faults
-                .iter()
-                .any(|fault| matches!(fault, FactionPaletteFault::HostileHue { .. })),
-            "{faults:?}"
-        );
     }
 
     /// A palette near the greeble key magenta is refused, so a piece that

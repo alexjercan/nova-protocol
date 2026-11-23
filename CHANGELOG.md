@@ -57,7 +57,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The new start hull shapes reach further from their centre and turn slower. Sustained deg/s: hauler 71 to 59, freighter 75 to 67, interceptor 86 to 76, raider 82 to 73, picket 78 to 76, tug 64 to 63.
 - Industrial plating is now ochre, armoured plating dark blue-grey and salvage plating rust, on every ship, wreck and station in those styles.
 - A cargo intake pulls a canister its hold has room for: 120 m at 8 m/s, wide intake 160 m at 10 m/s. Each canister in reach shows its tag and a pickup line. A jettisoned one is not pulled back.
-- Each civilization paints its generated ships, wrecks and stations in its own palette, the role setting the tone. Neighbours never share one. A bought hull keeps the seller's colours.
+- Each civilization paints its generated ships, wrecks and stations in one of 15 palettes, reds included; the role sets the tone. Neighbours never share one. A bought hull keeps the seller's colours.
 - A civilization's palette also sets how many greebles its hulls carry and adds its own accent pieces. Civilian stripes, fins and doors now match their hull.
 
 ### Modding & Mod Portal
@@ -66,7 +66,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - `OnRepaired` now fires when a repair job ends, with every plate it fitted. `OnRebuilt` also fires for a field rebuild, with `price_cr: 0` and no `OnCreditsChanged`.
 - `OnCreditsChanged` gains cause `Rescue`: an SOS rescue takes its charge in one change at the answer. Its `OnRebuilt` events carry hold parts and each section's share.
 - New base styles `scrap` and `patrol`, worn by the Raider and the Patrol Picket. Each lists fixtures of other base kits under its own palette and greeble rules.
-- New content kind `Palette`: a finish per role and for stations, `greeble_density` and `accents`. Lint refuses a hue near HUD red or key magenta, an unknown accent, and under 8 palettes.
+- New content kind `Palette`: a finish per role and for stations, `greeble_density` and `accents`. Lint refuses a hue near key magenta, an unknown accent, and under 8 palettes. The editor makes them.
 - **(breaking)** A style fixture needs `tint: Hull` or `tint: Baked`. A `Hull` piece paints its magenta key in the hull's top finish; lint refuses a key with no tint, or a tint with no key.
 - A ship design may name `palette: Some((id, role))` in its presentation; lint refuses an unknown id and a palette with no style.
 - **(breaking)** Start hull section ids moved: `plate_N` names new cells on all six, the tug, hauler, freighter and raider renamed drives, and the raider's mounts are `pdc_port` and `pdc_starboard`.

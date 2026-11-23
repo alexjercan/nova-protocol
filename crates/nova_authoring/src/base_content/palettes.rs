@@ -9,10 +9,16 @@
 //! A palette is one hue. The role sets the tone, the same for every palette:
 //! civilian hulls are light and smooth, industrial hulls matte, scavengers dull
 //! and dirty, armored hulls dark and metallic, and stations mid-grey of the
-//! hue. So the hue says whose hull it is, and the tone says what it does.
+//! hue. So the hue says whose hull it is, and the tone says what it does. A
+//! palette may scale every tone's lightness by one factor (a dark maroon, a
+//! pale bone); the role order stays.
 //!
-//! No hue sits near the HUD hostile red or the greeble key magenta: lint
-//! refuses both bands.
+//! Neighbours never share a palette, but any two palettes can be neighbours
+//! after the seeded shuffle, so every pair must read apart. Hues near each
+//! other are set apart by saturation or lightness.
+//!
+//! No hue sits within 20 degrees of the greeble key magenta (300): lint refuses
+//! that band, and plum and the reds keep more than 30 degrees from it.
 
 use bevy::prelude::Color;
 use nova_ship::prelude::{
@@ -70,19 +76,30 @@ fn tone(role: PaletteRoleType) -> Tone {
     }
 }
 
-/// The finish of `role` in the palette of `hue` and `saturation`.
-fn finish(hue: f32, saturation: f32, role: PaletteRoleType) -> StylePalette {
+/// The palette's own colour: sRGB HSL hue in degrees, saturation, and a scale
+/// on every role's lightness (1.0 keeps the role tones).
+#[derive(Clone, Copy)]
+struct Hue {
+    hue: f32,
+    saturation: f32,
+    lightness: f32,
+}
+
+/// The finish of `role` in the palette of `hue`.
+fn finish(hue: Hue, role: PaletteRoleType) -> StylePalette {
     let tone = tone(role);
-    let saturation = saturation * tone.saturation;
-    let colour = |lightness: f32| Color::LinearRgba(Color::hsl(hue, saturation, lightness).into());
+    let saturation = hue.saturation * tone.saturation;
+    let top = tone.lightness * hue.lightness;
+    let colour =
+        |lightness: f32| Color::LinearRgba(Color::hsl(hue.hue, saturation, lightness).into());
     StylePalette {
         top: SurfaceFinish {
-            color: colour(tone.lightness),
+            color: colour(top),
             roughness: tone.roughness,
             metallic: tone.metallic,
         },
         wall: SurfaceFinish {
-            color: colour(tone.lightness / 3.0),
+            color: colour(top / 3.0),
             roughness: (tone.roughness + 0.05).min(1.0),
             metallic: tone.metallic,
         },
@@ -99,8 +116,8 @@ fn accent(style: &str, fixture: &str, weight: f32, max_count: u32) -> GreebleAcc
     }
 }
 
-/// The palette `id` of `hue` (sRGB HSL degrees) and `saturation`, with its
-/// greeble habit.
+/// The palette `id` of `hue` (sRGB HSL degrees) and `saturation` at the role
+/// tones, with its greeble habit.
 fn palette(
     id: &str,
     name: &str,
@@ -109,25 +126,66 @@ fn palette(
     greeble_density: f32,
     accents: Vec<GreebleAccentConfig>,
 ) -> FactionPaletteConfig {
+    shaded_palette(id, name, hue, saturation, 1.0, greeble_density, accents)
+}
+
+/// The palette `id` of `hue` and `saturation` with every role tone's lightness
+/// scaled by `lightness`, with its greeble habit.
+fn shaded_palette(
+    id: &str,
+    name: &str,
+    hue: f32,
+    saturation: f32,
+    lightness: f32,
+    greeble_density: f32,
+    accents: Vec<GreebleAccentConfig>,
+) -> FactionPaletteConfig {
+    let hue = Hue {
+        hue,
+        saturation,
+        lightness,
+    };
     FactionPaletteConfig {
         id: id.into(),
         name: name.to_string(),
         roles: PaletteRolesConfig {
-            civilian: finish(hue, saturation, PaletteRoleType::Civilian),
-            industrial: finish(hue, saturation, PaletteRoleType::Industrial),
-            scavenger: finish(hue, saturation, PaletteRoleType::Scavenger),
-            armored: finish(hue, saturation, PaletteRoleType::Armored),
-            station: finish(hue, saturation, PaletteRoleType::Station),
+            civilian: finish(hue, PaletteRoleType::Civilian),
+            industrial: finish(hue, PaletteRoleType::Industrial),
+            scavenger: finish(hue, PaletteRoleType::Scavenger),
+            armored: finish(hue, PaletteRoleType::Armored),
+            station: finish(hue, PaletteRoleType::Station),
         },
         greeble_density,
         accents,
     }
 }
 
-/// Every built-in palette, in stable generated-content order: eight hues from
-/// ochre round to indigo, and one slate grey with no hue.
+/// Every built-in palette, in stable generated-content order: fourteen hues
+/// round the wheel from maroon to crimson, and one slate grey with no hue.
+///
+/// Nearby hues are set apart by saturation or lightness: maroon is a dark red
+/// and crimson a bright one, plum a dark violet beside indigo, bone a pale
+/// grey-yellow beside ochre. There is no pale violet: between indigo and the
+/// key band it reads as indigo under the looks light.
 pub(crate) fn palette_catalog() -> Vec<FactionPaletteConfig> {
     vec![
+        shaded_palette(
+            "maroon",
+            "Maroon",
+            2.0,
+            0.45,
+            0.7,
+            0.9,
+            vec![accent(ARMOURED_STYLE_ID, "armoured_applique", 0.4, 2)],
+        ),
+        palette(
+            "rust",
+            "Rust",
+            18.0,
+            0.55,
+            1.7,
+            vec![accent(SALVAGE_STYLE_ID, "salvage_weld_seam", 0.5, 4)],
+        ),
         palette(
             "ochre",
             "Ochre",
@@ -136,6 +194,7 @@ pub(crate) fn palette_catalog() -> Vec<FactionPaletteConfig> {
             1.3,
             vec![accent(INDUSTRIAL_STYLE_ID, "industrial_floodlight", 0.5, 3)],
         ),
+        shaded_palette("bone", "Bone", 45.0, 0.18, 1.3, 0.55, Vec::new()),
         palette(
             "olive",
             "Olive",
@@ -152,7 +211,25 @@ pub(crate) fn palette_catalog() -> Vec<FactionPaletteConfig> {
             1.0,
             vec![accent(CIVILIAN_STYLE_ID, "civilian_dish", 0.3, 2)],
         ),
+        shaded_palette(
+            "emerald",
+            "Emerald",
+            140.0,
+            0.55,
+            1.15,
+            0.75,
+            vec![accent(CIVILIAN_STYLE_ID, "civilian_skylight", 0.3, 2)],
+        ),
         palette("teal", "Teal", 172.0, 0.4, 0.7, Vec::new()),
+        shaded_palette(
+            "sky",
+            "Sky",
+            195.0,
+            0.5,
+            1.25,
+            1.25,
+            vec![accent(INDUSTRIAL_STYLE_ID, "industrial_radiator", 0.4, 2)],
+        ),
         palette(
             "steel",
             "Steel Blue",
@@ -178,6 +255,29 @@ pub(crate) fn palette_catalog() -> Vec<FactionPaletteConfig> {
             vec![
                 accent(INDUSTRIAL_STYLE_ID, "industrial_stencil", 0.6, 4),
                 accent(ARMOURED_STYLE_ID, "armoured_mast", 0.3, 1),
+            ],
+        ),
+        shaded_palette(
+            "plum",
+            "Plum",
+            267.0,
+            0.4,
+            0.7,
+            1.8,
+            vec![
+                accent(SALVAGE_STYLE_ID, "salvage_hose", 0.4, 2),
+                accent(ARMOURED_STYLE_ID, "armoured_chaff", 0.3, 2),
+            ],
+        ),
+        palette(
+            "crimson",
+            "Crimson",
+            352.0,
+            0.6,
+            1.4,
+            vec![
+                accent(ARMOURED_STYLE_ID, "armoured_strake", 0.4, 3),
+                accent(INDUSTRIAL_STYLE_ID, "industrial_hazard_band", 0.3, 2),
             ],
         ),
         palette(

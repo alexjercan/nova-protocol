@@ -1,5 +1,255 @@
 [
     Palette((
+        id: "maroon",
+        name: "Maroon",
+        roles: (
+            civilian: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.27197203,
+                        green: 0.040834382,
+                        blue: 0.03688459,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.45,
+                    metallic: 0.1,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.028933123,
+                        green: 0.0065028663,
+                        blue: 0.006048267,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.5,
+                    metallic: 0.1,
+                ),
+            ),
+            industrial: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.13711229,
+                        green: 0.022574434,
+                        blue: 0.020537376,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.9,
+                    metallic: 0.15,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.016407015,
+                        green: 0.0043180916,
+                        blue: 0.004056959,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.95,
+                    metallic: 0.15,
+                ),
+            ),
+            scavenger: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.057819825,
+                        green: 0.021271262,
+                        blue: 0.020372678,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.95,
+                    metallic: 0.2,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.0083857095,
+                        green: 0.0041516046,
+                        blue: 0.004035626,
+                        alpha: 1.0,
+                    )),
+                    roughness: 1.0,
+                    metallic: 0.2,
+                ),
+            ),
+            armored: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.04268231,
+                        green: 0.011910051,
+                        blue: 0.011229758,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.6,
+                    metallic: 0.5,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.006713015,
+                        green: 0.0028780182,
+                        blue: 0.0027739936,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.65000004,
+                    metallic: 0.5,
+                ),
+            ),
+            station: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.1430569,
+                        green: 0.04051466,
+                        blue: 0.038234435,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.7,
+                    metallic: 0.3,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.016979957,
+                        green: 0.006466349,
+                        blue: 0.006204506,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.75,
+                    metallic: 0.3,
+                ),
+            ),
+        ),
+        greeble_density: 0.9,
+        accents: [
+            (
+                style: "armoured",
+                fixture: "armoured_applique",
+                weight: 0.4,
+                max_count: 2,
+            ),
+        ],
+    )),
+    Palette((
+        id: "rust",
+        name: "Rust",
+        roles: (
+            civilian: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.59959877,
+                        green: 0.17145708,
+                        blue: 0.07448293,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.45,
+                    metallic: 0.1,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.0656426,
+                        green: 0.018038098,
+                        blue: 0.0075183166,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.5,
+                    metallic: 0.1,
+                ),
+            ),
+            industrial: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.34239164,
+                        green: 0.07932182,
+                        blue: 0.027211778,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.9,
+                    metallic: 0.15,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.035220087,
+                        green: 0.010654846,
+                        blue: 0.0048963088,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.95,
+                    metallic: 0.15,
+                ),
+            ),
+            scavenger: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.1321686,
+                        green: 0.055139434,
+                        blue: 0.033417203,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.95,
+                    metallic: 0.2,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.015928432,
+                        green: 0.008095006,
+                        blue: 0.0056423196,
+                        alpha: 1.0,
+                    )),
+                    roughness: 1.0,
+                    metallic: 0.2,
+                ),
+            ),
+            armored: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.09788146,
+                        green: 0.032411125,
+                        blue: 0.016214589,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.6,
+                    metallic: 0.5,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.012545761,
+                        green: 0.005523185,
+                        blue: 0.0034842335,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.65000004,
+                    metallic: 0.5,
+                ),
+            ),
+            station: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.34636158,
+                        green: 0.11974138,
+                        blue: 0.06225013,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.7,
+                    metallic: 0.3,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.03557104,
+                        green: 0.014716092,
+                        blue: 0.008861899,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.75,
+                    metallic: 0.3,
+                ),
+            ),
+        ),
+        greeble_density: 1.7,
+        accents: [
+            (
+                style: "salvage",
+                fixture: "salvage_weld_seam",
+                weight: 0.5,
+                max_count: 4,
+            ),
+        ],
+    )),
+    Palette((
         id: "ochre",
         name: "Ochre",
         roles: (
@@ -123,6 +373,124 @@
                 max_count: 3,
             ),
         ],
+    )),
+    Palette((
+        id: "bone",
+        name: "Bone",
+        roles: (
+            civilian: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.5482751,
+                        green: 0.50807405,
+                        blue: 0.39802322,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.45,
+                    metallic: 0.1,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.06428829,
+                        green: 0.054881025,
+                        blue: 0.031699702,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.5,
+                    metallic: 0.1,
+                ),
+            ),
+            industrial: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.32606807,
+                        green: 0.27727056,
+                        blue: 0.15764578,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.9,
+                    metallic: 0.15,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.034534857,
+                        green: 0.029760823,
+                        blue: 0.017849179,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.95,
+                    metallic: 0.15,
+                ),
+            ),
+            scavenger: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.15650222,
+                        green: 0.14075199,
+                        blue: 0.09922377,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.95,
+                    metallic: 0.2,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.018266315,
+                        green: 0.01675813,
+                        blue: 0.012680635,
+                        alpha: 1.0,
+                    )),
+                    roughness: 1.0,
+                    metallic: 0.2,
+                ),
+            ),
+            armored: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.10465627,
+                        green: 0.09147779,
+                        blue: 0.057980385,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.6,
+                    metallic: 0.5,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.013224173,
+                        green: 0.011899071,
+                        blue: 0.008403064,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.65000004,
+                    metallic: 0.5,
+                ),
+            ),
+            station: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.3638191,
+                        green: 0.3317104,
+                        blue: 0.24557568,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.7,
+                    metallic: 0.3,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.039533157,
+                        green: 0.035420146,
+                        blue: 0.024627602,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.75,
+                    metallic: 0.3,
+                ),
+            ),
+        ),
+        greeble_density: 0.55,
+        accents: [],
     )),
     Palette((
         id: "olive",
@@ -375,6 +743,131 @@
         ],
     )),
     Palette((
+        id: "emerald",
+        name: "Emerald",
+        roles: (
+            civilian: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.15516004,
+                        green: 0.66418785,
+                        blue: 0.27934715,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.45,
+                    metallic: 0.1,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.009245795,
+                        green: 0.08721226,
+                        blue: 0.025089085,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.5,
+                    metallic: 0.1,
+                ),
+            ),
+            industrial: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.035327844,
+                        green: 0.4667251,
+                        blue: 0.116448276,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.9,
+                    metallic: 0.15,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.0058668675,
+                        green: 0.046077617,
+                        blue: 0.014392426,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.95,
+                    metallic: 0.15,
+                ),
+            ),
+            scavenger: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.043653492,
+                        green: 0.17791046,
+                        blue: 0.07677833,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.95,
+                    metallic: 0.2,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.006822858,
+                        green: 0.020290628,
+                        blue: 0.010391403,
+                        alpha: 1.0,
+                    )),
+                    roughness: 1.0,
+                    metallic: 0.2,
+                ),
+            ),
+            armored: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.020669704,
+                        green: 0.1310812,
+                        blue: 0.04527063,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.6,
+                    metallic: 0.5,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.0040740743,
+                        green: 0.0158229,
+                        blue: 0.0070048887,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.65000004,
+                    metallic: 0.5,
+                ),
+            ),
+            station: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.08994834,
+                        green: 0.4526485,
+                        blue: 0.17520456,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.7,
+                    metallic: 0.3,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.010993667,
+                        green: 0.046549745,
+                        blue: 0.019689959,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.75,
+                    metallic: 0.3,
+                ),
+            ),
+        ),
+        greeble_density: 0.75,
+        accents: [
+            (
+                style: "civilian",
+                fixture: "civilian_skylight",
+                weight: 0.3,
+                max_count: 2,
+            ),
+        ],
+    )),
+    Palette((
         id: "teal",
         name: "Teal",
         roles: (
@@ -491,6 +984,131 @@
         ),
         greeble_density: 0.7,
         accents: [],
+    )),
+    Palette((
+        id: "sky",
+        name: "Sky",
+        roles: (
+            civilian: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.24411418,
+                        green: 0.54719424,
+                        blue: 0.6806558,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.45,
+                    metallic: 0.1,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.012436947,
+                        green: 0.066712104,
+                        blue: 0.0968001,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.5,
+                    metallic: 0.1,
+                ),
+            ),
+            industrial: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.050876103,
+                        green: 0.3485102,
+                        blue: 0.5225216,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.9,
+                    metallic: 0.15,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.007628139,
+                        green: 0.03576088,
+                        blue: 0.05087609,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.95,
+                    metallic: 0.15,
+                ),
+            ),
+            scavenger: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.05602462,
+                        green: 0.15583222,
+                        blue: 0.20265321,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.95,
+                    metallic: 0.2,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.008191242,
+                        green: 0.01820251,
+                        blue: 0.022599375,
+                        alpha: 1.0,
+                    )),
+                    roughness: 1.0,
+                    metallic: 0.2,
+                ),
+            ),
+            armored: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.027211769,
+                        green: 0.1065392,
+                        blue: 0.14731897,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.6,
+                    metallic: 0.5,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.0048963088,
+                        green: 0.013411746,
+                        blue: 0.0173891,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.65000004,
+                    metallic: 0.5,
+                ),
+            ),
+            station: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.13953379,
+                        green: 0.36605877,
+                        blue: 0.47056276,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.7,
+                    metallic: 0.3,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.013759213,
+                        green: 0.039790224,
+                        blue: 0.052136138,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.75,
+                    metallic: 0.3,
+                ),
+            ),
+        ),
+        greeble_density: 1.25,
+        accents: [
+            (
+                style: "industrial",
+                fixture: "industrial_radiator",
+                weight: 0.4,
+                max_count: 2,
+            ),
+        ],
     )),
     Palette((
         id: "steel",
@@ -870,6 +1488,268 @@
                 fixture: "armoured_mast",
                 weight: 0.3,
                 max_count: 1,
+            ),
+        ],
+    )),
+    Palette((
+        id: "plum",
+        name: "Plum",
+        roles: (
+            civilian: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.11255012,
+                        green: 0.043598603,
+                        blue: 0.25193095,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.45,
+                    metallic: 0.1,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.014007874,
+                        green: 0.0068166563,
+                        blue: 0.02711923,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.5,
+                    metallic: 0.1,
+                ),
+            ),
+            industrial: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.05872979,
+                        green: 0.023995267,
+                        blue: 0.12733044,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.9,
+                    metallic: 0.15,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.008483944,
+                        green: 0.0044974783,
+                        blue: 0.015458081,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.95,
+                    metallic: 0.15,
+                ),
+            ),
+            scavenger: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.034671273,
+                        green: 0.021882933,
+                        blue: 0.055139422,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.95,
+                    metallic: 0.2,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.0057899435,
+                        green: 0.004229991,
+                        blue: 0.008095002,
+                        alpha: 1.0,
+                    )),
+                    roughness: 1.0,
+                    metallic: 0.2,
+                ),
+            ),
+            armored: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.022630308,
+                        green: 0.012376598,
+                        blue: 0.040294174,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.6,
+                    metallic: 0.5,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.0043251854,
+                        green: 0.002947368,
+                        blue: 0.0064411424,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.65000004,
+                    metallic: 0.5,
+                ),
+            ),
+            station: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.07633627,
+                        green: 0.042077743,
+                        blue: 0.1351221,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.7,
+                    metallic: 0.3,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.010345501,
+                        green: 0.0066444296,
+                        blue: 0.016214594,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.75,
+                    metallic: 0.3,
+                ),
+            ),
+        ),
+        greeble_density: 1.8,
+        accents: [
+            (
+                style: "salvage",
+                fixture: "salvage_hose",
+                weight: 0.4,
+                max_count: 2,
+            ),
+            (
+                style: "armoured",
+                fixture: "armoured_chaff",
+                weight: 0.3,
+                max_count: 2,
+            ),
+        ],
+    )),
+    Palette((
+        id: "crimson",
+        name: "Crimson",
+        roles: (
+            civilian: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.6382834,
+                        green: 0.06372377,
+                        blue: 0.101676464,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.45,
+                    metallic: 0.1,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.069981344,
+                        green: 0.0063710166,
+                        blue: 0.010441664,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.5,
+                    metallic: 0.1,
+                ),
+            ),
+            industrial: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.3672465,
+                        green: 0.021980947,
+                        blue: 0.04108128,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.9,
+                    metallic: 0.15,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.037412204,
+                        green: 0.0042425124,
+                        blue: 0.006531035,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.95,
+                    metallic: 0.15,
+                ),
+            ),
+            scavenger: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.13854426,
+                        green: 0.030666685,
+                        blue: 0.03995951,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.95,
+                    metallic: 0.2,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.01654529,
+                        green: 0.005315043,
+                        blue: 0.0064028366,
+                        alpha: 1.0,
+                    )),
+                    roughness: 1.0,
+                    metallic: 0.2,
+                ),
+            ),
+            armored: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.10360572,
+                        green: 0.014311637,
+                        blue: 0.020897677,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.6,
+                    metallic: 0.5,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.013119334,
+                        green: 0.0032221004,
+                        blue: 0.0041035064,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.65000004,
+                    metallic: 0.5,
+                ),
+            ),
+            station: (
+                top: (
+                    color: LinearRgba((
+                        red: 0.36597958,
+                        green: 0.0553915,
+                        blue: 0.07901092,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.7,
+                    metallic: 0.3,
+                ),
+                wall: (
+                    color: LinearRgba((
+                        red: 0.03730076,
+                        green: 0.008122428,
+                        blue: 0.010622702,
+                        alpha: 1.0,
+                    )),
+                    roughness: 0.75,
+                    metallic: 0.3,
+                ),
+            ),
+        ),
+        greeble_density: 1.4,
+        accents: [
+            (
+                style: "armoured",
+                fixture: "armoured_strake",
+                weight: 0.4,
+                max_count: 3,
+            ),
+            (
+                style: "industrial",
+                fixture: "industrial_hazard_band",
+                weight: 0.3,
+                max_count: 2,
             ),
         ],
     )),

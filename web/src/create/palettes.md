@@ -2,8 +2,8 @@
 
 <!-- Source: crates/nova_ship/src/sections/faction_palette.rs
      (`FactionPaletteConfig`, `FactionPaletteConfig::faults`,
-     `SkinLook::worn_style`, GREEBLE_DENSITY_RANGE, HOSTILE_BAND_DEGREES,
-     MAGENTA_BAND_DEGREES, DECOR_KEY_COLOR). Pick per civilization:
+     `SkinLook::worn_style`, GREEBLE_DENSITY_RANGE, MAGENTA_BAND_DEGREES,
+     DECOR_KEY_COLOR). Pick per civilization:
      crates/nova_world_base/src/ship_parts.rs `ShipPartSnapshot::palette`.
      Key tint: crates/nova_ship/src/sections/skin_decor.rs `tint_decor_keys`.
      Base palettes: crates/nova_authoring/src/base_content/palettes.rs. -->
@@ -33,7 +33,14 @@ where `N` is the number of palettes in the catalog and `order` is the catalog
 shuffled by the world seed. For any neighbour node the step `dx + 2dy + 4dz` is
 between -7 and 7 and never 0, so with 8 or more palettes no two neighbouring
 civilizations share one. The catalog needs at least 8: with fewer the world
-refuses to start, and lint names the catalog.
+refuses to start, and lint names the catalog. The base game ships 15: maroon,
+rust, crimson, ochre, bone, olive, moss, emerald, teal, sky, steel blue,
+cobalt, indigo, plum and slate.
+
+The shuffle can make any two palettes neighbours, so a new palette must read
+apart from every other one, not only from the next hue. Two near hues can still
+read apart by saturation or lightness: the base maroon is a dark red and
+crimson a bright one.
 
 The pick is a function of the seed and the node, so a save stores nothing new
 for it. A generated hull writes its palette id into its design, so a hull you
@@ -100,7 +107,9 @@ its role; a generated station wears `station`.
 The base palettes keep one tone per role in every hue, so the hue says whose
 hull it is and the tone says what it does: civilian light and smooth,
 industrial matte, scavenger dull, armored dark and metallic, station mid-grey
-of the hue. A mod palette may break that, but a player reads the role by it.
+of the hue. A few base palettes (maroon, plum, bone, emerald, sky)
+make every tone darker or lighter by one factor and keep the role order. A mod
+palette may break that order, but a player reads the role by it.
 
 ### `greeble_density`
 
@@ -138,16 +147,16 @@ A fixture with `tint: Baked` keeps every colour of its model.
 
 Lint refuses a palette, and the load drops it with an error, when:
 
-- a `top` or `wall` colour has a hue within 25 degrees of the HUD hostile red:
-  a ship must never read as a target by its paint;
-- a colour has a hue within 20 degrees of the key magenta;
+- a `top` or `wall` colour has a hue within 20 degrees of the key magenta
+  (hue 300): a piece that missed its tint must still show;
 - `greeble_density` is outside 0.5 to 2.0;
 - an accent names a style or fixture that no loaded style lists, names one
   fixture twice, or has a weight not above 0 or a `max_count` of 0;
 - a style's greeble rules no longer compile with the palette's habit applied.
 
-A grey colour, with a saturation under 0.15, has no hue and passes both hue
-checks.
+A grey colour, with a saturation under 0.15, has no hue and passes the hue
+check. Reds are allowed. Keep a red or a purple well clear of magenta, so a
+missed tint still stands out on the hull.
 
 Lint also refuses:
 

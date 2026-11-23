@@ -108,9 +108,9 @@ pub enum Content {
     /// the world generator deals one to each civilization.
     ///
     /// A mod adds a palette by declaring a new id and recolours a base one by
-    /// declaring its id. A hue in the HUD hostile-red band or in the greeble
-    /// key magenta band, a greeble density out of range and an unknown accent
-    /// piece fail at lint and drop the palette at load.
+    /// declaring its id. A hue in the greeble key magenta band, a greeble
+    /// density out of range and an unknown accent piece fail at lint and drop
+    /// the palette at load.
     Palette(FactionPaletteConfig),
     /// A [`ShipDesignPrototype`] - registers into `GameShipDesigns` keyed by its id. A whole
     /// hull (its section list, its skin and style, its collapse threshold),

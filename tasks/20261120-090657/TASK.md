@@ -39,7 +39,9 @@ Planned 2026-11-20 from the owner sign-off of the start hull looks
 - Full hull colour (A): the faction hue on the plating; the role sets the
   tone. The magenta key keeps a trim finish (B) cheap later.
 - Palettes are content: 8 or more, picked by `order[(x + 2y + 4z) mod N]`
-  per lattice node, so no two neighbours match. Lint refuses a red band.
+  per lattice node, so no two neighbours match. Reds are allowed (owner,
+  2026-11-23: "I would even add some reds"); lint keeps only the magenta
+  band. This replaces the earlier red-band rule.
 - Start hulls keep their colours; a bought hull keeps the seller's
   palette (it is in its design). Stations take the palette's station
   finish; wrecks keep their builder's colours, no fade.
@@ -126,7 +128,8 @@ Options 1 and 2 built; uncommitted on `master`. Frames in
   with no key.
 - Shed fixtures and detached pieces freeze the full `ShipStyle`; a Load
   refuses an unknown style or palette by id.
-- Lint: palette faults (hostile red band 25 deg, key magenta band 20 deg,
+- Lint: palette faults (key magenta band 20 deg; the hostile red band was
+  removed in "Build: more palettes",
   density range, unknown/duplicate/unweighted accent, habit that does not
   compile), design unknown palette or palette without style, fewer than 8.
 
@@ -138,8 +141,8 @@ Proof: `nova_world_base` `neighbour_civilizations_never_share_a_palette`
 load keeps the palette id: the refusal names the id read back from disk).
 `nova_ship` `plate_materials_are_shared_within_a_palette_and_differ_between_palettes`,
 `a_keyed_greeble_takes_its_tint_and_an_untinted_one_stays_magenta`, and the
-four `faction_palette` tests (red band, magenta band, unknown accent and
-density, finish and habit). `nova_scenario`
+`faction_palette` tests (magenta band, unknown accent and density, finish
+and habit; the red band test was removed with its rule). `nova_scenario`
 `a_design_naming_an_unknown_palette_is_refused`. `nova_authoring` lint_walk
 `a_keyed_greeble_with_no_tint_source_is_refused`.
 
@@ -162,3 +165,25 @@ hulls draws 36518 to 38080 meshes; the count follows the greeble density.
 
 Open for the owner: tone tuning (civilian and industrial read close; cobalt
 and indigo are near hues).
+
+## Build: more palettes (2026-11-23)
+Owner: "the styles look good, but I would even add some reds and maybe some
+more colors". Uncommitted on `master`. Frames in
+`~/Pictures/nova-faction-palettes/more/` (one per palette and
+`contact-sheet-all-palettes.png`).
+
+- The red band is gone: `HOSTILE_BAND_DEGREES`, `FactionPaletteFault::HostileHue`
+  and its test. The magenta key band (20 deg round hue 300) stays.
+- 15 palettes. The first 8 are unchanged. New: maroon (2, dark), rust (18),
+  crimson (352), bone (45, pale, low saturation), emerald (140, light), sky
+  (195, light), plum (267, dark). The builder takes a lightness scale per
+  palette (1.0 for the first 8); the role order stays.
+- A pale violet (265) was rendered and dropped: it read as indigo.
+- Closest new pairs in the frames (OKLab distance of rendered hull colour,
+  x100): plum-indigo 4.8, rust-ochre 4.6, teal-sky 4.4, bone-olive 4.7,
+  moss-emerald 5.3. The first build's close pairs: steel-slate 2.1,
+  cobalt-indigo 2.3, ochre-olive 3.2. The shuffle can make any two palettes
+  neighbours.
+- `faction_palettes` takes `NOVA_PALETTE_WALK=<id,id,...>`; all 15 PASS, 0
+  magenta pixels.
+- The mod editor lists, makes and opens palettes (`KINDS` row `made`).

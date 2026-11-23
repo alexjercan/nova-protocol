@@ -135,6 +135,8 @@ pub(crate) fn asset_mark(kind: &str) -> &'static str {
         "campaign" => "\u{2016}",
         // BLACK DIAMOND - a swatch.
         "style" => "\u{25c6}",
+        // WHITE DIAMOND - a swatch a civilization repaints its styles with.
+        "palette" => "\u{25c7}",
         // SQUARE WITH ORTHOGONAL CROSSHATCH FILL - a page of lines.
         "lesson" => "\u{25a6}",
         // FISHEYE - a lens over the screen.

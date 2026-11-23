@@ -28,7 +28,8 @@
 //! | ] | the next palette of the catalog |
 //! | [ | the previous palette |
 //!
-//! Under `NOVA_AUTOPILOT=1` a smoke walk shows four palettes. For each it waits
+//! Under `NOVA_AUTOPILOT=1` a smoke walk shows four palettes, or the comma list
+//! in `NOVA_PALETTE_WALK` (for example `crimson,rust`). For each it waits
 //! for the row and every greeble model, checks that every hull wears the
 //! palette, that each hull's plates carry the palette's top colour for its
 //! role, that the civilian hull's keyed greebles took the tint, and that no
@@ -492,8 +493,24 @@ mod smoke {
 
     use super::*;
 
-    /// The palettes the walk shows: four hues apart on the wheel.
+    /// The palettes the walk shows when `NOVA_PALETTE_WALK` is unset: four hues
+    /// apart on the wheel.
     const WALK: [&str; 4] = ["ochre", "teal", "cobalt", "indigo"];
+
+    /// The palettes the walk shows: the comma list in `NOVA_PALETTE_WALK`, or
+    /// [`WALK`].
+    fn walk() -> Vec<&'static str> {
+        match std::env::var("NOVA_PALETTE_WALK") {
+            // The script holds each id for the whole run.
+            Ok(list) => list
+                .split(',')
+                .map(str::trim)
+                .filter(|id| !id.is_empty())
+                .map(|id| &*Box::leak(id.to_string().into_boxed_str()))
+                .collect(),
+            Err(_) => WALK.to_vec(),
+        }
+    }
     /// Seconds a row gets to load, clad and dress on a software GPU.
     const SETUP_SECS: f32 = 300.0;
     /// Seconds a shot gets to land.
@@ -632,14 +649,14 @@ mod smoke {
         }
     }
 
-    /// The smoke walk: four palettes, each checked and shot.
+    /// The smoke walk: each palette of [`walk`] checked and shot.
     pub(super) fn script() -> AutopilotPlugin<GameStates> {
         let mut script = AutopilotPlugin::<GameStates>::new()
             .step("faction palettes: reach the row")
             .until(scenario_is_built())
             .deadline(SETUP_SECS)
             .add();
-        for palette in WALK {
+        for palette in walk() {
             let shot = format!("faction-palette-{palette}.png");
             script = script
                 .step(format!("faction palettes: show {palette}"))
