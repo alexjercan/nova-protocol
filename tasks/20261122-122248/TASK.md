@@ -1,6 +1,6 @@
 # Editor: event block corners follow the theme
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 30
 - TAGS: v0.19.0, ui, editor
 
@@ -67,3 +67,7 @@
   `~/Pictures/nova-editor-corners/after/`). One walk switches the theme live
   four times; canvas and palette redraw each time.
 - Docs: `docs/scenario-system.md` block shapes. Changelog: Interface & HUD.
+
+## Closed (2026-11-23)
+- Built and committed; frames checked against Done when. Owner asked to
+  close implemented tasks.

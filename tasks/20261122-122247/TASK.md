@@ -1,6 +1,6 @@
 # Menus: replace the remaining explanation lines with implied state
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 32
 - TAGS: v0.19.0, ui, menu
 
@@ -120,3 +120,7 @@ mods, portal) 95 pass; `nova_ui` text_field+theme 46; `nova_input`
 registry 21; `nova_console` bind 4; `nova_interface` rebind 10. Test count in
 the touched files 113 -> 120. `screenshot_menu` end to end passes (147 steps,
 new `Reset 1` assert); `news_0160_world_setup` passes on the `SeedStart` wait.
+
+## Closed (2026-11-23)
+- Built and committed; frames checked against Done when. Owner asked to
+  close implemented tasks.
