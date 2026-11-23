@@ -1,6 +1,6 @@
 # HUD notice: centre the box above the keybind dock
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 62
 - TAGS: v0.19.0, hud, ui
 
@@ -193,3 +193,7 @@
   label reopen). Frames `build-{1920x1080,1280x720}-{dwell,settled}-{phosphor,hardware}.png`
   in `~/Pictures/nova-objective-chips/`: four chips then four diamonds above
   their triangles, JOB-5 pinned bottom right with a chevron and no red arrow.
+
+## Closed (2026-11-23)
+- Owner: done. Smaller chips, canister chip lists and the lock inset
+  stacking are still in build and record their notes here.
