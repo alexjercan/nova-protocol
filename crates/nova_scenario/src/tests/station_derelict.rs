@@ -24,7 +24,7 @@ enum Entry {
 
 /// A plate, a flight computer beside it, a docking collar with its hatch
 /// outboard and one PDC turret on top: armed, so its last turret decides.
-fn design() -> StationDesign {
+pub(super) fn design() -> StationDesign {
     let section =
         |id: &str, position: Vec3, rotation: Quat, prototype: &str| SpaceshipSectionConfig {
             id: id.to_string(),
@@ -75,6 +75,14 @@ fn design() -> StationDesign {
 }
 
 fn app() -> App {
+    let mut app = unfinished_station_app();
+    app.finish();
+    app
+}
+
+/// The station harness on real catalog sections, unfinished so a test can
+/// add the plugins it drives before `finish`.
+pub(super) fn unfinished_station_app() -> App {
     let mut app = unfinished_integrity_physics_app();
     // The look controller gives every turret hinge its angles; a hinge
     // without them cannot freeze. Production adds it with the gameplay layer.
@@ -99,7 +107,6 @@ fn app() -> App {
     app.init_resource::<GameShipDesigns>();
     app.init_resource::<CargoCanisterIdAllocator>();
     app.insert_resource(test_items());
-    app.finish();
     app
 }
 
