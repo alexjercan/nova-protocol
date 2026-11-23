@@ -92,6 +92,14 @@ const MARKER_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
     min_px: 40.0,
 };
 
+/// [`MARKER_CLEARANCE`] measured to the triangle's TOP instead of its centre:
+/// where a widget that stands above the triangle starts.
+pub(crate) const MARKER_TOP_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
+    direction: MARKER_CLEARANCE.direction,
+    gap_px: MARKER_CLEARANCE.gap_px + MARKER_SIZE.y,
+    min_px: MARKER_CLEARANCE.min_px + MARKER_SIZE.y / 2.0,
+};
+
 /// The allegiance tint for a ship's marker. `None` (a ship carrying no
 /// [`Allegiance`] at all) reads as neutral, same as an explicit
 /// `Allegiance::Neutral` - a bystander either way.

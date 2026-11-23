@@ -159,3 +159,37 @@
   readable floor (label caps 8 px, keycap legends 9 px, measured before and
   after), so text and keycap height stay.
 - Everything on the dock top follows `column_top_px`/`column_floor_px`.
+
+## Build: objective chips (2026-11-23, owner picked C + A)
+- Rule: off screen the full gold chip always shows. In view it shows for 4 s
+  (`CHIP_OPEN_SECS = NOTICE_DWELL_SECS`, `objective_markers.rs:88`) when the
+  tag lands, its label changes, or the target comes back after 1 s or more off
+  screen (`REOPEN_AWAY_SECS`, `:93`); then only a 12 px gold diamond stays. A
+  lock does not reopen it.
+- Owner: `ObjectiveChipDwell::step` (`objective_markers.rs:140`), stepped by
+  `settle_objective_chips` (`:375`) in `ObjectiveChipSystems`, after
+  `ScreenIndicatorSystems`, before UI layout. `ObjectiveChipType { Full, Mark }`
+  on the layer says which draws.
+- Two indicator nodes per layer: the chip and the diamond (`objective_mark`,
+  `:289`). The settle pass moves the anchor between them, so theme paint and
+  keep-out state never toggle on one node.
+- In view reads the target's own projection (`ScreenIndicatorAnchorInView`,
+  `screen_indicator.rs:73`), not the clamp: the clamp tests the offset point,
+  and the chip and diamond offsets differ, so the clamp would flip at the edge.
+- The diamond carries no `ScreenLabelType`: it frames its target like the
+  allegiance triangle, so it never moves. It stands 4 px above the triangle
+  (`MARK_CLEARANCE`, `:78`; `MARKER_TOP_CLEARANCE`, `allegiance_markers.rs:97`).
+  The full chip keeps its keep-out placement.
+- Edge: `yield_edge_arrows_to_objective_chips` (`edge_indicators.rs:364`) hides
+  the red arrow of a target whose chip leads from the edge.
+- Proof: `a_chip_in_view_settles_to_the_diamond_after_the_notice_dwell`,
+  `a_label_change_reopens_the_chip`,
+  `a_second_out_of_view_reopens_the_chip_and_a_shorter_trip_does_not`,
+  `a_lock_does_not_reopen_the_chip`,
+  `a_marked_target_behind_shows_its_gold_chip_and_no_red_arrow`. Mutations:
+  `REOPEN_AWAY_SECS = 0` fails the short-trip test; no yield fails the edge
+  test.
+- Example: `objective_chip_sandbox` (smoke walk asserts dwell, settle and
+  label reopen). Frames `build-{1920x1080,1280x720}-{dwell,settled}-{phosphor,hardware}.png`
+  in `~/Pictures/nova-objective-chips/`: four chips then four diamonds above
+  their triangles, JOB-5 pinned bottom right with a chevron and no red arrow.

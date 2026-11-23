@@ -640,7 +640,8 @@ fn assert_the_near_chip_rides_its_target(world: &mut World) {
     let target = scoped_entity(world, NEAR_ID);
     let layer = chip_layer_for(world, target);
     let pill = chip_pill(world, layer);
-    let (center, _) = chip_box(world, pill);
+    let drawn = drawn_node(world, layer);
+    let (center, _) = chip_box(world, drawn);
     let anchor = world
         .get::<GlobalTransform>(target)
         .expect("mission hud: the near mark has no GlobalTransform")
@@ -700,7 +701,9 @@ fn assert_the_near_chip_rides_its_target(world: &mut World) {
 /// `(silhouette + gap + half the chip).max(floor)`, the two marks are the same
 /// 60 m rock wearing chips of the same height, and the near one is the closer
 /// of the two - so it carries the larger silhouette and the larger push, and no
-/// chip in this frame is pushed further than it is.
+/// chip in this frame is pushed further than it is. Once the near chip settles
+/// to its diamond, the diamond stands higher still (above the triangle stack),
+/// so the bound holds.
 #[cfg(feature = "debug")]
 fn assert_the_far_chip_pins_to_the_edge(world: &mut World) {
     let target = scoped_entity(world, FAR_ID);
@@ -778,7 +781,8 @@ fn assert_the_far_chip_pins_to_the_edge(world: &mut World) {
 /// The matched reference the far chip's chevron is graded against. Both chips
 /// are the same widget over the same 60 m rock, so the push differs only by the
 /// silhouette term, which shrinks with range - the nearer mark is pushed the
-/// furthest of the two.
+/// furthest of the two. Read off the node drawn now: the chip, or its settled
+/// diamond, which stands further off.
 #[cfg(feature = "debug")]
 fn near_chip_standoff(world: &mut World) -> f32 {
     let target = scoped_entity(world, NEAR_ID);
@@ -788,8 +792,8 @@ fn near_chip_standoff(world: &mut World) -> f32 {
         .translation();
     let projected = project_through_indicator_camera(world, anchor);
     let layer = chip_layer_for(world, target);
-    let pill = chip_pill(world, layer);
-    let (center, _) = chip_box(world, pill);
+    let drawn = drawn_node(world, layer);
+    let (center, _) = chip_box(world, drawn);
     projected.y - center.y
 }
 
@@ -866,6 +870,20 @@ fn chip_pill(world: &mut World, layer: Entity) -> Entity {
         .into_iter()
         .find(|entity| world.get::<AnchoredChipNodeMarker>(*entity).is_some())
         .unwrap_or_else(|| panic!("mission hud: chip layer {layer:?} has no pill"))
+}
+
+/// The node a chip layer draws: the full chip, or the settled diamond once the
+/// chip has shown its dwell on a mark in view. The one holding the anchor.
+#[cfg(feature = "debug")]
+fn drawn_node(world: &mut World, layer: Entity) -> Entity {
+    descendants(world, layer)
+        .into_iter()
+        .find(|entity| {
+            world
+                .get::<ScreenIndicatorAnchor>(*entity)
+                .is_some_and(|anchor| anchor.is_some())
+        })
+        .unwrap_or_else(|| panic!("mission hud: chip layer {layer:?} draws nothing"))
 }
 
 /// A placed chip's centre and size, both in LOGICAL px.

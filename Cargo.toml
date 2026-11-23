@@ -372,6 +372,14 @@ name = "neutral_contact_sandbox"
 path = "examples/playable/neutral_contact_sandbox.rs"
 required-features = ["debug"]
 
+# Five marked Enemy raiders: the gold objective chip shows for the notice
+# dwell, settles to a diamond in view, stays full at the screen edge, and
+# opens again on a label change or a return to view. Nothing ends it.
+[[example]]
+name = "objective_chip_sandbox"
+path = "examples/playable/objective_chip_sandbox.rs"
+required-features = ["debug"]
+
 # The ore loop in one session: the line warship's beam mines a rock, its
 # intake takes one canister, and that ore is sold to a docked demo trader
 # through the Inventory pane. The walk checks the ore and credit ledger at

@@ -893,7 +893,9 @@ fn placed_px(val: Val, what: &str) -> f32 {
 ///
 /// Found by the LAYER it hangs under rather than by a marker of its own: the
 /// indicator node is the layer's child in all three chip families, and only the
-/// allegiance triangle has no component naming it.
+/// allegiance triangle has no component naming it. An objective layer holds two
+/// nodes, the full chip and its settled diamond; the one holding the anchor is
+/// the one drawn.
 #[cfg(feature = "debug")]
 fn chip_under<M: Component>(world: &mut World, what: &str) -> (Entity, Rect, Visibility) {
     let layers: Vec<Entity> = world
@@ -909,7 +911,7 @@ fn chip_under<M: Component>(world: &mut World, what: &str) -> (Entity, Rect, Vis
             &ChildOf,
         ), With<ScreenIndicatorClearance>>()
         .iter(world)
-        .find(|(.., &ChildOf(parent))| layers.contains(&parent))
+        .find(|(anchor, .., &ChildOf(parent))| anchor.is_some() && layers.contains(&parent))
         .map(|(anchor, node, computed, visibility, _)| {
             let Some(ScreenIndicatorAnchorKind::Entity(anchor)) = **anchor else {
                 panic!("shell range: the {what} chip is not anchored to an entity")

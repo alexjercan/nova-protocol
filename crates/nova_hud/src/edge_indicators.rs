@@ -8,7 +8,9 @@
 //! content is the arrow, and the widget shows/rotates the arrow ONLY while
 //! the anchor is off-screen (or behind the camera), so on-screen entities
 //! render nothing extra - no visibility coordination with the reticle or
-//! the candidate brackets is needed.
+//! the candidate brackets is needed. A target with a gold objective chip is
+//! the one exception: out of view, the chip leads from the edge and the arrow
+//! stands down.
 
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
@@ -16,7 +18,7 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{theme::combat, widget::UiText};
 
-use crate::prelude::*;
+use crate::{objective_markers::ObjectiveChipDwell, prelude::*};
 
 /// Square size (px) of one edge-arrow node. Sized to read at a glance
 /// from the screen edge; the first cut's 14 px was too small.
@@ -197,8 +199,10 @@ fn edge_arrow(color: Color) -> impl Bundle {
 /// Keeps one edge-clamped arrow per off-screen tracked entity (the combat
 /// lock, hostile torpedoes, multi-target candidates), tinted by kind.
 /// Registers [`EdgeIndicatorKind`], runs `sync_edge_indicators` in Update
-/// within [`super::NovaHudSystems`], and runs `update_edge_labels` in
-/// PostUpdate after `ScreenIndicatorSystems` and before UI layout.
+/// within [`super::NovaHudSystems`], and runs
+/// `yield_edge_arrows_to_objective_chips` then `update_edge_labels` in
+/// PostUpdate after `ScreenIndicatorSystems` and `ObjectiveChipSystems`, before
+/// UI layout.
 #[derive(Default)]
 pub struct EdgeIndicatorsHudPlugin;
 
@@ -211,11 +215,14 @@ impl Plugin for EdgeIndicatorsHudPlugin {
         // The label mirrors the arrow's visibility, which the widget
         // writes in PostUpdate (ScreenIndicatorSystems) - mirroring from
         // Update would lag it by a frame, so the driver runs right after the
-        // widget, still before UI layout consumes the text.
+        // widget, still before UI layout consumes the text. The yield reads
+        // the objective chips' settle (ObjectiveChipSystems) of this frame.
         app.add_systems(
             PostUpdate,
-            update_edge_labels
+            (yield_edge_arrows_to_objective_chips, update_edge_labels)
+                .chain()
                 .after(ScreenIndicatorSystems)
+                .after(ObjectiveChipSystems)
                 .before(bevy::ui::UiSystems::Layout),
         );
     }
@@ -347,6 +354,30 @@ fn sync_edge_indicators(
         commands
             .entity(layer)
             .with_child(edge_indicator(entity, kind, arrow_color(kind)));
+    }
+}
+
+/// One edge cue per target: while a marked target is out of view its full
+/// gold objective chip leads from the screen edge, so its red arrow, and with
+/// it the distance label, stands down. Both indicators test the target's own
+/// projection, so the chip leads on exactly the frames the arrow would show.
+fn yield_edge_arrows_to_objective_chips(
+    q_chips: Query<(&AnchoredChipTarget, &ObjectiveChipDwell), With<ObjectiveMarkerChipHudMarker>>,
+    q_indicators: Query<(&EdgeIndicatorTarget, &Children), With<EdgeIndicatorMarker>>,
+    mut q_arrow: Query<&mut Visibility, With<ScreenIndicatorArrowMarker>>,
+) {
+    for (target, children) in &q_indicators {
+        let led = q_chips
+            .iter()
+            .any(|(chip, dwell)| **chip == **target && dwell.leads_from_the_edge());
+        if !led {
+            continue;
+        }
+        for child in children.iter() {
+            if let Ok(mut visibility) = q_arrow.get_mut(child) {
+                visibility.set_if_neq(Visibility::Hidden);
+            }
+        }
     }
 }
 
@@ -655,5 +686,69 @@ mod tests {
             *world.entity(label).get::<Visibility>().unwrap(),
             Visibility::Hidden
         );
+    }
+    /// The red arrow of a target behind the player: shown or not.
+    fn red_arrow_shows(app: &mut App, target: Entity) -> bool {
+        let indicator = app
+            .world_mut()
+            .query_filtered::<(Entity, &EdgeIndicatorTarget), With<EdgeIndicatorMarker>>()
+            .iter(app.world())
+            .find(|(_, aimed)| ***aimed == target)
+            .map(|(indicator, _)| indicator)
+            .expect("the target has an edge indicator");
+        let children: Vec<Entity> = app
+            .world()
+            .entity(indicator)
+            .get::<Children>()
+            .unwrap()
+            .to_vec();
+        children
+            .into_iter()
+            .filter(|&child| {
+                app.world()
+                    .entity(child)
+                    .contains::<ScreenIndicatorArrowMarker>()
+            })
+            .any(|arrow| *app.world().get::<Visibility>(arrow).unwrap() != Visibility::Hidden)
+    }
+
+    /// A marked hostile behind the player gets one edge cue: its gold chip
+    /// pins to the edge and its red arrow stands down. An unmarked hostile
+    /// behind keeps its arrow, and the arrow comes back when the tag leaves.
+    #[test]
+    fn a_marked_target_behind_shows_its_gold_chip_and_no_red_arrow() {
+        use crate::objective_markers::tests::{advance, drawn, dwell_app, mark_body, BEHIND};
+
+        let mut app = dwell_app();
+        app.add_plugins(EdgeIndicatorsHudPlugin);
+        app.world_mut().spawn(edge_indicators_hud());
+        let marked = mark_body(&mut app, "JOB-5 Neutralize", BEHIND);
+        let plain = app
+            .world_mut()
+            .spawn((Transform::from_translation(BEHIND - Vec3::X * 4.0),))
+            .id();
+        app.world_mut().spawn((
+            PlayerSpaceshipMarker,
+            Allegiance::Player,
+            Transform::default(),
+            CombatLock(Some(marked)),
+            ThreatContacts {
+                entries: vec![marked, plain],
+            },
+        ));
+        advance(&mut app, 0.5);
+
+        assert!(drawn(&mut app, marked).pinned, "the gold chip pins");
+        assert!(!red_arrow_shows(&mut app, marked), "one cue on the marked");
+        assert!(
+            red_arrow_shows(&mut app, plain),
+            "the unmarked keeps its arrow"
+        );
+
+        app.world_mut()
+            .entity_mut(marked)
+            .remove::<ObjectiveMarkerTarget>();
+        advance(&mut app, 0.3);
+        assert!(red_arrow_shows(&mut app, marked), "the arrow comes back");
     }
 }

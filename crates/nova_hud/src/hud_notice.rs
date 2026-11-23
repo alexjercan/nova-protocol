@@ -92,7 +92,7 @@ pub mod prelude {
 }
 
 /// How long a notice holds at full strength (virtual seconds).
-const NOTICE_DWELL_SECS: f32 = 4.0;
+pub(crate) const NOTICE_DWELL_SECS: f32 = 4.0;
 
 /// The fade after the dwell, matching the objective chip's and the comms
 /// card's tail.

@@ -34,10 +34,10 @@ use crate::{
 pub mod prelude {
     pub use super::{
         screen_indicator, screen_indicator_layer, screen_indicator_node, ScreenIndicatorAnchor,
-        ScreenIndicatorAnchorKind, ScreenIndicatorArrowMarker, ScreenIndicatorCamera,
-        ScreenIndicatorClearance, ScreenIndicatorConfig, ScreenIndicatorMarker,
-        ScreenIndicatorOffscreen, ScreenIndicatorOffset, ScreenIndicatorPlugin,
-        ScreenIndicatorSize, ScreenIndicatorSystems, ScreenLabelType,
+        ScreenIndicatorAnchorInView, ScreenIndicatorAnchorKind, ScreenIndicatorArrowMarker,
+        ScreenIndicatorCamera, ScreenIndicatorClearance, ScreenIndicatorConfig,
+        ScreenIndicatorMarker, ScreenIndicatorOffscreen, ScreenIndicatorOffset,
+        ScreenIndicatorPlugin, ScreenIndicatorSize, ScreenIndicatorSystems, ScreenLabelType,
     };
 }
 
@@ -60,6 +60,17 @@ pub enum ScreenIndicatorAnchorKind {
 /// just writing this component.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Deref, DerefMut, Reflect)]
 pub struct ScreenIndicatorAnchor(pub Option<ScreenIndicatorAnchorKind>);
+
+/// Whether the anchor itself projects inside the view, before any offset,
+/// clearance or edge clamp. An optional component: the widget writes it each
+/// frame the anchor resolves.
+///
+/// A consumer that changes its look while its target is in view keys on this,
+/// not on the edge clamp. The clamp tests the OFFSET point, so a look that
+/// changes the offset would move its own clamp and flip back and forth on a
+/// target near the edge.
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq, Deref, Reflect)]
+pub struct ScreenIndicatorAnchorInView(pub bool);
 
 /// How the indicator node is sized each frame.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Reflect)]
@@ -345,12 +356,10 @@ fn place(
 ) -> Placement {
     let center = viewport / 2.0;
     match projected {
-        Some(pos) if pos.x >= 0.0 && pos.y >= 0.0 && pos.x <= viewport.x && pos.y <= viewport.y => {
-            Placement::Visible {
-                center: pos,
-                arrow: None,
-            }
-        }
+        Some(pos) if in_view(pos, viewport) => Placement::Visible {
+            center: pos,
+            arrow: None,
+        },
         Some(pos) => match policy {
             ScreenIndicatorOffscreen::Hide => Placement::Hidden,
             ScreenIndicatorOffscreen::ClampToEdge { margin_px } => {
@@ -375,6 +384,12 @@ fn place(
             }
         },
     }
+}
+
+/// Whether the viewport point `pos` lies inside a `viewport` of that size,
+/// edges included.
+fn in_view(pos: Vec2, viewport: Vec2) -> bool {
+    pos.x >= 0.0 && pos.y >= 0.0 && pos.x <= viewport.x && pos.y <= viewport.y
 }
 
 /// Clamp `pos` to the viewport rect inset by `margin_px` (a negative margin is
@@ -697,6 +712,7 @@ fn update_screen_indicators(
             Option<&ScreenIndicatorClearance>,
             &ScreenIndicatorOffscreen,
             Option<&ScreenLabelType>,
+            Option<&mut ScreenIndicatorAnchorInView>,
             &ComputedNode,
             &UiGlobalTransform,
             &mut Node,
@@ -770,6 +786,7 @@ fn update_screen_indicators(
         clearance,
         offscreen,
         label,
+        anchor_in_view,
         computed,
         drawn,
         mut node,
@@ -800,6 +817,11 @@ fn update_screen_indicators(
         // Err here means the anchor does not project (behind the camera); the
         // viewport size was checked above.
         let projected = projection.point(anchor_pos);
+        if let Some(mut anchor_in_view) = anchor_in_view {
+            anchor_in_view.set_if_neq(ScreenIndicatorAnchorInView(
+                projected.is_some_and(|pos| in_view(pos, viewport)),
+            ));
+        }
         let view_pos = camera_transform
             .affine()
             .inverse()
