@@ -22,8 +22,9 @@
 //!      draw their badges, and the offer is still standing because nobody
 //!      answered it. `Not now` answers it, and the SETTINGS file takes that -
 //!      the dismissal is a switch the player threw, not something they learned.
-//!      With the offer gone, the handbook's first row still loads Basic
-//!      Training.
+//!      With the offer gone, the handbook's first row still offers Basic
+//!      Training: a click selects it and stays on the menu, and its `Start`
+//!      button loads the course.
 //!   3. AGAIN. A third app on the same root. The corner is gone, the record is
 //!      not, the menu card's `Lessons` row still opens the handbook, and the
 //!      range a player has already been proven on still launches from it.
@@ -114,6 +115,8 @@ const MENU_LESSONS: &str = "Lessons Button";
 const PRACTICE: &str = "Lesson Practice Button";
 #[cfg(feature = "debug")]
 const BASIC_TRAINING: &str = "Training Basic Training";
+#[cfg(feature = "debug")]
+const BASIC_TRAINING_START: &str = "Training Start Button";
 
 #[cfg(feature = "debug")]
 fn lesson_row() -> String {
@@ -567,7 +570,8 @@ fn relaunch_app(root: &std::path::Path) -> App {
             .on_enter(assert_the_answer_went_to_the_settings)
             .add()
             // The offer is answered, and New Game opens the open world: the
-            // handbook's first row is what still starts Basic Training.
+            // handbook's first row is what still offers Basic Training. A
+            // click selects it; only its Start button launches.
             .click_named(
                 "training journey: reopen the handbook with the offer answered",
                 MENU_LESSONS,
@@ -575,8 +579,17 @@ fn relaunch_app(root: &std::path::Path) -> App {
                 BEAT_DEADLINE_SECS,
             )
             .click_named(
-                "training journey: start Basic Training from the handbook",
+                "training journey: select Basic Training in the handbook",
                 BASIC_TRAINING,
+                ui_node_present(BASIC_TRAINING_START),
+                BEAT_DEADLINE_SECS,
+            )
+            .step("training journey: the Basic Training click did not start it")
+            .on_enter(assert_basic_training_selected_not_started)
+            .add()
+            .click_named(
+                "training journey: start Basic Training from the handbook",
+                BASIC_TRAINING_START,
                 state_is(GameStates::Playing),
                 BEAT_DEADLINE_SECS,
             )
@@ -592,8 +605,25 @@ fn relaunch_app(root: &std::path::Path) -> App {
     app
 }
 
-/// Lessons -> Basic Training loads the course itself, not the open world New
-/// Game now starts.
+/// A click on the Basic Training row selects it and leaves the player on the
+/// menu.
+#[cfg(feature = "debug")]
+fn assert_basic_training_selected_not_started(world: &mut World) {
+    assert_eq!(
+        *world.resource::<State<GameStates>>().get(),
+        GameStates::MainMenu,
+        "a click on the Basic Training row must not start the course"
+    );
+    let selected = world
+        .query_filtered::<&Name, With<nova_ui::widget::Selected>>()
+        .iter(world)
+        .any(|name| name.as_str() == BASIC_TRAINING);
+    assert!(selected, "the Basic Training row is not the selected row");
+    info!("training journey: PASS a Basic Training click selects and does not start");
+}
+
+/// Lessons -> Basic Training -> Start loads the course itself, not the open
+/// world New Game now starts.
 #[cfg(feature = "debug")]
 fn assert_basic_training_launched_from_the_handbook(world: &mut World) {
     assert_eq!(

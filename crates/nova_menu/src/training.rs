@@ -14,8 +14,9 @@
 //! saw a whole thing.
 //!
 //! TWO SURFACES, TWO JOBS. The `Lessons` row in the menu card is the permanent
-//! way in and is always there, and the handbook's first row always launches
-//! Basic Training. The bottom-left corner is a NOTICE CENTRE, not a
+//! way in and is always there, and the handbook's first row always offers
+//! Basic Training: a click selects it like a lesson, and its details pane
+//! `Start` button launches it. The bottom-left corner is a NOTICE CENTRE, not a
 //! training widget: it holds the one-off OFFER to a player who has just
 //! installed the game, and under it a field note - one fact read off the
 //! catalog, with the way into the lesson that owns it.
@@ -38,6 +39,7 @@ use bevy::{
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::{KeyGlyphs, NovaHudAssets};
 use nova_input::prelude::InputBindings;
+use nova_scenario::prelude::GameScenarios;
 use nova_training::prelude::*;
 use nova_ui::{
     screen::{
@@ -91,9 +93,14 @@ pub(crate) struct LessonRow {
 #[derive(Component)]
 pub(crate) struct LessonStatusBadge(pub(crate) LessonStatus);
 
+/// The Basic Training row at the head of the lesson list. A click selects
+/// it; only the details pane's `Start` button launches the course.
+#[derive(Component)]
+pub(crate) struct BasicTrainingRow;
+
 /// A launch into a scenario from the handbook: the details-pane Practice
-/// button with the practice range it hands off to, and the Basic Training row
-/// at the head of the list.
+/// button with the practice range it hands off to, and the `Start` button
+/// Basic Training's details pane carries.
 ///
 /// The Practice LABEL is the screen's, not the lesson's: every practice button
 /// says the same word, so the player learns one control rather than reading a
@@ -105,6 +112,14 @@ pub(crate) struct LessonPractice {
 
 /// What every Practice button says.
 const PRACTICE_LABEL: &str = "Practice";
+
+/// What Basic Training's launch button says. Not `Practice`: the course is the
+/// whole first flight, not a range behind one tip.
+const START_LABEL: &str = "Start";
+
+/// The list row's title for the course. The details pane uses the tutorial
+/// scenario's own name.
+const BASIC_TRAINING_TITLE: &str = "Basic Training";
 
 /// The bottom-left notice corner. Hidden while any menu modal is open, so
 /// nothing reaches past the modal. What it HOLDS decides its own visibility:
@@ -150,11 +165,31 @@ pub(crate) struct LessonLoop {
     timer: Timer,
 }
 
-/// The lesson the details pane renders. `None` until the list populates -
-/// `refresh_training_list` default-selects the first row and repairs a stale
-/// pick.
+/// One entry the handbook list can select.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum TrainingEntryType {
+    /// The Basic Training course at the head of the list. Not a catalog
+    /// lesson: selecting it marks nothing Viewed.
+    BasicTraining,
+    /// One catalog lesson.
+    Lesson(LessonId),
+}
+
+impl TrainingEntryType {
+    /// The lesson id, or `None` for Basic Training.
+    pub(crate) fn lesson_id(&self) -> Option<&str> {
+        match self {
+            Self::BasicTraining => None,
+            Self::Lesson(id) => Some(id.as_str()),
+        }
+    }
+}
+
+/// The entry the details pane renders. `None` until the list populates -
+/// `refresh_training_list` default-selects the first lesson (Basic Training
+/// when the catalog is empty) and repairs a stale pick.
 #[derive(Resource, Default)]
-pub(crate) struct SelectedLessonId(pub(crate) Option<LessonId>);
+pub(crate) struct SelectedTrainingEntry(pub(crate) Option<TrainingEntryType>);
 
 /// How wide the notice corner is, in logical pixels.
 ///
@@ -169,7 +204,7 @@ const PANEL_PCT: f32 = 85.0;
 
 /// Spawn the Training modal, hidden until the Training button toggles it.
 ///
-/// Both panes spawn EMPTY: writing [`SelectedLessonId`] marks it changed, which
+/// Both panes spawn EMPTY: writing [`SelectedTrainingEntry`] marks it changed, which
 /// re-arms the refreshers to fill them on the first Update after entry - one
 /// population path for entry, selection and a live catalog change alike, the
 /// same shape the mods and scenarios screens use.
@@ -464,22 +499,31 @@ pub(crate) fn on_training_back(
     close_screen(&mut panel);
 }
 
-/// Select a lesson: the ONE path into [`SelectedLessonId`] that marks a lesson
+/// Select a lesson: the ONE path into [`SelectedTrainingEntry`] that marks a lesson
 /// Viewed.
 ///
 /// A default or repaired selection deliberately does NOT come through here.
 /// Opening the handbook puts a lesson on screen without the player having
 /// chosen it, and a record that called that reading would have every player
 /// arrive with the first lesson already ticked off.
-fn select_lesson(id: &str, selected: &mut SelectedLessonId, progress: &mut TrainingProgress) {
-    selected.0 = Some(id.to_string());
+fn select_lesson(id: &str, selected: &mut SelectedTrainingEntry, progress: &mut TrainingProgress) {
+    selected.0 = Some(TrainingEntryType::Lesson(id.to_string()));
     progress.mark_viewed(id);
+}
+
+/// Select the Basic Training row. It launches nothing: the details pane's
+/// `Start` button does, so one stray click cannot start the course.
+pub(crate) fn on_basic_training_select(
+    _activate: On<Activate>,
+    mut selected: ResMut<SelectedTrainingEntry>,
+) {
+    selected.0 = Some(TrainingEntryType::BasicTraining);
 }
 
 pub(crate) fn on_lesson_row_select(
     activate: On<Activate>,
     rows: Query<&LessonRow>,
-    mut selected: ResMut<SelectedLessonId>,
+    mut selected: ResMut<SelectedTrainingEntry>,
     mut progress: ResMut<TrainingProgress>,
 ) {
     let Ok(row) = rows.get(activate.entity) else {
@@ -530,7 +574,7 @@ pub(crate) fn on_open_handbook(
     _activate: On<Activate>,
     catalog: Res<TrainingCatalog>,
     mut panel: Single<&mut Visibility, With<TrainingPanel>>,
-    mut selected: ResMut<SelectedLessonId>,
+    mut selected: ResMut<SelectedTrainingEntry>,
     mut progress: ResMut<TrainingProgress>,
 ) {
     if let Some(id) = catalog.first_id().cloned() {
@@ -546,7 +590,7 @@ pub(crate) fn on_open_note_lesson(
     activate: On<Activate>,
     notes: Query<&MenuFieldNoteLesson>,
     mut panel: Single<&mut Visibility, With<TrainingPanel>>,
-    mut selected: ResMut<SelectedLessonId>,
+    mut selected: ResMut<SelectedTrainingEntry>,
     mut progress: ResMut<TrainingProgress>,
 ) {
     let Ok(note) = notes.get(activate.entity) else {
@@ -621,9 +665,10 @@ fn write_progress_label(
 pub(crate) fn sync_lesson_rows(
     mut commands: Commands,
     catalog: Res<TrainingCatalog>,
-    selected: Res<SelectedLessonId>,
+    selected: Res<SelectedTrainingEntry>,
     progress: Res<TrainingProgress>,
     rows: Query<(Entity, &LessonRow, Has<Selected>, Option<&Children>)>,
+    basic_rows: Query<(Entity, Has<Selected>), With<BasicTrainingRow>>,
     badges: Query<(Entity, &LessonStatusBadge)>,
     mut labels: Query<&mut Text, With<TrainingProgressLabel>>,
 ) {
@@ -631,18 +676,14 @@ pub(crate) fn sync_lesson_rows(
         return;
     }
     write_progress_label(&catalog, &progress, &mut labels);
+    let selected_lesson = selected.0.as_ref().and_then(TrainingEntryType::lesson_id);
+    for (entity, marked) in &basic_rows {
+        let highlighted = selected.0 == Some(TrainingEntryType::BasicTraining);
+        set_row_highlight(&mut commands, entity, highlighted, marked);
+    }
     for (entity, row, marked, children) in &rows {
-        let highlighted = selected.0.as_deref() == Some(row.id.as_str());
-        if highlighted != marked {
-            // `try_*`: a row can be despawned the same frame this deferred
-            // command is queued (the menu tearing down under a state change).
-            let mut ent = commands.entity(entity);
-            if highlighted {
-                ent.try_insert(Selected);
-            } else {
-                ent.try_remove::<Selected>();
-            }
-        }
+        let highlighted = selected_lesson == Some(row.id.as_str());
+        set_row_highlight(&mut commands, entity, highlighted, marked);
         let status = progress.status(&row.id);
         // An untouched lesson draws no badge at all, so what SHOULD be on the
         // row is an `Option` too, and "nothing, correctly" has to compare equal
@@ -667,10 +708,25 @@ pub(crate) fn sync_lesson_rows(
     }
 }
 
+/// Move a row's `Selected` highlight when it disagrees with the selection.
+fn set_row_highlight(commands: &mut Commands, row: Entity, highlighted: bool, marked: bool) {
+    if highlighted == marked {
+        return;
+    }
+    // `try_*`: a row can be despawned the same frame this deferred command is
+    // queued (the menu tearing down under a state change).
+    let mut ent = commands.entity(row);
+    if highlighted {
+        ent.try_insert(Selected);
+    } else {
+        ent.try_remove::<Selected>();
+    }
+}
+
 pub(crate) fn training_details_dirty(
     catalog: Res<TrainingCatalog>,
     progress: Res<TrainingProgress>,
-    selected: Res<SelectedLessonId>,
+    selected: Res<SelectedTrainingEntry>,
     bindings: Option<Res<InputBindings>>,
     spawned: Query<(), Added<TrainingDetailsPanel>>,
 ) -> bool {
@@ -691,7 +747,7 @@ pub(crate) fn refresh_training_list(
     mut commands: Commands,
     catalog: Res<TrainingCatalog>,
     progress: Res<TrainingProgress>,
-    mut selected: ResMut<SelectedLessonId>,
+    mut selected: ResMut<SelectedTrainingEntry>,
     lists: Query<Entity, With<TrainingList>>,
     mut labels: Query<&mut Text, With<TrainingProgressLabel>>,
 ) {
@@ -700,36 +756,40 @@ pub(crate) fn refresh_training_list(
     };
     commands.entity(list).despawn_related::<Children>();
 
-    if !selected
-        .0
-        .as_deref()
-        .is_some_and(|id| catalog.get(id).is_some())
-    {
+    let valid = match &selected.0 {
+        Some(TrainingEntryType::BasicTraining) => true,
+        Some(TrainingEntryType::Lesson(id)) => catalog.get(id).is_some(),
+        None => false,
+    };
+    if !valid {
         // Bypasses `select_lesson` on purpose: see its doc comment.
-        selected.0 = catalog.first_id().cloned();
+        selected.0 = Some(
+            catalog
+                .first_id()
+                .cloned()
+                .map_or(TrainingEntryType::BasicTraining, TrainingEntryType::Lesson),
+        );
     }
+    let selected_lesson = selected.0.as_ref().and_then(TrainingEntryType::lesson_id);
 
     write_progress_label(&catalog, &progress, &mut labels);
 
     commands.entity(list).with_children(|list| {
         // Basic Training heads the list, above every category, because New
         // Game opens the open world: this row is the handbook's own door into
-        // the first-flight course. It launches, not selects - it is the
-        // practice hand-off with no lesson in front of it, so it names the
-        // scenario and never touches the selection or the record.
-        list.spawn((
+        // the first-flight course. It selects like a lesson row; the details
+        // pane's `Start` button launches. It never touches the record.
+        let mut basic = list.spawn((
             Name::new("Training Basic Training"),
-            LessonPractice {
-                scenario: TUTORIAL_SCENARIO_ID.to_string(),
-            },
+            BasicTrainingRow,
             list_row(),
             Button,
             Hovered::default(),
-            observe(on_lesson_practice),
+            observe(on_basic_training_select),
             children![(
                 Name::new("Training Basic Training Title"),
                 UiText,
-                Text::new("Basic Training"),
+                Text::new(BASIC_TRAINING_TITLE),
                 TextFont {
                     font_size: FontSize::Px(15.0),
                     ..default()
@@ -738,6 +798,9 @@ pub(crate) fn refresh_training_list(
                 ThemedText::new(UiColorType::TextBody),
             )],
         ));
+        if selected.0 == Some(TrainingEntryType::BasicTraining) {
+            basic.insert(Selected);
+        }
         if catalog.is_empty() {
             return;
         }
@@ -762,7 +825,7 @@ pub(crate) fn refresh_training_list(
                                 rows,
                                 lesson,
                                 progress.status(&lesson.id),
-                                selected.0.as_deref() == Some(lesson.id.as_str()),
+                                selected_lesson == Some(lesson.id.as_str()),
                             );
                         }
                     });
@@ -834,21 +897,26 @@ fn status_badge(status: LessonStatus) -> Option<(UiColorType, &'static str)> {
     }
 }
 
-/// Rebuild the details pane from the selected lesson.
+/// Rebuild the details pane from the selected entry.
 ///
 /// One tip, one screen: the demonstration takes the width of the pane at 16:9,
 /// and the text box under it holds everything else - the title, the whole body,
 /// the live binding chips and the way on. There is no page cursor, because
 /// there are no pages.
+///
+/// Basic Training draws in the same frame and box from its scenario: the
+/// thumbnail, the name, the description and a `Start` button.
 #[expect(
     clippy::too_many_arguments,
-    reason = "the pane draws from the catalog, the record, the selection, the binding table and               the asset stack; splitting it would only move the argument list"
+    reason = "the pane draws from the catalog, the record, the selection, the scenarios, the \
+              binding table and the asset stack; splitting it would only move the argument list"
 )]
 pub(crate) fn refresh_training_details(
     mut commands: Commands,
     catalog: Res<TrainingCatalog>,
     progress: Res<TrainingProgress>,
-    selected: Res<SelectedLessonId>,
+    selected: Res<SelectedTrainingEntry>,
+    scenarios: Option<Res<GameScenarios>>,
     bindings: Option<Res<InputBindings>>,
     hud_assets: Option<Res<NovaHudAssets>>,
     asset_server: Option<Res<AssetServer>>,
@@ -861,34 +929,17 @@ pub(crate) fn refresh_training_details(
         return;
     };
     commands.entity(pane).despawn_related::<Children>();
-    let lesson = selected
-        .0
-        .as_deref()
-        .and_then(|id| catalog.get(id))
-        .cloned();
     // The keycap art lives inside the HUD's asset bundle, the same place
     // the settings rebind rows read it from. A rig without it falls back to
     // the chip's own text.
     let glyphs = hud_assets.as_deref().map(|assets| &assets.key_glyphs);
     let bindings = bindings.as_deref();
-    let status = lesson
-        .as_ref()
-        .and_then(|lesson| status_badge(progress.status(&lesson.id)));
     // Resolved BEFORE the pane is built: cutting a sheet into cells needs a
     // mutable atlas-layout store, which a child-spawning closure cannot hold.
     // `None` is the fallback frame, and says nothing about why - a missing
     // asset stack, an image still loading, and a texture the UI cannot bind all
     // leave the lesson readable.
     pending.0 = None;
-    let media = lesson.as_ref().and_then(|lesson| {
-        resolve_media(
-            &lesson.media,
-            asset_server.as_deref(),
-            images.as_deref(),
-            layouts,
-            &mut pending,
-        )
-    });
 
     // The demonstration over the text box, a group gap apart.
     let stack = commands
@@ -902,113 +953,201 @@ pub(crate) fn refresh_training_details(
             ChildOf(pane),
         ))
         .id();
-    commands.entity(stack).with_children(|details| {
-        // The list selects its first lesson, so no lesson means an empty
-        // catalog: the pane stays empty with it.
-        let Some(lesson) = lesson else {
-            return;
-        };
 
-        spawn_media_frame(details, &lesson.media, media);
+    match &selected.0 {
+        Some(TrainingEntryType::BasicTraining) => {
+            let scenario = scenarios
+                .as_deref()
+                .and_then(|scenarios| scenarios.get(TUTORIAL_SCENARIO_ID));
+            let thumbnail = scenario
+                .and_then(|scenario| scenario.thumbnail.as_ref())
+                .and_then(|thumb| {
+                    loaded_2d_image(
+                        thumb,
+                        asset_server.as_deref(),
+                        images.as_deref(),
+                        &mut pending,
+                    )
+                })
+                .map(|(handle, _)| ResolvedMedia::Still(handle));
+            let title = scenario.map_or(BASIC_TRAINING_TITLE, |scenario| scenario.name.as_str());
+            let body = scenario.map_or("", |scenario| scenario.description.as_str());
+            commands.entity(stack).with_children(|details| {
+                spawn_media_frame(details, None, thumbnail);
+                spawn_text_box(
+                    details,
+                    title,
+                    None,
+                    body,
+                    |_| {},
+                    |box_| {
+                        box_.spawn((
+                            Name::new("Training Start Actions"),
+                            action_row(JustifyContent::FlexStart),
+                        ))
+                        .with_child((
+                            Name::new("Training Start Button"),
+                            nova_ui::widget::button(ButtonSpec::control(START_LABEL).primary()),
+                            LessonPractice {
+                                scenario: TUTORIAL_SCENARIO_ID.to_string(),
+                            },
+                            observe(on_lesson_practice),
+                        ));
+                    },
+                );
+            });
+        }
+        Some(TrainingEntryType::Lesson(id)) => {
+            // A stale id draws an empty pane: the list repairs the pick the
+            // same frame.
+            let Some(lesson) = catalog.get(id).cloned() else {
+                return;
+            };
+            let status = status_badge(progress.status(&lesson.id));
+            let media = resolve_media(
+                &lesson.media,
+                asset_server.as_deref(),
+                images.as_deref(),
+                layouts,
+                &mut pending,
+            );
+            let fallback = if lesson.media.is_loop() {
+                (UiColorType::Accent, "loop")
+            } else {
+                (UiColorType::Info, "still")
+            };
+            commands.entity(stack).with_children(|details| {
+                spawn_media_frame(
+                    details,
+                    Some((fallback.0, fallback.1, lesson.media.alt().to_string())),
+                    media,
+                );
+                spawn_text_box(
+                    details,
+                    &lesson.title,
+                    status,
+                    &lesson.body,
+                    |body| {
+                        if !lesson.actions.is_empty() {
+                            body.spawn(row_group("Lesson Bindings"))
+                                .with_children(|list| {
+                                    for action in &lesson.actions {
+                                        spawn_binding_row(list, action, bindings, glyphs);
+                                    }
+                                });
+                        }
+                    },
+                    |box_| spawn_lesson_actions(box_, &lesson),
+                );
+            });
+        }
+        // The list always selects an entry, so `None` is the frame before it
+        // populates: the pane stays empty.
+        None => {}
+    }
+}
 
-        details
-            .spawn((
-                Name::new("Lesson Text Box"),
+/// The details text box: a heading with the title and an optional state tag,
+/// a scrolling body of text plus whatever `body_extra` adds under it, and the
+/// action strip `actions` fills.
+fn spawn_text_box(
+    details: &mut ChildSpawnerCommands,
+    title: &str,
+    status: Option<(UiColorType, &'static str)>,
+    body: &str,
+    body_extra: impl FnOnce(&mut ChildSpawnerCommands),
+    actions: impl FnOnce(&mut ChildSpawnerCommands),
+) {
+    details
+        .spawn((
+            Name::new("Lesson Text Box"),
+            Node {
+                // Takes whatever the 16:9 frame leaves: about a quarter of
+                // the pane on a desk monitor, about half at the 640x600
+                // floor. The FRAME keeps its shape on every machine, so an
+                // authored loop is drawn the same everywhere and the box is
+                // what gives.
+                flex_grow: 1.0,
+                flex_basis: px(0),
+                min_height: px(0),
+                flex_direction: FlexDirection::Column,
+                row_gap: px(GAP),
+                padding: UiRect::all(px(GAP_L)),
+                border: UiRect::all(px(theme::BORDER_W)),
+                ..default()
+            },
+            ThemedRadius::control(),
+            BorderColor::all(Color::NONE),
+            ThemedBorder::new(UiColorType::TextMuted),
+            BackgroundColor(Color::NONE),
+            ThemedFill::new(UiColorType::Surface),
+        ))
+        .with_children(|box_| {
+            box_.spawn((
+                Name::new("Lesson Heading"),
                 Node {
-                    // Takes whatever the 16:9 frame leaves: about a quarter of
-                    // the pane on a desk monitor, about half at the 640x600
-                    // floor. The FRAME keeps its shape on every machine, so an
-                    // authored loop is drawn the same everywhere and the box is
-                    // what gives.
-                    flex_grow: 1.0,
-                    flex_basis: px(0),
-                    min_height: px(0),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: px(GAP),
-                    padding: UiRect::all(px(GAP_L)),
-                    border: UiRect::all(px(theme::BORDER_W)),
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: px(GAP),
                     ..default()
                 },
-                ThemedRadius::control(),
-                BorderColor::all(Color::NONE),
-                ThemedBorder::new(UiColorType::TextMuted),
-                BackgroundColor(Color::NONE),
-                ThemedFill::new(UiColorType::Surface),
             ))
-            .with_children(|box_| {
-                box_.spawn((
-                    Name::new("Lesson Heading"),
-                    Node {
-                        flex_direction: FlexDirection::Row,
-                        align_items: AlignItems::Center,
-                        column_gap: px(GAP),
+            .with_children(|head| {
+                head.spawn((
+                    Name::new("Lesson Details Title"),
+                    UiText,
+                    Text::new(title.to_string()),
+                    TextFont {
+                        font_size: FontSize::Px(17.0),
                         ..default()
                     },
-                ))
-                .with_children(|head| {
-                    head.spawn((
-                        Name::new("Lesson Details Title"),
-                        UiText,
-                        Text::new(lesson.title.clone()),
-                        TextFont {
-                            font_size: FontSize::Px(17.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColorType::TextBody),
+                    TextColor(Color::NONE),
+                    ThemedText::new(UiColorType::TextBody),
+                    Node {
+                        flex_grow: 1.0,
+                        min_width: px(0),
+                        ..default()
+                    },
+                ));
+                if let Some((kind, text)) = status {
+                    head.spawn((Name::new("Lesson Details Status"), tag(text, kind)));
+                }
+            });
+
+            // The body scrolls and the action strip below it does not, so
+            // the way on stays on screen even if a lesson is written over
+            // the box it was measured for.
+            box_.spawn((Name::new("Lesson Body Row"), scroll_row()))
+                .with_children(|row| {
+                    row.spawn((
+                        Name::new("Lesson Body"),
+                        // The words, then the keys: two parts, so the
+                        // control gap takes the place of the row gap.
                         Node {
-                            flex_grow: 1.0,
-                            min_width: px(0),
-                            ..default()
+                            row_gap: px(GAP),
+                            ..scroll_column()
                         },
-                    ));
-                    if let Some((kind, text)) = status {
-                        head.spawn((Name::new("Lesson Details Status"), tag(text, kind)));
-                    }
+                        scroll_viewport(),
+                    ))
+                    .with_children(|column| {
+                        column.spawn((
+                            Name::new("Lesson Body Text"),
+                            UiText,
+                            Text::new(body.to_string()),
+                            TextFont {
+                                font_size: FontSize::Px(14.0),
+                                ..default()
+                            },
+                            TextColor(Color::NONE),
+                            ThemedText::new(UiColorType::TextBody),
+                        ));
+                        body_extra(column);
+                    });
+                    row.spawn((Name::new("Lesson Body Scroll Bar"), scroll_bar()));
                 });
 
-                // The body scrolls and the action strip below it does not, so
-                // the way on stays on screen even if a lesson is written over
-                // the box it was measured for.
-                box_.spawn((Name::new("Lesson Body Row"), scroll_row()))
-                    .with_children(|row| {
-                        row.spawn((
-                            Name::new("Lesson Body"),
-                            // The words, then the keys: two parts, so the
-                            // control gap takes the place of the row gap.
-                            Node {
-                                row_gap: px(GAP),
-                                ..scroll_column()
-                            },
-                            scroll_viewport(),
-                        ))
-                        .with_children(|body| {
-                            body.spawn((
-                                Name::new("Lesson Body Text"),
-                                UiText,
-                                Text::new(lesson.body.clone()),
-                                TextFont {
-                                    font_size: FontSize::Px(14.0),
-                                    ..default()
-                                },
-                                TextColor(Color::NONE),
-                                ThemedText::new(UiColorType::TextBody),
-                            ));
-                            if !lesson.actions.is_empty() {
-                                body.spawn(row_group("Lesson Bindings"))
-                                    .with_children(|list| {
-                                        for action in &lesson.actions {
-                                            spawn_binding_row(list, action, bindings, glyphs);
-                                        }
-                                    });
-                            }
-                        });
-                        row.spawn((Name::new("Lesson Body Scroll Bar"), scroll_bar()));
-                    });
-
-                spawn_lesson_actions(box_, &lesson);
-            });
-    });
+            actions(box_);
+        });
 }
 
 /// A lesson's demonstration, loaded and ready to mount.
@@ -1040,21 +1179,7 @@ fn resolve_media(
     mut layouts: Option<ResMut<Assets<TextureAtlasLayout>>>,
     pending: &mut PendingLessonMedia,
 ) -> Option<ResolvedMedia> {
-    let server = asset_server?;
-    let handle = media.source().resolve(server);
-    if !server.is_loaded_with_dependencies(&handle) {
-        pending.0 = Some(handle);
-        return None;
-    }
-    let image = images?.get(&handle)?;
-    let size = image.texture_descriptor.size;
-    if size.depth_or_array_layers != 1 {
-        warn!(
-            "a lesson demonstration is not a 2D image (cube/array/3D texture); drawing the \
-             fallback instead - handbook media must be a plain 2D image."
-        );
-        return None;
-    }
+    let (handle, size) = loaded_2d_image(media.source(), asset_server, images, pending)?;
     match media {
         LessonMedia::Image { .. } => Some(ResolvedMedia::Still(handle)),
         LessonMedia::Loop {
@@ -1068,15 +1193,15 @@ fn resolve_media(
             // image cannot be cut by is an authoring error the content lint
             // reports. Here it degrades to the fallback rather than drawing a
             // sliver of somebody else's frame.
-            if *columns == 0 || *rows == 0 || size.width % columns != 0 || size.height % rows != 0 {
+            if *columns == 0 || *rows == 0 || size.x % columns != 0 || size.y % rows != 0 {
                 warn!(
                     "a lesson loop authors a {columns}x{rows} grid over a {}x{} sheet, which \
                      does not divide evenly; drawing the fallback instead.",
-                    size.width, size.height
+                    size.x, size.y
                 );
                 return None;
             }
-            let cell = UVec2::new(size.width / columns, size.height / rows);
+            let cell = UVec2::new(size.x / columns, size.y / rows);
             let layout = layouts.as_mut()?.add(TextureAtlasLayout::from_grid(
                 cell, *columns, *rows, None, None,
             ));
@@ -1090,6 +1215,33 @@ fn resolve_media(
     }
 }
 
+/// Resolve `source` to a loaded plain 2D image and its size, or `None`.
+///
+/// A still-loading image is parked in [`PendingLessonMedia`] so the refresh
+/// re-runs when it lands.
+fn loaded_2d_image(
+    source: &AssetRef<Image>,
+    asset_server: Option<&AssetServer>,
+    images: Option<&Assets<Image>>,
+    pending: &mut PendingLessonMedia,
+) -> Option<(Handle<Image>, UVec2)> {
+    let server = asset_server?;
+    let handle = source.resolve(server);
+    if !server.is_loaded_with_dependencies(&handle) {
+        pending.0 = Some(handle);
+        return None;
+    }
+    let size = images?.get(&handle)?.texture_descriptor.size;
+    if size.depth_or_array_layers != 1 {
+        warn!(
+            "a handbook image is not a 2D image (cube/array/3D texture); drawing the \
+             fallback instead - handbook media must be a plain 2D image."
+        );
+        return None;
+    }
+    Some((handle, UVec2::new(size.width, size.height)))
+}
+
 /// The media frame: a 16:9 box carrying the demonstration, or - while it loads,
 /// or when it cannot be drawn - the alternate text that says what is in it and
 /// a tag saying which FORM.
@@ -1097,17 +1249,14 @@ fn resolve_media(
 /// The frame keeps its shape either way. That is the point of it: the text box
 /// below takes whatever is left, so a lesson whose art is still arriving does
 /// not shove the prose up the pane and then back down again.
+///
+/// `fallback` is the tag and alternate text drawn while there is no image;
+/// `None` leaves the frame empty instead.
 fn spawn_media_frame(
     body: &mut ChildSpawnerCommands,
-    media: &LessonMedia,
+    fallback: Option<(UiColorType, &'static str, String)>,
     resolved: Option<ResolvedMedia>,
 ) {
-    let (kind, word) = if media.is_loop() {
-        (UiColorType::Accent, "loop")
-    } else {
-        (UiColorType::Info, "still")
-    };
-    let alt = media.alt().to_string();
     body.spawn((
         Name::new("Lesson Media Frame"),
         Node {
@@ -1154,6 +1303,9 @@ fn spawn_media_frame(
             ));
         }
         None => {
+            let Some((kind, word, alt)) = fallback else {
+                return;
+            };
             frame.spawn((Name::new("Lesson Media Tag"), tag(word, kind)));
             frame.spawn((
                 Name::new("Lesson Media Legend"),
@@ -1192,7 +1344,7 @@ fn media_node() -> Node {
 pub(crate) fn poll_lesson_media(
     pending: Res<PendingLessonMedia>,
     asset_server: Option<Res<AssetServer>>,
-    mut selected: ResMut<SelectedLessonId>,
+    mut selected: ResMut<SelectedTrainingEntry>,
 ) {
     let (Some(handle), Some(server)) = (pending.0.as_ref(), asset_server.as_ref()) else {
         return;

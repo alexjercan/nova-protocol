@@ -85,6 +85,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Interface & HUD
 
+- Lessons: a click on Basic Training selects it and shows the course; its Start button launches it. Before, one click on the row started the course.
 - The Jobs pane lists every goal step, `GOAL-1`, `GOAL-2`, with meter, reward and Hand in, docked or in flight. The HUD notice posts `GOAL-1 done: hand in`, then `GOAL-1 PAID 3,000 CR`.
 - The Ship pane lists running repairs with a bar, the time left and Cancel. In flight a chip under the RCS pips shows the first job, and a notice says how each one ends.
 - The Ship pane's Distress block tags why the ship is stranded and shows what a rescue costs, then shows the call with Cancel. The HUD chip reads `SOS 14 S`; a notice says how it ends.

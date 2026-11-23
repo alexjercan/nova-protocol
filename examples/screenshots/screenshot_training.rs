@@ -1,8 +1,10 @@
 //! screenshot_training: the Training handbook, the `Lessons` row that opens it,
-//! the first-launch prompt in the corner, and a lesson's media frame, driven
-//! through the shipped app (`editor_app`).
+//! the first-launch prompt in the corner, a lesson's media frame, and Basic
+//! Training selected with its `Start` button, driven through the shipped app
+//! (`editor_app`). The walk asserts that a click on the Basic Training row only
+//! selects it, and that `Start` loads the tutorial.
 //!
-//! THREE frames per run, and the run is repeated at the supported narrow
+//! FIVE frames per run (Basic Training on both themes), and the run is repeated at the supported narrow
 //! window with `--narrow`: the handbook is a layout claim, and a layout claim
 //! that has only been looked at on a desk monitor has not been checked. The
 //! narrow size is nova_core's `MIN_WINDOW_WIDTH` x `MIN_WINDOW_HEIGHT` - the
@@ -29,7 +31,12 @@ use clap::Parser;
 use nova_protocol::nova_debug::harness::CAPTURE_RESOLUTION;
 use nova_protocol::prelude::*;
 #[cfg(feature = "debug")]
-use nova_ui::widget::Selected;
+use nova_training::prelude::TUTORIAL_SCENARIO_ID;
+#[cfg(feature = "debug")]
+use nova_ui::{
+    theme::{ActiveUiTheme, SelectedUiTheme, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID},
+    widget::Selected,
+};
 
 // The pointer gestures, shared with the other menu walks.
 #[cfg(feature = "debug")]
@@ -53,6 +60,25 @@ struct Cli {
 /// layout at once.
 #[cfg(feature = "debug")]
 const VISUAL_LESSON_ROW: &str = "Lesson Row: flight_aim";
+
+/// The Basic Training row at the head of the lesson list.
+#[cfg(feature = "debug")]
+const BASIC_TRAINING_ROW: &str = "Training Basic Training";
+
+/// The details-pane button that starts Basic Training.
+#[cfg(feature = "debug")]
+const START_BUTTON: &str = "Training Start Button";
+
+/// The themes the Basic Training frame is shot on, by id and file tag.
+#[cfg(feature = "debug")]
+const THEMES: [(&str, &str); 2] = [
+    (PHOSPHOR_THEME_ID, "phosphor"),
+    (HARDWARE_THEME_ID, "hardware"),
+];
+
+/// Frames a theme switch gets to re-tint.
+#[cfg(feature = "debug")]
+const THEME_FRAMES: u32 = 4;
 
 /// The window a `--narrow` run is pinned to: nova_core's native floor.
 #[cfg(feature = "debug")]
@@ -123,7 +149,7 @@ fn training_script(
         }
     };
 
-    nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+    let mut script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         .step("reach the main menu")
         .enter(GameStates::Loading)
         .until(state_is(GameStates::MainMenu))
@@ -203,14 +229,84 @@ fn training_script(
         .until(shot_written(name("training-lesson-visual")))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
-        // Out through the handbook's OWN hand-off rather than the menu's New
-        // Game, because the row this walk selected is the one that offers it.
-        // A harnessed example owes the smoke contract either way: a run that
-        // ends in the menu cannot tell a clean walk from an app that died while
-        // still loading, which is what `reached_playing` is there to catch.
-        .click("fly the lesson's practice range", "Lesson Practice Button")
-        .step("reach the practice range")
+        // Basic Training heads the list. A click, and a second click, only
+        // select it: the screen stays on the menu and Start appears in the
+        // details pane.
+        .click("select Basic Training", BASIC_TRAINING_ROW)
+        .click("click Basic Training again", BASIC_TRAINING_ROW)
+        .step("settle Basic Training's details pane")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("a Basic Training click selects and does not start")
+        .on_enter(|world: &mut World| {
+            assert_eq!(
+                *world.resource::<State<GameStates>>().get(),
+                GameStates::MainMenu,
+                "a click on the Basic Training row started the course"
+            );
+            let selected = world
+                .query_filtered::<&Name, With<Selected>>()
+                .iter(world)
+                .filter(|name| {
+                    name.as_str() == BASIC_TRAINING_ROW || name.as_str().starts_with("Lesson Row: ")
+                })
+                .map(|name| name.to_string())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                selected,
+                [BASIC_TRAINING_ROW],
+                "exactly the Basic Training row is selected"
+            );
+            assert_named_visible(START_BUTTON)(world);
+            info!("training walk: PASS a Basic Training click selects and does not start");
+        })
+        .add();
+
+    for (theme, tag) in THEMES {
+        let file = name(&format!("training-basic-training-{tag}"));
+        let written = file.clone();
+        script = script
+            .step(format!("switch to the {tag} theme"))
+            .on_enter(move |world: &mut World| {
+                world.resource_mut::<SelectedUiTheme>().0 = theme.to_string();
+            })
+            .until(std::sync::Arc::new(move |world: &World| {
+                world.resource::<ActiveUiTheme>().id() == theme
+            }))
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+            .step(format!("settle the {tag} theme"))
+            .until(frames(THEME_FRAMES))
+            .add()
+            .step(format!("capture Basic Training on {tag}"))
+            .on_enter(shot(file))
+            .until(shot_written(written))
+            .deadline(SHOT_DEADLINE_SECS)
+            .add();
+    }
+
+    // Out through Start. A harnessed example owes the smoke contract either
+    // way: a run that ends in the menu cannot tell a clean walk from an app
+    // that died while still loading, which is what `reached_playing` is there
+    // to catch.
+    script
+        .click("start Basic Training", START_BUTTON)
+        .step("reach Basic Training")
         .until(state_is(GameStates::Playing))
         .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("Start loaded the tutorial")
+        .until(std::sync::Arc::new(|world: &World| {
+            world
+                .get_resource::<CurrentScenario>()
+                .and_then(|current| current.0.as_ref())
+                .is_some_and(|config| config.id == TUTORIAL_SCENARIO_ID)
+        }))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .step("record the Basic Training start")
+        .on_enter(|_: &mut World| {
+            info!("training walk: PASS Start loaded the tutorial");
+        })
         .add()
 }

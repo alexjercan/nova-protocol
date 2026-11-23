@@ -17,8 +17,8 @@ use crate::{
     scenarios::NewGameScenario,
     settings::{FieldNoteSetting, TrainingPromptSetting},
     training::{
-        LessonRow, LessonStatusBadge, MenuAside, MenuFieldNoteCard, SelectedLessonId,
-        TrainingPanel, TrainingPromptCard,
+        LessonRow, LessonStatusBadge, MenuAside, MenuFieldNoteCard, SelectedTrainingEntry,
+        TrainingEntryType, TrainingPanel, TrainingPromptCard,
     },
     training_store::TrainingStoreAccess,
     world_setup::WorldSetupOverlay,
@@ -82,8 +82,20 @@ fn visibility(app: &mut App, name: &str) -> Visibility {
     *app.world().get::<Visibility>(entity).expect("a Visibility")
 }
 
+/// The selected lesson's id, or `None` when nothing or Basic Training is
+/// selected.
 fn selected(app: &App) -> Option<String> {
-    app.world().resource::<SelectedLessonId>().0.clone()
+    app.world()
+        .resource::<SelectedTrainingEntry>()
+        .0
+        .as_ref()
+        .and_then(TrainingEntryType::lesson_id)
+        .map(str::to_string)
+}
+
+fn has_selected(app: &mut App, name: &str) -> bool {
+    let entity = entity_by_name(app, name).unwrap_or_else(|| panic!("no `{name}` on screen"));
+    app.world().get::<Selected>(entity).is_some()
 }
 
 fn status(app: &App, id: &str) -> LessonStatus {
@@ -556,10 +568,11 @@ fn practice_launches_the_lessons_own_range_through_new_game() {
 }
 
 /// New Game opens the open world, so the handbook heads its list with Basic
-/// Training for a player who has answered the corner offer. The row launches
-/// straight into the course: no world setup modal and no open-world session.
+/// Training for a player who has answered the corner offer. A click on the row
+/// only selects it, a second click too; the details pane's `Start` button
+/// launches the course, with no world setup modal and no open-world session.
 #[test]
-fn the_first_lessons_row_plays_basic_training_without_the_world_setup() {
+fn a_basic_training_click_selects_and_only_start_plays_it() {
     let mut app = answered_prompt_app();
     app.world_mut().resource_mut::<NewGameScenario>().0 = Some("something_else".to_string());
     click(&mut app, "Lessons Button");
@@ -575,8 +588,33 @@ fn the_first_lessons_row_plays_basic_training_without_the_world_setup() {
         texts_named(&mut app, "Training Basic Training Title"),
         ["Basic Training"]
     );
+    assert!(
+        entity_by_name(&mut app, "Training Start Button").is_none(),
+        "Start belongs to Basic Training's details, not to the default lesson"
+    );
+    let default_row = format!("Lesson Row: {}", selected(&app).expect("a default lesson"));
 
     click(&mut app, "Training Basic Training");
+    click(&mut app, "Training Basic Training");
+
+    assert_eq!(
+        *app.world().resource::<State<GameStates>>().get(),
+        GameStates::MainMenu,
+        "a click on the row must not start the course"
+    );
+    assert_eq!(
+        app.world().resource::<NewGameScenario>().0.as_deref(),
+        Some("something_else")
+    );
+    assert_eq!(
+        app.world().resource::<SelectedTrainingEntry>().0,
+        Some(TrainingEntryType::BasicTraining)
+    );
+    assert!(has_selected(&mut app, "Training Basic Training"));
+    assert!(!has_selected(&mut app, &default_row));
+    assert!(entity_by_name(&mut app, "Training Start Button").is_some());
+
+    click(&mut app, "Training Start Button");
 
     assert_eq!(
         app.world().resource::<NewGameScenario>().0.as_deref(),

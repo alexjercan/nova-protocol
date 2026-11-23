@@ -134,7 +134,7 @@ use settings_store::SettingsStorePlugin;
 use training::{
     advance_lesson_loops, poll_lesson_media, refresh_training_details, refresh_training_list,
     sync_lesson_rows, sync_menu_aside, training_details_dirty, training_list_dirty,
-    PendingLessonMedia, SelectedLessonId,
+    PendingLessonMedia, SelectedTrainingEntry,
 };
 use training_store::TrainingProgressPlugin;
 use widgets::refresh_back_keys;
@@ -231,7 +231,7 @@ impl Plugin for NovaMenuPlugin {
         // reading progress store into a writing one - the same bargain the
         // settings panel strikes with `allow_settings_saves`.
         training_store::allow_training_saves(app);
-        app.init_resource::<SelectedLessonId>();
+        app.init_resource::<SelectedTrainingEntry>();
         app.init_resource::<PendingLessonMedia>();
         app.init_resource::<UpdateRequested>();
         // Ungated by menu state on purpose - an update started from the
