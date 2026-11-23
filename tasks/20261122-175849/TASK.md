@@ -197,3 +197,55 @@
 ## Closed (2026-11-23)
 - Owner: done. Smaller chips, canister chip lists and the lock inset
   stacking are still in build and record their notes here.
+
+## Build: smaller chips (2026-11-23)
+- Anchored chips (objective, beacon, waypoint) pad `CHIP_PAD_PX =
+  metrics::GAP_S` on every side (`anchored_chip.rs:56`, `:137`). The objective
+  chip text drops 16 -> 12 px (`LABEL_FONT_PX = metrics::TEXT`,
+  `objective_markers.rs:89`), its in-chip diamond follows the text
+  (`GLYPH_PX`, `:71`) and its chevron matches the beacon chip's (`:56`). The
+  settled 12 px diamond stays (`DIAMOND_PX`, `:65`): in scale over the
+  allegiance triangle.
+- JOB-1 chip at 1920x1080: about 218 x 30 -> 160 x 25 px, 61 % of the area.
+  Not half: 12 px is the floating chip family's text (beacon, waypoint) and
+  the readable floor.
+- Frames `small-{1920,1280}-{dwell,settled}-{phosphor,hardware}-{before,after}.png`
+  in `~/Pictures/nova-objective-chips/`. Known: at 12 px the `m` in `273 m`
+  draws as a solid block in both themes (font at that size).
+
+## Build: canister chips (2026-11-23)
+- Canister chips pad `metrics::GAP_S`, label `metrics::TEXT`, mass
+  `metrics::TEXT_LABEL` (`cargo_canister_chips.rs:69`, `:72`).
+- Grouping: `cluster_canisters` (`:207`) joins chips that overlap or sit within
+  `LABEL_GAP_PX` on screen; a pair already in one list holds until
+  `LABEL_GAP_PX + LINK_HOLD_PX` (`:101`), so membership does not flicker. A
+  group of `LIST_MIN_CANISTERS = 3` (`:92`) or more shows one list chip at its
+  world centroid, under the same keep-out placement (`ScreenLabelType::Canister`).
+- Rows: `cargo_list_rows` (`:156`) sums each item over the group, most first;
+  above `LIST_MAX_ROWS = 5` (`:96`) the last row is `+N` kinds. No per-canister
+  state is lost: a canister carries only its stacks.
+- Proof: `three_touching_canisters_share_one_list_and_a_pair_stays_single`,
+  `a_list_holds_its_canisters_a_margin_past_the_label_gap`,
+  `a_list_sums_each_item_and_caps_its_rows`. Example `canister_chip_sandbox`
+  asserts lists of 3 and 8 and five chips. 14 canisters: 14 chips, 74333 px2
+  -> 5 chips, 24688 px2 (33 %), both sizes. Frames in
+  `~/Pictures/nova-canister-chips/`.
+
+## Build: lock inset in front (2026-11-23)
+- Stacking: every HUD widget is a root at `GlobalZIndex` 0, and Bevy draws a
+  newer root over an older one, so the brackets, objective marks and chips
+  spawned after the inset drew on it (repro: red allegiance triangle on the
+  inset, `lock-1920-phosphor-before-crop.png`). The inset takes
+  `ZIndex(HUD_FRONT_Z)` (`target_inset.rs:390`), a rung inside `HUD_Z` named in
+  the layer table (`nova_ui/src/layer.rs:35`).
+- Avoid: the inset's keep-out states an exit, `KeepOutExitType::Toward(-X)`
+  (`target_inset.rs:357`, `hud_keep_out.rs:47`), and `fit_box` offers only
+  that move for it (`screen_indicator.rs:513`). Before, a verb cue under the
+  inset moved down along the right edge; now it moves left. fit_box is
+  stateless, so a chip takes its own place again when the lock ends (logged).
+- Proof: `a_box_under_the_target_inset_moves_toward_the_screen_centre`. The
+  objective sandbox walk locks raider 2 in the inset corner: its chip sits at
+  x 1438..1640 against the inset at 1648 (one 8 px gap), back at 1669..1871
+  after the lock. That chip went left before the change too (the status bar
+  blocks the up move); the GOTO cue is the case that changed. Frames in `~/Pictures/nova-lock-inset/`. No stacking test:
+  Bevy's stack system is private.

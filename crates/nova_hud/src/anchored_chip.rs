@@ -29,7 +29,7 @@ use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ui::{
     hud::{chip_node, chip_paint, ChipTone},
-    widget::UiText,
+    widget::{metrics, UiText},
 };
 
 use super::{screen_indicator::prelude::*, HudTier};
@@ -49,6 +49,11 @@ pub mod prelude {
 /// world-anchored chip joins the edge indicators' visual ring rather than each
 /// picking its own frame.
 pub const CHIP_EDGE_MARGIN_PX: f32 = 30.0;
+
+/// A world-anchored chip's padding on every side: the kit's tight gap, the
+/// same as the keybind dock's chips and as the gap between a chip's glyph and
+/// its label.
+const CHIP_PAD_PX: f32 = metrics::GAP_S;
 
 /// The world entity a chip layer tracks. Lives on the LAYER, which is what the
 /// family marker also sits on, so one lookup answers both "whose chip is this"
@@ -103,6 +108,10 @@ pub fn anchored_chip_layer(target: Entity) -> impl Bundle {
 /// with a visible fill and border a fixed footprint would either clip a long
 /// name or hang an empty slab off a short one.
 ///
+/// Padded [`CHIP_PAD_PX`] on every side, tighter than a panel chip: a
+/// floating chip stands over the scene, so it keeps only the room its label
+/// needs.
+///
 /// The pill is a pure CONTAINER: the label is an in-flow leaf child it grows
 /// around, the chevron an absolute one it ignores. Putting the `Text` here
 /// instead would take this node off taffy's leaf path and collapse it.
@@ -124,7 +133,10 @@ pub fn anchored_chip_node(
                     margin_px: CHIP_EDGE_MARGIN_PX,
                 },
             },
-            chip_node(),
+            Node {
+                padding: UiRect::all(Val::Px(CHIP_PAD_PX)),
+                ..chip_node()
+            },
         ),
         clearance,
         chip_paint(tone),

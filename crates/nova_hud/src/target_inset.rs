@@ -32,12 +32,13 @@ use bevy::{camera::RenderTarget, light::NotShadowCaster, prelude::*};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
-    prelude::{bottom_edge_px, StatusBarRootMarker},
+    prelude::{bottom_edge_px, StatusBarRootMarker, HUD_FRONT_Z},
     theme::{combat, ActiveUiTheme, UiColorType},
     widget::{metrics, ThemedRadius, UiText},
 };
 
 use crate::{
+    hud_keep_out::{KeepOut, KeepOutExitType},
     prelude::*,
     torpedo_target::{closing_line, closing_speed, distance_line},
 };
@@ -348,9 +349,12 @@ pub(crate) struct TargetInsetKeepOut<'w, 's> {
 }
 
 impl TargetInsetKeepOut<'_, '_> {
-    /// The panel's rect in UI px on a `view` of that size, or `None` while the
-    /// panel is hidden (or not placed in px).
-    pub(crate) fn rect(&self, view: Vec2) -> Option<Rect> {
+    /// The panel's keep-out in UI px on a `view` of that size, or `None` while
+    /// the panel is hidden (or not placed in px). The panel hangs from the
+    /// right screen edge, so a box under it leaves leftward, toward the screen
+    /// centre: down or up would slide it along that edge, still in the corner
+    /// the inset holds.
+    pub(crate) fn keep_out(&self, view: Vec2) -> Option<KeepOut> {
         let (node, visibility) = self.q_panel.iter().next()?;
         if *visibility == Visibility::Hidden {
             return None;
@@ -361,7 +365,10 @@ impl TargetInsetKeepOut<'_, '_> {
             return None;
         };
         let left = view.x - right - width;
-        Some(Rect::new(left, top, left + width, top + height))
+        Some(KeepOut {
+            rect: Rect::new(left, top, left + width, top + height),
+            exit: KeepOutExitType::Toward(Vec2::NEG_X),
+        })
     }
 }
 
@@ -377,6 +384,10 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
         TargetInsetHudMarker,
         HudTier::Chrome,
         HudSelfDrivenVisibility,
+        // Over the lock brackets, objective marks and floating chips: those are
+        // spawned as the world moves, and a newer HUD root draws over an older
+        // one at the same level.
+        ZIndex(HUD_FRONT_Z),
         Node {
             position_type: PositionType::Absolute,
             // Top-right, below the status bar: clear of the FPS/latency row

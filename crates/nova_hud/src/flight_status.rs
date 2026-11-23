@@ -539,7 +539,7 @@ fn anchor_flight_chips(
                     stack_box,
                     view,
                     CHIP_VIEW_MARGIN_PX,
-                    &keep_outs.rects(view),
+                    &keep_outs.shown(view),
                     CHIP_PANEL_GAP_PX,
                 )
             }

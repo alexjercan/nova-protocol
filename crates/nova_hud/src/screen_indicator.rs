@@ -24,7 +24,7 @@ use nova_ship::prelude::{BodyRadius, CameraAuthoritySystems};
 use nova_ui::widget::metrics;
 
 use crate::{
-    hud_keep_out::HudKeepOuts,
+    hud_keep_out::{HudKeepOuts, KeepOut, KeepOutExitType},
     keybind_dock::{column_top_px, LaidOutDock},
     target_inset::TargetInsetHudMarker,
 };
@@ -437,14 +437,16 @@ fn hold_extent(min: f32, max: f32, room_min: f32, room_max: f32) -> f32 {
 /// The view wins: a box that cannot clear the keep-outs without leaving the
 /// margin stays where the view holds it, overlap and all. Otherwise the
 /// shortest path of at most [`FIT_STEPS`] axis moves is taken, each move just
-/// clearing one rect the box still hits, and a tie takes the vertical move.
+/// clearing one rect the box still hits, and a tie takes the vertical move. A
+/// keep-out with a [`KeepOutExitType::Toward`] exit offers only the move along
+/// its direction.
 /// Stateless on purpose - the same inputs give the same answer, so a box on
 /// the boundary cannot flicker between two states it remembers.
 pub(crate) fn fit_box(
     desired: Rect,
     view: Vec2,
     margin_px: f32,
-    keep_outs: &[Rect],
+    keep_outs: &[KeepOut],
     gap_px: f32,
 ) -> Vec2 {
     let margin_px = margin_px.max(0.0);
@@ -457,9 +459,12 @@ pub(crate) fn fit_box(
         min: desired.min + held,
         max: desired.max + held,
     };
-    let grown: Vec<Rect> = keep_outs
+    let grown: Vec<KeepOut> = keep_outs
         .iter()
-        .map(|rect| rect.inflate(gap_px.max(0.0)))
+        .map(|keep_out| KeepOut {
+            rect: keep_out.rect.inflate(gap_px.max(0.0)),
+            ..*keep_out
+        })
         .collect();
     let at = |shift: Vec2| Rect {
         min: box_.min + shift,
@@ -486,12 +491,15 @@ pub(crate) fn fit_box(
                 continue;
             }
             let moved = at(shift);
-            let mut hit = grown.iter().filter(|rect| overlaps(moved, rect)).peekable();
+            let mut hit = grown
+                .iter()
+                .filter(|keep_out| overlaps(moved, &keep_out.rect))
+                .peekable();
             if hit.peek().is_none() {
                 best = Some(shift);
                 continue;
             }
-            for rect in hit {
+            for &KeepOut { rect, exit } in hit {
                 // Vertical moves first, so the strict `<` above leaves a tie
                 // to them.
                 for step in [
@@ -500,7 +508,11 @@ pub(crate) fn fit_box(
                     Vec2::new(rect.min.x - moved.max.x, 0.0),
                     Vec2::new(rect.max.x - moved.min.x, 0.0),
                 ] {
-                    if in_room(at(shift + step)) {
+                    let along_exit = match exit {
+                        KeepOutExitType::Shortest => true,
+                        KeepOutExitType::Toward(way) => step.dot(way) > 0.0,
+                    };
+                    if along_exit && in_room(at(shift + step)) {
                         next.push(shift + step);
                     }
                 }
@@ -917,7 +929,7 @@ fn update_screen_indicators(
     }
 
     labels.sort_by_key(|label| (label.kind, label.entity));
-    let mut taken = keep_outs.rects(viewport);
+    let mut taken = keep_outs.shown(viewport);
     // A pinned label stands over the whole bottom-centre column, shown notice
     // or not, so it does not hop when a notice comes.
     let column =
@@ -929,16 +941,16 @@ fn update_screen_indicators(
         };
         let shift = match (label.arrow, column) {
             (Some(_), Some(column)) => {
-                let keep: Vec<Rect> = taken.iter().copied().chain([column]).collect();
+                let keep: Vec<KeepOut> = taken.iter().copied().chain([column.into()]).collect();
                 fit_box(drawn, viewport, label.margin_px, &keep, LABEL_GAP_PX)
             }
             _ => fit_box(drawn, viewport, label.margin_px, &taken, LABEL_GAP_PX),
         };
         let center = label.center + shift;
-        taken.push(Rect {
+        taken.push(KeepOut::from(Rect {
             min: drawn.min + shift,
             max: drawn.max + shift,
-        });
+        }));
         if let Ok((.., mut node, _)) = q_indicator.get_mut(label.entity) {
             node.left = Val::Px(center.x - label.size.x / 2.0);
             node.top = Val::Px(center.y - label.size.y / 2.0);
@@ -1158,12 +1170,12 @@ mod tests {
         // The grown keep-out is (532, 0)-(800, 268). A box hanging 20 px into
         // it clears downward (to y = 268) cheaper than leftward.
         let desired = rect(600.0, 248.0, 100.0, 60.0);
-        let shift = fit_box(desired, view, 12.0, &[inset], 12.0);
+        let shift = fit_box(desired, view, 12.0, &[inset.into()], 12.0);
         assert_eq!(shift, Vec2::new(0.0, 20.0));
 
         // Deep in the keep-out's corner the left move is the shorter one.
         let desired = rect(500.0, 100.0, 100.0, 60.0);
-        let shift = fit_box(desired, view, 12.0, &[inset], 12.0);
+        let shift = fit_box(desired, view, 12.0, &[inset.into()], 12.0);
         assert_eq!(shift, Vec2::new(-68.0, 0.0));
 
         // Down would leave the view: the box moves up instead of off-screen,
@@ -1175,7 +1187,7 @@ mod tests {
                 near_floor,
                 low_view,
                 12.0,
-                &[rect(500.0, 280.0, 200.0, 60.0)],
+                &[rect(500.0, 280.0, 200.0, 60.0).into()],
                 0.0
             ),
             Vec2::new(0.0, -80.0),
@@ -1188,7 +1200,7 @@ mod tests {
                 squeezed,
                 tight_view,
                 12.0,
-                &[rect(0.0, 0.0, 800.0, 184.0)],
+                &[rect(0.0, 0.0, 800.0, 184.0).into()],
                 0.0
             ),
             Vec2::new(0.0, -18.0),
@@ -1200,7 +1212,7 @@ mod tests {
             rect(300.0, 300.0, 100.0, 100.0),
             view,
             12.0,
-            &[rect(250.0, 250.0, 200.0, 200.0)],
+            &[rect(250.0, 250.0, 200.0, 200.0).into()],
             0.0,
         );
         assert_eq!(tie, Vec2::new(0.0, -150.0));
@@ -1216,7 +1228,7 @@ mod tests {
         let panel = rect(0.0, 400.0, 400.0, 200.0);
         let label = rect(100.0, 340.0, 120.0, 40.0);
         let desired = rect(120.0, 390.0, 100.0, 30.0);
-        let shift = fit_box(desired, view, 12.0, &[panel, label], 8.0);
+        let shift = fit_box(desired, view, 12.0, &[panel.into(), label.into()], 8.0);
         let moved = Rect {
             min: desired.min + shift,
             max: desired.max + shift,
@@ -1228,6 +1240,47 @@ mod tests {
             );
         }
         assert_eq!(shift, Vec2::new(0.0, -88.0));
+    }
+
+    #[test]
+    fn a_box_under_the_target_inset_moves_toward_the_screen_centre() {
+        let view = Vec2::new(800.0, 600.0);
+        let rect = |x: f32, y: f32, w: f32, h: f32| Rect::new(x, y, x + w, y + h);
+        let inset = KeepOut {
+            rect: rect(544.0, 12.0, 244.0, 244.0),
+            exit: KeepOutExitType::Toward(Vec2::NEG_X),
+        };
+        // The box hangs 20 px into the grown inset's foot. The shortest way
+        // out is 20 px down, along the right edge; the inset sends it left
+        // instead, to the gap past the inset's left side.
+        let desired = rect(600.0, 248.0, 100.0, 60.0);
+        let shift = fit_box(desired, view, 12.0, &[inset], 12.0);
+        assert_eq!(shift, Vec2::new(-168.0, 0.0));
+        let moved = Rect {
+            min: desired.min + shift,
+            max: desired.max + shift,
+        };
+        assert_eq!(moved.max.x, inset.rect.min.x - 12.0, "clears by the gap");
+
+        // A chip clamped to the right edge under the inset leaves it the same
+        // way, and a label already placed left of the inset pushes it on past.
+        let pinned = rect(688.0, 100.0, 100.0, 30.0);
+        let placed = KeepOut::from(rect(420.0, 90.0, 100.0, 40.0));
+        let shift = fit_box(pinned, view, 12.0, &[inset, placed], 12.0);
+        let moved = Rect {
+            min: pinned.min + shift,
+            max: pinned.max + shift,
+        };
+        for keep_out in [inset.rect, placed.rect] {
+            assert!(
+                moved.intersect(keep_out.inflate(12.0)).is_empty(),
+                "{moved:?} still meets {keep_out:?}"
+            );
+        }
+        assert!(
+            moved.max.x <= inset.rect.min.x - 12.0,
+            "{moved:?} left the inset sideways"
+        );
     }
 
     #[test]

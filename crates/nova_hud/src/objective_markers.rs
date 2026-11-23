@@ -52,20 +52,23 @@ const CHIP_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
     min_px: 36.0,
 };
 
-/// The objective chip's chevron: the shared arrow language at marker scale, in
-/// objective gold.
+/// The objective chip's chevron: the beacon chip's, in objective gold.
 const CHEVRON: AnchoredChipChevron = AnchoredChipChevron {
-    arrow_px: 22.0,
-    stroke_len_px: 15.0,
-    stroke_thick_px: 2.5,
+    arrow_px: 16.0,
+    stroke_len_px: 11.0,
+    stroke_thick_px: 2.0,
     color: OBJECTIVE_GOLD,
 };
 
-/// Diamond glyph: a square border rotated 45 degrees, sitting left of the
-/// label - the marker's identity mark, always visible (the chevron only
-/// shows while edge-clamped).
+/// The settled diamond: a square border rotated 45 degrees, standing on the
+/// target in view - the marker's identity mark.
 const DIAMOND_PX: f32 = 12.0;
 const DIAMOND_BORDER_PX: f32 = 2.0;
+
+/// The same diamond as a glyph inside the chip, left of the label. Turned 45
+/// degrees, its diagonal is the label's font size, so the glyph stands as
+/// tall as the text and never sets the chip's height.
+const GLYPH_PX: f32 = LABEL_FONT_PX / std::f32::consts::SQRT_2;
 
 /// Half the drawn height of the diamond: a square turned 45 degrees reaches
 /// half its diagonal above and below its centre.
@@ -81,7 +84,9 @@ const MARK_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
     min_px: MARKER_TOP_CLEARANCE.min_px + metrics::GAP_S + DIAMOND_REACH_PX,
 };
 
-const LABEL_FONT_PX: f32 = 16.0;
+/// The label size of the beacon and waypoint chips, so the floating chips
+/// read as one family and the gold tone alone marks the objective.
+const LABEL_FONT_PX: f32 = metrics::TEXT;
 
 /// How long the full chip shows on a target in view before it settles to the
 /// diamond: the HUD notice dwell, so short-lived HUD text keeps one rhythm.
@@ -240,12 +245,12 @@ fn objective_marker_chip_hud(target: Entity) -> impl Bundle {
     )
 }
 
-/// The diamond's own node: a 12 px square with a gold border, turned 45
+/// The diamond's own node: a `side_px` square with a gold border, turned 45
 /// degrees by the [`diamond_paint`] beside it.
-fn diamond_node() -> Node {
+fn diamond_node(side_px: f32) -> Node {
     Node {
-        width: Val::Px(DIAMOND_PX),
-        height: Val::Px(DIAMOND_PX),
+        width: Val::Px(side_px),
+        height: Val::Px(side_px),
         border: UiRect::all(Val::Px(DIAMOND_BORDER_PX)),
         flex_shrink: 0.0,
         ..default()
@@ -276,7 +281,7 @@ fn objective_marker_diamond() -> impl Bundle {
     (
         Name::new("ObjectiveMarkerDiamond"),
         ObjectiveMarkerDiamondMarker,
-        diamond_node(),
+        diamond_node(GLYPH_PX),
         diamond_paint(),
         Pickable::IGNORE,
     )
@@ -298,7 +303,7 @@ fn objective_mark() -> impl Bundle {
                 offset: Vec2::ZERO,
                 offscreen: ScreenIndicatorOffscreen::Hide,
             },
-            diamond_node(),
+            diamond_node(DIAMOND_PX),
         ),
         MARK_CLEARANCE,
         diamond_paint(),

@@ -25,6 +25,14 @@
 /// node with no `GlobalZIndex` already has.
 pub const HUD_Z: i32 = 0;
 
+/// A `ZIndex` inside [`HUD_Z`], not a `GlobalZIndex`: the HUD panel that draws
+/// in front of the world-anchored HUD graphics (lock brackets, objective
+/// marks, floating chips). Those are HUD roots spawned and despawned as the
+/// world moves, and Bevy puts a newer root over an older one at the same
+/// level, so without this rung a chip spawned after the target inset drew over
+/// it. It stays under [`MENU_PANEL_Z`] and every layer above, which sort on
+/// `GlobalZIndex` first.
+pub const HUD_FRONT_Z: i32 = 1;
 /// The menu's own full-screen panels: Settings, Mods, Scenarios. Over the menu
 /// card they are opened from and under everything that covers the menu itself.
 pub const MENU_PANEL_Z: i32 = 1;
@@ -81,7 +89,7 @@ pub const FATAL_Z: i32 = 200;
 /// Glob-import surface for the layer table.
 pub mod prelude {
     pub use super::{
-        EDITOR_CEILING_Z, FATAL_Z, HUD_Z, LOADING_Z, MENU_PANEL_Z, NOVA_OS_BACKDROP_Z,
+        EDITOR_CEILING_Z, FATAL_Z, HUD_FRONT_Z, HUD_Z, LOADING_Z, MENU_PANEL_Z, NOVA_OS_BACKDROP_Z,
         NOVA_OS_EXEMPT_Z, NOVA_OS_Z, PAUSE_SETTINGS_Z, PAUSE_Z, REPORT_Z, TOOLTIP_Z,
     };
 }

@@ -380,6 +380,12 @@ name = "objective_chip_sandbox"
 path = "examples/playable/objective_chip_sandbox.rs"
 required-features = ["debug"]
 
+# Fourteen cargo canisters in the reach of the player's intake: clustered
+# canisters share one list chip, a pair and a single keep their own.
+[[example]]
+name = "canister_chip_sandbox"
+path = "examples/playable/canister_chip_sandbox.rs"
+required-features = ["debug"]
 
 # The ore loop in one session: the line warship's beam mines a rock, its
 # intake takes one canister, and that ore is sold to a docked demo trader

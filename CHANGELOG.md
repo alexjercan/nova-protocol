@@ -95,8 +95,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The Map, Ship, Jobs and Inventory panes drop lines that repeat what a row, count, badge or bar shows, such as a job's hold count, its hand-in rule and the Inventory result line.
 - The keybind dock along the bottom of the flight HUD is centred on the screen, one gap between chips. On a narrow screen each wrapped line is centred too.
 - The HUD notice box is centred on the screen above the keybind dock for a line of any length, and comms cards stand above it. Before, its left edge sat on the screen centre.
-- Floating HUD labels (objective, beacon, waypoint and cargo chips, maneuver readouts, verb cues, edge arrows) move clear of fixed HUD panels and of each other. Before, they could print over both.
-- A gold objective chip in view settles to its diamond after 4 s; a new label or 1 s off screen shows it again. Off screen the chip stays whole and replaces a hostile's red edge arrow.
+- Floating HUD labels (objective, beacon, waypoint and cargo chips, readouts, verb cues, edge arrows) keep clear of panels and each other; the target inset draws on top and pushes them inward.
+- Objective, beacon and waypoint chips are tighter. A gold objective chip in view settles to its diamond after 4 s; a new label or 1 s off screen shows it again. Off screen it replaces a red arrow.
+- Cargo canister tags are smaller, and three or more close on screen share one list tag: a row per item with the summed count, five rows at most, the last `+3` for the kinds left.
 - The keybind dock is a tighter row: half the side padding and chip gap, and the mouse keycap no longer stands taller than the row. Keycaps and words keep their size.
 - Every Tab pane and editor control is one height in both themes. The pane head holds its tabs, mode tags, balance, clock and Close in fixed slots, so a growing balance moves nothing.
 - A verb that cannot work here is hidden, a short balance disables its verb and paints the number red, and a hidden cause shows one tag word. Refusal sentences and notice lines are gone.

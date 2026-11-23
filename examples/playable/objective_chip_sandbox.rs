@@ -32,9 +32,11 @@
 //! chips, holds the clock inside the dwell and checks four full chips in view
 //! and the fifth pinned with no red arrow, lets the clock run until the four
 //! settle and checks the diamonds, then changes the labels and checks that the
-//! four open again. With `NOVA_CAPTURE=1` it shoots
-//! `objective-chips-{dwell,settled}-{phosphor,hardware}.png`. Unset, no walk
-//! and no deadline run.
+//! four open again. Last it brings raider 2 into the top-right corner and takes
+//! a travel lock on it, so the target inset shows over its brackets, logs the
+//! chips against the inset, drops the lock and logs them again. With `NOVA_CAPTURE=1` it shoots
+//! `objective-chips-{dwell,settled,lock}-{phosphor,hardware}.png`. Unset, no
+//! walk and no deadline run.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -346,6 +348,79 @@ mod smoke {
 
     use super::{raider_id, staged, Tags, AHEAD, PLAYER_ID, RAIDERS};
 
+    /// How far out raider 2 stands for the lock beat.
+    const LOCK_RANGE: Meters = Meters(900.0);
+    /// Where on screen raider 2 stands for the lock beat (UI px from the top
+    /// right corner): inside the corner the target inset takes, so the inset
+    /// shows over its brackets and its chip reaches the inset.
+    const LOCK_SPOT_FROM_CORNER: Vec2 = Vec2::new(150.0, 170.0);
+
+    /// Bring raider 2 to [`LOCK_SPOT_FROM_CORNER`] at [`LOCK_RANGE`] and take a
+    /// travel lock on it.
+    fn lock_raider_two(world: &mut World) {
+        let raider = staged(world, &raider_id(1)).expect("objective_chip_sandbox: no raider 2");
+        let player = staged(world, PLAYER_ID).expect("objective_chip_sandbox: no player");
+        let ui_scale = world.resource::<UiScale>().0;
+        let at = world
+            .query_filtered::<(&Camera, &GlobalTransform), With<ScreenIndicatorCamera>>()
+            .iter(world)
+            .find_map(|(camera, transform)| {
+                let view = camera.logical_viewport_size()?;
+                let spot = Vec2::new(
+                    view.x - LOCK_SPOT_FROM_CORNER.x * ui_scale,
+                    LOCK_SPOT_FROM_CORNER.y * ui_scale,
+                );
+                let ray = camera.viewport_to_world(transform, spot).ok()?;
+                Some(ray.get_point(LOCK_RANGE.to_engine()))
+            })
+            .expect("objective_chip_sandbox: no screen indicator camera");
+        if let Some(mut position) = world.get_mut::<avian3d::prelude::Position>(raider) {
+            position.0 = at;
+        }
+        if let Some(mut transform) = world.get_mut::<Transform>(raider) {
+            transform.translation = at;
+        }
+        world.entity_mut(player).insert(TravelLock(Some(raider)));
+    }
+
+    /// Drop the travel lock, so the inset closes.
+    fn release_the_lock(world: &mut World) {
+        let player = staged(world, PLAYER_ID).expect("objective_chip_sandbox: no player");
+        world.entity_mut(player).insert(TravelLock(None));
+    }
+
+    /// Log the job chips' rects against the target inset's, and how much of
+    /// each chip the inset covers.
+    fn log_the_inset(world: &mut World) {
+        let inset = world
+            .query_filtered::<(&ComputedNode, &UiGlobalTransform, &Visibility), With<TargetInsetHudMarker>>()
+            .iter(world)
+            .find(|(.., visibility)| **visibility != Visibility::Hidden)
+            .map(|(computed, transform, _)| {
+                let scale = computed.inverse_scale_factor();
+                Rect::from_center_size(transform.translation * scale, computed.size() * scale)
+            });
+        info!("objective chip sandbox: lock: inset {inset:?}");
+        let chips: Vec<Rect> = world
+            .query_filtered::<(&ComputedNode, &UiGlobalTransform, &Visibility), With<AnchoredChipNodeMarker>>()
+            .iter(world)
+            .filter(|(.., visibility)| **visibility != Visibility::Hidden)
+            .map(|(computed, transform, _)| {
+                let scale = computed.inverse_scale_factor();
+                Rect::from_center_size(transform.translation * scale, computed.size() * scale)
+            })
+            .collect();
+        for chip in chips {
+            let covered = inset.map(|inset| chip.intersect(inset)).unwrap_or_default();
+            let covered = if covered.is_empty() {
+                0.0
+            } else {
+                covered.width() * covered.height()
+            };
+            info!("objective chip sandbox: lock: chip {chip:?} under the inset {covered:.0} px2");
+        }
+    }
+
     /// Real seconds the load may take on lavapipe.
     const LOAD_DEADLINE: f32 = 600.0;
     /// Real seconds a beat or a shot may take on lavapipe.
@@ -556,7 +631,7 @@ mod smoke {
             .step("objective chip sandbox: assert the settle")
             .on_enter(assert_the_settle)
             .add();
-        shoot_both_themes(script, "settled")
+        let script = shoot_both_themes(script, "settled")
             .step("objective chip sandbox: change every label")
             .on_enter(set_virtual_paused(false))
             .on_enter(|world: &mut World| world.resource_mut::<Tags>().joined = true)
@@ -565,6 +640,22 @@ mod smoke {
             .add()
             .step("objective chip sandbox: assert the reopen")
             .on_enter(assert_the_reopen)
+            .add()
+            .step("objective chip sandbox: lock raider 2 near the inset")
+            .on_enter(set_virtual_paused(true))
+            .on_enter(lock_raider_two)
+            .until(frames(8))
+            .add()
+            .step("objective chip sandbox: log the chips against the inset")
+            .on_enter(log_the_inset)
+            .add();
+        shoot_both_themes(script, "lock")
+            .step("objective chip sandbox: release the lock")
+            .on_enter(release_the_lock)
+            .until(frames(8))
+            .add()
+            .step("objective chip sandbox: log the chips with no inset")
+            .on_enter(log_the_inset)
             .add()
     }
 }

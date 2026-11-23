@@ -27,7 +27,11 @@ use nova_ui::{
     widget::{metrics, UiText},
 };
 
-use crate::{hud_keep_out::HudKeepOuts, prelude::*, screen_indicator::fit_box};
+use crate::{
+    hud_keep_out::{HudKeepOuts, KeepOut},
+    prelude::*,
+    screen_indicator::fit_box,
+};
 
 /// Minimum on-screen size (px) of the target reticle. This is its historical
 /// fixed size: the reticle grows to match larger targets but never shrinks
@@ -380,7 +384,7 @@ fn readout_rest_gap(width: f32) -> f32 {
 /// A non-zero displacement moves the rest box one-to-one but the peak box by
 /// the reticle's pulse scale; the extra 12 % of the move lands away from the
 /// keep-out, and into the view margin by at most 12 % of the move.
-fn lock_readout_origin(reticle: Rect, size: Vec2, view: Vec2, keep_outs: &[Rect]) -> Vec2 {
+fn lock_readout_origin(reticle: Rect, size: Vec2, view: Vec2, keep_outs: &[KeepOut]) -> Vec2 {
     let centre = reticle.center();
     let displacement = |min: Vec2| {
         let rest = Rect::from_corners(min, min + size);
@@ -442,7 +446,7 @@ fn fit_lock_readout(
     else {
         return;
     };
-    let keep_outs = keep_outs.rects(view);
+    let keep_outs = keep_outs.shown(view);
     for (mut node, computed, &ChildOf(parent)) in &mut q_readout {
         let Ok((reticle, visibility)) = q_reticle.get(parent) else {
             continue;
