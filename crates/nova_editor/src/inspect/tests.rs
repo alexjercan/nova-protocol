@@ -2779,6 +2779,20 @@ fn damage_effects_are_one_toggle_per_effect() {
     assert!(choose_field(config, &effects.path, "Smoke").is_err());
 }
 
+/// A music track's situations offer only the ones with a playlist. `Silent`
+/// and `Scenario` play no catalog song, and the content lint refuses them.
+#[test]
+fn a_track_offers_only_situations_with_a_playlist() {
+    let mut item = form_of("music track");
+    let contexts = row(&form_rows_of(&item), "Contexts").clone();
+    let RowValue::Set { options, .. } = &contexts.value else {
+        panic!("the situations are a set: {:?}", contexts.value);
+    };
+    assert_eq!(options, &["Menu", "Cruise", "Threat", "Combat", "Docked"]);
+    let config = content_reflect_mut(&mut item).expect("a form");
+    assert!(choose_field(config, &contexts.path, "Silent").is_err());
+}
+
 /// A scatter's mix takes a new kind no entry holds yet, and drops one.
 #[test]
 fn a_scatter_mix_adds_an_unused_kind_and_drops_one() {

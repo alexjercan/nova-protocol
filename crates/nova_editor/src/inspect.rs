@@ -34,8 +34,8 @@ use nova_gameplay::prelude::AssetRef;
 use nova_hud::prelude::DOCK_VERBS;
 use nova_input::prelude::source_label;
 use nova_scenario::prelude::{
-    object_reference_resolves, Names, ScenarioObjectKind, SectionSource, VariableConditionNode,
-    VariableExpressionNode, ASTEROID_KIND_SUMMARIES,
+    authored_variant, object_reference_resolves, Names, ScenarioObjectKind, SectionSource,
+    VariableConditionNode, VariableExpressionNode, ASTEROID_KIND_SUMMARIES,
 };
 use nova_ship::prelude::{
     muzzle_ids, GameSections, SectionConfig, SectionConfigPatch, SectionKind, TurretSectionConfig,
@@ -2079,12 +2079,20 @@ fn walk_option(
 ///
 /// `None` the moment one variant's shape differs, which is what keeps the
 /// choice honest: a dropdown that could switch to `Prototype(String)` from a
-/// bare name would have to invent the string.
+/// bare name would have to invent the string. A variant content may not name
+/// (see [`authored_variant`]) is left out unless it is the held one.
 fn switchable_variants(value: &dyn PartialReflect) -> Option<Vec<(String, String)>> {
     let TypeInfo::Enum(info) = value.get_represented_type_info()? else {
         return None;
     };
-    switchable_variants_of(info)
+    let ReflectRef::Enum(held) = value.reflect_ref() else {
+        return None;
+    };
+    let mut offered = switchable_variants_of(info)?;
+    offered.retain(|(name, _)| {
+        name == held.variant_name() || info.variant(name).is_some_and(authored_variant)
+    });
+    Some(offered)
 }
 
 /// [`switchable_variants`] of the enum type `info`.
@@ -2106,9 +2114,9 @@ fn switchable_variants_of(info: &EnumInfo) -> Option<Vec<(String, String)>> {
 
 /// Every variant of `value` a switch can START, each with what it means.
 ///
-/// The held variant always, and every other one whose fields [`fresh`] can
-/// build. `None` where fewer than two are left, which leaves nothing to
-/// choose between.
+/// The held variant always, and every other one content may name whose
+/// fields [`fresh`] can build. `None` where fewer than two are left, which
+/// leaves nothing to choose between.
 fn fresh_variants(value: &dyn PartialReflect) -> Option<Vec<(String, String)>> {
     let info = value.get_represented_type_info()?;
     let TypeInfo::Enum(variants) = info else {
@@ -2119,7 +2127,10 @@ fn fresh_variants(value: &dyn PartialReflect) -> Option<Vec<(String, String)>> {
     };
     let offered: Vec<(String, String)> = variants
         .iter()
-        .filter(|variant| variant.name() == held.variant_name() || fresh::buildable(info, variant))
+        .filter(|variant| {
+            variant.name() == held.variant_name()
+                || (authored_variant(variant) && fresh::buildable(info, variant))
+        })
         .map(|variant| (variant.name().to_string(), hint_of(variant.docs())))
         .collect();
     (offered.len() > 1).then_some(offered)
@@ -2166,6 +2177,7 @@ fn option_choices(payload: &'static TypeInfo) -> Option<Vec<(String, String)>> {
             offered.extend(
                 variants
                     .iter()
+                    .filter(|variant| authored_variant(variant))
                     .map(|variant| (variant.name().to_string(), hint_of(variant.docs()))),
             );
             return Some(offered);

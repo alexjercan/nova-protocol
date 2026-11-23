@@ -764,6 +764,16 @@ fn a_track_with_no_licence_record_is_refused() {
 }
 
 #[test]
+fn only_silent_and_scenario_have_no_playlist() {
+    assert_eq!(
+        MusicContextType::playlist_names(),
+        ["Menu", "Cruise", "Threat", "Combat", "Docked"]
+    );
+    assert!(!MusicContextType::Silent.has_playlist());
+    assert!(!MusicContextType::Scenario.has_playlist());
+}
+
+#[test]
 fn a_track_names_only_situations_with_a_playlist() {
     let faults = music_track_faults(&track(
         "song",

@@ -3,10 +3,13 @@
 
 use std::ops::RangeInclusive;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, reflect::Typed};
 use nova_gameplay::prelude::{GameMode, GameStates};
 
-use crate::loader::prelude::ScenarioRole;
+use crate::{
+    loader::prelude::ScenarioRole,
+    names::prelude::{authored_names, authored_value, Unauthored},
+};
 
 /// How long a hostile lock on the player, or a hostile AI engaging the
 /// player, must hold before the mood turns to [`MusicMoodType::Threat`]. A
@@ -29,6 +32,7 @@ pub const COMBAT_RELEASE_SECS: f32 = 15.0;
 pub enum MusicContextType {
     /// No music: the boot load, the editor and Mod Hub, and the load between
     /// the menu and the world. Not a playlist.
+    #[reflect(@Unauthored)]
     Silent,
     /// The main menu, with its backdrop scenes.
     Menu,
@@ -41,14 +45,22 @@ pub enum MusicContextType {
     /// The player's ship is docked at a station.
     Docked,
     /// A scenario's own song from `PlayMusic`. Not a playlist.
+    #[reflect(@Unauthored)]
     Scenario,
 }
 
 impl MusicContextType {
-    /// Whether tracks may name this situation: every situation but `Silent`
-    /// and `Scenario`, which play no catalog song.
-    pub const fn has_playlist(self) -> bool {
-        !matches!(self, Self::Silent | Self::Scenario)
+    /// Whether tracks may name this situation: every situation not marked
+    /// [`Unauthored`]. `Silent` and `Scenario` play no catalog song. The mark
+    /// is the one record of the rule: the editor reads it to offer a track
+    /// only these situations.
+    pub fn has_playlist(self) -> bool {
+        authored_value(&self)
+    }
+
+    /// The names of the situations with a playlist, in declaration order.
+    pub fn playlist_names() -> Vec<&'static str> {
+        authored_names(Self::type_info())
     }
 
     /// The fade a song of this situation starts with, in seconds.

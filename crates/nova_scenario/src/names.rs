@@ -28,18 +28,69 @@
 //! by it. A copy that forgot one clause of that rule - the empty prefix - would
 //! pass every reference in the document and still report success.
 //!
+//! [`Unauthored`] is the same kind of mark on an enum VARIANT: content never
+//! names it. The lint refuses it and the editor does not offer it, both by
+//! reading the mark.
+//!
 //! Touch this module when a config grows a string that names something.
 
 use bevy::{
     prelude::*,
-    reflect::{ReflectRef, TypeInfo},
+    reflect::{enums::VariantInfo, ReflectRef, TypeInfo},
 };
 
 /// Glob-import surface: `use nova_scenario::names::prelude::*` brings the
-/// [`Names`] field attribute, the walk that reads it, and the rule an object
-/// reference resolves by into scope.
+/// [`Names`] field attribute, the walk that reads it, the rule an object
+/// reference resolves by, and the [`Unauthored`] variant mark into scope.
 pub mod prelude {
-    pub use super::{object_reference_resolves, walk_names, AuthoredName, Names};
+    pub use super::{
+        authored_names, authored_value, authored_variant, object_reference_resolves, walk_names,
+        AuthoredName, Names, Unauthored,
+    };
+}
+
+/// A variant of an enum that content never names, because the game sets it
+/// itself. Marked on the variant:
+///
+/// ```ignore
+/// #[reflect(@Unauthored)]
+/// Silent,
+/// ```
+///
+/// The mark is the one record of the rule. The content lint asks
+/// [`authored_value`], and the editor offers only [`authored_variant`]s. A
+/// surface with its own list would offer a name the lint refuses.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+pub struct Unauthored;
+
+/// Whether content may name `variant`: every variant not marked
+/// [`Unauthored`].
+pub fn authored_variant(variant: &VariantInfo) -> bool {
+    !variant.has_attribute::<Unauthored>()
+}
+
+/// Whether content may name the variant `value` holds. A value that is not an
+/// enum has no variant to refuse.
+pub fn authored_value(value: &dyn PartialReflect) -> bool {
+    let (ReflectRef::Enum(chosen), Some(TypeInfo::Enum(info))) =
+        (value.reflect_ref(), value.get_represented_type_info())
+    else {
+        return true;
+    };
+    info.variant(chosen.variant_name())
+        .is_none_or(authored_variant)
+}
+
+/// The names of the variants of `info` that content may name, in
+/// declaration order. Empty for a type that is not an enum.
+pub fn authored_names(info: &'static TypeInfo) -> Vec<&'static str> {
+    let TypeInfo::Enum(info) = info else {
+        return Vec::new();
+    };
+    info.iter()
+        .filter(|variant| authored_variant(variant))
+        .map(VariantInfo::name)
+        .collect()
 }
 
 /// What a string field names.

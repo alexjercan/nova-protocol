@@ -76,8 +76,7 @@ pub struct MusicTrackDesign {
     /// The song, an `.ogg` file: `self://music/<name>.ogg` in the mod that
     /// ships it.
     pub sound: AssetRef<AudioSource>,
-    /// The situations whose playlist it joins: `Menu`, `Cruise`, `Threat`,
-    /// `Combat` or `Docked`.
+    /// The situations whose playlist it joins.
     pub contexts: Vec<MusicContextType>,
     /// The song's title.
     pub title: String,
@@ -161,17 +160,17 @@ pub fn music_track_faults(track: &MusicTrackDesign) -> Vec<String> {
     if track.artist.trim().is_empty() {
         faults.push(format!("the music track '{id}' has an empty artist"));
     }
+    let playlists = MusicContextType::playlist_names().join(", ");
     if track.contexts.is_empty() {
         faults.push(format!(
-            "the music track '{id}' names no situation; it plays in Menu, Cruise, Threat, \
-             Combat or Docked"
+            "the music track '{id}' names no situation; it plays in one of {playlists}"
         ));
     }
     for (at, context) in track.contexts.iter().enumerate() {
         if !context.has_playlist() {
             faults.push(format!(
                 "the music track '{id}' names the situation {context:?}; a track plays in \
-                 Menu, Cruise, Threat, Combat or Docked"
+                 one of {playlists}"
             ));
         }
         if track.contexts[..at].contains(context) {

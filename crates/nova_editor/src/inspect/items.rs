@@ -57,7 +57,8 @@ fn item_info(value: &dyn PartialReflect) -> Option<&'static TypeInfo> {
     info.item_info()
 }
 
-/// The names of `info` when it is a set of bare names, and not an `Option`.
+/// The names of `info` when it is a set of bare names, and not an `Option`:
+/// each one content may name (see [`authored_variant`]).
 fn bare_names(info: &TypeInfo) -> Option<Vec<(String, String)>> {
     let TypeInfo::Enum(variants) = info else {
         return None;
@@ -67,6 +68,7 @@ fn bare_names(info: &TypeInfo) -> Option<Vec<(String, String)>> {
     }
     variants
         .iter()
+        .filter(|variant| authored_variant(variant))
         .map(|variant| {
             matches!(variant, VariantInfo::Unit(_))
                 .then(|| (variant.name().to_string(), hint_of(variant.docs())))
@@ -75,8 +77,9 @@ fn bare_names(info: &TypeInfo) -> Option<Vec<(String, String)>> {
 }
 
 /// The list `value` as one toggle per name, when its entries are bare names
-/// and no name is held twice. A list that repeats one is not a set, and is
-/// drawn entry by entry so the repeat stays visible.
+/// and no name is held twice. A list that repeats one, or holds a name no
+/// toggle offers, is not a set, and is drawn entry by entry so the stray
+/// entry stays visible.
 fn name_set(value: &dyn PartialReflect) -> Option<RowValue> {
     let names = bare_names(item_info(value)?)?;
     let ReflectRef::List(items) = value.reflect_ref() else {
@@ -93,7 +96,10 @@ fn name_set(value: &dyn PartialReflect) -> Option<RowValue> {
         .iter()
         .enumerate()
         .all(|(index, name)| !held[..index].contains(name));
-    if !distinct || held.len() != items.len() {
+    let offered = held
+        .iter()
+        .all(|name| names.iter().any(|(option, _)| option == name));
+    if !distinct || !offered || held.len() != items.len() {
         return None;
     }
     Some(RowValue::Set {
@@ -114,7 +120,7 @@ fn addable(info: &'static TypeInfo) -> Option<Vec<String>> {
         if !info.type_path().starts_with("core::option::Option<") {
             let offered: Vec<String> = variants
                 .iter()
-                .filter(|variant| fresh::buildable(info, variant))
+                .filter(|variant| authored_variant(variant) && fresh::buildable(info, variant))
                 .map(|variant| variant.name().to_string())
                 .collect();
             return (!offered.is_empty()).then_some(offered);
