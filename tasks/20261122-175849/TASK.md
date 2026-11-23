@@ -249,3 +249,21 @@
   after the lock. That chip went left before the change too (the status bar
   blocks the up move); the GOTO cue is the case that changed. Frames in `~/Pictures/nova-lock-inset/`. No stacking test:
   Bevy's stack system is private.
+
+## Build: chip glyph (2026-11-23)
+- Cause: the font, not the chip. `SGr-IosevkaTerm-Medium.ttf` draws `m` as
+  three 82-unit stems with 80-unit counters in a 500-unit cell (left stem
+  47..129, middle 209..291, right 371..453). At 12 px each band is 0.96 px and
+  every stem centre falls on a pixel edge (1.06, 3.0, 4.94 px), so each column
+  gets about half coverage: the frame shows six columns of `#B59934`..`#BFA238`,
+  a flat block. The `k` stem (0.94..2.0 px) lands on one column and is crisp.
+  The hinting (ttfautohint, y only) does not move x stems.
+- Not chip-only: kit body text (`metrics::TEXT`, `nova_ui/src/widget/layout.rs:112`)
+  shows the same `m` and `w` in the editor ("Combat", "music"), the canister
+  chips ("computer") and the waypoint chip ("km", 12 px since before this
+  cycle). 11 and 13 px give half-pixel advances; 14 px is the first clean size
+  (stems at 34/81/7/100/7/81/34 % coverage).
+- Option frames: objective chips at `metrics::TEXT_TITLE` (14 px), JOB-1 chip
+  160 x 25 -> 185 x 27 px at 1920x1080 (16 px was 218 x 30). Crops and frames in
+  `~/Pictures/nova-chip-glyph/`. No code changed; the owner picks: chip family at
+  14 px, kit `TEXT` 12 -> 14, a different font, or keep 12 px.
