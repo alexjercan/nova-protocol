@@ -267,3 +267,23 @@
   160 x 25 -> 185 x 27 px at 1920x1080 (16 px was 218 x 30). Crops and frames in
   `~/Pictures/nova-chip-glyph/`. No code changed; the owner picks: chip family at
   14 px, kit `TEXT` 12 -> 14, a different font, or keep 12 px.
+
+## Build: chip text 14 px (2026-11-23)
+- Owner picked option A. `metrics::TEXT_CHIP` = 14 px (`nova_ui/src/widget/layout.rs:119`)
+  is the text of the objective, beacon, waypoint and canister chips, list rows
+  and `+N` row included. The four local `LABEL_FONT_PX` constants are gone.
+  Kit `TEXT` stays 12 px; the canister mass line stays `TEXT_LABEL` (11 px,
+  `kg` only). Padding stays `CHIP_PAD_PX = metrics::GAP_S`.
+- Size math: the in-chip diamond (`GLYPH_PX`) follows the text, 8.5 -> 9.9 px.
+  `LINK_HOLD_PX`, the clearances and the inset keep-out do not read the text
+  size; the grouping and the keep-out use the measured chip rects.
+- JOB-1 chip at 1920x1080: 160 x 25 -> 185 x 27 px (the option frame size). A
+  doubled label (`JOB-2, JOB-7 Neutralize 751 m`) is 234 x 27 and stays 8 px
+  left of the inset (1406..1640 against 1648). Canister sandbox: still lists
+  of 3 and 8 and five chips; 24688 -> 30959 px2; the list chip is 164 x 93.
+- Frames `final-1920-*` in `~/Pictures/nova-chip-glyph/`: objective
+  dwell/settled/lock and canister on phosphor and hardware, 8x crops of
+  `273 m`, `1.45 km` and `computer`. The `m` draws three stems in both themes.
+- Seen, not changed: the inset's left corner bracket draws about 8 px left of
+  its keep-out rect, so it covers the right edge of a chip pushed beside the
+  inset (also at 12 px, `~/Pictures/nova-lock-inset/lock-1920-phosphor-after-crop.png`).

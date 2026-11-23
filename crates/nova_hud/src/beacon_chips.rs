@@ -14,7 +14,10 @@
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
-use nova_ui::hud::{ChipText, ChipTone};
+use nova_ui::{
+    hud::{ChipText, ChipTone},
+    widget::metrics,
+};
 
 use super::{anchored_chip::prelude::*, screen_indicator::prelude::*, NAV_CYAN};
 
@@ -43,8 +46,6 @@ const CHEVRON: AnchoredChipChevron = AnchoredChipChevron {
     stroke_thick_px: 2.0,
     color: NAV_CYAN,
 };
-
-const LABEL_FONT_PX: f32 = 12.0;
 
 /// Marker for one beacon chip layer (one per beacon). The family tag: every
 /// shared chip system is gated on it, so a query that walks into a beacon chip
@@ -79,7 +80,7 @@ fn beacon_chip_hud(beacon: Entity, suppressed: bool) -> impl Bundle {
                 (
                     Name::new("BeaconChipLabel"),
                     anchored_chip_label(
-                        LABEL_FONT_PX,
+                        metrics::TEXT_CHIP,
                         Color::NONE,
                         ChipText::value(ChipTone::Readout),
                     ),
@@ -362,7 +363,7 @@ mod tests {
             chip,
             text,
             "BEACON 1",
-            LABEL_FONT_PX,
+            metrics::TEXT_CHIP,
             "beacon chip",
         );
     }

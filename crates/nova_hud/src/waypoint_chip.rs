@@ -18,7 +18,10 @@ use bevy::prelude::*;
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::hud::{ChipText, ChipTone};
+use nova_ui::{
+    hud::{ChipText, ChipTone},
+    widget::metrics,
+};
 
 use super::{anchored_chip::prelude::*, screen_indicator::prelude::*, NAV_CYAN};
 
@@ -44,8 +47,6 @@ const CHEVRON: AnchoredChipChevron = AnchoredChipChevron {
     color: NAV_CYAN,
 };
 
-const LABEL_FONT_PX: f32 = 12.0;
-
 /// Marker for the waypoint chip layer. Its [`AnchoredChipTarget`] is the
 /// player ship that wears the [`Waypoint`].
 #[derive(Component, Debug, Clone, Reflect)]
@@ -70,7 +71,7 @@ fn waypoint_chip_hud(ship: Entity) -> impl Bundle {
                 (
                     Name::new("WaypointChipLabel"),
                     anchored_chip_label(
-                        LABEL_FONT_PX,
+                        metrics::TEXT_CHIP,
                         Color::NONE,
                         ChipText::value(ChipTone::Readout),
                     ),

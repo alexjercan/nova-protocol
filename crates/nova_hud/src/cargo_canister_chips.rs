@@ -65,9 +65,6 @@ const CHIP_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
     min_px: 20.0,
 };
 
-/// The item label size: the floating chips' label size.
-const LABEL_FONT_PX: f32 = metrics::TEXT;
-
 /// Font size of the muted mass line under the label.
 const MASS_FONT_PX: f32 = metrics::TEXT_LABEL;
 
@@ -312,7 +309,7 @@ fn cargo_canister_chip_hud(canister: Entity) -> impl Bundle {
                     children![
                         (
                             Name::new("CargoCanisterChipLabel"),
-                            anchored_chip_label(LABEL_FONT_PX, LABEL_COLOR, ()),
+                            anchored_chip_label(metrics::TEXT_CHIP, LABEL_COLOR, ()),
                         ),
                         (
                             Name::new("CargoCanisterChipMass"),
@@ -332,7 +329,7 @@ fn list_row(index: usize) -> impl Bundle {
         Name::new("CargoCanisterListRow"),
         CargoCanisterListRow(index),
         Text::new(""),
-        TextFont::from_font_size(LABEL_FONT_PX),
+        TextFont::from_font_size(metrics::TEXT_CHIP),
         nova_ui::widget::UiText,
         TextLayout {
             linebreak: LineBreak::NoWrap,

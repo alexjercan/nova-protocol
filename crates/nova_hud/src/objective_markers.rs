@@ -68,7 +68,7 @@ const DIAMOND_BORDER_PX: f32 = 2.0;
 /// The same diamond as a glyph inside the chip, left of the label. Turned 45
 /// degrees, its diagonal is the label's font size, so the glyph stands as
 /// tall as the text and never sets the chip's height.
-const GLYPH_PX: f32 = LABEL_FONT_PX / std::f32::consts::SQRT_2;
+const GLYPH_PX: f32 = metrics::TEXT_CHIP / std::f32::consts::SQRT_2;
 
 /// Half the drawn height of the diamond: a square turned 45 degrees reaches
 /// half its diagonal above and below its centre.
@@ -83,10 +83,6 @@ const MARK_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
     gap_px: MARKER_TOP_CLEARANCE.gap_px + metrics::GAP_S + DIAMOND_REACH_PX - DIAMOND_PX / 2.0,
     min_px: MARKER_TOP_CLEARANCE.min_px + metrics::GAP_S + DIAMOND_REACH_PX,
 };
-
-/// The label size of the beacon and waypoint chips, so the floating chips
-/// read as one family and the gold tone alone marks the objective.
-const LABEL_FONT_PX: f32 = metrics::TEXT;
 
 /// How long the full chip shows on a target in view before it settles to the
 /// diamond: the HUD notice dwell, so short-lived HUD text keeps one rhythm.
@@ -226,7 +222,7 @@ fn objective_marker_chip_hud(target: Entity) -> impl Bundle {
                         // + a tight dark shadow for contrast; the diamond and
                         // chevron carry the motion.
                         anchored_chip_label(
-                            LABEL_FONT_PX,
+                            metrics::TEXT_CHIP,
                             OBJECTIVE_GOLD,
                             TextShadow {
                                 offset: Vec2::splat(1.0),
@@ -654,7 +650,7 @@ pub(crate) mod tests {
             chip,
             text,
             "BEACON 1",
-            LABEL_FONT_PX,
+            metrics::TEXT_CHIP,
             "objective marker chip",
         );
     }

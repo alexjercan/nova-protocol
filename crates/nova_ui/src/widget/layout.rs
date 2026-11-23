@@ -110,6 +110,13 @@ pub mod metrics {
     pub const TEXT_LABEL: f32 = 11.0;
     /// Body text, values, control labels.
     pub const TEXT: f32 = 12.0;
+    /// The text of the world-anchored HUD chips: objective, beacon, waypoint
+    /// and cargo canister chips, a canister list's rows included. Not
+    /// [`TEXT`]: the kit font (IosevkaTerm) puts the stems of `m` and `w` on
+    /// pixel edges at 12 px, so each stem smears over two columns and the
+    /// letter draws as a block. 14 px is the first clean size (11 and 13 px
+    /// put the stems on half pixels).
+    pub const TEXT_CHIP: f32 = 14.0;
     /// An inspector title, a pane head title.
     pub const TEXT_TITLE: f32 = 14.0;
     /// A main-menu button's label.
