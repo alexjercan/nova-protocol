@@ -127,7 +127,7 @@ pre { margin: 0; padding: var(--s3) var(--s4); font: 12.5px/1.5 var(--mono); col
       <tbody>
         <tr><td>Plating colour per faction</td><td class="ok">YES</td><td>The plate material is made per style id and shared by every ship that wears it. Pick a palette from the civilization at plan time and write it into the design. The design already rides in the save.</td><td>10 civilian greeble pieces have the civilian hull colour baked into their model. Owner plan: those slots use a magenta key colour, and the greeble takes a tint input that replaces the key.</td></tr>
         <tr><td>Greeble use per faction (density, kit accent)</td><td class="ok">YES</td><td>Density is the weight of the empty greeble in the style rules (content). A kit accent is a list of pieces from other kits, as <code>scrap</code> and <code>patrol</code> do now.</td><td>One style variant per (role kit, doctrine) pair, or a density field on the palette record.</td></tr>
-        <tr><td>Proportions per faction (longer, broader, bigger)</td><td class="mid">YES, IN RANGE</td><td>The generator already draws scale, long or broad or compact, waist and taper, cube pattern and drive layout from the hull seed. A civilization can bias those draws from its own seeded stream, as it already picks its station archetype.</td><td>Changes generator output: unvisited space in old saves regenerates differently; layout failures fail the sector; turn rate moves. Needs a sweep over many civilizations.</td></tr>
+        <tr><td>Proportions per faction (longer, broader, bigger)</td><td class="mid">YES, IN RANGE</td><td>The generator already draws scale, long or broad or compact, waist and taper, cube pattern and drive layout from the hull seed. A civilization can bias those draws from its own seeded stream, as it already picks its station archetype.</td><td>Changes generator output: layout failures fail the sector; turn rate moves. Needs a sweep over many civilizations.</td></tr>
         <tr><td>New shapes (thin parts, wedges, wings)</td><td class="bad">NO, NOT NOW</td><td>The build parts are cubes only. The start hull task listed slope, wedge and thin parts as later work.</td><td>New section art and content, out of scope.</td></tr>
       </tbody>
     </table></div>
@@ -232,8 +232,8 @@ freeze / save: FrozenShip.design = ShipDesignSource (inline design, style id ins
     <div class="scroll"><table class="wide">
       <thead><tr><th>Form</th><th>What it is</th><th>Save</th><th>Mods</th><th>Fit</th></tr></thead>
       <tbody>
-        <tr><td><b>Seeded doctrine</b></td><td>Each civilization draws its biases from <code>id.stream(b"doctrine")</code>, like <code>lawful</code> (civilizations.rs:279) and the station archetype (station_layout.rs:397-401). The generator reads them through the civilization already on the request.</td><td>Nothing new. Visited ships keep their saved design.</td><td>Cannot author a faction.</td><td>Civilizations are seeded, not authored, so this matches.</td></tr>
-        <tr><td><b>Authored catalog, seeded pick</b></td><td>A content kind (palettes, doctrines) with ids. Each civilization takes one entry by its node. Lint checks every entry.</td><td>Palette id in the design (shipped saves read <code>None</code> as the style palette: <code>serde(default)</code>, ship_design.rs:125).</td><td>A mod adds or replaces entries by id.</td><td>Best for colour: a palette is an art choice and must be tuned by eye.</td></tr>
+        <tr><td><b>Seeded doctrine</b></td><td>Each civilization draws its biases from <code>id.stream(b"doctrine")</code>, like <code>lawful</code> (civilizations.rs:279) and the station archetype (station_layout.rs:397-401). The generator reads them through the civilization already on the request.</td><td>Nothing new.</td><td>Cannot author a faction.</td><td>Civilizations are seeded, not authored, so this matches.</td></tr>
+        <tr><td><b>Authored catalog, seeded pick</b></td><td>A content kind (palettes, doctrines) with ids. Each civilization takes one entry by its node. Lint checks every entry.</td><td>Palette id in the design.</td><td>A mod adds or replaces entries by id.</td><td>Best for colour: a palette is an art choice and must be tuned by eye.</td></tr>
         <tr><td>Authored per-faction content</td><td>Named factions with hand-made looks.</td><td>New faction ids.</td><td>Yes.</td><td>No: there are no authored factions to hang it on.</td></tr>
       </tbody>
     </table></div>
@@ -248,7 +248,6 @@ freeze / save: FrozenShip.design = ShipDesignSource (inline design, style id ins
         <tr><td>Layout must not fail: a failed layout fails the whole sector.</td><td>Up to 8 attempts, then a sector fault.</td><td class="path">ship_layout.rs:93<br>sector_ships.rs:33-35</td></tr>
         <tr><td>Generated hull tests: long for its role and inside the ceiling; floors; style per role; no medium hull in the second ring; full-advancement hulls under 2000 sections; escort raiders 20-40 sections.</td><td>Unit and integration tests, swept over a few civilizations only.</td><td class="path">ship_layout.rs:3184, :3400, :3451<br>nova_authoring/tests/generated_wrecks.rs:136-150<br>generated_armament.rs:178-218</td></tr>
         <tr><td>Content lint: the role styles exist; the part snapshot builds. Generated hulls are not linted.</td><td>Arming and lint walk.</td><td class="path">layered.rs:110-117<br>nova_authoring/src/lint_walk.rs:1061-1077</td></tr>
-        <tr><td>Save: a generator change silently changes every unvisited cell of an old save.</td><td>By design.</td><td class="path">save/mod.rs:102-108</td></tr>
       </tbody>
     </table></div>
   </div>
@@ -262,14 +261,14 @@ freeze / save: FrozenShip.design = ShipDesignSource (inline design, style id ins
       <tbody>
         <tr><td><b>1. Colour only</b></td><td>All ships and stations of one civilization share a hue. The role sets the tone (civilian pale, industrial mid, scavenger dark, armored darkest) and keeps its greeble kit, so role still reads by kit and tone.</td><td>Small to medium: a palette content kind, one field on the design presentation, a material key, the 10 baked pieces, the pick function, lint.</td><td><code>role_style_id</code> as the only colour source for generated hulls and stations; the role palettes on generated hulls (start hulls keep theirs).</td><td><code>every_role_wears_its_style_intact_and_wrecked</code> (ship_layout.rs:3184) changes; media with generated ships need recapture; draw count rises a little.</td></tr>
         <tr><td><b>2. Colour + greebles</b></td><td>1, plus a civilization's ships are busy or bare (density), and carry one accent piece set (for example antennas from the station kit, or salvage patches).</td><td>Medium: the palette record also carries density and an accent list, or one style variant per pair.</td><td>As 1.</td><td>As 1; a dense doctrine on big hulls adds greeble entities (cost per piece is an entity with a collider).</td></tr>
-        <tr><td><b>3. Colour + proportions</b></td><td>1, plus a civilization builds long and lean, or broad and deep, or small, within each role's range.</td><td>Medium: a doctrine struct drawn from the civilization stream, read in <code>plan</code>, plus a failure-rate sweep over many civilizations and seeds.</td><td>The fixed 15% broad, 15% compact, 50/50 drive and 0.4/0.3/0.3 pattern odds.</td><td>Unvisited space in saves; sector faults if a bias raises the layout failure rate; turn rate and escort difficulty move; hulls for sale fit fewer ports if biased large.</td></tr>
+        <tr><td><b>3. Colour + proportions</b></td><td>1, plus a civilization builds long and lean, or broad and deep, or small, within each role's range.</td><td>Medium: a doctrine struct drawn from the civilization stream, read in <code>plan</code>, plus a failure-rate sweep over many civilizations and seeds.</td><td>The fixed 15% broad, 15% compact, 50/50 drive and 0.4/0.3/0.3 pattern odds.</td><td>Sector faults if a bias raises the layout failure rate; turn rate and escort difficulty move; hulls for sale fit fewer ports if biased large.</td></tr>
         <tr><td><b>4. Full doctrine</b></td><td>1 + 2 + 3: a civilization has a colour, a build habit and a greeble habit.</td><td>Largest: the sum, in three slices.</td><td>As 1 and 3.</td><td>As 1, 2 and 3.</td></tr>
       </tbody>
     </table></div>
     <div class="rule-box">
       <h3>Recommendation: ship 1 + 2 in v0.19.0, then 3 as its own slice</h3>
       <ul class="plain">
-        <li><b>Why 1 + 2 first.</b> Both live in the style layer. The generator output does not change, so no save, layout or balance risk. The frames below show it reads.</li>
+        <li><b>Why 1 + 2 first.</b> Both live in the style layer. The generator output does not change, so no layout or balance risk. The frames below show it reads.</li>
         <li><b>Why 3 later.</b> The generator already makes long, median and broad hulls of one role (frame <code>shape-range</code>), so a bias gives each civilization a habit. But it changes every unvisited cell and needs a failure sweep and turn-rate numbers first.</li>
         <li><b>Palette pick with no repeats between neighbours.</b> <code>palette = order[(x + 2y + 4z) mod N]</code> with N at least 8 and <code>order</code> a per-world shuffle of the catalog. For any neighbour offset in {-1, 0, 1}^3 the step <code>dx + 2dy + 4dz</code> is between -7 and 7 and is never 0, so no two of the 26 neighbours share a palette. A function of the node and the world seed, so nothing is saved.</li>
         <li><b>Explicit content.</b> A palette names a finish for every role and for stations, with no derivation and no default. Lint refuses a missing role, a catalog under 8 entries, and a hue in the HUD red band.</li>
@@ -339,7 +338,7 @@ greebles: .glb materials as baked              greebles: magenta key slot -> tin
           <li><b>Palettes are content</b>: a mod adds or replaces by id; no civilization means the style's own palette.</li>
           <li><b>Code table</b>: palettes are constants.</li>
         </ul>
-        <span class="rec"><b>Rec</b>Content. The style palette stays the defined look for start hulls, scenario ships and the editor. A mod that adds palettes reshuffles unvisited space only; visited ships keep their saved palette id.</span>
+        <span class="rec"><b>Rec</b>Content. The style palette stays the defined look for start hulls, scenario ships and the editor.</span>
       </li>
       <li>
         <span class="q">Build style: which knobs may a civilization bias, and when?</span>
@@ -394,7 +393,7 @@ greebles: .glb materials as baked              greebles: magenta key slot -> tin
       <li><code>nova_world_base</code>: <code>civilization_palette(id, catalog)</code> with the lattice formula; set in <code>generate_ship</code>, <code>generate_wreck</code>, <code>generate_station</code>; every caller through the compiler.</li>
       <li><code>nova_authoring</code>: a palette builder (8 hues, no red band), <code>content gen</code>, lint; never hand-edit the generated RON.</li>
       <li>Greebles: the 10 civilian recipes change their <code>hull</code> slot from (0.42, 0.42, 0.40) to the magenta key; regenerate the .glb pieces. The greeble takes a tint input; the decor spawn gives it the palette Top finish (or the style's own Top with no palette). The tint replaces the key colour outright (Rec: the recipes are flat-colour primitives, so there is no baked shading to keep; multiply would only matter for textured pieces). Lint: keyed piece with no tint source, magenta in a palette. This also fixes <code>patrol</code>'s pale stripe.</li>
-      <li>Docs: wiki ships page, creator page for palettes, changelog entry (content format addition, not breaking: shipped saves read <code>None</code>).</li>
+      <li>Docs: wiki ships page, creator page for palettes, changelog entry. Old saves are not supported; delete them.</li>
     </ol>
     <h3>Slice 2: greeble habit (option 2)</h3>
     <p>Density factor and an accent piece list on the palette record (or a sibling doctrine record). Lint: the accent pieces exist; the factor is in a stated range.</p>

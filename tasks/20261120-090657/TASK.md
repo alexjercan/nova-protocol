@@ -100,3 +100,4 @@ Planned 2026-11-20 from the owner sign-off of the start hull looks
 - Greebles: recipe slots that follow the hull use a magenta key colour;
   the greeble takes a tint input (faction palette) that replaces the key.
   Open: replace or multiply (agent rec: replace).
+- Old saves are not a cost: no compatibility for them; delete old saves.
