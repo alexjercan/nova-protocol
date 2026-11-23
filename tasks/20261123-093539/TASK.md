@@ -66,19 +66,19 @@ and its spike frames. This task is option 3 on that page.
 - Frames: long, stout and stubby doctrines read apart at one fixed
   camera. Waist -1 makes thin dumbbell necks (sever risk not measured).
 
-## Open decisions (page recommendations, not approved)
-- Seeded doctrine, authored catalog, or palette field. Rec: seeded.
-- Request field or derived from the civilization. Rec: derived.
-- Section budget: rec check `MAX_SHIP_SECTIONS` in `check` and redraw,
-  with scale centre 0.85..1.0 until berth fit is measured.
-- Raiders: rec `Budget` sizes read only the cube pattern, so raider
+## Decisions (owner approved the page recommendations, 2026-11-23)
+- Seeded: `BuildDoctrine::of(id)` from `id.stream(b"doctrine")` in
+  `nova_world_base/src/build_doctrine.rs`. No content kind, no save field.
+- Derived from `request.civilization`; no request field, no caller change.
+- `check` rejects a design over `MAX_SHIP_SECTIONS` and redraws. Scale
+  centre 0.85..1.0 until berth fit is measured.
+- Escort raiders (`Budget` sizes) read only the cube pattern; their
   layouts stay as today.
-- Nose divisor 3..8 as a new knob. Rec: add.
-- Width and height bias. Rec: leave out.
-- Per-hull spread narrow (scale +-0.1, waist +-0.5, taper +-0.25).
-  Rec: narrow.
+- Nose divisor 3..8 is a doctrine knob.
+- No width or height bias.
+- Narrow per-hull spread: scale +-0.1, waist +-0.5, taper +-0.25.
 - Proof: new playable example `faction_doctrines` with a civilization
-  stepper. Rec: yes.
+  stepper.
 
 ## Verification
 - Sweep: 200 civilizations x 4 roles x advancement steps x 32 seeds,
