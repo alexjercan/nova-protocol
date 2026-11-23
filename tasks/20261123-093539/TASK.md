@@ -92,3 +92,54 @@ and its spike frames. This task is option 3 on that page.
 - Civilizations build visibly different hulls inside each role's
   ranges, the sweep shows zero failures, and the owner signs off the
   frames.
+
+## Build
+- Landed: `BuildDoctrine::of(id)` and `CubePatternType` in
+  `nova_world_base/src/build_doctrine.rs` (crate prelude). `generate_ship`
+  and `generate_wreck` read it from `request.civilization`; no caller
+  change. Knobs as decided: scale centre 0.85..1.0 (+-0.1 per hull),
+  broad and compact share 0..0.4, waist +-0.4 (+-0.5), taper 0..1
+  (+-0.25), favoured pattern 0.7, ring width 2..4, drive pair 0.1..0.9,
+  nose divisor 3..8. The fixed draws are gone; `Budget` hulls keep their
+  formulas as named consts (`BUDGET_*`) and read only the cube pattern.
+- `check` refuses a fitted design over `MAX_SHIP_SECTIONS`
+  (`TooManySections`) and the generator redraws. Unit test
+  `a_design_over_the_section_budget_is_refused`.
+- `ceiling` is now public `ship_ceiling`. The pinned window digest moved
+  (`tests.rs`, generator change). The cumulative-wreck test is repinned.
+- Sweep: `crates/nova_authoring/tests/generated_doctrines.rs`, two
+  `#[ignore]` tests, 200 civilizations x 4 roles x 5 advancements x 32
+  seeds (+ a wreck every 4th seed), and 200 x 9 raider advancements x 8
+  seeds. About 24 min single-thread on this box.
+
+  | | before (HEAD) | after |
+  |---|---|---|
+  | hulls / wrecks | 128,000 / 32,000 | same |
+  | layout and wreck fails | 0 / 0 | 0 / 0 |
+  | redrawn | 12.5% | 11.7% |
+  | most sections | 2044 (assert fails) | 2000 |
+  | largest clearance | 349 m | 322 m |
+  | raiders: fails, redrawn, most | 0, 20.2%, 110 | same |
+
+  Turn medians, deg/s at advancement 0 / 0.5 / 1, before -> after:
+  civilian 70/41/32 -> 70/43/34, industrial 70/40/31 -> 71/41/32,
+  scavenger 78/51/41 -> 79/52/43, armored 68/37/28 -> 68/38/29. All
+  within 2 deg/s.
+- Raider sameness: 4 worlds x 25 nodes x 9 advancements x 8 seeds (7,200
+  raiders) dumped at HEAD and after, section ids, positions and
+  rotations: byte identical. The dump test was disposable and is deleted.
+- Overrun existed in v0.18.0 (same plan and budget code; base sections
+  changed only intake fields since). Changelog Fixes entry added.
+- Example: `examples/playable/faction_doctrines.rs` (README row). `[` `]`
+  step a 5 x 5 civilization lattice; five fixed stands (civilian,
+  industrial, scavenger, armored, armored wreck); label shows the
+  doctrine and section counts. Autopilot smoke walks civilizations
+  0, 7, 12, 18: 4 PASS, cycle complete, no panic (lavapipe, Xvfb).
+- Frames, 1920x1080: `frames/build-civilization-{0,7,12,18}.jpg`.
+  Long-and-slim (7), stout with a shoulder (12), waisted with a pointed
+  bow (0) and a shoulder with shell plating (18) read apart at one camera.
+- Docs: `docs/architecture.md`, `web/src/wiki/ships.md`. Content: no base
+  RON reads the generator, so no gen or lint.
+- Skipped: workspace tests and clippy (policy). Berth fit at the new
+  scale is not measured (scale stays <= 1.0 + 0.1). Owner sign-off on
+  the frames is open.

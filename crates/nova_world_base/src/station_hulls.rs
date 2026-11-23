@@ -164,7 +164,7 @@ mod tests {
     use super::*;
     use crate::{
         civilizations::{CivilizationStatusType, CIVILIZATION_LATTICE},
-        ship_layout::{ceiling, fixture::packs},
+        ship_layout::{fixture::packs, ship_ceiling},
         CivilizationField,
     };
 
@@ -180,7 +180,7 @@ mod tests {
     fn a_first_ring_station_sells_small_hulls_and_the_same_catalogue_for_a_seed() {
         let parts = ShipPartSnapshot::build(&packs(), &crate::ship_layout::fixture::palettes())
             .expect("the packs build");
-        let medium = ceiling(1.0 / 3.0);
+        let medium = ship_ceiling(1.0 / 3.0);
         let mut stations = 0;
         for seed in 0..4 {
             let field = CivilizationField::new(seed);

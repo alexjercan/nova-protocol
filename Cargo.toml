@@ -475,6 +475,13 @@ name = "faction_palettes"
 path = "examples/playable/faction_palettes.rs"
 required-features = ["debug"]
 
+# The generated hulls of one civilization at a time under its build doctrine,
+# at one fixed camera; `[` and `]` step through a world's civilizations.
+[[example]]
+name = "faction_doctrines"
+path = "examples/playable/faction_doctrines.rs"
+required-features = ["debug"]
+
 # The six start hulls, one at a time, up close on the game skybox: `1` to `6`
 # pick a hull, `N` stands the next one, the free-fly camera goes round it.
 # Under NOVA_AUTOPILOT a smoke walk checks six hulls wear six styles.

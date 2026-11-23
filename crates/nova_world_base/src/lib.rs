@@ -63,6 +63,7 @@ use nova_ship::prelude::GameStyles;
 use nova_ship::prelude::{RepairJobSystems, RescueSystems, SpaceshipTargetingSystems};
 use nova_world::prelude::*;
 
+mod build_doctrine;
 mod chart;
 mod civilizations;
 mod clusters;
@@ -105,6 +106,7 @@ pub use crate::save::{
     WORLD_SAVE_VERSION,
 };
 pub use crate::{
+    build_doctrine::{BuildDoctrine, CubePatternType},
     civilizations::{
         role_style_id, Civilization, CivilizationField, CivilizationReach, CivilizationStatusType,
         LAWFUL_SHARE, STANCE_ALLY_SHARE, STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS,
@@ -120,8 +122,9 @@ pub use crate::{
     rescue::{find_rescue_station, RescueStation},
     sector_ships::{plan_ship, ship_stock, HullLineageType, HullSlot, PlannedShip},
     ship_layout::{
-        generate_ship, generate_wreck, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
-        ShipLayoutFailure, ShipLayoutRequest, ShipSpareDriveType, MAX_SHIP_SECTIONS,
+        generate_ship, generate_wreck, ship_ceiling, ShipDriveLayoutType, ShipLayout,
+        ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipSpareDriveType,
+        MAX_SHIP_SECTIONS,
     },
     ship_parts::{
         ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack,
@@ -141,32 +144,32 @@ pub use crate::{
 };
 
 /// Glob-import surface: `use nova_world_base::prelude::*` brings the plugin,
-/// the generator, its clearance margin, the environment, cluster
-/// and civilization diagnostics, the ship-part snapshot, the ship layout, the
-/// ship planner, the base-world ids, the role style ids and the saved-world
-/// format into scope.
+/// the generator, its clearance margin, the environment, cluster and
+/// civilization diagnostics, the build doctrine, the ship-part snapshot, the
+/// ship layout, the ship planner, the base-world ids, the role style ids and
+/// the saved-world format into scope.
 pub mod prelude {
     pub use super::{
         apply_offence, enemy_neighbours, find_rescue_station, fine_cr, generate_ship,
         generate_station, generate_wreck, generated_planet_name, generated_station, goal_progress,
         plan_ship, post_station_boards, record_merit, retire_dropped_job_bodies, role_style_id,
-        sector_clusters, seeded_lawful, seeded_stance, settle, ship_stock, standing, start_preview,
-        start_session, starting_station, station_archetype, station_ceiling, waypoint_mark,
-        Civilization, CivilizationField, CivilizationReach, CivilizationStatusType, ClusterSummary,
-        EncounterPlugin, EncounterSystems, Environment, EnvironmentFieldType, EnvironmentFields,
-        FieldBodies, GoalFacts, HullLineageType, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin,
-        NovaWorldBaseSystems, PlannedShip, PlayerHull, RescueStation, SectorClusters,
-        ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType, ShipLayoutFailure,
-        ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault,
-        ShipPartPack, ShipPartSnapshot, ShipSpareDriveType, StanceStanding, StartPreview,
-        StationArchetypeType, StationLayout, StationLayoutConstraintType, StationLayoutFailure,
-        StationLayoutRequest, WaypointFault, WaypointPlugin, WaypointSystems, ARMOURED_STYLE_ID,
-        BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, CRAFT_ADVANCEMENT,
-        FINE_CR, HAIL_CHIP, HAULER_CRUISE, INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS,
-        OPEN_WORLD_ACTIVE_RADIUS, OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID,
-        OPEN_WORLD_SECTOR_EDGE, PATROL_STYLE_ID, SALVAGE_STYLE_ID, SCRAP_STYLE_ID, SIGNAL_CHIP,
-        STANCE_ALLY_SHARE, STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS, START_PREVIEW_REACH,
-        STATION_STYLE_ID,
+        sector_clusters, seeded_lawful, seeded_stance, settle, ship_ceiling, ship_stock, standing,
+        start_preview, start_session, starting_station, station_archetype, station_ceiling,
+        waypoint_mark, BuildDoctrine, Civilization, CivilizationField, CivilizationReach,
+        CivilizationStatusType, ClusterSummary, CubePatternType, EncounterPlugin, EncounterSystems,
+        Environment, EnvironmentFieldType, EnvironmentFields, FieldBodies, GoalFacts,
+        HullLineageType, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin, NovaWorldBaseSystems,
+        PlannedShip, PlayerHull, RescueStation, SectorClusters, ShipDriveLayoutType, ShipLayout,
+        ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipPart,
+        ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack, ShipPartSnapshot,
+        ShipSpareDriveType, StanceStanding, StartPreview, StationArchetypeType, StationLayout,
+        StationLayoutConstraintType, StationLayoutFailure, StationLayoutRequest, WaypointFault,
+        WaypointPlugin, WaypointSystems, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID,
+        CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, CRAFT_ADVANCEMENT, FINE_CR, HAIL_CHIP, HAULER_CRUISE,
+        INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS, OPEN_WORLD_ACTIVE_RADIUS,
+        OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, OPEN_WORLD_SECTOR_EDGE,
+        PATROL_STYLE_ID, SALVAGE_STYLE_ID, SCRAP_STYLE_ID, SIGNAL_CHIP, STANCE_ALLY_SHARE,
+        STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS, START_PREVIEW_REACH, STATION_STYLE_ID,
     };
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::{

@@ -21,11 +21,19 @@
 //! shrinks until its cubes leave room for the fittings under
 //! [`MAX_SHIP_SECTIONS`].
 //!
+//! DOCTRINE. Every hull reads its civilization's [`BuildDoctrine`]: the
+//! scale centre, the broad and compact shares, the waist or shoulder, the
+//! stern taper, the cube pattern, the drive pair share and the nose length.
+//! The role keeps its spine size, aspect, ceiling, section budget and shrink
+//! order. A [`ShipSizeType::Budget`] hull reads only the cube pattern and
+//! draws its body from one fixed habit, see [`BUDGET_SCALE`].
+//!
 //! A layout draws a preferred source per hull and keeps civilian, industrial
 //! and armored ships to it where that source has a usable part; scavengers mix
 //! sources. Each source weighs the same, whatever its part count.
 //!
-//! Every layout is checked after it is built: unique section ids, usable and
+//! Every layout is checked after it is built: the section budget, unique
+//! section ids, usable and
 //! eligible prototypes, the role's families, mated contacts, mirror symmetry
 //! but for a lone docking port, intakes with structural cubes across their
 //! backs, docking ports that open sideways with structural cubes across their
@@ -85,6 +93,7 @@ use nova_ship::prelude::{
 use nova_world::prelude::SECTOR_SHIP_CLEARANCE_MAX;
 
 use crate::{
+    build_doctrine::{BuildDoctrine, CubePatternType},
     role_style_id,
     ship_parts::{is_structural_cube, ShipPart, ShipPartFamilyType, ShipPartSnapshot},
 };
@@ -123,6 +132,32 @@ const FITTING_SECTIONS: usize = 100;
 /// weapons, the intake and the docking ports of a small hull. The base parts
 /// fit 8 to 13 on a scavenger at advancement 0.
 const BUDGET_FITTING_SECTIONS: usize = 12;
+
+/// The scale a [`ShipSizeType::Budget`] hull draws on its role's spine
+/// length, as `(low, span)`, in place of its civilization's
+/// [`BuildDoctrine`] proportions. The escort raider bands leave no section to
+/// spare (108 sections for 3 turrets from advancement 0.5), and a doctrine's
+/// proportions left some of those raiders no room for a cargo intake, so a
+/// budget hull keeps this one habit with [`BUDGET_BROAD_FROM`],
+/// [`BUDGET_COMPACT_FROM`], [`BUDGET_DRIVE_PAIR`] and [`BUDGET_NOSE`], and
+/// reads only the doctrine's cube pattern.
+const BUDGET_SCALE: (f32, f32) = (0.8, 0.4);
+
+/// The variant draw at and above which a [`ShipSizeType::Budget`] hull is
+/// broad.
+const BUDGET_BROAD_FROM: f32 = 0.85;
+
+/// The variant draw at and above which a [`ShipSizeType::Budget`] hull of a
+/// role that allows it is compact, below [`BUDGET_BROAD_FROM`].
+const BUDGET_COMPACT_FROM: f32 = 0.7;
+
+/// The share of mirrored drive pairs on a [`ShipSizeType::Budget`] hull where
+/// a single drive also fits.
+const BUDGET_DRIVE_PAIR: f32 = 0.5;
+
+/// The nose divisor of a [`ShipSizeType::Budget`] hull, see
+/// [`BuildDoctrine::nose`].
+const BUDGET_NOSE: i32 = 5;
 
 /// How far below a request's advancement a drive may be tiered and still be
 /// drawn before the lower parts of its source, see [`tier_floor`].
@@ -331,6 +366,9 @@ pub enum ShipLayoutConstraintType {
         /// How many a visible ruin of this hull needs.
         needed: usize,
     },
+    /// The ship carries more than [`MAX_SHIP_SECTIONS`] sections once
+    /// fitted.
+    TooManySections(usize),
     /// The hull clearance radius exceeds the advancement's ceiling.
     TooLarge {
         /// The hull's clearance radius.
@@ -412,6 +450,10 @@ impl fmt::Display for ShipLayoutConstraintType {
                 f,
                 "the wreck omits {omitted} hull sections off its mirror image where a visible \
                  ruin needs {needed}"
+            ),
+            Self::TooManySections(sections) => write!(
+                f,
+                "the ship carries {sections} sections, above the {MAX_SHIP_SECTIONS} budget"
             ),
             Self::TooLarge { clearance, ceiling } => write!(
                 f,
@@ -859,8 +901,10 @@ pub(crate) fn tier_floor(advancement: f32, parts: &[&ShipPart]) -> f32 {
     (advancement - TIER_BAND).min(top)
 }
 
-/// The hull clearance ceiling at `advancement`.
-pub(crate) fn ceiling(advancement: f32) -> Meters {
+/// The hull clearance ceiling at `advancement`: 100 m at 0 to the largest
+/// clearance a sector accepts at 1, linearly. Every generated ship's
+/// clearance stays under it.
+pub fn ship_ceiling(advancement: f32) -> Meters {
     let span = MAX_HULL_CLEARANCE.0 - MIN_HULL_CLEARANCE.0;
     Meters(MIN_HULL_CLEARANCE.0 + span * advancement.clamp(0.0, 1.0))
 }
@@ -1249,50 +1293,48 @@ impl From<ShipMeasureShortfallType> for ShipLayoutConstraintType {
     }
 }
 
-/// How many stations of a spine `length` long the nose takes.
-fn nose_length(length: i32) -> i32 {
-    1 + length / 5
+/// How many stations of a spine `length` long the nose takes under the nose
+/// divisor `nose`, see [`BuildDoctrine::nose`].
+fn nose_length(length: i32, nose: i32) -> i32 {
+    1 + length / nose
 }
 
-/// How a hull lays its second palette cube over the spine. The third, when
+/// How one hull lays its second palette cube over the spine. The third, when
 /// the palette has one, trims the nose and the stern.
 #[derive(Clone, Copy, Debug)]
-enum PalettePatternType {
-    /// Rings of `width` stations along the length, every other ring.
-    Rings { width: i32, offset: i32 },
-    /// Everything above the keel.
-    Deck,
-    /// The outer shell of every cross-section.
-    Shell,
+struct HullPattern {
+    pattern: CubePatternType,
+    /// Ring width in stations, from the doctrine.
+    ring_width: i32,
+    /// The station the first ring is shifted by, `0..ring_width`.
+    ring_offset: i32,
 }
 
-impl PalettePatternType {
-    fn draw(stream: &mut SeedStream) -> Self {
-        let pick = stream.unit();
-        let width = 2 + (stream.unit() * 3.0) as i32;
-        let offset = (stream.unit() * width as f32) as i32;
-        if pick < 0.4 {
-            Self::Rings { width, offset }
-        } else if pick < 0.7 {
-            Self::Deck
-        } else {
-            Self::Shell
+impl HullPattern {
+    fn draw(doctrine: &BuildDoctrine, stream: &mut SeedStream) -> Self {
+        let pattern = doctrine.hull_pattern(stream.unit());
+        let ring_width = doctrine.ring_width;
+        let ring_offset = (stream.unit() * ring_width as f32) as i32;
+        Self {
+            pattern,
+            ring_width,
+            ring_offset,
         }
     }
 
-    /// The palette index of the spine cell `cell` of `stations`, for a
-    /// palette of `size` cubes. A function of `|x|`, so the spine stays its
-    /// own mirror image.
-    fn cube(self, stations: &[Section], cell: IVec3, size: usize) -> usize {
+    /// The palette index of the spine cell `cell` of `stations`, whose nose
+    /// takes `nose` stations, for a palette of `size` cubes. A function of
+    /// `|x|`, so the spine stays its own mirror image.
+    fn cube(self, stations: &[Section], nose: i32, cell: IVec3, size: usize) -> usize {
         let length = stations.len() as i32;
-        if size >= 3 && (cell.z < nose_length(length) || cell.z == length - 1) {
+        if size >= 3 && (cell.z < nose || cell.z == length - 1) {
             return 2;
         }
         let station = stations[cell.z as usize];
-        let second = match self {
-            Self::Rings { width, offset } => ((cell.z + offset) / width) % 2 == 1,
-            Self::Deck => cell.y > 0,
-            Self::Shell => {
+        let second = match self.pattern {
+            CubePatternType::Rings => ((cell.z + self.ring_offset) / self.ring_width) % 2 == 1,
+            CubePatternType::Deck => cell.y > 0,
+            CubePatternType::Shell => {
                 cell.x.abs() == station.half_width
                     || cell.y == station.low
                     || cell.y == station.high
@@ -1414,6 +1456,8 @@ fn controller_aim(_: &SectionKind, aims: Option<usize>) -> Option<u32> {
 struct Draw<'a> {
     snapshot: &'a ShipPartSnapshot,
     request: ShipLayoutRequest,
+    /// The request's civilization's.
+    doctrine: BuildDoctrine,
     attempt: u32,
     /// The mining beams the request carries: 0, 1 or 2.
     beams: u32,
@@ -1429,6 +1473,7 @@ impl<'a> Draw<'a> {
         Self {
             snapshot,
             request,
+            doctrine: BuildDoctrine::of(request.civilization),
             attempt,
             beams,
         }
@@ -1436,6 +1481,22 @@ impl<'a> Draw<'a> {
 
     fn stream(&self, aspect: &[u8]) -> SeedStream {
         stream(self.request, self.attempt, aspect)
+    }
+
+    /// The share of mirrored drive pairs where a single drive also fits.
+    fn drive_pair(&self) -> f32 {
+        match self.request.size {
+            ShipSizeType::Advancement => self.doctrine.drive_pair,
+            ShipSizeType::Budget { .. } => BUDGET_DRIVE_PAIR,
+        }
+    }
+
+    /// The nose divisor, see [`BuildDoctrine::nose`].
+    fn nose(&self) -> i32 {
+        match self.request.size {
+            ShipSizeType::Advancement => self.doctrine.nose,
+            ShipSizeType::Budget { .. } => BUDGET_NOSE,
+        }
     }
 
     /// The eligible parts of `family` that pass `usable`, in the order this
@@ -1568,7 +1629,9 @@ impl<'a> Draw<'a> {
                 .filter(|port| reflects(&starboard, port));
             let single = starboard.span.x % 2 == 1 && reflects(&starboard, &starboard);
             let layout = match (single, port.is_some()) {
-                (true, true) if drive_stream.unit() < 0.5 => ShipDriveLayoutType::MirroredPair,
+                (true, true) if drive_stream.unit() < self.drive_pair() => {
+                    ShipDriveLayoutType::MirroredPair
+                }
                 (true, _) => ShipDriveLayoutType::CenteredSingle,
                 (false, true) => ShipDriveLayoutType::MirroredPair,
                 (false, false) => return None,
@@ -1611,8 +1674,9 @@ impl<'a> Draw<'a> {
 
         let stations = self.plan(stern, span.z)?;
         let length = stations.len() as i32;
-        let pattern = PalettePatternType::draw(&mut self.stream(b"palette"));
-        let cube_at = |cell: IVec3| palette[pattern.cube(&stations, cell, palette.len())];
+        let pattern = HullPattern::draw(&self.doctrine, &mut self.stream(b"palette"));
+        let nose = nose_length(length, self.nose());
+        let cube_at = |cell: IVec3| palette[pattern.cube(&stations, nose, cell, palette.len())];
 
         // The spine, bow at station 0. The bridge cells are left for the
         // flight computers.
@@ -1913,27 +1977,51 @@ impl<'a> Draw<'a> {
         let [length, width, height] = shape
             .spine
             .map(|(low, high)| low + (high - low) * advancement);
-        let scale = 0.8 + 0.4 * stream.unit();
         // Most hulls are long; a minority are broad and, on a role that
-        // allows it, compact.
-        let variant = stream.unit();
-        let compact = shape.compact && (0.7..0.85).contains(&variant);
-        let (length, widen, heighten) = if variant < 0.85 && !compact {
-            (length * scale, 0, 0)
-        } else if compact {
-            (length * scale * 0.65, 1, 0)
-        } else {
-            (length * scale * 0.85, 1, 1)
+        // allows it, compact. The body changes along its length: a waist or
+        // shoulder at the middle and a taper or flare toward the stern.
+        let (scale, cut, middle, aft) = match request.size {
+            ShipSizeType::Advancement => {
+                let doctrine = self.doctrine;
+                let scale = doctrine.scale + BuildDoctrine::SCALE_SPREAD * stream.signed();
+                let broad_from = 1.0 - doctrine.broad;
+                let cut = HullCutType::of(
+                    stream.unit(),
+                    broad_from,
+                    broad_from - doctrine.compact,
+                    shape.compact,
+                );
+                let middle = [(); 2]
+                    .map(|()| doctrine.waist + BuildDoctrine::WAIST_SPREAD * stream.signed());
+                let aft = [(); 2].map(|()| {
+                    (doctrine.taper + BuildDoctrine::TAPER_SPREAD * stream.signed()).clamp(0.0, 1.0)
+                });
+                (scale, cut, middle, aft)
+            }
+            ShipSizeType::Budget { .. } => {
+                let scale = BUDGET_SCALE.0 + BUDGET_SCALE.1 * stream.unit();
+                let cut = HullCutType::of(
+                    stream.unit(),
+                    BUDGET_BROAD_FROM,
+                    BUDGET_COMPACT_FROM,
+                    shape.compact,
+                );
+                let middle = [stream.signed(), stream.signed()];
+                let aft = [stream.unit(), stream.unit()];
+                (scale, cut, middle, aft)
+            }
+        };
+        let (length, widen, heighten) = match cut {
+            HullCutType::Long => (length * scale, 0, 0),
+            HullCutType::Compact => (length * scale * 0.65, 1, 0),
+            HullCutType::Broad => (length * scale * 0.85, 1, 1),
         };
         let mut length = (length.round() as i32).max(MIN_STATIONS);
         let mut width = (width.round() as i32).max(1) + widen;
         let mut height = (height.round() as i32).max(0) + heighten;
-        // The body's change along its length: a waist or shoulder at the
-        // middle and a taper or flare toward the stern.
-        let middle = [stream.signed(), stream.signed()];
-        let aft = [stream.unit(), stream.unit()];
+        let nose = self.nose();
 
-        let ceiling = ceiling(request.advancement);
+        let ceiling = ship_ceiling(request.advancement);
         let (fittings, most_sections) = match request.size {
             ShipSizeType::Advancement => (FITTING_SECTIONS, MAX_SHIP_SECTIONS),
             ShipSizeType::Budget { sections, .. } => (BUDGET_FITTING_SECTIONS, sections as usize),
@@ -1943,7 +2031,7 @@ impl<'a> Draw<'a> {
         // cannot narrow.
         let mut cut = false;
         loop {
-            let stations = stations(length, width, height, stern, middle, aft);
+            let stations = stations(length, width, height, stern, middle, aft, nose);
             let (low, high) = stations.iter().enumerate().fold(
                 (IVec3::MAX, IVec3::MIN),
                 |(low, high), (z, section)| {
@@ -1985,9 +2073,36 @@ impl<'a> Draw<'a> {
     }
 }
 
+/// The proportion a hull is cut to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum HullCutType {
+    /// The role's length.
+    Long,
+    /// Shorter still and a cell wider.
+    Compact,
+    /// Shorter, a cell wider and a cell deeper.
+    Broad,
+}
+
+impl HullCutType {
+    /// The cut of a `variant` draw in `[0, 1)`: broad from `broad_from`,
+    /// compact from `compact_from` below it on a role that `allows_compact`,
+    /// long below.
+    fn of(variant: f32, broad_from: f32, compact_from: f32, allows_compact: bool) -> Self {
+        if variant >= broad_from {
+            Self::Broad
+        } else if allows_compact && variant >= compact_from {
+            Self::Compact
+        } else {
+            Self::Long
+        }
+    }
+}
+
 /// `length` stations for a body `width` and `height` cells from its centre,
-/// ending in `stern`. `middle` moves the body's half-width and half-height at
-/// its middle by up to one cell; `aft` blends them toward the stern's.
+/// ending in `stern`, with a nose of the nose divisor `nose`. `middle` moves
+/// the body's half-width and half-height at its middle by up to one cell;
+/// `aft` blends them toward the stern's.
 fn stations(
     length: i32,
     width: i32,
@@ -1995,8 +2110,9 @@ fn stations(
     stern: Section,
     middle: [f32; 2],
     aft: [f32; 2],
+    nose: i32,
 ) -> Vec<Section> {
-    let nose = nose_length(length);
+    let nose = nose_length(length, nose);
     let body = length - 1;
     let stern_half = [stern.half_width, (stern.high - stern.low) / 2];
     (0..length)
@@ -2322,6 +2438,11 @@ fn check(
 ) -> Result<(), ShipLayoutConstraintType> {
     use ShipLayoutConstraintType as Constraint;
 
+    // The plan budgets cubes plus a fitting reserve; a large body with many
+    // fittings can still pass the budget once fitted.
+    if design.sections.len() > MAX_SHIP_SECTIONS {
+        return Err(Constraint::TooManySections(design.sections.len()));
+    }
     let (resolved, bounds) = resolve_and_mate(snapshot, request, design)?;
     let docks = resolved
         .iter()
@@ -2643,7 +2764,7 @@ fn connected_and_clear(
     }
 
     let clearance = clearance(low, high);
-    let ceiling = ceiling(request.advancement);
+    let ceiling = ship_ceiling(request.advancement);
     if clearance.0 > ceiling.0 {
         return Err(Constraint::TooLarge { clearance, ceiling });
     }
@@ -2894,16 +3015,14 @@ pub(crate) mod tests {
 
     use super::{fixture::*, *};
 
+    /// The civilization the fixture requests build for.
+    const CIVILIZATION: CivilizationId = CivilizationId {
+        world_seed: 7,
+        node: [1, -2, 0],
+    };
+
     fn request(seed: u32, role: ShipRoleType, advancement: f32) -> ShipLayoutRequest {
-        request_of(
-            CivilizationId {
-                world_seed: 7,
-                node: [1, -2, 0],
-            },
-            seed,
-            role,
-            advancement,
-        )
+        request_of(CIVILIZATION, seed, role, advancement)
     }
 
     fn request_of(
@@ -3360,6 +3479,34 @@ pub(crate) mod tests {
         }
     }
 
+    /// A fitted design past [`MAX_SHIP_SECTIONS`] is refused, so the
+    /// generator draws again rather than ship it: the plan budgets cubes
+    /// and a fitting reserve, and nothing else counts the fitted total.
+    #[test]
+    fn a_design_over_the_section_budget_is_refused() {
+        let snapshot = ShipPartSnapshot::build(&packs(), &crate::ship_layout::fixture::palettes())
+            .expect("the packs build");
+        let request = request(0, ShipRoleType::Civilian, 0.0);
+        let mut design = generate_ship(&snapshot, request)
+            .expect("the ship generates")
+            .design;
+        assert_eq!(check(&snapshot, request, &design), Ok(()));
+
+        let spare = design.sections[0].clone();
+        for index in design.sections.len()..=MAX_SHIP_SECTIONS {
+            let mut section = spare.clone();
+            section.id = format!("spare_{index}");
+            section.position.z -= 10.0 + index as f32;
+            design.sections.push(section);
+        }
+        assert_eq!(
+            check(&snapshot, request, &design),
+            Err(ShipLayoutConstraintType::TooManySections(
+                MAX_SHIP_SECTIONS + 1
+            ))
+        );
+    }
+
     #[test]
     fn a_layout_with_no_removable_outer_cube_is_refused_as_unruinable() {
         // A drive ten cells deep shrinks the hull to its three stations. On
@@ -3483,18 +3630,18 @@ pub(crate) mod tests {
                         }
                     }
                     // The body's planned width stands where the nose ends.
-                    let length = stations.len() as i32;
-                    let (low, high) = stations
-                        .values()
-                        .nth(nose_length(length) as usize)
-                        .expect("a body");
+                    // A nose station may be one bridge cell and no cube.
+                    let bow = *stations.keys().next().expect("a spine");
+                    let length = stations.keys().next_back().expect("a spine") - bow + 1;
+                    let nose = nose_length(length, BuildDoctrine::of(CIVILIZATION).nose);
+                    let (low, high) = stations.get(&(bow + nose)).expect("a body");
                     let width = high - low + 1;
                     assert!(
                         length as f32 >= role_shape(role).min_aspect * width as f32,
                         "{context}: {length} stations, {width} cells wide"
                     );
                     assert!(
-                        layout.clearance.0 <= ceiling(advancement).0
+                        layout.clearance.0 <= ship_ceiling(advancement).0
                             && layout.clearance.0 <= SECTOR_SHIP_CLEARANCE_MAX.0,
                         "{context}: {:?}",
                         layout.clearance
@@ -3831,19 +3978,19 @@ pub(crate) mod tests {
 
     #[test]
     fn a_wreck_whose_seeded_plans_all_fall_short_is_its_cumulative_pass() {
-        // A sector fault: 4 outer cubes of this hull can each go alone and one
-        // pass loses 4 together, but every seeded plan's earlier omissions
+        // A sector fault: 6 outer cubes of this hull can each go alone and one
+        // pass loses 6 together, but every seeded plan's earlier omissions
         // leave the rest holding its bounds or its socket graph.
         let snapshot = ShipPartSnapshot::build(&packs(), &crate::ship_layout::fixture::palettes())
             .expect("the packs build");
         let request = ShipLayoutRequest {
-            seed: 3_594_588_663,
+            seed: 2_915_367_602,
             civilization: CivilizationId {
-                world_seed: 4,
+                world_seed: 1,
                 node: [0, 0, 0],
             },
             role: ShipRoleType::Scavenger,
-            advancement: 0.1,
+            advancement: 0.2,
             size: ShipSizeType::Advancement,
             spare_drive: ShipSpareDriveType::Without,
         };
@@ -3856,7 +4003,7 @@ pub(crate) mod tests {
             .collect();
         let witness = cumulative_ruin(&cells, &loose, target);
         let floor = wreck_floor(&cells, &loose, target).min(witness.len());
-        assert_eq!((floor, target), (4, 4));
+        assert_eq!((floor, target), (6, 6));
         for attempt in 0..MAX_WRECK_ATTEMPTS {
             let (design, omitted) = ruin(&cells, &loose, request, &intact.design, attempt, target);
             assert_eq!(
@@ -3899,7 +4046,7 @@ pub(crate) mod tests {
         let ring = 2.0 * CIVILIZATION_LATTICE.0;
         let bound = ring + INFLUENCE_REACH.0 + 3.0_f32.sqrt() * cluster_reach().0;
         let nodes = ((bound + CIVILIZATION_JITTER.0) / CIVILIZATION_LATTICE.0).ceil() as i32;
-        let medium = ceiling(1.0 / 3.0);
+        let medium = ship_ceiling(1.0 / 3.0);
         let (mut candidates, mut largest) = (0, Meters(0.0));
         for seed in 0..64 {
             let field = CivilizationField::new(seed);
@@ -3911,7 +4058,7 @@ pub(crate) mod tests {
                             continue;
                         }
                         candidates += 1;
-                        let cap = ceiling(civilization.advancement);
+                        let cap = ship_ceiling(civilization.advancement);
                         largest = largest.max(cap);
                         assert!(
                             cap < medium,

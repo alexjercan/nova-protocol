@@ -59,6 +59,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A cargo intake pulls a canister its hold has room for: 120 m at 8 m/s, wide intake 160 m at 10 m/s. Each canister in reach shows its tag and a pickup line. A jettisoned one is not pulled back.
 - Each civilization paints its generated ships, wrecks and stations in one of 15 palettes, reds included; the role sets the tone. Neighbours never share one. A bought hull keeps the seller's colours.
 - A civilization's palette also sets how many greebles its hulls carry and adds its own accent pieces. Civilian stripes, fins and doors now match their hull.
+- Each civilization builds its generated ships its own way: longer or stouter hulls, a waist or a shoulder, a pointed or a blunt bow, its own plating pattern. Smaller escort raiders keep their shape.
 
 ### Modding & Mod Portal
 
@@ -151,6 +152,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The wheel turned in the parts catalogue no longer zooms the Ship view when the catalogue closes. Before, all that travel zoomed it at once.
 - The Map panel names a GOTO on a body it does not plot, such as a scenario beacon, and its range. Before, it read `GOTO target lost` while the ship flew there.
 - The RCS magazine now refills while you hold Shift with your hand resting on the mouse. Before, each one-count tick of a resting mouse pushed the ship and restarted the 2 s refill delay.
+- Generated ships stay inside the 2,000-section limit. Before, a few large armored and industrial hulls at high advancement carried more.
 
 ## [0.18.0] - 2026-11-15
 

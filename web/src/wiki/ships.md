@@ -75,7 +75,10 @@ Rocks are the other exception, and they carve for real - see [Shooting rock](../
      `ShipPartSnapshot::palette`; base palettes and role tones:
      crates/nova_authoring/src/base_content/palettes.rs; station finish:
      station_layout.rs; greeble habit: crates/nova_ship/src/sections/
-     faction_palette.rs `SkinLook::worn_style`.
+     faction_palette.rs `SkinLook::worn_style`. Build doctrine per
+     civilization: crates/nova_world_base/src/build_doctrine.rs
+     `BuildDoctrine::of`; escort raiders (`ShipSizeType::Budget`) read only
+     its cube pattern: ship_layout.rs `Draw::plan`.
      Name, controller, allegiance, crew and lootable wreck:
      crates/nova_world/src/streaming.rs `spawn_sector_ship`. Window:
      crates/nova_world_base/src/lib.rs `OPEN_WORLD_SECTOR_EDGE`,
@@ -92,6 +95,8 @@ In a **New Game** world, the ships you meet are generated, not picked from a lis
 </div>
 
 Each role wears its own skin style, intact or wrecked, and each civilization paints its hulls in its own **palette**: one hue across its civilians, industrials, scavengers, armored ships, wrecks and stations. The role sets the tone: a civilian is light, an industrial matte, a scavenger dull, an armored ship dark. There are 15 palettes, from reds such as crimson, rust and maroon through ochre, greens and blues to a dark plum and a slate grey. Two neighbouring civilizations never share a palette, so a hull's colour tells you whose it is before the viewfinder does. A red hull is a faction colour, not a threat: the [HUD](../hud/) allegiance marker shows who is hostile. A palette also sets how busy a civilization's hulls are with greebles, and some add their own accent pieces. A wreck keeps its builder's colours, a hull you buy keeps the colours of the station that sold it, and the start hulls keep their own.
+
+Each civilization also **builds** its hulls its own way. One builds long and slim, another stout and broad; one pinches the mid-body to a waist, another swells it to a shoulder; one tapers to the stern, another keeps it full; one runs a long pointed bow, another a blunt one; and each favours one plating pattern: rings, a deck or a shell. The role still sets the size, so the shape tells you the builder and the size tells you the role. A wreck keeps its builder's shape. Escort and ambush raiders below the top band keep a plain build and wear only the plating pattern; in the top band they are the civilization's own scavengers.
 
 Every civilization is **living** or **extinct**. A living civilization's ships are intact. An extinct civilization leaves **derelict wrecks**: hulls at any orientation, with every section switched off except the hull and the docking ports. Dock with one and you can [strip](../interface/#the-ship) its sections into parts.
 
