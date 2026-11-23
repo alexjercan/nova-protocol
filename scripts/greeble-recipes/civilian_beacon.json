@@ -1,7 +1,7 @@
 {
   "_comment": "CIVILIAN kit: a NAVIGATION BEACON - a pale foot, a dark collar, a warm lens. Small, and the only piece placed by the pocket reading, so it clusters where a hull gets busy: round drive bays and gun wells. The lens shares the cabin windows' warm colour on purpose - the kit carries exactly two accents, cobalt for the paint and amber for anything lit, and nothing else.",
   "materials": {
-    "hull": { "color": [0.42, 0.42, 0.4], "metallic": 0.0, "roughness": 0.35 },
+    "hull": { "color": [1.0, 0.0, 1.0], "metallic": 0.0, "roughness": 0.35 },
     "shadow": { "color": [0.012, 0.013, 0.016], "metallic": 0.0, "roughness": 0.55 },
     "lamp": { "color": [0.89, 0.342, 0.027], "metallic": 0.0, "roughness": 0.35 }
   },

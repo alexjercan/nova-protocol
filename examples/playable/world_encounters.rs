@@ -250,16 +250,17 @@ fn generated_hull(
 fn encounters_scenario(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
     let ids = ["base"];
     let packs = nova_authoring::lint_walk::repo_ship_part_packs(&ids);
-    let snapshot = ShipPartSnapshot::build(&packs).unwrap_or_else(|faults| {
-        panic!(
-            "world_encounters: the snapshot of {ids:?} is refused:\n  {}",
-            faults
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n  ")
-        )
-    });
+    let snapshot = ShipPartSnapshot::build(&packs, &nova_authoring::generation::build_palettes())
+        .unwrap_or_else(|faults| {
+            panic!(
+                "world_encounters: the snapshot of {ids:?} is refused:\n  {}",
+                faults
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n  ")
+            )
+        });
     let civilization = CivilizationId {
         world_seed: WORLD_SEED,
         node: [0, 0, 0],

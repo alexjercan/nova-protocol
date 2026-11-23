@@ -570,13 +570,14 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference"],
         summary:
-            "The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the content items: campaigns, scenarios, sections, ships, styles, lessons, UI themes, items, recipes, consumables, and encounters.",
+            "The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the content items: campaigns, scenarios, sections, ships, styles, palettes, lessons, UI themes, items, recipes, consumables, and encounters.",
         related: [
             "campaigns",
             "scenarios",
             "sections",
             "ships",
             "styles",
+            "palettes",
             "lessons",
             "ui-themes",
             "objects",
@@ -750,6 +751,25 @@ const CREATE_PAGES = [
             "The TradeProfile item",
             "Overlay and lint",
             "Base trade profiles",
+        ],
+    },
+    {
+        slug: "palettes",
+        md: "palettes.md",
+        title: "Faction palettes for mods",
+        category: "Modding reference",
+        parent: "mod-files",
+        toc: true,
+        tags: ["modding", "reference", "ships"],
+        summary:
+            "Author the colours a civilization paints its generated hulls in: a plate finish per role and for stations, a greeble density, accent pieces, and the magenta key a greeble tints.",
+        related: ["styles", "ships", "base-content"],
+        headings: [
+            "How the world picks a palette",
+            "The Palette item",
+            "Greeble tint: the key colour",
+            "Lint",
+            "Using a palette",
         ],
     },
     {

@@ -15,7 +15,7 @@ use nova_scenario::prelude::{
     CampaignConfig, MusicTrackDesign, ScenarioConfig, ShipDesignPrototype, StartRole,
     StationDesignPrototype,
 };
-use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
+use nova_ship::prelude::{FactionPaletteConfig, SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
 
 pub(crate) mod assets;
@@ -26,6 +26,7 @@ pub(crate) mod items;
 pub(crate) mod lessons;
 pub(crate) mod market;
 pub(crate) mod music;
+pub(crate) mod palettes;
 pub(crate) mod recipes;
 pub(crate) mod scenarios;
 pub(crate) mod sections;
@@ -53,6 +54,7 @@ pub(crate) struct BaseContent {
     pub(crate) scenarios: Vec<ScenarioConfig>,
     pub(crate) campaigns: Vec<CampaignConfig>,
     pub(crate) styles: Vec<ShipStyleConfig>,
+    pub(crate) palettes: Vec<FactionPaletteConfig>,
     pub(crate) lessons: Vec<Lesson>,
 }
 
@@ -74,6 +76,7 @@ pub(crate) fn build() -> BaseContent {
         scenarios: scenarios::catalog(&assets),
         campaigns: campaigns::campaign_catalog(),
         styles: styles::style_catalog(&assets),
+        palettes: palettes::palette_catalog(),
         lessons: lessons::lesson_catalog(),
     }
 }

@@ -229,7 +229,7 @@ fn station_void(round: Round, game_assets: &GameAssets, sections: &GameSections)
 fn generated_hull() -> ShipDesign {
     let ids = ["base"];
     let packs = nova_authoring::lint_walk::repo_ship_part_packs(&ids);
-    let snapshot = ShipPartSnapshot::build(&packs)
+    let snapshot = ShipPartSnapshot::build(&packs, &nova_authoring::generation::build_palettes())
         .unwrap_or_else(|faults| panic!("station add: the base snapshot is refused: {faults:?}"));
     let role = ShipRoleType::Armored;
     let civilization = CivilizationId {

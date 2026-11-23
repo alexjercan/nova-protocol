@@ -36,6 +36,13 @@ candidate kits are built on top of these, and grafting the trim from one look
 onto the vents of another has to stay a RECIPE merge rather than a mesh-code
 merge.
 
+Hull KEY colour: a part whose colour is pure magenta `[1.0, 0.0, 1.0]` is the
+part a hull colours. At spawn the game replaces that material with the hull's
+top finish (the faction palette's, or the style's own), so a stripe or a fin
+matches the plate it stands on. The style fixture that places such a piece
+must say `tint: Hull`, and one with no magenta part `tint: Baked`; content lint
+reads the `.glb` and refuses either mismatch.
+
 Solids compose by OVERLAP, not by CSG: a rib sunk into its base plate keeps
 both sets of faces and the buried ones are simply never seen. Flat-shaded,
 low-poly and untextured, matching the shipped ship parts (52-251 triangles

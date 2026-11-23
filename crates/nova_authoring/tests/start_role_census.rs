@@ -39,8 +39,8 @@ use bevy::{
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectionPacks};
 use nova_authoring::{
     generation::{
-        build_consumables, build_items, build_price_table, build_section_catalog, build_ships,
-        build_start_roles, build_styles, build_trade_profiles,
+        build_consumables, build_items, build_palettes, build_price_table, build_section_catalog,
+        build_ships, build_start_roles, build_styles, build_trade_profiles,
     },
     lint_walk::repo_ship_part_packs,
 };
@@ -498,7 +498,7 @@ fn catalog() -> Catalog {
     };
     let generator = NovaLayeredWorld::from_loaded(
         &loaded,
-        &GameStyles(build_styles()),
+        &GameStyles::new(build_styles(), build_palettes()),
         &items,
         &GameConsumables::new(build_consumables()),
         &GameTradeProfiles(

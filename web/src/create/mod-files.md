@@ -2,8 +2,9 @@
 
 A Nova Protocol mod is a folder that contains one bundle manifest, one or more
 content files, and any art or audio that the mod owns. Content files can define
-sixteen kinds of reusable item: campaigns, scenarios, ship sections, whole
-ships, stations, ship skin styles, training lessons, UI themes, items, start
+seventeen kinds of reusable item: campaigns, scenarios, ship sections, whole
+ships, stations, ship skin styles, faction palettes, training lessons, UI
+themes, items, start
 roles, price tables, trade profiles, recipes, consumables, encounters, and
 music tracks.
 
@@ -165,7 +166,7 @@ content is rebalanced, prune the entry.
 ## Content files
 
 Every `*.content.ron` file is a RON list. One file may contain any mix of the
-sixteen item kinds:
+seventeen item kinds:
 
 ```ron
 [
@@ -526,6 +527,9 @@ Lint, then load, refuse a pack whose track:
   and a kit of credits and items.
 - A [style](../styles/) defines the look a ship's derived cladding wears: the
   two plate surfaces, and the destructible decoration placed on them.
+- A [palette](../palettes/) is the colours one civilization paints its
+  generated hulls in, a finish per role and for stations, and its greeble
+  habit.
 - A [lesson](../lessons/) is one screen of the in-game training handbook: a
   demonstration, a few lines, the actions it names, and sometimes a focused
   range to fly.

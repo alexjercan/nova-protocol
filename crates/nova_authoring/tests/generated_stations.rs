@@ -7,7 +7,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use nova_authoring::{
-    generation::{build_consumables, build_items, build_section_catalog, build_styles},
+    generation::{
+        build_consumables, build_items, build_palettes, build_section_catalog, build_styles,
+    },
     lint_walk::repo_ship_part_packs,
 };
 use nova_events::prelude::Meters3;
@@ -50,12 +52,12 @@ const CIVILIZATIONS: [CivilizationId; 3] = [
 /// passes the station lint with no error.
 #[test]
 fn every_base_station_passes_the_station_lint_at_every_advancement() {
-    let parts = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+    let parts = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]), &build_palettes())
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
     let catalog = build_section_catalog();
     let sections = KnownSections::from_configs(catalog.iter());
     let items = GameItems::new(build_items());
-    let styles = GameStyles(build_styles());
+    let styles = GameStyles::new(build_styles(), build_palettes());
     for id in CIVILIZATIONS {
         for archetype in StationArchetypeType::ALL {
             for advancement in [0.0, 0.25, 0.5, 0.75, 1.0] {
@@ -118,7 +120,7 @@ fn every_base_station_passes_the_station_lint_at_every_advancement() {
 /// torpedo too.
 #[test]
 fn a_seeded_station_stocks_its_known_weapons_ammunition_within_its_hold() {
-    let parts = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+    let parts = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]), &build_palettes())
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
     let sections = GameSections(build_section_catalog());
     let items = GameItems::new(build_items());
@@ -210,7 +212,7 @@ fn a_seeded_station_stocks_its_known_weapons_ammunition_within_its_hold() {
 /// PDC needs.
 #[test]
 fn every_base_station_stocks_one_recipe_of_every_part_it_builds() {
-    let parts = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+    let parts = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]), &build_palettes())
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
     let sections = GameSections(build_section_catalog());
     let items = GameItems::new(build_items());
@@ -286,7 +288,7 @@ fn every_base_station_stocks_one_recipe_of_every_part_it_builds() {
 /// civilization at advancement 0.5 that knows the lance lists it.
 #[test]
 fn a_generated_station_builds_what_its_civilization_knows_and_no_more() {
-    let parts = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+    let parts = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]), &build_palettes())
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
     let items = GameItems::new(build_items());
     let station = |id: CivilizationId, advancement: f32| {
@@ -378,7 +380,7 @@ const SECOND_TIER: [(&str, &str); 6] = [
 /// section the player already flies.
 #[test]
 fn generated_stations_build_second_tier_sections_that_swap_for_their_base() {
-    let parts = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+    let parts = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]), &build_palettes())
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
     let catalog = build_section_catalog();
     let items = GameItems::new(build_items());

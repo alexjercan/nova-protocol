@@ -1812,7 +1812,10 @@ pub(crate) fn hull_components(design: &ResolvedShipDesign) -> impl Bundle {
     (
         collapse_threshold,
         ShipSkin(presentation.skin),
-        ShipStyle(presentation.style.clone()),
+        ShipStyle {
+            style: presentation.style.clone(),
+            palette: presentation.palette.clone(),
+        },
         ShipCollapseSound(presentation.collapse_sound.clone()),
         ShipFeedbackSounds {
             lock_on: presentation.lock_on_sound.clone(),

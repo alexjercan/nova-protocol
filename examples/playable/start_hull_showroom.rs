@@ -224,7 +224,7 @@ fn read_the_stage(
     let Some(styles) = styles else { return };
     let up = q_root.iter().find_map(|(id, worn)| {
         let hull = HULLS.iter().position(|(hull, _)| stage_id(hull) == id.0)?;
-        Some((hull, worn.resolve(&styles)?.id.clone()))
+        Some((hull, worn.resolve(&styles)?.style.id.clone()))
     });
     *staged = match up {
         Some((hull, style)) => Staged {

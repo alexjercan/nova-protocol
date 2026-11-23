@@ -31,9 +31,10 @@ pub fn generated_station_design(
             sections: pack.sections.clone(),
         })
         .collect();
-    let snapshot = ShipPartSnapshot::build(&packs).unwrap_or_else(|faults| {
-        panic!("generated station: the loaded parts are refused: {faults:?}")
-    });
+    let snapshot = ShipPartSnapshot::build(&packs, &nova_authoring::generation::build_palettes())
+        .unwrap_or_else(|faults| {
+            panic!("generated station: the loaded parts are refused: {faults:?}")
+        });
     let civilization = Civilization {
         id: CivilizationId {
             world_seed: seed,

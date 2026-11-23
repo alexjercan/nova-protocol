@@ -29,6 +29,9 @@
         "music/base.content.ron",
         "sections/base.content.ron",
         "styles/base.content.ron",
+        // The hull colours the world generator deals to civilizations; read
+        // after the styles, whose fixtures their accents name.
+        "palettes/base.content.ron",
         "ships/base.content.ron",
         "stations/base.content.ron",
         "roles/base.content.ron",

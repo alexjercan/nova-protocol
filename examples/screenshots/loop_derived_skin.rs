@@ -114,7 +114,7 @@ fn derive_showcase_skin(world: &mut World) {
         .expect("the showcase ship is loaded");
     world
         .entity_mut(root)
-        .insert((ShipSkin(true), ShipStyle(Some("industrial".to_string()))));
+        .insert((ShipSkin(true), ShipStyle::plain("industrial")));
 
     // Skin derivation reacts when section geometry becomes available. Reinsert
     // the unchanged authored link points to run that production spawn path over

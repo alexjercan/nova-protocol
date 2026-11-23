@@ -1,7 +1,7 @@
 {
   "_comment": "CIVILIAN kit: a FLUSH DOOR - a hull-coloured leaf standing 8 mm proud of a cobalt outline, a recessed dark handle, and an amber dome light on its own pad at the head. The industrial hatch is a wheel and bolts; a sold ship's door is a painted OUTLINE, because the customer is meant to find it and never to service it. The dome light is the one lit thing, and it is amber because everything lit in this kit is.",
   "materials": {
-    "hull": { "color": [0.42, 0.42, 0.4], "metallic": 0.0, "roughness": 0.35 },
+    "hull": { "color": [1.0, 0.0, 1.0], "metallic": 0.0, "roughness": 0.35 },
     "accent": { "color": [0.01, 0.1, 0.38], "metallic": 0.0, "roughness": 0.3 },
     "shadow": { "color": [0.012, 0.013, 0.016], "metallic": 0.0, "roughness": 0.55 },
     "lamp": { "color": [0.89, 0.342, 0.027], "metallic": 0.0, "roughness": 0.35 }

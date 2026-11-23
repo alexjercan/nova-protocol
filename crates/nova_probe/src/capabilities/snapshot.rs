@@ -1228,10 +1228,14 @@ fn skin_index(world: &World, root: Entity) -> Option<SkinIndex> {
     if structure.is_empty() {
         return None;
     }
-    let style = world
+    // The style as the live ship wears it: its palette's greeble habit
+    // applied, so the index reads the pieces the spawn solved.
+    let worn = world
         .get::<ShipStyle>(root)
         .zip(world.get_resource::<GameStyles>())
-        .and_then(|(worn, styles)| worn.resolve(styles));
+        .and_then(|(worn, styles)| worn.resolve(styles))
+        .map(|look| look.worn_style());
+    let style = worn.as_deref();
     let mut plates = derive_skin(&structure);
     let decor = style.map_or_else(Vec::new, |style| {
         solve_decor(&structure, &mut plates, style)

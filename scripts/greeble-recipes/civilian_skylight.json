@@ -1,7 +1,7 @@
 {
   "_comment": "CIVILIAN kit: a glazed SKYLIGHT STRIP - a hull-coloured frame, a dark glazing channel, four warm panes standing 2 mm proud of it. The cabin window row says people are carried; this is the same claim made to a viewer looking DOWN on the hull, which is where a bench render and a chase camera both sit. Long on Z and aligned to the run so consecutive strips read as one cabin line down the spine. The panes share the kit's amber because they are lit and nothing else here is.",
   "materials": {
-    "hull": { "color": [0.42, 0.42, 0.4], "metallic": 0.0, "roughness": 0.35 },
+    "hull": { "color": [1.0, 0.0, 1.0], "metallic": 0.0, "roughness": 0.35 },
     "shadow": { "color": [0.012, 0.013, 0.016], "metallic": 0.0, "roughness": 0.55 },
     "lamp": { "color": [0.89, 0.342, 0.027], "metallic": 0.0, "roughness": 0.35 }
   },

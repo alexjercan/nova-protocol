@@ -91,7 +91,8 @@ pub fn fixture_loaded() -> LoadedSectionPacks {
 }
 
 /// One style for each role's [`role_style_id`] and each station archetype's
-/// [`StationArchetypeType::style_id`].
+/// [`StationArchetypeType::style_id`], and the fixture palettes a generated
+/// hull names.
 pub fn fixture_styles() -> GameStyles {
     let mut ids: Vec<&str> = ShipRoleType::ALL.into_iter().map(role_style_id).collect();
     ids.extend(
@@ -101,13 +102,14 @@ pub fn fixture_styles() -> GameStyles {
     );
     ids.sort_unstable();
     ids.dedup();
-    GameStyles(
+    GameStyles::new(
         ids.into_iter()
             .map(|id| ShipStyleConfig {
                 id: id.to_string(),
                 ..default()
             })
             .collect(),
+        crate::ship_layout::fixture::palettes(),
     )
 }
 

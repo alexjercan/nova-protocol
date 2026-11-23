@@ -34,8 +34,8 @@ use std::{
 use bevy::prelude::{Quat, UVec3, Vec3};
 use nova_gameplay::prelude::{CivilizationId, Fnv32, Fnv64, SeedStream, ShipRoleType};
 use nova_ship::prelude::{
-    cell_grid_fit, oriented_part, CellGridFault, SectionCollider, SectionConfig, SectionKind,
-    TurretJoint, GRID_EPSILON,
+    cell_grid_fit, oriented_part, CellGridFault, FactionPaletteConfig, FactionPaletteDesignId,
+    SectionCollider, SectionConfig, SectionKind, TurretJoint, GRID_EPSILON, MIN_FACTION_PALETTES,
 };
 
 use crate::station_layout::StationArchetypeType;
@@ -43,7 +43,7 @@ use crate::station_layout::StationArchetypeType;
 /// The version of the canonical form [`ShipPartSnapshot::content_hash`]
 /// reads. Change it with any change to what the hash covers or how it is
 /// written, so an old pin cannot match a new form.
-const SHIP_PART_HASH_VERSION: u32 = 1;
+const SHIP_PART_HASH_VERSION: u32 = 2;
 
 /// The chance that a civilization knows one part open above advancement 0,
 /// drawn once per civilization and part, see [`ShipPartSnapshot::known`].
@@ -268,6 +268,12 @@ pub enum ShipPartFault {
         /// The family: hull, flight computer, docking port or turret.
         family: ShipPartFamilyType,
     },
+    /// The palette catalog is too small to give each of a civilization's 26
+    /// lattice neighbours a palette other than its own.
+    TooFewPalettes {
+        /// How many distinct palettes were given.
+        count: usize,
+    },
 }
 
 impl fmt::Display for ShipPartFault {
@@ -318,6 +324,11 @@ impl fmt::Display for ShipPartFault {
                 "no {family} part a station may carry at advancement 0: every generated \
                  station needs one"
             ),
+            Self::TooFewPalettes { count } => write!(
+                f,
+                "{count} faction palettes are loaded; the open world deals one per civilization \
+                 and needs at least {MIN_FACTION_PALETTES} so no neighbours share one"
+            ),
         }
     }
 }
@@ -328,15 +339,27 @@ pub struct ShipPartSnapshot {
     sources: Vec<String>,
     parts: Vec<ShipPart>,
     excluded: BTreeMap<String, ShipPartExclusionType>,
+    palettes: Vec<FactionPaletteDesignId>,
     content_hash: u64,
 }
 
 impl ShipPartSnapshot {
     /// Validate `packs` as one effective catalog, in any order, and collect
-    /// its usable parts. Returns every pack, definition and stat fault, not
-    /// only the first; family floors are checked once those are clear.
-    pub fn build(packs: &[ShipPartPack]) -> Result<Self, Vec<ShipPartFault>> {
+    /// its usable parts, with the ids of the faction `palettes` the world
+    /// deals to its civilizations. Returns every pack, definition, stat and
+    /// palette fault, not only the first; family floors are checked once
+    /// those are clear.
+    pub fn build(
+        packs: &[ShipPartPack],
+        palettes: &[FactionPaletteConfig],
+    ) -> Result<Self, Vec<ShipPartFault>> {
         let mut faults = Vec::new();
+        let palettes: Vec<FactionPaletteDesignId> = palettes
+            .iter()
+            .map(|palette| palette.id.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
 
         let mut by_id: BTreeMap<&str, &ShipPartPack> = BTreeMap::new();
         for pack in packs {
@@ -465,6 +488,11 @@ impl ShipPartSnapshot {
                 faults.push(ShipPartFault::MissingFamily(family));
             }
         }
+        if palettes.len() < MIN_FACTION_PALETTES {
+            faults.push(ShipPartFault::TooFewPalettes {
+                count: palettes.len(),
+            });
+        }
 
         if !faults.is_empty() {
             return Err(faults);
@@ -473,8 +501,31 @@ impl ShipPartSnapshot {
             sources: by_id.keys().map(|id| id.to_string()).collect(),
             parts,
             excluded,
-            content_hash: content_hash(&effective),
+            content_hash: content_hash(&effective, &palettes),
+            palettes,
         })
+    }
+
+    /// The faction palette `civilization` wears: `order[(x + 2y + 4z) mod N]`
+    /// on its lattice node, where `order` is the sorted palette ids shuffled
+    /// once per world seed. Over `N >= 8` palettes the 26 lattice neighbours
+    /// of a node all land on other entries, so no two neighbours share one.
+    pub fn palette(&self, civilization: CivilizationId) -> &FactionPaletteDesignId {
+        let mut order: Vec<&FactionPaletteDesignId> = self.palettes.iter().collect();
+        let mut stream = SeedStream::new(
+            Fnv32::new()
+                .write(&civilization.world_seed.to_le_bytes())
+                .write(b"palette order")
+                .finish(),
+        );
+        for i in (1..order.len()).rev() {
+            let j = stream.next_u32() as usize % (i + 1);
+            order.swap(i, j);
+        }
+        let [x, y, z] = civilization.node;
+        let slot = (i64::from(x) + 2 * i64::from(y) + 4 * i64::from(z))
+            .rem_euclid(order.len() as i64) as usize;
+        order[slot]
     }
 
     /// Every pack id, sorted. Each is one source a generator weighs equally.
@@ -820,14 +871,18 @@ fn for_each_muzzle_rate(joint: &TurretJoint, visit: &mut impl FnMut(f32)) {
 }
 
 /// FNV-1a 64 over the version, then every effective section in id order as
-/// its id, its source and its RON form, each closed by a zero byte.
-fn content_hash(effective: &[(&str, &SectionConfig)]) -> u64 {
+/// its id, its source and its RON form, then every palette id in order, each
+/// closed by a zero byte.
+fn content_hash(effective: &[(&str, &SectionConfig)], palettes: &[FactionPaletteDesignId]) -> u64 {
     let mut hash = Fnv64::new().write(&SHIP_PART_HASH_VERSION.to_le_bytes());
     for (source, config) in effective {
         let canonical = ron::to_string(config).expect("a section config serializes to RON");
         for field in [config.base.id.as_str(), source, canonical.as_str()] {
             hash = hash.write(field.as_bytes()).write(&[0]);
         }
+    }
+    for palette in palettes {
+        hash = hash.write(palette.as_str().as_bytes()).write(&[0]);
     }
     hash.finish()
 }
@@ -843,6 +898,62 @@ mod tests {
     };
 
     use super::*;
+
+    /// No two of a civilization's 26 lattice neighbours wear its palette, over
+    /// any world seed and any node, with the fewest palettes a snapshot
+    /// takes; and one civilization wears one palette however often it asks.
+    #[test]
+    fn neighbour_civilizations_never_share_a_palette() {
+        let snapshot = ShipPartSnapshot::build(
+            &crate::ship_layout::fixture::packs(),
+            &crate::ship_layout::fixture::palettes(),
+        )
+        .expect("the packs build");
+        for world_seed in [0, 7, 0xdead_beef] {
+            for node in [[0, 0, 0], [3, -5, 2], [-40, 17, -9], [1000, -1000, 77]] {
+                let id = CivilizationId { world_seed, node };
+                let own = snapshot.palette(id);
+                assert_eq!(own, snapshot.palette(id), "{id:?} changed palette");
+                for dx in -1..=1 {
+                    for dy in -1..=1 {
+                        for dz in -1..=1 {
+                            if (dx, dy, dz) == (0, 0, 0) {
+                                continue;
+                            }
+                            let neighbour = CivilizationId {
+                                world_seed,
+                                node: [
+                                    node[0].wrapping_add(dx),
+                                    node[1].wrapping_add(dy),
+                                    node[2].wrapping_add(dz),
+                                ],
+                            };
+                            assert_ne!(
+                                own,
+                                snapshot.palette(neighbour),
+                                "{id:?} shares a palette with {neighbour:?}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// A catalog with fewer palettes than the lattice needs refuses to arm.
+    #[test]
+    fn a_catalog_with_too_few_palettes_is_refused() {
+        let mut palettes = crate::ship_layout::fixture::palettes();
+        palettes.pop();
+        let faults = ShipPartSnapshot::build(&crate::ship_layout::fixture::packs(), &palettes)
+            .expect_err("the catalog is refused");
+        assert!(
+            faults.contains(&ShipPartFault::TooFewPalettes {
+                count: MIN_FACTION_PALETTES - 1
+            }),
+            "{faults:?}"
+        );
+    }
 
     /// A one-cell section open at advancement 0 with the common draw weight
     /// and a socket on each of `faces`.
@@ -938,7 +1049,8 @@ mod tests {
     }
 
     fn faults(packs: &[ShipPartPack]) -> Vec<ShipPartFault> {
-        ShipPartSnapshot::build(packs).expect_err("the packs are refused")
+        ShipPartSnapshot::build(packs, &crate::ship_layout::fixture::palettes())
+            .expect_err("the packs are refused")
     }
 
     #[test]
@@ -953,8 +1065,10 @@ mod tests {
             pack("drives", &["base"], vec![thruster("big_drive", 9.0)]),
             pack("base", &[], reversed),
         ];
-        let forward = ShipPartSnapshot::build(&forward).expect("the forward packs build");
-        let backward = ShipPartSnapshot::build(&backward).expect("the backward packs build");
+        let forward = ShipPartSnapshot::build(&forward, &crate::ship_layout::fixture::palettes())
+            .expect("the forward packs build");
+        let backward = ShipPartSnapshot::build(&backward, &crate::ship_layout::fixture::palettes())
+            .expect("the backward packs build");
 
         assert_eq!(forward.content_hash(), backward.content_hash());
         assert_eq!(forward.parts(), backward.parts());
@@ -979,11 +1093,14 @@ mod tests {
             }]
         );
 
-        let chained = ShipPartSnapshot::build(&[
-            pack("right", &["left"], overlay()),
-            pack("left", &["base"], overlay()),
-            pack("base", &[], floor()),
-        ])
+        let chained = ShipPartSnapshot::build(
+            &[
+                pack("right", &["left"], overlay()),
+                pack("left", &["base"], overlay()),
+                pack("base", &[], floor()),
+            ],
+            &crate::ship_layout::fixture::palettes(),
+        )
         .expect("a dependency chain overlays");
         let drive = chained
             .parts()
@@ -1116,7 +1233,9 @@ mod tests {
             vec![pack("base", &[], sections)]
         };
 
-        let snapshot = ShipPartSnapshot::build(&twin(3.0)).expect("the packs build");
+        let snapshot =
+            ShipPartSnapshot::build(&twin(3.0), &crate::ship_layout::fixture::palettes())
+                .expect("the packs build");
         assert!(snapshot.parts().iter().any(|part| part.id() == "twin"));
 
         assert_eq!(
@@ -1140,8 +1259,11 @@ mod tests {
         };
         let mut sections = floor();
         sections.push(tiered("rare_drive", 0.5, 0.1));
-        let snapshot =
-            ShipPartSnapshot::build(&[pack("base", &[], sections)]).expect("the packs build");
+        let snapshot = ShipPartSnapshot::build(
+            &[pack("base", &[], sections)],
+            &crate::ship_layout::fixture::palettes(),
+        )
+        .expect("the packs build");
         let rare = snapshot
             .parts()
             .iter()
@@ -1216,8 +1338,11 @@ mod tests {
         let mut late = thruster("late_drive", 20.0);
         late.base.advancement = 0.5;
         sections.push(late);
-        let snapshot =
-            ShipPartSnapshot::build(&[pack("base", &[], sections)]).expect("the packs build");
+        let snapshot = ShipPartSnapshot::build(
+            &[pack("base", &[], sections)],
+            &crate::ship_layout::fixture::palettes(),
+        )
+        .expect("the packs build");
         let at_zero: BTreeSet<&str> = snapshot
             .parts()
             .iter()
@@ -1356,8 +1481,11 @@ mod tests {
 
         let mut only_socketless = floor();
         only_socketless.push(socketless_bay);
-        let snapshot = ShipPartSnapshot::build(&[pack("base", &[], only_socketless)])
-            .expect("a socketless part is excluded, not faulted, so the catalog still builds");
+        let snapshot = ShipPartSnapshot::build(
+            &[pack("base", &[], only_socketless)],
+            &crate::ship_layout::fixture::palettes(),
+        )
+        .expect("a socketless part is excluded, not faulted, so the catalog still builds");
         assert_eq!(
             snapshot.excluded().get("socketless_bay"),
             Some(&ShipPartExclusionType::MissingLinks)

@@ -113,6 +113,7 @@ fn blank_content(kind: &str, section: Option<&str>) -> Result<Content, String> {
         }),
         "campaign" => Content::Campaign(blank()?),
         "style" => Content::Style(blank()?),
+        "palette" => Content::Palette(blank()?),
         "ui theme" => Content::UiTheme(Box::new(blank()?)),
         "item" => Content::Item(blank()?),
         "start role" => Content::StartRole(blank()?),

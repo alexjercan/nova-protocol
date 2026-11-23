@@ -26,6 +26,7 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::AssetRef;
 
 use crate::sections::{
+    faction_palette::{FactionPaletteConfig, FactionPaletteDesignId, ShipPaletteConfig, SkinLook},
     greeble_solver::{CompiledGreebleRules, GreebleDesignId, GreebleRules, GreebleRulesError},
     shell_shape::ShellSurface,
 };
@@ -34,8 +35,8 @@ use crate::sections::{
 /// component that names one.
 pub mod prelude {
     pub use super::{
-        GameStyles, ShipStyle, ShipStyleConfig, StyleFixtureConfig, StyleGreebleError,
-        StyleGreebles, StylePalette, SurfaceFinish, DECOR_DENSITY,
+        DecorTintType, GameStyles, ShipStyle, ShipStyleConfig, StyleFixtureConfig,
+        StyleGreebleError, StyleGreebles, StylePalette, SurfaceFinish, DECOR_DENSITY,
     };
 }
 
@@ -147,6 +148,24 @@ pub struct StyleFixtureConfig {
     /// Authored because a headless simulation never loads the model these bounds
     /// could otherwise be read from.
     pub collider: Vec3,
+    /// Whether the model's key-coloured slots take the hull's colour. Content
+    /// lint reads the model and refuses a piece whose recipe paints the key
+    /// ([`DECOR_KEY_COLOR`](super::faction_palette::DECOR_KEY_COLOR)) and says
+    /// `Baked`, or says `Hull` and paints no key.
+    pub tint: DecorTintType,
+}
+
+/// What a decoration's key-coloured slots are painted with at spawn.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum DecorTintType {
+    /// The model has no key slot: it keeps the colours its recipe baked.
+    #[default]
+    Baked,
+    /// Every key slot takes the top finish the hull wears: the palette's for
+    /// the hull's role, or the style's own when the hull names no palette. A
+    /// piece that finds no hull to follow keeps the key magenta.
+    Hull,
 }
 
 impl ShipStyleConfig {
@@ -281,44 +300,95 @@ impl std::fmt::Display for StyleGreebleError {
 
 impl std::error::Error for StyleGreebleError {}
 
-/// The loaded catalog of authored styles, filled by the mod merge exactly as the
-/// section catalog is. Look one up by id with [`get_style`](GameStyles::get_style).
+/// The loaded look catalog: the authored styles and the faction palettes over
+/// them, filled by the mod merge exactly as the section catalog is. Look one up
+/// by id with [`get_style`](GameStyles::get_style) or
+/// [`get_palette`](GameStyles::get_palette).
+///
+/// One catalog and not two, because a look is resolved from both at once
+/// ([`ShipStyle::resolve`]) and a palette's accent pieces name style fixtures.
+/// Dereferences to the styles.
 #[derive(Resource, Clone, Debug, Deref, DerefMut, Default)]
-pub struct GameStyles(pub Vec<ShipStyleConfig>);
+pub struct GameStyles {
+    /// The styles, in catalog order.
+    #[deref]
+    pub styles: Vec<ShipStyleConfig>,
+    /// The faction palettes, in catalog order.
+    pub palettes: Vec<FactionPaletteConfig>,
+}
 
 impl GameStyles {
+    /// A catalog of `styles` and `palettes`.
+    pub fn new(styles: Vec<ShipStyleConfig>, palettes: Vec<FactionPaletteConfig>) -> Self {
+        Self { styles, palettes }
+    }
+
     /// The style with this id, or `None` if nothing authored it.
     pub fn get_style(&self, id: &str) -> Option<&ShipStyleConfig> {
-        self.0.iter().find(|style| style.id == id)
+        self.styles.iter().find(|style| style.id == id)
+    }
+
+    /// The palette with this id, or `None` if nothing authored it.
+    pub fn get_palette(&self, id: &FactionPaletteDesignId) -> Option<&FactionPaletteConfig> {
+        self.palettes.iter().find(|palette| &palette.id == id)
     }
 }
 
-/// The style a ship's skin wears, by id.
+/// The look a ship's skin wears: a style by id, and the faction palette over
+/// it.
 ///
 /// On the ship ROOT, beside [`ShipSkin`](super::shell_skin::ShipSkin), because a
-/// style is a property of the ship and not of any one plate. `None` is the
-/// undressed derivation: built-in plate colours and no decoration at all.
-#[derive(Component, Clone, Default, Debug, PartialEq, Eq, Reflect)]
+/// look is a property of the ship and not of any one plate. A `None` style is
+/// the undressed derivation: built-in plate colours and no decoration at all. A
+/// `None` palette is the style's own palette and greebles: start hulls,
+/// scenario ships and the editor.
+#[derive(Component, Clone, Default, Debug, PartialEq, Eq, Hash, Reflect)]
 #[reflect(Component)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
-pub struct ShipStyle(pub Option<String>);
+pub struct ShipStyle {
+    /// The style id, or `None` for the undressed derivation.
+    pub style: Option<String>,
+    /// The palette and which of its finishes, or `None` for the style's own.
+    pub palette: Option<ShipPaletteConfig>,
+}
 
 impl ShipStyle {
-    /// The style this ship wears, out of `styles`, or `None` when the ship names
-    /// none.
+    /// The style `id` with its own palette.
+    pub fn plain(id: impl Into<String>) -> Self {
+        Self {
+            style: Some(id.into()),
+            palette: None,
+        }
+    }
+
+    /// The look this ship wears, out of `styles`, or `None` when the ship names
+    /// no style. A palette with no style dresses nothing.
     ///
     /// # Panics
     ///
-    /// When the ship names a style `styles` lacks: the design lint refuses
-    /// an unknown style, so a miss here is a catalog the lint never saw.
-    pub fn resolve<'a>(&self, styles: &'a GameStyles) -> Option<&'a ShipStyleConfig> {
-        let id = self.0.as_deref()?;
-        Some(
-            styles
-                .get_style(id)
-                .unwrap_or_else(|| panic!("ShipStyle::resolve: style '{id}' is not in GameStyles")),
-        )
+    /// When the ship names a style or a palette `styles` lacks: the design
+    /// lint refuses an unknown id, so a miss here is a catalog the lint never
+    /// saw.
+    pub fn resolve<'a>(&self, styles: &'a GameStyles) -> Option<SkinLook<'a>> {
+        let id = self.style.as_deref()?;
+        let style = styles
+            .get_style(id)
+            .unwrap_or_else(|| panic!("ShipStyle::resolve: style '{id}' is not in GameStyles"));
+        let palette = self.palette.as_ref().map(|palette| {
+            let config = styles.get_palette(&palette.id).unwrap_or_else(|| {
+                panic!(
+                    "ShipStyle::resolve: palette '{}' is not in GameStyles",
+                    palette.id
+                )
+            });
+            (config, palette.role)
+        });
+        Some(SkinLook {
+            catalog: styles,
+            style,
+            palette,
+        })
     }
 }
 
@@ -354,6 +424,7 @@ pub(crate) fn block_style(collider: Vec3) -> ShipStyleConfig {
             model: AssetRef::from("self://gltf/greebles/placeholder_block.glb#Scene0".to_string()),
             health: 10.0,
             collider,
+            tint: DecorTintType::Baked,
         }],
         greeble_rules: GreebleRules {
             link_types: vec![GreebleLinkConfig {
@@ -433,22 +504,25 @@ mod tests {
     /// A style resolves by id rather than to whatever happened to be first.
     #[test]
     fn a_ship_resolves_its_style_by_id() {
-        let styles = GameStyles(vec![
-            ShipStyleConfig {
-                id: "raider".to_string(),
-                ..default()
-            },
-            ShipStyleConfig {
-                id: "clean".to_string(),
-                ..default()
-            },
-        ]);
+        let styles = GameStyles::new(
+            vec![
+                ShipStyleConfig {
+                    id: "raider".to_string(),
+                    ..default()
+                },
+                ShipStyleConfig {
+                    id: "clean".to_string(),
+                    ..default()
+                },
+            ],
+            Vec::new(),
+        );
 
-        let worn = ShipStyle(Some("clean".to_string()));
+        let worn = ShipStyle::plain("clean");
         assert_eq!(
-            worn.resolve(&styles).map(|style| style.id.as_str()),
+            worn.resolve(&styles).map(|look| look.style.id.as_str()),
             Some("clean")
         );
-        assert!(ShipStyle(None).resolve(&styles).is_none());
+        assert!(ShipStyle::default().resolve(&styles).is_none());
     }
 }

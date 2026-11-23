@@ -2581,7 +2581,7 @@ mod physics_tests {
         app.add_plugins(EntropyPlugin::<WyRand>::default());
         app.finish();
 
-        let style = ShipStyle(Some("industrial".to_string()));
+        let style = ShipStyle::plain("industrial");
         let root = app
             .world_mut()
             .spawn((

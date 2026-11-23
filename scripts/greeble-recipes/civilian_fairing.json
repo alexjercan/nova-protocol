@@ -1,7 +1,7 @@
 {
   "_comment": "CIVILIAN kit: a smooth FAIRING - two stacked 12-sided frusta on a cobalt base ring. This is the brief's 'machinery tucked out of sight': where an industrial hull would show a radiator or a pipe run, a ship built to be sold puts a shell over it. Twelve sides rather than eight because the whole point of the piece is that it reads as ROUND against flat panelling.",
   "materials": {
-    "hull": { "color": [0.42, 0.42, 0.4], "metallic": 0.0, "roughness": 0.35 },
+    "hull": { "color": [1.0, 0.0, 1.0], "metallic": 0.0, "roughness": 0.35 },
     "accent": { "color": [0.01, 0.1, 0.38], "metallic": 0.0, "roughness": 0.3 }
   },
   "material": "hull",

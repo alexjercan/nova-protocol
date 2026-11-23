@@ -123,9 +123,10 @@ const LOAD_SECS: f32 = 900.0;
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let packs = nova_authoring::lint_walk::repo_ship_part_packs(&["base"]);
-    let snapshot = ShipPartSnapshot::build(&packs).unwrap_or_else(|faults| {
-        panic!("generated scale: the base snapshot is refused: {faults:?}")
-    });
+    let snapshot = ShipPartSnapshot::build(&packs, &nova_authoring::generation::build_palettes())
+        .unwrap_or_else(|faults| {
+            panic!("generated scale: the base snapshot is refused: {faults:?}")
+        });
     let field = CivilizationField::new(WORLD_SEED);
     let hulls: Vec<(String, String, ShipDesign)> = BANDS
         .iter()

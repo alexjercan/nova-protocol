@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 use bevy::prelude::*;
 use nova_gameplay::asset_ref::AssetRef;
 use nova_ship::prelude::{
-    SectionConfig, SectionKind, SectionPatchError, DEFAULT_WARN_HULL_FRACTION,
+    SectionConfig, SectionKind, SectionPatchError, ShipPaletteConfig, DEFAULT_WARN_HULL_FRACTION,
 };
 
 use crate::objects::spaceship::prelude::{
@@ -144,6 +144,16 @@ pub struct ShipPresentationConfig {
     /// panics on one.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub style: Option<String>,
+    /// The faction palette the skin wears over its style: the palette id and
+    /// which of its finishes. Written by the world generator from the
+    /// civilization that built the hull, so a bought or saved hull keeps it.
+    ///
+    /// `None` (omit the field) is the style's own palette and greebles, the
+    /// look of start hulls, scenario ships and the editor. A palette named
+    /// here must be in the palette catalog and needs a style: the design lint
+    /// refuses an unknown id and a palette with no style.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub palette: Option<ShipPaletteConfig>,
     /// The sound this design makes when it COLLAPSES - the moment it stops
     /// being a ship and becomes wreckage, which is one event however many
     /// frames the sections then take to peel away.
@@ -222,6 +232,7 @@ impl Default for ShipPresentationConfig {
         Self {
             skin: false,
             style: None,
+            palette: None,
             collapse_sound: None,
             lock_on_sound: None,
             lock_off_sound: None,

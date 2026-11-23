@@ -202,6 +202,7 @@ pub(crate) fn content_reflect(item: &Content) -> Option<&dyn PartialReflect> {
     Some(match item {
         Content::Section(config) => &config.base,
         Content::Style(config) => config,
+        Content::Palette(config) => config,
         Content::StartRole(config) => config,
         Content::Item(config) => config,
         Content::PriceTable(config) => config,
@@ -223,6 +224,7 @@ pub(crate) fn content_reflect_mut(item: &mut Content) -> Option<&mut dyn Partial
     Some(match item {
         Content::Section(config) => &mut config.base,
         Content::Style(config) => config,
+        Content::Palette(config) => config,
         Content::StartRole(config) => config,
         Content::Item(config) => config,
         Content::PriceTable(config) => config,

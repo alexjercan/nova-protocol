@@ -700,16 +700,19 @@ mod tests {
     use super::*;
 
     fn styles() -> GameStyles {
-        GameStyles(vec![
-            ShipStyleConfig {
-                id: "industrial".to_string(),
-                ..default()
-            },
-            ShipStyleConfig {
-                id: "salvage".to_string(),
-                ..default()
-            },
-        ])
+        GameStyles::new(
+            vec![
+                ShipStyleConfig {
+                    id: "industrial".to_string(),
+                    ..default()
+                },
+                ShipStyleConfig {
+                    id: "salvage".to_string(),
+                    ..default()
+                },
+            ],
+            Vec::new(),
+        )
     }
 
     #[test]

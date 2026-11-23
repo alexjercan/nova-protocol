@@ -34,7 +34,7 @@ use super::{
     shell_shape::prelude::ShellShape,
     shell_skin::{frozen_plate_body, ShipSkinMarker},
     skin_decor::{frozen_decor_body, DecorColliderSize, ShipDecorMarker},
-    skin_style::ShipStyle,
+    skin_style::{DecorTintType, ShipStyle},
     turret_section::prelude::{FrozenTurretHinges, TurretStow},
 };
 
@@ -69,6 +69,7 @@ enum FrozenFixtureKind {
     Decor {
         name: String,
         model: AssetRef<WorldAsset>,
+        tint: DecorTintType,
         collider_size: Vec3,
     },
 }
@@ -149,7 +150,7 @@ fn freeze_fixture(world: &World, entity: Entity) -> Result<FrozenFixture, Unsett
 
     let kind = if let Some(ShipSkinMarker(shape)) = world.get::<ShipSkinMarker>(entity) {
         FrozenFixtureKind::Plate(*shape)
-    } else if let Some(ShipDecorMarker(model)) = world.get::<ShipDecorMarker>(entity) {
+    } else if let Some(ShipDecorMarker { model, tint }) = world.get::<ShipDecorMarker>(entity) {
         let Some(name) = world.get::<Name>(entity) else {
             panic!("freeze_fixture: decor {entity:?} carries no Name");
         };
@@ -159,6 +160,7 @@ fn freeze_fixture(world: &World, entity: Entity) -> Result<FrozenFixture, Unsett
         FrozenFixtureKind::Decor {
             name: name.as_str().to_string(),
             model: model.clone(),
+            tint: *tint,
             collider_size: *collider_size,
         }
     } else {
@@ -265,10 +267,11 @@ fn spawn_frozen_fixture(parent: &mut ChildSpawnerCommands, frozen: FrozenFixture
         FrozenFixtureKind::Decor {
             name,
             model,
+            tint,
             collider_size,
         } => parent.spawn(frozen_decor_body(
             name,
-            model,
+            ShipDecorMarker { model, tint },
             frozen.pose,
             frozen.health,
             collider_size,
@@ -350,8 +353,8 @@ pub fn thaw_section(section: &mut EntityCommands, frozen: FrozenSection) {
 /// outside the section/plate tree [`FrozenSection`] walks and with no
 /// `ChildOf` of its own.
 ///
-/// `style` is the [`ShipStyle`] id the ship wore at the moment this fixture
-/// was shed - the durable key a ship names one by, `None` when it wore none -
+/// `style` is the [`ShipStyle`] the ship wore at the moment this fixture
+/// was shed - the durable key a ship names its look by -
 /// stamped onto the fixture by `shed_dead_fixtures` (`fixture.rs`) at that
 /// moment rather than read here: shedding drops the fixture's only `ChildOf`
 /// path to that ancestor, so by the time a save freezes the drifting debris
@@ -367,9 +370,9 @@ pub struct FrozenShedFixture {
     /// The fixture's own shape, pose and health, and every fixture still
     /// bolted to it (a greeble riding a shed plate).
     pub fixture: FrozenFixture,
-    /// The ship style id this fixture wore when it was shed, or `None` for a
-    /// ship that wore none.
-    pub style: Option<String>,
+    /// The look this fixture's ship wore when it was shed: its style and
+    /// faction palette.
+    pub style: ShipStyle,
     /// World translation at the moment it froze.
     pub translation: Vec3,
     /// World rotation at the moment it froze.
@@ -409,7 +412,7 @@ pub fn freeze_shed_fixture(
 ) -> Result<FrozenShedFixture, TransientFreezeFault> {
     let kind = if let Some(ShipSkinMarker(shape)) = world.get::<ShipSkinMarker>(entity) {
         FrozenFixtureKind::Plate(*shape)
-    } else if let Some(ShipDecorMarker(model)) = world.get::<ShipDecorMarker>(entity) {
+    } else if let Some(ShipDecorMarker { model, tint }) = world.get::<ShipDecorMarker>(entity) {
         let Some(name) = world.get::<Name>(entity) else {
             panic!("freeze_shed_fixture: decor {entity:?} carries no Name");
         };
@@ -419,6 +422,7 @@ pub fn freeze_shed_fixture(
         FrozenFixtureKind::Decor {
             name: name.as_str().to_string(),
             model: model.clone(),
+            tint: *tint,
             collider_size: *collider_size,
         }
     } else {
@@ -433,7 +437,7 @@ pub fn freeze_shed_fixture(
     let Some(health) = world.get::<Health>(entity) else {
         panic!("freeze_shed_fixture: shed fixture {entity:?} carries no Health");
     };
-    let Some(ShipStyle(style)) = world.get::<ShipStyle>(entity) else {
+    let Some(style) = world.get::<ShipStyle>(entity) else {
         panic!("freeze_shed_fixture: shed fixture {entity:?} carries no ShipStyle");
     };
     let Some(LinearVelocity(linear)) = world.get::<LinearVelocity>(entity) else {
@@ -476,7 +480,7 @@ pub fn freeze_shed_fixture(
 /// round.
 pub fn thaw_shed_fixture(commands: &mut Commands, record: &FrozenShedFixture) -> Entity {
     let pose = Transform::from_translation(record.translation).with_rotation(record.rotation);
-    let style = ShipStyle(record.style.clone());
+    let style = record.style.clone();
     let mut entity = match &record.fixture.kind {
         FrozenFixtureKind::Plate(shape) => commands.spawn((
             frozen_plate_body(*shape, pose, record.fixture.health.clone()),
@@ -490,11 +494,15 @@ pub fn thaw_shed_fixture(commands: &mut Commands, record: &FrozenShedFixture) ->
         FrozenFixtureKind::Decor {
             name,
             model,
+            tint,
             collider_size,
         } => commands.spawn((
             frozen_decor_body(
                 name.clone(),
-                model.clone(),
+                ShipDecorMarker {
+                    model: model.clone(),
+                    tint: *tint,
+                },
                 pose,
                 record.fixture.health.clone(),
                 *collider_size,
@@ -581,6 +589,7 @@ mod tests {
             model: AssetRef::from("self://gltf/greebles/placeholder_block.glb#Scene0".to_string()),
             health: 10.0,
             collider: collider_size,
+            tint: DecorTintType::Baked,
         };
         let decor_entity = world
             .spawn((
@@ -692,20 +701,23 @@ mod tests {
             roughness: 0.4,
             metallic: 0.8,
         };
-        app.insert_resource(GameStyles(vec![ShipStyleConfig {
-            id: "raider".to_string(),
-            name: "Raider".to_string(),
-            palette: StylePalette {
-                top: dyed.clone(),
-                wall: dyed.clone(),
-            },
-            fixtures: Vec::new(),
-            greeble_rules: default(),
-        }]));
+        app.insert_resource(GameStyles::new(
+            vec![ShipStyleConfig {
+                id: "raider".to_string(),
+                name: "Raider".to_string(),
+                palette: StylePalette {
+                    top: dyed.clone(),
+                    wall: dyed.clone(),
+                },
+                fixtures: Vec::new(),
+                greeble_rules: default(),
+            }],
+            Vec::new(),
+        ));
 
         let ship = app
             .world_mut()
-            .spawn((Name::new("ship"), ShipStyle(Some("raider".to_string()))))
+            .spawn((Name::new("ship"), ShipStyle::plain("raider")))
             .id();
         let section = app.world_mut().spawn(ChildOf(ship)).id();
 
@@ -729,6 +741,7 @@ mod tests {
             model: AssetRef::from("self://gltf/greebles/placeholder_block.glb#Scene0".to_string()),
             health: 10.0,
             collider: decor_collider,
+            tint: DecorTintType::Baked,
         };
         let decor_pose = Transform::from_translation(Vec3::new(4.0, 5.0, 6.0));
         let decor_entity = app

@@ -31,15 +31,19 @@
 use std::f32::consts::FRAC_PI_2;
 
 use avian3d::prelude::{Collider, ColliderDensity};
-use bevy::prelude::*;
+use bevy::{prelude::*, world_serialization::WorldInstanceReady};
 use nova_gameplay::prelude::{destructible_body, AssetRef, Health};
 
 use crate::sections::{
+    faction_palette::DECOR_KEY_COLOR,
     fixture::prelude::SectionFixture,
     greeble_solver::{greeble_seed, solve_greebles, GreebleSolution},
-    shell_shape::REACH,
-    shell_skin::{SkinPlate, SkinStructure},
-    skin_style::{ShipStyleConfig, StyleFixtureConfig, StyleGreebles, DECOR_DENSITY},
+    shell_shape::{ShellSurface, REACH},
+    shell_skin::{worn_style, SkinAssets, SkinPlate, SkinStructure},
+    skin_style::{
+        DecorTintType, GameStyles, ShipStyle, ShipStyleConfig, StyleFixtureConfig, StyleGreebles,
+        DECOR_DENSITY,
+    },
     skin_surface::{skin_surface, slot_direction, SkinSurface},
 };
 
@@ -48,7 +52,7 @@ use crate::sections::{
 pub mod prelude {
     pub use super::{
         decor_body, decor_footprint, decor_pose, decor_tally, solve_decor, solve_seated_greebles,
-        DecorPlacement, ShipDecorMarker,
+        DecorPlacement, DecorTint, ShipDecorMarker,
     };
 }
 
@@ -241,14 +245,27 @@ pub fn decor_pose(plate: &SkinPlate, turns: u8) -> Transform {
     )
 }
 
-/// Marks a decoration and carries the model that draws it.
+/// Marks a decoration and carries the model that draws it and what its key
+/// slots are painted with.
 ///
 /// The model rides on the marker so the render half can be an observer with
 /// nothing but this component to read, exactly as a plate's shape rides on
 /// `ShipSkinMarker`. A headless server spawns the marker and stops there.
 #[derive(Component, Clone, Debug, Reflect)]
 #[reflect(Component)]
-pub struct ShipDecorMarker(#[reflect(ignore)] pub AssetRef<WorldAsset>);
+pub struct ShipDecorMarker {
+    /// The model.
+    #[reflect(ignore)]
+    pub model: AssetRef<WorldAsset>,
+    /// What the model's key-coloured slots take.
+    pub tint: DecorTintType,
+}
+
+/// The material a [`DecorTintType::Hull`] decoration's key slots wear: the top
+/// finish of the look its ship wears. Set when the piece is dressed; a piece
+/// that found no look carries none and keeps the key magenta.
+#[derive(Component, Clone, Debug)]
+pub struct DecorTint(pub Handle<StandardMaterial>);
 
 /// The authored collider size a decoration's [`decor_collider`] was built
 /// from. Carried alongside [`ShipDecorMarker`] so a freeze can rebuild the
@@ -270,7 +287,10 @@ pub fn decor_body(fixture: &StyleFixtureConfig, pose: Transform) -> impl Bundle 
     (
         Name::new(format!("Skin Decor {}", fixture.id)),
         SectionFixture,
-        ShipDecorMarker(fixture.model.clone()),
+        ShipDecorMarker {
+            model: fixture.model.clone(),
+            tint: fixture.tint,
+        },
         DecorColliderSize(fixture.collider),
         pose,
         // Health, density and `Visibility::Inherited` in one bundle.
@@ -289,7 +309,7 @@ pub fn decor_body(fixture: &StyleFixtureConfig, pose: Transform) -> impl Bundle 
 /// model exactly as it resolves a freshly placed one.
 pub(crate) fn frozen_decor_body(
     name: String,
-    model: AssetRef<WorldAsset>,
+    marker: ShipDecorMarker,
     pose: Transform,
     health: Health,
     collider_size: Vec3,
@@ -297,7 +317,7 @@ pub(crate) fn frozen_decor_body(
     (
         Name::new(name),
         SectionFixture,
-        ShipDecorMarker(model),
+        marker,
         DecorColliderSize(collider_size),
         pose,
         health,
@@ -324,26 +344,89 @@ fn decor_collider(size: Vec3) -> Collider {
     )])
 }
 
-/// Give a decoration the model that draws it, the moment one appears.
+/// Give a decoration the model that draws it, the moment one appears, and a
+/// [`DecorTintType::Hull`] piece the material its key slots take.
 ///
 /// The RENDER half, and the whole of it. The model goes on the decoration's OWN
 /// entity rather than on a child: a greeble is authored in exactly the frame the
 /// fixture stands in, so a child would carry an identity transform and cost an
 /// entity per piece over a hull that has hundreds.
+///
+/// The tint is the top material of the look the nearest ancestor wears, found
+/// by the same walk a plate dresses by, so the key slots share the plate's
+/// material. A piece with no look above it gets no tint and stays magenta.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "an observer: the marker, the ancestor walk, the catalog and the material cache"
+)]
 pub(crate) fn dress_skin_decor(
     add: On<Add<ShipDecorMarker>>,
     mut commands: Commands,
     q_decor: Query<&ShipDecorMarker>,
+    q_child_of: Query<&ChildOf>,
+    q_style: Query<&ShipStyle>,
+    styles: Option<Res<GameStyles>>,
+    mut assets: ResMut<SkinAssets>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
     let decor = add.entity;
-    let Ok(ShipDecorMarker(model)) = q_decor.get(decor) else {
+    let Ok(ShipDecorMarker { model, tint }) = q_decor.get(decor) else {
         return;
     };
     commands
         .entity(decor)
         .insert(WorldAssetRoot(model.resolve(&asset_server)));
+    if *tint != DecorTintType::Hull {
+        return;
+    }
+    let look = styles
+        .as_ref()
+        .zip(worn_style(decor, &q_child_of, &q_style))
+        .and_then(|(styles, worn)| worn.resolve(styles));
+    if let Some(look) = look {
+        let top = assets.material(Some(look), ShellSurface::Top, &mut materials);
+        commands.entity(decor).insert(DecorTint(top));
+    }
 }
+
+/// Whether `color` is the greeble key colour.
+fn is_key_color(color: Color) -> bool {
+    let key = DECOR_KEY_COLOR.to_linear();
+    let color = color.to_linear();
+    (color.red - key.red).abs() < 1e-3
+        && (color.green - key.green).abs() < 1e-3
+        && (color.blue - key.blue).abs() < 1e-3
+}
+
+/// Paint a tinted decoration's key slots once its model has spawned: every
+/// mesh under it whose material is the key colour takes the [`DecorTint`]
+/// material instead. The tint REPLACES the key outright, since a recipe slot
+/// is a flat colour with no shading to keep.
+pub(crate) fn tint_decor_keys(
+    ready: On<WorldInstanceReady>,
+    q_tint: Query<&DecorTint>,
+    q_children: Query<&Children>,
+    q_mesh: Query<&MeshMaterial3d<StandardMaterial>>,
+    materials: Res<Assets<StandardMaterial>>,
+    mut commands: Commands,
+) {
+    let Ok(DecorTint(tint)) = q_tint.get(ready.entity) else {
+        return;
+    };
+    for node in q_children.iter_descendants(ready.entity) {
+        let Ok(MeshMaterial3d(material)) = q_mesh.get(node) else {
+            continue;
+        };
+        if materials
+            .get(material)
+            .is_some_and(|material| is_key_color(material.base_color))
+        {
+            commands.entity(node).insert(MeshMaterial3d(tint.clone()));
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -363,6 +446,79 @@ mod tests {
             }
         }
         structure
+    }
+
+    /// A keyed slot under a decoration that carries a tint takes that tint
+    /// the moment its model is ready, while a baked slot keeps its colour; the
+    /// same keyed slot under a decoration with no tint stays the key magenta,
+    /// so a missed tint shows instead of passing as paint.
+    #[test]
+    fn a_keyed_greeble_takes_its_tint_and_an_untinted_one_stays_magenta() {
+        use bevy::world_serialization::WorldInstanceSpawner;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<StandardMaterial>();
+        app.add_observer(tint_decor_keys);
+        let (key, baked, tint) = {
+            let mut materials = app.world_mut().resource_mut::<Assets<StandardMaterial>>();
+            let mut add = |color| {
+                materials.add(StandardMaterial {
+                    base_color: color,
+                    ..default()
+                })
+            };
+            (
+                add(DECOR_KEY_COLOR),
+                add(Color::linear_rgb(0.01, 0.1, 0.38)),
+                add(Color::linear_rgb(0.05, 0.3, 0.3)),
+            )
+        };
+        let world = app.world_mut();
+        let mut piece = |tinted: bool| {
+            let root = world.spawn_empty().id();
+            if tinted {
+                world.entity_mut(root).insert(DecorTint(tint.clone()));
+            }
+            // The model's own root node sits between the decoration and its
+            // meshes, as a spawned glTF scene does.
+            let node = world.spawn(ChildOf(root)).id();
+            let keyed = world
+                .spawn((MeshMaterial3d(key.clone()), ChildOf(node)))
+                .id();
+            let painted = world
+                .spawn((MeshMaterial3d(baked.clone()), ChildOf(node)))
+                .id();
+            (root, keyed, painted)
+        };
+        let tinted = piece(true);
+        let plain = piece(false);
+        let instance_id = WorldInstanceSpawner::default().spawn(Handle::<WorldAsset>::default());
+        for (root, _, _) in [tinted, plain] {
+            world.trigger(WorldInstanceReady {
+                entity: root,
+                instance_id,
+            });
+        }
+        world.flush();
+
+        let material = |entity: Entity| {
+            world
+                .get::<MeshMaterial3d<StandardMaterial>>(entity)
+                .expect("a mesh keeps a material")
+                .0
+                .clone()
+        };
+        assert_eq!(material(tinted.1), tint, "the keyed slot took no tint");
+        assert_eq!(material(tinted.2), baked, "a baked slot was repainted");
+        assert_eq!(material(plain.1), key, "an untinted keyed slot was painted");
+        assert!(is_key_color(
+            world
+                .resource::<Assets<StandardMaterial>>()
+                .get(&material(plain.1))
+                .expect("the key material exists")
+                .base_color
+        ));
     }
 
     /// The same hull wearing the same style is solved to the same pieces on

@@ -26,7 +26,10 @@ fn generate_app() -> (App, Entity) {
         nova_authoring::generation::build_section_catalog(),
     ));
     app.insert_resource(GameItems::new(nova_authoring::generation::build_items()));
-    app.insert_resource(GameStyles(nova_authoring::generation::build_styles()));
+    app.insert_resource(GameStyles::new(
+        nova_authoring::generation::build_styles(),
+        nova_authoring::generation::build_palettes(),
+    ));
     let scenario = app
         .world_mut()
         .spawn((

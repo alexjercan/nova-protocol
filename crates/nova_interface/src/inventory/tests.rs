@@ -2481,8 +2481,9 @@ mod generated_wreck {
     use nova_ship::{
         flight::prelude::NovaFlightPlugin,
         prelude::{
-            DockingConnectionRequest, GameSections, GameStyles, PDControllerPlugin, SectionConfig,
-            ShipCapabilities, ShipStyleConfig, SpaceshipSectionPlugin,
+            DockingConnectionRequest, FactionPaletteConfig, GameSections, GameStyles,
+            PDControllerPlugin, SectionConfig, ShipCapabilities, ShipStyleConfig,
+            SpaceshipSectionPlugin,
         },
     };
     use nova_world::{materialize_sector, prelude::*, ObserverBody};
@@ -2512,32 +2513,33 @@ mod generated_wreck {
         Section(SectionConfig),
         Ship(ShipDesignPrototype),
         Style(ShipStyleConfig),
+        Palette(FactionPaletteConfig),
     }
 
-    /// The shipped section, ship and style catalogs: a generated hull wears
-    /// its role's style, which the skin resolves against the loaded styles.
-    fn catalog() -> (
-        Vec<SectionConfig>,
-        Vec<ShipDesignPrototype>,
-        Vec<ShipStyleConfig>,
-    ) {
+    /// The shipped section, ship, style and palette catalogs: a generated
+    /// hull wears its role's style in its civilization's palette, which the
+    /// skin resolves against the loaded catalog.
+    fn catalog() -> (Vec<SectionConfig>, Vec<ShipDesignPrototype>, GameStyles) {
         let load = |path: &str| -> Vec<Entry> {
             let file = format!("{}/../../assets/base/{path}", env!("CARGO_MANIFEST_DIR"));
             ron::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap()
         };
-        let (mut sections, mut ships, mut styles) = (Vec::new(), Vec::new(), Vec::new());
+        let (mut sections, mut ships, mut styles, mut palettes) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new());
         for entry in load("sections/base.content.ron")
             .into_iter()
             .chain(load("ships/base.content.ron"))
             .chain(load("styles/base.content.ron"))
+            .chain(load("palettes/base.content.ron"))
         {
             match entry {
                 Entry::Section(section) => sections.push(section),
                 Entry::Ship(ship) => ships.push(ship),
                 Entry::Style(style) => styles.push(style),
+                Entry::Palette(palette) => palettes.push(palette),
             }
         }
-        (sections, ships, styles)
+        (sections, ships, GameStyles::new(styles, palettes))
     }
 
     /// A generator whose every cell holds one ship.
@@ -2595,11 +2597,14 @@ mod generated_wreck {
     #[test]
     fn a_docked_generated_wreck_gives_its_stock_by_take_and_takes_it_back_by_give() {
         let (sections, ships, styles) = catalog();
-        let snapshot = ShipPartSnapshot::build(&[ShipPartPack {
-            id: "base".to_string(),
-            dependencies: Vec::new(),
-            sections: sections.clone(),
-        }])
+        let snapshot = ShipPartSnapshot::build(
+            &[ShipPartPack {
+                id: "base".to_string(),
+                dependencies: Vec::new(),
+                sections: sections.clone(),
+            }],
+            &styles.palettes,
+        )
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
 
         // An armored wreck: its weapons spawn inactive, and it must still
@@ -2687,7 +2692,7 @@ mod generated_wreck {
         ));
         app.insert_resource(GameSections(sections));
         app.insert_resource(GameShipDesigns(ships));
-        app.insert_resource(GameStyles(styles));
+        app.insert_resource(styles);
         app.insert_resource(test_items());
         app.init_resource::<nova_gameplay::inventory::CargoCanisterIdAllocator>();
         app.init_resource::<InventoryRuntime>();

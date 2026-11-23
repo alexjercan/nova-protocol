@@ -1,7 +1,7 @@
 {
   "_comment": "CIVILIAN kit: a faired TANK BLISTER - three stacked hull-coloured shells and two dark seam lines, nothing else. The salvage answer to this class is a lashed drum and the industrial one would be an open rack; a sold ship hides its tankage under a fairing and admits to it only at the panel seams, so the piece is deliberately ALL hull colour - no accent, no lamp. Long on Z and aligned to the run, so a row of them reads as one faired sponson down the hull rather than as cargo.",
   "materials": {
-    "hull": { "color": [0.42, 0.42, 0.4], "metallic": 0.0, "roughness": 0.35 },
+    "hull": { "color": [1.0, 0.0, 1.0], "metallic": 0.0, "roughness": 0.35 },
     "shadow": { "color": [0.012, 0.013, 0.016], "metallic": 0.0, "roughness": 0.55 }
   },
   "material": "hull",

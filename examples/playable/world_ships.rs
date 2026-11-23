@@ -205,16 +205,17 @@ fn main() -> bevy::app::AppExit {
     let cli = Cli::parse();
     let ids: Vec<&str> = cli.mods.iter().map(String::as_str).collect();
     let packs = nova_authoring::lint_walk::repo_ship_part_packs(&ids);
-    let snapshot = ShipPartSnapshot::build(&packs).unwrap_or_else(|faults| {
-        panic!(
-            "world_ships: the snapshot of {ids:?} is refused:\n  {}",
-            faults
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n  ")
-        )
-    });
+    let snapshot = ShipPartSnapshot::build(&packs, &nova_authoring::generation::build_palettes())
+        .unwrap_or_else(|faults| {
+            panic!(
+                "world_ships: the snapshot of {ids:?} is refused:\n  {}",
+                faults
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n  ")
+            )
+        });
     let wfc_sections = GameSections(nova_authoring::generation::build_section_catalog());
     let wfc = TileSet::build(&wfc_sections, &WfcPlan::standard_hull())
         .unwrap_or_else(|error| panic!("world_ships: {error}"));

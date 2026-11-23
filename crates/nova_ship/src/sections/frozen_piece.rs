@@ -20,8 +20,9 @@ use nova_gameplay::prelude::{
 use crate::sections::{
     damage_cracks::{mark_wreck_cracks, mesh_wears_cracks},
     prelude::{
-        GameStyles, PlaceholderArt, PlaceholderArtMarker, PlaceholderArtType, SectionCollider,
-        ShellShape, ShipDecorMarker, ShipStyle, ShipStyleConfig, SkinAssets, ThrusterExhaustConfig,
+        DecorTint, DecorTintType, GameStyles, PlaceholderArt, PlaceholderArtMarker,
+        PlaceholderArtType, SectionCollider, ShellShape, ShellSurface, ShipDecorMarker, ShipStyle,
+        SkinAssets, ThrusterExhaustConfig,
     },
     shell_skin::{hang_surfaces, ShipSkinMarker, SkinSurfaceMarker},
 };
@@ -50,16 +51,16 @@ pub struct FrozenDetachedPiece {
     center_of_mass: Vec3,
     collider: SectionCollider,
     grace: Option<f32>,
-    style: Option<String>,
+    style: ShipStyle,
     nodes: Vec<FrozenArtNode>,
 }
 
 impl FrozenDetachedPiece {
-    /// The style id this piece wears, or `None` for the unstyled look. A
-    /// caller checks a saved id against its loaded styles before a thaw, so a
+    /// The look this piece wears: its style and faction palette. A caller
+    /// checks the saved ids against its loaded catalog before a thaw, so a
     /// miss can be refused early instead of surfacing as a thaw-time panic.
-    pub fn style(&self) -> Option<&str> {
-        self.style.as_deref()
+    pub fn style(&self) -> &ShipStyle {
+        &self.style
     }
 
     /// The saved world translation of the piece's body, so a Load can check
@@ -225,6 +226,8 @@ pub enum FrozenArtType {
     Decor {
         /// The decoration's authored asset path.
         asset: String,
+        /// What its key slots take.
+        tint: DecorTintType,
     },
     /// A thruster's exhaust cone. Its inner cone is rebuilt by the same
     /// observer that built it the first time, so only the outer config is
@@ -253,7 +256,7 @@ pub enum FrozenArtType {
 #[derive(Component, Clone, Debug)]
 pub struct DetachedPieceSource {
     collider: SectionCollider,
-    style: Option<String>,
+    style: ShipStyle,
 }
 
 /// Copies a dying section's [`SectionCollider`] and [`ShipStyle`] onto the
@@ -291,20 +294,23 @@ pub(crate) fn stamp_detached_piece_source(
     });
 }
 
-/// The style id the ship a detached section's body sat on wears, found by
-/// walking its ancestors, the same way a skin plate finds the style it is
-/// dressed in.
+/// The look the ship a detached section's body sat on wears, found by
+/// walking its ancestors, the same way a skin plate finds the look it is
+/// dressed in; the undressed look when no ancestor wears one.
 fn worn_detached_style(
     entity: Entity,
     q_child_of: &Query<&ChildOf>,
     q_style: &Query<&ShipStyle>,
-) -> Option<String> {
+) -> ShipStyle {
     let mut current = entity;
     loop {
-        if let Ok(ShipStyle(style)) = q_style.get(current) {
+        if let Ok(style) = q_style.get(current) {
             return style.clone();
         }
-        current = q_child_of.get(current).ok()?.0;
+        let Ok(ChildOf(parent)) = q_child_of.get(current) else {
+            return ShipStyle::default();
+        };
+        current = *parent;
     }
 }
 
@@ -414,8 +420,8 @@ fn collect_art_nodes(
 /// [`PlaceholderArtMarker`]. A node that is none of these and draws nothing
 /// is a plain [`FrozenArtType::Group`].
 fn classify_art_node(world: &World, node: Entity) -> FrozenArtType {
-    if let Some(ShipDecorMarker(asset_ref)) = world.get::<ShipDecorMarker>(node) {
-        let Some(path) = asset_ref.path() else {
+    if let Some(ShipDecorMarker { model, tint }) = world.get::<ShipDecorMarker>(node) {
+        let Some(path) = model.path() else {
             panic!(
                 "freeze_detached_piece: decor node {node:?} names a resolved handle, not an \
                  authored path, and cannot be saved"
@@ -423,6 +429,7 @@ fn classify_art_node(world: &World, node: Entity) -> FrozenArtType {
         };
         return FrozenArtType::Decor {
             asset: path.to_string(),
+            tint: *tint,
         };
     }
     if let Some(ShipSkinMarker(shape)) = world.get::<ShipSkinMarker>(node) {
@@ -615,9 +622,10 @@ pub(crate) struct ResumedScenePoses(Vec<(Vec<String>, Transform)>, bool);
 ///
 /// # Panics
 ///
-/// `record.style()` names an id that `styles` does not resolve, or `styles`
-/// is `None` while `record.style()` is `Some` - both programming errors, since
-/// a caller must prevalidate a saved style before any transient thaw runs.
+/// `record.style()` names a style or palette that `styles` does not resolve,
+/// or `styles` is `None` while `record.style()` names a style - both
+/// programming errors, since a caller must prevalidate a saved look before any
+/// transient thaw runs.
 pub fn thaw_detached_piece(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -628,17 +636,12 @@ pub fn thaw_detached_piece(
     materials: &mut Assets<StandardMaterial>,
     record: &FrozenDetachedPiece,
 ) -> Entity {
-    let style_config: Option<&ShipStyleConfig> = match (record.style(), styles) {
+    let look = match (record.style.style.as_deref(), styles) {
         (None, _) => None,
         (Some(id), None) => {
             panic!("thaw_detached_piece: piece names style '{id}', but no styles are loaded")
         }
-        (Some(id), Some(styles)) => {
-            let Some(config) = ShipStyle(Some(id.to_string())).resolve(styles) else {
-                panic!("thaw_detached_piece: piece names style '{id}', which does not exist");
-            };
-            Some(config)
-        }
+        (Some(_), Some(styles)) => record.style.resolve(styles),
     };
 
     let name = Name::new(record.name.clone());
@@ -716,16 +719,23 @@ pub fn thaw_detached_piece(
                     commands,
                     entity,
                     *shape,
-                    style_config,
+                    look,
                     skin_assets,
                     meshes,
                     materials,
                 );
             }
-            FrozenArtType::Decor { asset } => {
-                commands
-                    .entity(entity)
-                    .insert(ShipDecorMarker(AssetRef::Path(asset.clone())));
+            FrozenArtType::Decor { asset, tint } => {
+                // A thawed piece has no ship above it to walk to, so a tinted
+                // decoration takes its tint here, from the piece's own look.
+                if let Some(look) = look.filter(|_| *tint == DecorTintType::Hull) {
+                    let top = skin_assets.material(Some(look), ShellSurface::Top, materials);
+                    commands.entity(entity).insert(DecorTint(top));
+                }
+                commands.entity(entity).insert(ShipDecorMarker {
+                    model: AssetRef::Path(asset.clone()),
+                    tint: *tint,
+                });
             }
             FrozenArtType::Exhaust(config) => {
                 commands.entity(entity).insert(config.clone());
@@ -782,7 +792,7 @@ mod tests {
         shell_shape::prelude::{ShellEdgeType, FULL},
         shell_skin::{plate_body, SkinPlate},
         skin_decor::decor_body,
-        skin_style::{StyleFixtureConfig, StylePalette, SurfaceFinish},
+        skin_style::{ShipStyleConfig, StyleFixtureConfig, StylePalette, SurfaceFinish},
         thruster_section::ThrusterSectionConfig,
         torpedo_section::{TorpedoSectionConfig, TorpedoSectionSpawnerFireState},
         turret_section::{TurretSectionConfig, TurretSectionMuzzleEntity},
@@ -857,16 +867,19 @@ mod tests {
         app.insert_resource(TimeUpdateStrategy::ManualDuration(
             std::time::Duration::from_secs_f32(1.0 / 60.0),
         ));
-        app.insert_resource(GameStyles(vec![ShipStyleConfig {
-            id: "raider".to_string(),
-            name: "Raider".to_string(),
-            palette: StylePalette {
-                top: dyed_finish(),
-                wall: dyed_finish(),
-            },
-            fixtures: Vec::new(),
-            greeble_rules: default(),
-        }]));
+        app.insert_resource(GameStyles::new(
+            vec![ShipStyleConfig {
+                id: "raider".to_string(),
+                name: "Raider".to_string(),
+                palette: StylePalette {
+                    top: dyed_finish(),
+                    wall: dyed_finish(),
+                },
+                fixtures: Vec::new(),
+                greeble_rules: default(),
+            }],
+            Vec::new(),
+        ));
         app.finish();
         app.cleanup();
         app
@@ -1114,7 +1127,7 @@ mod tests {
             .world_mut()
             .spawn((
                 Name::new("ship"),
-                ShipStyle(Some("raider".to_string())),
+                ShipStyle::plain("raider"),
                 RigidBody::Dynamic,
                 Transform::default(),
                 SpaceshipRootMarker,
@@ -1200,6 +1213,7 @@ mod tests {
             model: AssetRef::from(decor_path.clone()),
             health: 10.0,
             collider: Vec3::new(0.3, 0.2, 0.1),
+            tint: DecorTintType::Baked,
         };
         let decor_pose = Transform::from_translation(Vec3::new(-0.4, 0.1, 0.2));
         app.world_mut()
@@ -1367,7 +1381,7 @@ mod tests {
             .get::<DetachedPieceSource>(piece)
             .cloned()
             .unwrap_or_else(|| panic!("case {}: no DetachedPieceSource stamp", case.kind));
-        assert_eq!(stamped.style, Some("raider".to_string()));
+        assert_eq!(stamped.style, ShipStyle::plain("raider"));
         assert_eq!(stamped.collider, fixture_collider);
 
         let grace_before = app
@@ -1407,7 +1421,7 @@ mod tests {
         record
             .validate()
             .expect("a freshly frozen record is well-formed");
-        assert_eq!(record.style(), Some("raider"));
+        assert_eq!(record.style(), &ShipStyle::plain("raider"));
 
         let decor_nodes: Vec<&FrozenArtNode> = record
             .nodes
@@ -1416,7 +1430,7 @@ mod tests {
             .collect();
         assert_eq!(decor_nodes.len(), 1, "case {}: one decor node", case.kind);
         match &decor_nodes[0].art {
-            FrozenArtType::Decor { asset } => assert_eq!(*asset, decor_path),
+            FrozenArtType::Decor { asset, .. } => assert_eq!(*asset, decor_path),
             other => panic!("case {}: decor node classified as {other:?}", case.kind),
         }
 
@@ -1917,7 +1931,7 @@ mod tests {
         assert_eq!(
             world
                 .get::<ShipDecorMarker>(thawed_decor)
-                .map(|ShipDecorMarker(r)| r.path()),
+                .map(|ShipDecorMarker { model, .. }| model.path()),
             Some(Some(decor_path.as_str()))
         );
         let decor_handle = world
@@ -1955,7 +1969,7 @@ mod tests {
             .world_mut()
             .spawn((
                 Name::new("ship"),
-                ShipStyle(Some("raider".to_string())),
+                ShipStyle::plain("raider"),
                 RigidBody::Dynamic,
                 Transform::default(),
                 SpaceshipRootMarker,

@@ -526,19 +526,34 @@ fn resolve_all(world: &mut World) -> Result<Vec<ResolvedRefs>, Resolve> {
             | FrozenTransientType::DetachedPiece(_) => (None, None, None),
         })
         .collect();
-    // A saved style the pinned catalog does not have is invalid authoring
-    // and refuses first; a missing render resource is this game's fault.
+    // A saved style or palette the pinned catalog does not have is invalid
+    // authoring and refuses first; a missing render resource is this game's
+    // fault.
     let styles = world.get_resource::<GameStyles>();
     for (index, transient) in transients.iter().enumerate() {
-        let style = match &transient.body {
-            FrozenTransientType::ShedFixture(shed) => shed.style.as_deref(),
-            FrozenTransientType::DetachedPiece(piece) => piece.style(),
+        let look = match &transient.body {
+            FrozenTransientType::ShedFixture(shed) => Some(&shed.style),
+            FrozenTransientType::DetachedPiece(piece) => Some(piece.style()),
             _ => None,
         };
-        if let Some(style) = style {
+        let Some(look) = look else {
+            continue;
+        };
+        if let Some(style) = &look.style {
             if styles.and_then(|styles| styles.get_style(style)).is_none() {
                 return Err(Resolve::Refuse(format!(
                     "transient {index} wears the style '{style}', which is not loaded"
+                )));
+            }
+        }
+        if let Some(palette) = &look.palette {
+            if styles
+                .and_then(|styles| styles.get_palette(&palette.id))
+                .is_none()
+            {
+                return Err(Resolve::Refuse(format!(
+                    "transient {index} wears the palette '{}', which is not loaded",
+                    palette.id
                 )));
             }
         }

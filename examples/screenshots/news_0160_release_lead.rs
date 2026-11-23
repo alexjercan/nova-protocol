@@ -231,7 +231,7 @@ fn accept_the_escort(world: &mut World, seed: u32) {
     let fit = hull_fit(world, player);
     let style = world
         .get::<ShipStyle>(station)
-        .and_then(|style| style.0.clone());
+        .and_then(|style| style.style.clone());
     let ring = StationArchetypeType::Ring.style_id();
     assert_eq!(
         style.as_deref(),

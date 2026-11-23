@@ -402,6 +402,33 @@ mod smoke {
     }
 
     pub(super) fn script(width: u32) -> AutopilotPlugin<GameStates> {
+        // TEMP(track-contexts): reverted after the frames.
+        if std::env::var_os("TRACK_ONLY").is_some() {
+            let script = make_the_mod(AutopilotPlugin::<GameStates>::new())
+                .click_named(
+                    "views: open the + menu for a track",
+                    "Asset Add Button",
+                    ui_node_present("Asset Add Music Tracks"),
+                    BEAT_SECS,
+                )
+                .click_named(
+                    "views: a blank track",
+                    "Asset Add Music Tracks",
+                    Arc::new(|world: &World| {
+                        world.get_resource::<EditorProbe>().is_some_and(|probe| {
+                            probe.inspector.iter().any(|(label, _)| label == "Contexts")
+                        })
+                    }),
+                    BEAT_SECS,
+                )
+                .step("views: read the track")
+                .on_enter(|world: &mut World| {
+                    let probe = world.resource::<EditorProbe>();
+                    info!("views: TRACK rows {:?}", probe.inspector);
+                })
+                .add();
+            return shot(script, width, "track");
+        }
         let script = make_the_mod(AutopilotPlugin::<GameStates>::new())
             .double_click_named("views: open the scenario", SCENARIO_TILE, BEAT_SECS)
             .step("views: the scenario is the document")

@@ -191,7 +191,7 @@ pub struct SectionFixture;
 #[reflect(Component)]
 pub struct ShedFixtureMarker(pub Entity);
 
-/// The [`ShipStyle`] the nearest ancestor of `start` wears, or `ShipStyle(None)`
+/// The [`ShipStyle`] the nearest ancestor of `start` wears, or the undressed look
 /// when none of its ancestors carries one - the same walk [`shell_skin::dress_skin_plate`](super::shell_skin::dress_skin_plate)
 /// makes through its private `worn_style`, reimplemented here because shedding
 /// is the one caller that must run it BEFORE dropping the only path to that
@@ -208,7 +208,7 @@ fn ancestor_ship_style(
             return style.clone();
         }
         let Ok(ChildOf(parent)) = q_parents.get(current) else {
-            return ShipStyle(None);
+            return ShipStyle::default();
         };
         current = *parent;
     }

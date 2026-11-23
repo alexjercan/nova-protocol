@@ -1,7 +1,7 @@
 {
   "_comment": "CIVILIAN kit: a swept AERO FIN, cobalt-tipped, on a small pad. The only piece that breaks the silhouette, and it earns that by leaning: the blade is rotated 25 degrees about X so that under `align: Outward` it rakes OFF the ship, over the tip or outer corner it stands on. A racer's fin, not an antenna - one clean blade, no wires, no dishes.",
   "materials": {
-    "hull": { "color": [0.42, 0.42, 0.4], "metallic": 0.0, "roughness": 0.35 },
+    "hull": { "color": [1.0, 0.0, 1.0], "metallic": 0.0, "roughness": 0.35 },
     "accent": { "color": [0.01, 0.1, 0.38], "metallic": 0.0, "roughness": 0.3 }
   },
   "material": "hull",

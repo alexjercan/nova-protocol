@@ -77,6 +77,7 @@ decoration.
                 model: "self://gltf/greebles/antenna.glb#Scene0",
                 health: 8.0,
                 collider: (0.12, 0.38, 0.12),
+                tint: Baked,
             ),
         ],
         greeble_rules: (
@@ -157,6 +158,7 @@ whichever default it happened to keep.
 | `model` | asset ref | required | the `.glb` scene, schemed. See [The frame a greeble is authored in](#the-frame-a-greeble-is-authored-in) |
 | `health` | float | required | what the piece takes before it comes off |
 | `collider` | `(x, y, z)` | required | the box a round stops on, in cells, standing on the mounting face. Not the model: a hull of one would cost more than it is worth |
+| `tint` | `Baked` or `Hull` | required | `Hull`: the model's magenta key colour takes the hull's top finish. `Baked`: the model keeps its own colours. See [Greeble tint](../palettes/#greeble-tint-the-key-colour) |
 
 There is no authored physics density. Every decoration stands at the engine's
 `DECOR_DENSITY` of 0.25, the same as the skin's own cladding, and avian derives

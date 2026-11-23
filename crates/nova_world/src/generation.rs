@@ -1012,6 +1012,7 @@ fn check_ship_design(design: &ShipDesign) -> Result<(), String> {
     let ShipPresentationConfig {
         skin: _,
         style: _,
+        palette: _,
         collapse_sound,
         lock_on_sound,
         lock_off_sound,

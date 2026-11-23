@@ -1,7 +1,7 @@
 {
   "_comment": "CIVILIAN kit: a CABIN WINDOW ROW - a pale frame, a dark glazing channel, three lit ports. The one piece that says what the ship is FOR: nothing else in a kit of hull-coloured fairings and paint says people are carried. Long along Z so `align: Run` lays the row down the panel it is on rather than across it.",
   "materials": {
-    "hull": { "color": [0.42, 0.42, 0.4], "metallic": 0.0, "roughness": 0.35 },
+    "hull": { "color": [1.0, 0.0, 1.0], "metallic": 0.0, "roughness": 0.35 },
     "shadow": { "color": [0.012, 0.013, 0.016], "metallic": 0.0, "roughness": 0.55 },
     "lamp": { "color": [0.89, 0.342, 0.027], "metallic": 0.0, "roughness": 0.35 }
   },

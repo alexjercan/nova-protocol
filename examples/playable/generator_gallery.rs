@@ -402,16 +402,17 @@ fn pin_snapshot(mut commands: Commands, loaded: Option<Res<LoadedSectionPacks>>)
             sections: pack.sections.clone(),
         })
         .collect();
-    let snapshot = ShipPartSnapshot::build(&packs).unwrap_or_else(|faults| {
-        panic!(
-            "generator_gallery: the loaded parts are refused:\n  {}",
-            faults
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n  ")
-        )
-    });
+    let snapshot = ShipPartSnapshot::build(&packs, &nova_authoring::generation::build_palettes())
+        .unwrap_or_else(|faults| {
+            panic!(
+                "generator_gallery: the loaded parts are refused:\n  {}",
+                faults
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n  ")
+            )
+        });
     commands.insert_resource(Snapshot(snapshot));
 }
 
@@ -764,7 +765,7 @@ fn controls_window(
                 .selected_text(shown)
                 .show_ui(ui, |ui| {
                     ui.selectable_value(&mut edit.style, None, "own style");
-                    for style in styles.iter().flat_map(|styles| styles.0.iter()) {
+                    for style in styles.iter().flat_map(|styles| styles.styles.iter()) {
                         ui.selectable_value(
                             &mut edit.style,
                             Some(style.id.clone()),

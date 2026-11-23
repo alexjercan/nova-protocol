@@ -61,8 +61,9 @@ use nova_scenario::prelude::{
 };
 use nova_ship::prelude::{
     blocked_exits, cube_rotations, derive_link_point_graph, oriented_part, read_structure,
-    ship_exits, LinkPointGraphError, OrientedPart, PlacedPart, PlacedSectionLinkPoints,
-    SectionCollider, SectionKind, ShipMeasure, GRID_EPSILON,
+    ship_exits, LinkPointGraphError, OrientedPart, PaletteRoleType, PlacedPart,
+    PlacedSectionLinkPoints, SectionCollider, SectionKind, ShipMeasure, ShipPaletteConfig,
+    GRID_EPSILON,
 };
 
 use crate::{
@@ -1101,6 +1102,10 @@ impl<'a> StationDraw<'a> {
                 presentation: ShipPresentationConfig {
                     skin: true,
                     style: Some(self.request.archetype.style_id().to_string()),
+                    palette: Some(ShipPaletteConfig {
+                        id: self.parts.palette(self.request.civilization).clone(),
+                        role: PaletteRoleType::Station,
+                    }),
                     ..ShipPresentationConfig::base_voice()
                 },
             },
@@ -1733,7 +1738,8 @@ mod tests {
                 ),
             ],
         });
-        ShipPartSnapshot::build(&packs).expect("the station fixture builds")
+        ShipPartSnapshot::build(&packs, &crate::ship_layout::fixture::palettes())
+            .expect("the station fixture builds")
     }
 
     fn request(
@@ -1768,6 +1774,78 @@ mod tests {
 
     const ADVANCEMENTS: [f32; 5] = [0.0, 0.25, 0.5, 0.75, 1.0];
 
+    /// A generated ship and its wreck wear their role's style in their
+    /// civilization's palette, at the role's finish, and a station wears its
+    /// archetype's style in the same palette at the station finish. Two
+    /// neighbouring civilizations dress the same request in different
+    /// palettes.
+    #[test]
+    fn a_generated_ship_its_wreck_and_its_station_wear_their_civilizations_palette() {
+        use nova_gameplay::prelude::{ShipRoleType, ShipSizeType};
+        use nova_ship::prelude::{PaletteRoleType, ShipPaletteConfig};
+
+        use crate::{
+            role_style_id,
+            ship_layout::{generate_ship, generate_wreck, ShipLayoutRequest, ShipSpareDriveType},
+        };
+
+        let parts = snapshot();
+        let civilizations = [[1, -2, 0], [2, -2, 0]].map(|node| CivilizationId {
+            world_seed: 7,
+            node,
+        });
+        assert_ne!(
+            parts.palette(civilizations[0]),
+            parts.palette(civilizations[1]),
+            "neighbours share a palette"
+        );
+        for civilization in civilizations {
+            let palette = parts.palette(civilization).clone();
+            for role in ShipRoleType::ALL {
+                let request = ShipLayoutRequest {
+                    seed: 1,
+                    civilization,
+                    role,
+                    advancement: 1.0,
+                    size: ShipSizeType::Advancement,
+                    spare_drive: ShipSpareDriveType::Without,
+                };
+                let intact = generate_ship(&parts, request).expect("the ship generates");
+                let wreck = generate_wreck(&parts, request).expect("the wreck generates");
+                for (condition, layout) in [("intact", intact), ("wrecked", wreck)] {
+                    let presentation = &layout.design.presentation;
+                    assert!(presentation.skin, "{role:?} {condition} stands bare");
+                    assert_eq!(
+                        presentation.style.as_deref(),
+                        Some(role_style_id(role)),
+                        "{role:?} {condition} wears the wrong style"
+                    );
+                    assert_eq!(
+                        presentation.palette,
+                        Some(ShipPaletteConfig {
+                            id: palette.clone(),
+                            role: role.into(),
+                        }),
+                        "{role:?} {condition} wears the wrong palette"
+                    );
+                }
+            }
+            let archetype = StationArchetypeType::ALL[0];
+            let station = generate_station(&parts, request_of(civilization, 3, archetype, 0.5))
+                .expect("the station generates");
+            let presentation = &station.design.presentation;
+            assert_eq!(presentation.style.as_deref(), Some(archetype.style_id()));
+            assert_eq!(
+                presentation.palette,
+                Some(ShipPaletteConfig {
+                    id: palette,
+                    role: PaletteRoleType::Station,
+                }),
+                "the station wears the wrong palette"
+            );
+        }
+    }
+
     /// No station stands a panel below advancement 0.5, even with a panel
     /// part open from advancement 0, and from 0.5 the spire's wings and the
     /// yard's arms are panels.
@@ -1790,7 +1868,8 @@ mod tests {
                 ),
             ],
         });
-        let parts = ShipPartSnapshot::build(&packs).expect("the panel fixture builds");
+        let parts = ShipPartSnapshot::build(&packs, &crate::ship_layout::fixture::palettes())
+            .expect("the panel fixture builds");
         assert!(parts
             .parts()
             .iter()
@@ -1848,7 +1927,8 @@ mod tests {
                 _ => recipe(&[("FrameSpar", 1)]),
             };
         }
-        let parts = ShipPartSnapshot::build(&packs).expect("the recipe fixture builds");
+        let parts = ShipPartSnapshot::build(&packs, &crate::ship_layout::fixture::palettes())
+            .expect("the recipe fixture builds");
         // The fixture turret is unlimited, so no known weapon reloads and the
         // station stocks no ammunition.
         let goods = [
@@ -1952,7 +2032,8 @@ mod tests {
                 _ => recipe(&[("FrameSpar", 1)]),
             };
         }
-        let parts = ShipPartSnapshot::build(&packs).expect("the recipe fixture builds");
+        let parts = ShipPartSnapshot::build(&packs, &crate::ship_layout::fixture::palettes())
+            .expect("the recipe fixture builds");
         let goods = [
             ItemRoleType::HullPlate,
             ItemRoleType::Medkit,
@@ -2073,7 +2154,8 @@ mod tests {
                 strip_yield: 0.5,
             };
         }
-        let parts = ShipPartSnapshot::build(&packs).expect("the recipe fixture builds");
+        let parts = ShipPartSnapshot::build(&packs, &crate::ship_layout::fixture::palettes())
+            .expect("the recipe fixture builds");
         let items = GameItems::new(
             [
                 ItemRoleType::HullPlate,
@@ -2152,7 +2234,8 @@ mod tests {
                 });
             }
         }
-        let parts = ShipPartSnapshot::build(&packs).expect("the reloading fixture builds");
+        let parts = ShipPartSnapshot::build(&packs, &crate::ship_layout::fixture::palettes())
+            .expect("the reloading fixture builds");
         let items = GameItems::new(GOODS.map(|(role, _)| ItemDesign {
             id: role.id().into(),
             name: role.id().to_string(),
@@ -2219,7 +2302,8 @@ mod tests {
                 });
             }
         }
-        let parts = ShipPartSnapshot::build(&packs).expect("the reloading fixture builds");
+        let parts = ShipPartSnapshot::build(&packs, &crate::ship_layout::fixture::palettes())
+            .expect("the reloading fixture builds");
         let items = |round_g: u32| {
             GameItems::new(GOODS.map(|(role, _)| ItemDesign {
                 id: role.id().into(),
@@ -2559,7 +2643,8 @@ mod tests {
             pack.sections
                 .retain(|section| !matches!(section.kind, SectionKind::Turret(_)));
         }
-        let parts = ShipPartSnapshot::build(&packs).expect("the fixture builds without turrets");
+        let parts = ShipPartSnapshot::build(&packs, &crate::ship_layout::fixture::palettes())
+            .expect("the fixture builds without turrets");
         let failure = generate_station(&parts, request(1, StationArchetypeType::Ring, 0.0))
             .expect_err("no turret");
         assert_eq!(failure.attempts, 0);

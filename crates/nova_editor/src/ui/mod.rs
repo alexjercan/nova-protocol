@@ -3466,7 +3466,10 @@ mod tests {
         // `sync_style_list` inks its rows from the live theme; `NovaUiPlugin`
         // owns this resource in production and this harness adds no plugins.
         app.init_resource::<ActiveUiTheme>();
-        app.insert_resource(GameStyles(vec![style("first"), style("second")]));
+        app.insert_resource(GameStyles::new(
+            vec![style("first"), style("second")],
+            Vec::new(),
+        ));
         let ship = app
             .world_mut()
             .spawn(ShipNode {
@@ -3555,7 +3558,7 @@ mod tests {
     /// alone made a builder open each style in turn to find out what it meant.
     #[test]
     fn a_style_row_carries_the_colour_that_style_paints() {
-        let listed = listed_styles(&GameStyles(vec![style("civilian")]));
+        let listed = listed_styles(&GameStyles::new(vec![style("civilian")], Vec::new()));
         assert_eq!(
             listed.first().map(|(_, _, colour)| *colour),
             Some(Color::linear_rgb(0.2, 0.3, 0.4))

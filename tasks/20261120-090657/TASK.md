@@ -94,3 +94,71 @@ Planned 2026-11-20 from the owner sign-off of the start hull looks
   Owner picked replace.
 - Old saves are not a cost: no compatibility for them; delete old saves.
 - New shapes (thin parts, wedges, wings): owner agrees, not now; future work.
+
+## Build (2026-11-23)
+Options 1 and 2 built; uncommitted on `master`. Frames in
+`~/Pictures/nova-faction-palettes/` (looks rig, start hull looks, world).
+
+- Content kind `Palette` (`FactionPaletteConfig`, typed
+  `FactionPaletteDesignId`): a finish per role and for stations,
+  `greeble_density` (0.5 to 2.0) and `accents`. Owner:
+  `crates/nova_ship/src/sections/faction_palette.rs`. Base catalog: 8
+  palettes in `crates/nova_authoring/src/base_content/palettes.rs`, one hue
+  each, role tones shared (civilian L 0.55, industrial 0.40, scavenger 0.30,
+  armored 0.24, station 0.45; wall a third of the top).
+- Pick: `ShipPartSnapshot::palette(civ)` = `order[(x + 2y + 4z) mod N]`,
+  `order` a Fisher-Yates shuffle seeded by the world seed. The snapshot pins
+  the sorted palette ids and refuses fewer than 8 (`TooFewPalettes`).
+- `ShipPresentationConfig.palette: Option<ShipPaletteConfig { id, role }>`.
+  `generate_ship` and `generate_wreck` write the civilization's palette with
+  the role finish; stations write it with `Station`. `None`: start hulls,
+  scenario ships, editor.
+- `ShipStyle { style, palette }` replaces the tuple; `GameStyles { styles,
+  palettes }` replaces the tuple. `SkinLook` resolves both;
+  `SkinLook::worn_style()` applies the finish and the habit (empty weights
+  divided by the density, accents added as lone greebles). Plate materials
+  are keyed by `ShipStyle`, so (style, palette, role).
+- Greebles: the 10 civilian recipes use the key `[1, 0, 1]` and were
+  regenerated (`gen-greebles.py --check` clean). A fixture carries
+  `tint: Hull | Baked`. `tint_decor_keys` replaces every key material with
+  `DecorTint` (the look's top finish) when the model is ready; no tint leaves
+  magenta. Lint reads the `.glb` and refuses a key with `Baked` or `Hull`
+  with no key.
+- Shed fixtures and detached pieces freeze the full `ShipStyle`; a Load
+  refuses an unknown style or palette by id.
+- Lint: palette faults (hostile red band 25 deg, key magenta band 20 deg,
+  density range, unknown/duplicate/unweighted accent, habit that does not
+  compile), design unknown palette or palette without style, fewer than 8.
+
+Proof: `nova_world_base` `neighbour_civilizations_never_share_a_palette`
+(also same id, same palette), `a_catalog_with_too_few_palettes_is_refused`,
+`a_generated_ship_its_wreck_and_its_station_wear_their_civilizations_palette`
+(replaces `every_role_wears_its_style_intact_and_wrecked`),
+`a_load_whose_piece_wears_an_unknown_style_or_palette_is_refused` (save and
+load keeps the palette id: the refusal names the id read back from disk).
+`nova_ship` `plate_materials_are_shared_within_a_palette_and_differ_between_palettes`,
+`a_keyed_greeble_takes_its_tint_and_an_untinted_one_stays_magenta`, and the
+four `faction_palette` tests (red band, magenta band, unknown accent and
+density, finish and habit). `nova_scenario`
+`a_design_naming_an_unknown_palette_is_refused`. `nova_authoring` lint_walk
+`a_keyed_greeble_with_no_tint_source_is_refused`.
+
+Frames:
+- `faction_palettes` example, ochre, teal, cobalt, indigo: every role plus
+  the armored wreck. Smoke PASS each: every hull wears the palette, plates
+  carry its role top, civilian keyed greebles tinted (164 to 213 meshes), no
+  magenta (also 0 magenta pixels). Greebles 1559 (teal, 0.7) to 2293
+  (indigo, 1.5) on the same five hulls.
+- `screenshot_base_fleet --looks`: the patrol picket's pale stripe fillet is
+  gone; the band face and pinstripe stay baked.
+- `world_features`: two ships of sector (-3, -3, -2), ochre scavenger
+  (civ (-1, 0, -1)) and steel industrial wreck (civ (0, -1, 0)), each
+  checked live for its palette. They stand 2.3 km apart, so they are two
+  frames, not one.
+
+Draw cost: palettes add no draw calls per hull; plate materials grow from
+one set per style to one per (style, palette, role) in view. The row of five
+hulls draws 36518 to 38080 meshes; the count follows the greeble density.
+
+Open for the owner: tone tuning (civilian and industrial read close; cobalt
+and indigo are near hues).

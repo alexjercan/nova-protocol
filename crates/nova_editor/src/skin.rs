@@ -139,9 +139,10 @@ pub(crate) fn sync_editor_skin(
     // The style goes on the ship NODE, which is where `dress_skin_plate`'s
     // ancestor walk looks for it - the same walk that finds a flown ship's on
     // its own root two levels up.
-    commands
-        .entity(root)
-        .insert(ShipStyle(style.map(|style| style.id.clone())));
+    commands.entity(root).insert(ShipStyle {
+        style: style.map(|style| style.id.clone()),
+        palette: None,
+    });
 
     let (structure, phase, _) = read_structure(&placed);
     let mut plates = derive_skin(&structure);
@@ -188,7 +189,10 @@ pub(crate) fn sync_editor_skin(
             commands.spawn((
                 DespawnOnExit(ExampleStates::Editor),
                 Name::new("Editor Skin Decor"),
-                ShipDecorMarker(style.fixtures[placement.fixture].model.clone()),
+                ShipDecorMarker {
+                    model: style.fixtures[placement.fixture].model.clone(),
+                    tint: style.fixtures[placement.fixture].tint,
+                },
                 decor_pose(&plates[placement.plate], placement.turns),
                 Visibility::Inherited,
                 ChildOf(laid[placement.plate]),
@@ -546,7 +550,7 @@ mod tests {
     /// entities, or a hull dragged about would twinkle.
     #[test]
     fn the_build_view_wears_its_ship_style() {
-        let mut app = styled_app(true, GameStyles(vec![test_style()]));
+        let mut app = styled_app(true, GameStyles::new(vec![test_style()], Vec::new()));
         build(&mut app, Vec3::ZERO);
         app.update();
 
@@ -592,7 +596,7 @@ mod tests {
         let mut second = test_style();
         second.id = "second".to_string();
         second.name = "Second".to_string();
-        let mut app = styled_app(true, GameStyles(vec![first, second]));
+        let mut app = styled_app(true, GameStyles::new(vec![first, second], Vec::new()));
         build(&mut app, Vec3::ZERO);
         app.update();
         let before = decor(&mut app);
@@ -614,7 +618,7 @@ mod tests {
             .query_filtered::<&ShipStyle, With<ShipNode>>()
             .single(app.world())
             .expect("one preview root");
-        assert_eq!(style.0.as_deref(), Some("second"));
+        assert_eq!(style.style.as_deref(), Some("second"));
     }
 
     /// No style authored anywhere is a bare skin, not a panic and not a
@@ -666,6 +670,7 @@ mod tests {
                 ),
                 health: 10.0,
                 collider: Vec3::new(0.2, 0.05, 0.2),
+                tint: DecorTintType::Baked,
             }],
             greeble_rules: GreebleRules {
                 link_types: vec![GreebleLinkConfig {

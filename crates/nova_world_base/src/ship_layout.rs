@@ -80,7 +80,7 @@ use nova_ship::prelude::{
     mirror_face, mirror_rotation, oriented_part, placement_blocks_an_exit, read_structure,
     ship_exits, LinkPointGraphError, OrientedPart, PlacedPart, PlacedSectionLinkPoints,
     RefitPlacedSection, SectionConfig, SectionFootprint, SectionKind, ShipMeasure,
-    ShipMeasureShortfallType, GRID_EPSILON,
+    ShipMeasureShortfallType, ShipPaletteConfig, GRID_EPSILON,
 };
 use nova_world::prelude::SECTOR_SHIP_CLEARANCE_MAX;
 
@@ -1876,6 +1876,10 @@ impl<'a> Draw<'a> {
                     presentation: ShipPresentationConfig {
                         skin: true,
                         style: Some(role_style_id(self.request.role).to_string()),
+                        palette: Some(ShipPaletteConfig {
+                            id: self.snapshot.palette(self.request.civilization).clone(),
+                            role: self.request.role.into(),
+                        }),
                         ..ShipPresentationConfig::base_voice()
                     },
                     ..default()
@@ -2661,12 +2665,25 @@ pub(crate) mod fixture {
     use nova_events::prelude::MetersPerSecond;
     use nova_ship::prelude::{
         BaseSectionConfig, CargoIntakeSectionConfig, ControllerSectionConfig, DockingSectionConfig,
-        HullSectionConfig, LinkPoint, LinkPointSkinType, MiningSectionConfig, MuzzleConfig,
-        SectionCollider, ThrusterSectionConfig, TurretSectionConfig, CELL_FACES,
+        FactionPaletteConfig, HullSectionConfig, LinkPoint, LinkPointSkinType, MiningSectionConfig,
+        MuzzleConfig, SectionCollider, ThrusterSectionConfig, TurretSectionConfig, CELL_FACES,
+        MIN_FACTION_PALETTES,
     };
 
     use super::*;
     use crate::ship_parts::ShipPartPack;
+
+    /// The fewest palettes a snapshot takes, by id only: a generated hull
+    /// names one, and nothing in a test that names it reads its colours.
+    pub(crate) fn palettes() -> Vec<FactionPaletteConfig> {
+        (0..MIN_FACTION_PALETTES)
+            .map(|index| FactionPaletteConfig {
+                id: format!("palette_{index}").as_str().into(),
+                greeble_density: 1.0,
+                ..Default::default()
+            })
+            .collect()
+    }
 
     /// A block of `size` cells open from `advancement` with the common draw
     /// weight and a socket on the centre of every cell face it shows on each
@@ -2907,13 +2924,15 @@ pub(crate) mod tests {
 
     #[test]
     fn pack_and_section_order_do_not_change_a_generated_ship() {
-        let forward = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let forward = ShipPartSnapshot::build(&packs(), &crate::ship_layout::fixture::palettes())
+            .expect("the packs build");
         let mut reversed = packs();
         reversed.reverse();
         for pack in &mut reversed {
             pack.sections.reverse();
         }
-        let backward = ShipPartSnapshot::build(&reversed).expect("the reversed packs build");
+        let backward = ShipPartSnapshot::build(&reversed, &crate::ship_layout::fixture::palettes())
+            .expect("the reversed packs build");
 
         let mut layouts = BTreeSet::new();
         let mut sources = BTreeSet::new();
@@ -2943,7 +2962,8 @@ pub(crate) mod tests {
     /// keeps can fly.
     #[test]
     fn an_escort_hauler_keeps_a_drive_on_the_body_with_its_primary_flight_computer() {
-        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let snapshot = ShipPartSnapshot::build(&packs(), &crate::ship_layout::fixture::palettes())
+            .expect("the packs build");
         let parts: HashMap<&str, &ShipPart> = snapshot
             .parts()
             .iter()
@@ -3031,7 +3051,8 @@ pub(crate) mod tests {
 
     #[test]
     fn a_generated_ship_carries_only_what_its_role_and_advancement_allow() {
-        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let snapshot = ShipPartSnapshot::build(&packs(), &crate::ship_layout::fixture::palettes())
+            .expect("the packs build");
         let parts: HashMap<&str, &ShipPart> = snapshot
             .parts()
             .iter()
@@ -3100,7 +3121,8 @@ pub(crate) mod tests {
             pack.sections
                 .retain(|section| !matches!(section.kind, SectionKind::Turret(_)));
         }
-        let unarmed = ShipPartSnapshot::build(&unarmed).expect("the unarmed packs build");
+        let unarmed = ShipPartSnapshot::build(&unarmed, &crate::ship_layout::fixture::palettes())
+            .expect("the unarmed packs build");
         let failure = generate_ship(&unarmed, request(0, ShipRoleType::Scavenger, 1.0))
             .expect_err("a scavenger needs a weapon");
         assert_eq!(failure.attempts, 0);
@@ -3112,17 +3134,20 @@ pub(crate) mod tests {
 
     #[test]
     fn a_ship_no_layout_can_fit_fails_after_the_attempt_bound_with_its_constraint() {
-        let huge = ShipPartSnapshot::build(&[pack(
-            "base",
-            &[],
-            vec![
-                cube("cube", 100.0, 0.0),
-                controller("controller"),
-                drive("huge_drive", 1.0, UVec3::new(15, 15, 1), 0.0),
-                intake("intake"),
-                dock("dock", &DOCK_FACES),
-            ],
-        )])
+        let huge = ShipPartSnapshot::build(
+            &[pack(
+                "base",
+                &[],
+                vec![
+                    cube("cube", 100.0, 0.0),
+                    controller("controller"),
+                    drive("huge_drive", 1.0, UVec3::new(15, 15, 1), 0.0),
+                    intake("intake"),
+                    dock("dock", &DOCK_FACES),
+                ],
+            )],
+            &crate::ship_layout::fixture::palettes(),
+        )
         .expect("the packs build");
 
         let request = request(42, ShipRoleType::Civilian, 0.0);
@@ -3148,18 +3173,21 @@ pub(crate) mod tests {
         // mirror image, so a drawn single beam has no centreline mount: the
         // request fails rather than flying without it, and a request that
         // draws none builds.
-        let lopsided = ShipPartSnapshot::build(&[pack(
-            "base",
-            &[],
-            vec![
-                cube("cube", 100.0, 0.0),
-                controller("controller"),
-                drive("small_drive", 1.0, UVec3::ONE, 0.0),
-                intake("intake"),
-                dock("dock", &DOCK_FACES),
-                mining("lopsided_beam", 1.0, &[Vec3::X, Vec3::Y], 0.0),
-            ],
-        )])
+        let lopsided = ShipPartSnapshot::build(
+            &[pack(
+                "base",
+                &[],
+                vec![
+                    cube("cube", 100.0, 0.0),
+                    controller("controller"),
+                    drive("small_drive", 1.0, UVec3::ONE, 0.0),
+                    intake("intake"),
+                    dock("dock", &DOCK_FACES),
+                    mining("lopsided_beam", 1.0, &[Vec3::X, Vec3::Y], 0.0),
+                ],
+            )],
+            &crate::ship_layout::fixture::palettes(),
+        )
         .expect("the packs build");
         let outcomes: Vec<Result<ShipLayout, ShipLayoutFailure>> = (0..16)
             .map(|seed| generate_ship(&lopsided, request(seed, ShipRoleType::Industrial, 0.0)))
@@ -3180,36 +3208,13 @@ pub(crate) mod tests {
         }
     }
 
-    #[test]
-    fn every_role_wears_its_style_intact_and_wrecked() {
-        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
-        for (role, style) in [
-            (ShipRoleType::Civilian, "civilian"),
-            (ShipRoleType::Industrial, "industrial"),
-            (ShipRoleType::Scavenger, "salvage"),
-            (ShipRoleType::Armored, "armoured"),
-        ] {
-            let request = request(1, role, 1.0);
-            let intact = generate_ship(&snapshot, request).expect("the ship generates");
-            let wreck = generate_wreck(&snapshot, request).expect("the wreck generates");
-            for (condition, layout) in [("intact", intact), ("wrecked", wreck)] {
-                let presentation = &layout.design.presentation;
-                assert!(presentation.skin, "{role:?} {condition} stands bare");
-                assert_eq!(
-                    presentation.style.as_deref(),
-                    Some(style),
-                    "{role:?} {condition} wears the wrong style"
-                );
-            }
-        }
-    }
-
     /// AUTHORED-OR-SILENT reads an unset voice as a mute hull, so a generated
     /// ship - a sector ship, a hull for sale, a hired escort - must author the
     /// base voice or its RCS pushes make no sound at all.
     #[test]
     fn every_generated_hull_hisses_its_rcs() {
-        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let snapshot = ShipPartSnapshot::build(&packs(), &crate::ship_layout::fixture::palettes())
+            .expect("the packs build");
         for role in [
             ShipRoleType::Civilian,
             ShipRoleType::Industrial,
@@ -3228,13 +3233,15 @@ pub(crate) mod tests {
 
     #[test]
     fn a_wreck_keeps_its_fittings_size_and_connection_and_breaks_its_mirror() {
-        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let snapshot = ShipPartSnapshot::build(&packs(), &crate::ship_layout::fixture::palettes())
+            .expect("the packs build");
         let mut reversed = packs();
         reversed.reverse();
         for pack in &mut reversed {
             pack.sections.reverse();
         }
-        let backward = ShipPartSnapshot::build(&reversed).expect("the reversed packs build");
+        let backward = ShipPartSnapshot::build(&reversed, &crate::ship_layout::fixture::palettes())
+            .expect("the reversed packs build");
         let parts: HashMap<&str, &ShipPart> = snapshot
             .parts()
             .iter()
@@ -3361,24 +3368,27 @@ pub(crate) mod tests {
         // not lose even one. The ship is drawn again instead. The intake is
         // one cell: a full-size one needs a deck three cells wide, which a
         // three-station hull does not have.
-        let short = ShipPartSnapshot::build(&[pack(
-            "base",
-            &[],
-            vec![
-                cube("cube", 100.0, 0.0),
-                controller("controller"),
-                drive("deep_drive", 1.0, UVec3::new(1, 1, 10), 0.0),
-                block(
-                    "intake",
-                    100.0,
-                    0.0,
-                    intake("intake").kind,
-                    UVec3::ONE,
-                    &DOCK_FACES,
-                ),
-                dock("dock", &DOCK_FACES),
-            ],
-        )])
+        let short = ShipPartSnapshot::build(
+            &[pack(
+                "base",
+                &[],
+                vec![
+                    cube("cube", 100.0, 0.0),
+                    controller("controller"),
+                    drive("deep_drive", 1.0, UVec3::new(1, 1, 10), 0.0),
+                    block(
+                        "intake",
+                        100.0,
+                        0.0,
+                        intake("intake").kind,
+                        UVec3::ONE,
+                        &DOCK_FACES,
+                    ),
+                    dock("dock", &DOCK_FACES),
+                ],
+            )],
+            &crate::ship_layout::fixture::palettes(),
+        )
         .expect("the packs build");
 
         let request = request(2, ShipRoleType::Civilian, 0.0);
@@ -3398,7 +3408,8 @@ pub(crate) mod tests {
 
     #[test]
     fn a_generated_ship_has_the_thrust_and_flight_computers_its_mass_needs() {
-        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let snapshot = ShipPartSnapshot::build(&packs(), &crate::ship_layout::fixture::palettes())
+            .expect("the packs build");
         let parts: HashMap<&str, &ShipPart> = snapshot
             .parts()
             .iter()
@@ -3449,7 +3460,8 @@ pub(crate) mod tests {
     /// a sector accepts.
     #[test]
     fn every_generated_hull_is_long_for_its_role_and_inside_its_ceiling() {
-        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let snapshot = ShipPartSnapshot::build(&packs(), &crate::ship_layout::fixture::palettes())
+            .expect("the packs build");
         let parts: HashMap<&str, &ShipPart> = snapshot
             .parts()
             .iter()
@@ -3497,7 +3509,8 @@ pub(crate) mod tests {
     /// docking port's face, where a berthed hull parks.
     #[test]
     fn every_generated_ship_carries_a_backed_intake_clear_of_its_ports() {
-        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let snapshot = ShipPartSnapshot::build(&packs(), &crate::ship_layout::fixture::palettes())
+            .expect("the packs build");
         let parts: HashMap<&str, &ShipPart> = snapshot
             .parts()
             .iter()
@@ -3576,7 +3589,8 @@ pub(crate) mod tests {
             "armoured_controller",
             "long_mining_beam",
         ];
-        let snapshot = ShipPartSnapshot::build(&packs).expect("the packs build");
+        let snapshot = ShipPartSnapshot::build(&packs, &crate::ship_layout::fixture::palettes())
+            .expect("the packs build");
         let civilization = knowing(&snapshot, &variants);
         let mut mounted: BTreeSet<String> = BTreeSet::new();
         for seed in 0..12 {
@@ -3597,7 +3611,8 @@ pub(crate) mod tests {
 
     #[test]
     fn a_high_advancement_ship_draws_its_drives_from_its_tier() {
-        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let snapshot = ShipPartSnapshot::build(&packs(), &crate::ship_layout::fixture::palettes())
+            .expect("the packs build");
         let parts: HashMap<&str, &ShipPart> = snapshot
             .parts()
             .iter()
@@ -3635,7 +3650,8 @@ pub(crate) mod tests {
         let mut packs = packs();
         packs[0].sections.push(cube("plate_cube", 150.0, 0.25));
         packs[0].sections.push(cube("rib_cube", 300.0, 0.4));
-        let snapshot = ShipPartSnapshot::build(&packs).expect("the packs build");
+        let snapshot = ShipPartSnapshot::build(&packs, &crate::ship_layout::fixture::palettes())
+            .expect("the packs build");
         let parts: HashMap<&str, &ShipPart> = snapshot
             .parts()
             .iter()
@@ -3690,7 +3706,8 @@ pub(crate) mod tests {
 
     #[test]
     fn every_generated_ship_docks_through_a_backed_flank_pair_down_a_clear_lane() {
-        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let snapshot = ShipPartSnapshot::build(&packs(), &crate::ship_layout::fixture::palettes())
+            .expect("the packs build");
         let parts: HashMap<&str, &ShipPart> = snapshot
             .parts()
             .iter()
@@ -3786,7 +3803,8 @@ pub(crate) mod tests {
                 *section = dock("dock", &[Vec3::Z, Vec3::X]);
             }
         }
-        let snapshot = ShipPartSnapshot::build(&packs).expect("the packs build");
+        let snapshot = ShipPartSnapshot::build(&packs, &crate::ship_layout::fixture::palettes())
+            .expect("the packs build");
         let parts: HashMap<&str, &ShipPart> = snapshot
             .parts()
             .iter()
@@ -3816,7 +3834,8 @@ pub(crate) mod tests {
         // A sector fault: 4 outer cubes of this hull can each go alone and one
         // pass loses 4 together, but every seeded plan's earlier omissions
         // leave the rest holding its bounds or its socket graph.
-        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let snapshot = ShipPartSnapshot::build(&packs(), &crate::ship_layout::fixture::palettes())
+            .expect("the packs build");
         let request = ShipLayoutRequest {
             seed: 3_594_588_663,
             civilization: CivilizationId {

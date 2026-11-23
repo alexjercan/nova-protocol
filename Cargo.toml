@@ -380,6 +380,7 @@ name = "objective_chip_sandbox"
 path = "examples/playable/objective_chip_sandbox.rs"
 required-features = ["debug"]
 
+
 # The ore loop in one session: the line warship's beam mines a rock, its
 # intake takes one canister, and that ore is sold to a docked demo trader
 # through the Inventory pane. The walk checks the ore and credit ledger at
@@ -459,6 +460,13 @@ path = "examples/playable/greeble_catalog.rs"
 [[example]]
 name = "greeble_solve"
 path = "examples/playable/greeble_solve.rs"
+required-features = ["debug"]
+
+# The generated hulls of one civilization in each faction palette, under the
+# looks light; `[` and `]` step through the palette catalog.
+[[example]]
+name = "faction_palettes"
+path = "examples/playable/faction_palettes.rs"
 required-features = ["debug"]
 
 # The six start hulls, one at a time, up close on the game skybox: `1` to `6`

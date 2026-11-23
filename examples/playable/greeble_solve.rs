@@ -300,9 +300,12 @@ fn solve_the_hull(
     if solved.source == Some((root, sections.len())) || sections.is_empty() {
         return;
     }
-    let Some(style) = worn.resolve(&styles) else {
+    let Some(look) = worn.resolve(&styles) else {
         return;
     };
+    // The style as the spawn solves it: the palette's greeble habit applied.
+    let worn_style = look.worn_style();
+    let style: &ShipStyleConfig = &worn_style;
     let Ok(Some(greebles)) = style.compile_greebles() else {
         return;
     };

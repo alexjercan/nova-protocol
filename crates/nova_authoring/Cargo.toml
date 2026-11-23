@@ -14,6 +14,8 @@ bevy = { version = "0.20.1" }
 # manifests and content files back. serde carries balance_acks.ron's derive.
 ron = { version = "0.12" }
 serde = { version = "1", features = ["derive"] }
+# The greeble key check reads a glTF binary's JSON chunk for its materials.
+serde_json = { version = "1" }
 # The `content` CLI (the game binary's `content` subcommand, see `cli`) parses
 # its gen/lint subcommands with clap derive.
 clap = { version = "4.5.48", features = ["derive"] }

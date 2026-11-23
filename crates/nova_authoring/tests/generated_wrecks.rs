@@ -3,7 +3,7 @@
 //! ruined by its `generate_wreck`.
 
 use bevy::math::Vec3;
-use nova_authoring::lint_walk::repo_ship_part_packs;
+use nova_authoring::{generation::build_palettes, lint_walk::repo_ship_part_packs};
 use nova_gameplay::prelude::{CivilizationId, ShipRoleType, ShipSizeType};
 use nova_scenario::prelude::SpaceshipSectionConfig;
 use nova_ship::prelude::{intake_in_dock_approach, RefitPlacedSection, SectionKind, GRID_EPSILON};
@@ -20,7 +20,7 @@ const CIVILIZATION: CivilizationId = CivilizationId {
 
 #[test]
 fn every_base_wreck_at_advancement_zero_breaks_its_mirror() {
-    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]), &build_palettes())
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
     for seed in 0..12 {
         for role in snapshot.eligible_roles(CIVILIZATION, 0.0) {
@@ -47,7 +47,7 @@ fn every_base_wreck_at_advancement_zero_breaks_its_mirror() {
 /// ports' faces, so a berthed hull never parks on it.
 #[test]
 fn every_base_ship_carries_an_intake_clear_of_its_ports() {
-    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]), &build_palettes())
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
     let config = |section: &SpaceshipSectionConfig| {
         let id = section.source.prototype_id();
@@ -105,7 +105,7 @@ fn request(seed: u32, role: ShipRoleType, advancement: f32) -> ShipLayoutRequest
 /// mounts one, and from 0.6 up some ships of every sweep do.
 #[test]
 fn the_capital_drive_mounts_from_mid_advancement_only() {
-    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]), &build_palettes())
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
     for advancement in [0.0, 0.25, 0.45, 0.6, 0.8, 1.0] {
         let mut capital = 0;
@@ -134,7 +134,7 @@ fn the_capital_drive_mounts_from_mid_advancement_only() {
 /// within the per-ship section budget.
 #[test]
 fn generated_ships_at_full_advancement_stay_within_the_section_budget() {
-    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]), &build_palettes())
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
     for role in snapshot.eligible_roles(CIVILIZATION, 1.0) {
         for seed in 1..=32 {

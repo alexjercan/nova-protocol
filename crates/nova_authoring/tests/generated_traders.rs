@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 
 use nova_authoring::{
     generation::{
-        build_consumables, build_items, build_price_table, build_section_catalog,
+        build_consumables, build_items, build_palettes, build_price_table, build_section_catalog,
         build_trade_profiles,
     },
     lint_walk::repo_ship_part_packs,
@@ -95,7 +95,7 @@ fn sell_at_a_generated_station(
     good: &str,
     lawful: bool,
 ) -> (u32, u32) {
-    let parts = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+    let parts = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]), &build_palettes())
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
     let sections = GameSections(build_section_catalog());
     let items = GameItems::new(build_items());

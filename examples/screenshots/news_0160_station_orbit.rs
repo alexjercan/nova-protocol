@@ -319,7 +319,7 @@ fn setup_stage(
             sections: pack.sections.clone(),
         })
         .collect();
-    let snapshot = ShipPartSnapshot::build(&packs)
+    let snapshot = ShipPartSnapshot::build(&packs, &nova_authoring::generation::build_palettes())
         .unwrap_or_else(|faults| panic!("station orbit: the loaded parts are refused: {faults:?}"));
     // The civilization `generated_station_design` builds the ring for.
     let civilization = CivilizationId {
@@ -643,7 +643,7 @@ fn assert_ring_orbits(world: &mut World) {
     let ring = StationArchetypeType::Ring.style_id();
     let style = world
         .get::<ShipStyle>(station)
-        .and_then(|style| style.0.clone());
+        .and_then(|style| style.style.clone());
     assert_eq!(
         style.as_deref(),
         Some(ring),

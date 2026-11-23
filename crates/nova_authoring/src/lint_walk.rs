@@ -28,7 +28,8 @@ use nova_scenario::prelude::{
     SpaceshipConfig, SpaceshipController, StartRole, StationDesignPrototype,
 };
 use nova_ship::prelude::{
-    flight_rig_reserved_sources, shared_section_sources, GameStyles, SectionConfig, ShipStyleConfig,
+    flight_rig_reserved_sources, shared_section_sources, DecorTintType, FactionPaletteConfig,
+    GameStyles, SectionConfig, ShipStyleConfig,
 };
 use nova_sound::loudness::{measure_clip, SOUND_EXTENSIONS};
 use nova_training::prelude::{
@@ -60,6 +61,8 @@ pub mod prelude {
 /// items, and the section / scenario views derived from them.
 struct WalkedBundle {
     id: String,
+    /// The bundle's root on disk, where its `self://` assets resolve.
+    dir: PathBuf,
     manifest: BundleManifest,
     items: Vec<ItemDesign>,
     sections: Vec<SectionConfig>,
@@ -77,6 +80,7 @@ struct WalkedBundle {
     lessons: Vec<Lesson>,
     ui_themes: Vec<UiThemeConfig>,
     styles: Vec<ShipStyleConfig>,
+    palettes: Vec<FactionPaletteConfig>,
     /// Every parsed content item paired with the bundle-relative file it was
     /// read from (a bundle lists several content files). Kept so the
     /// mod-relative `self://` resource-ref check can see every kind, and so
@@ -154,6 +158,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
     let mut lessons = Vec::new();
     let mut ui_themes = Vec::new();
     let mut styles = Vec::new();
+    let mut palettes = Vec::new();
     for (_, item) in &content {
         match item {
             Content::Item(design) => items.push(design.clone()),
@@ -172,10 +177,12 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
             Content::Lesson(lesson) => lessons.push(lesson.clone()),
             Content::UiTheme(theme) => ui_themes.push(theme.as_ref().clone()),
             Content::Style(style) => styles.push(style.clone()),
+            Content::Palette(palette) => palettes.push(palette.clone()),
         }
     }
     WalkedBundle {
         id: id.to_string(),
+        dir: dir.to_path_buf(),
         items,
         sections,
         ships,
@@ -192,6 +199,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         lessons,
         ui_themes,
         styles,
+        palettes,
         sound_faults: sound_faults(dir, &manifest.resources),
         manifest,
         content,
@@ -368,19 +376,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
             .flat_map(|walked| walked.items.iter().cloned()),
     );
 
-    // Visible styles, overlaid last-wins by id like the merge overlays styles:
-    // a dependent's restyle of a base id replaces it in place rather than
-    // shadowing a duplicate.
-    let mut visible_styles: Vec<ShipStyleConfig> = Vec::new();
-    for walked in effective_bundles(bundle, all) {
-        for style in &walked.styles {
-            match visible_styles.iter_mut().find(|s| s.id == style.id) {
-                Some(existing) => *existing = style.clone(),
-                None => visible_styles.push(style.clone()),
-            }
-        }
-    }
-    let known_styles = GameStyles(visible_styles);
+    let known_styles = visible_catalog(bundle, all);
 
     // Visible trade profiles, overlaid last-wins by id like the merge.
     let mut known_profiles = GameTradeProfiles::default();
@@ -708,6 +704,31 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
                     },
                 ));
             }
+            for fault in fixture_tint_faults(bundle, all, style) {
+                issues.push((
+                    bundle.id.clone(),
+                    LintIssue {
+                        severity: LintSeverity::Error,
+                        scenario: scenario.clone(),
+                        message: format!("{kind} {fault}"),
+                    },
+                ));
+            }
+        }
+        // A palette's colours stay out of the hostile and key bands, and its
+        // greeble habit names real pieces and compiles on every style. The
+        // merge drops a palette that fails.
+        if let Content::Palette(palette) = item {
+            for fault in palette.faults(&visible_catalog(bundle, all)) {
+                issues.push((
+                    bundle.id.clone(),
+                    LintIssue {
+                        severity: LintSeverity::Error,
+                        scenario: scenario.clone(),
+                        message: format!("{kind} {fault}"),
+                    },
+                ));
+            }
         }
         // Canonical enforcement: every asset ref must carry a scheme. A bare
         // (scheme-less) asset-path ref no longer resolves (base art lives under
@@ -898,6 +919,120 @@ fn effective_bundles<'a>(bundle: &WalkedBundle, all: &'a [WalkedBundle]) -> Vec<
 /// [`effective_bundles`], each naming its declared dependencies and `base`,
 /// every mod's implicit dependency, so a dependency missing from the walk is
 /// left for the snapshot to name.
+/// The styles and palettes visible to `bundle`, each overlaid last-wins by id
+/// like the merge overlays them: a dependent's restyle of a base id replaces
+/// it in place rather than shadowing a duplicate.
+fn visible_catalog(bundle: &WalkedBundle, all: &[WalkedBundle]) -> GameStyles {
+    let mut styles: Vec<ShipStyleConfig> = Vec::new();
+    let mut palettes: Vec<FactionPaletteConfig> = Vec::new();
+    for walked in effective_bundles(bundle, all) {
+        for style in &walked.styles {
+            match styles.iter_mut().find(|s| s.id == style.id) {
+                Some(existing) => *existing = style.clone(),
+                None => styles.push(style.clone()),
+            }
+        }
+        for palette in &walked.palettes {
+            match palettes.iter_mut().find(|p| p.id == palette.id) {
+                Some(existing) => *existing = palette.clone(),
+                None => palettes.push(palette.clone()),
+            }
+        }
+    }
+    GameStyles::new(styles, palettes)
+}
+
+/// Whether the glTF binary `bytes` has a material whose base colour is the
+/// greeble key magenta, the slot a tinted fixture's hull finish replaces.
+fn glb_carries_key(bytes: &[u8]) -> Result<bool, String> {
+    let word = |at: usize| -> Result<u32, String> {
+        let slice = bytes
+            .get(at..at + 4)
+            .ok_or_else(|| "is shorter than a glTF binary header".to_string())?;
+        Ok(u32::from_le_bytes(slice.try_into().expect("four bytes")))
+    };
+    if bytes.get(0..4) != Some(b"glTF") || word(16)? != u32::from_le_bytes(*b"JSON") {
+        return Err("is not a glTF binary with a JSON chunk".to_string());
+    }
+    let length = word(12)? as usize;
+    let chunk = bytes
+        .get(20..20 + length)
+        .ok_or_else(|| "has a JSON chunk past its end".to_string())?;
+    let json: serde_json::Value =
+        serde_json::from_slice(chunk).map_err(|error| format!("has bad JSON: {error}"))?;
+    let key = [1.0, 0.0, 1.0];
+    Ok(json["materials"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|material| material["pbrMetallicRoughness"]["baseColorFactor"].as_array())
+        .any(|factor| {
+            factor.len() >= 3
+                && key
+                    .iter()
+                    .zip(factor)
+                    .all(|(want, got)| got.as_f64().is_some_and(|got| (got - want).abs() < 1e-3))
+        }))
+}
+
+/// The file on disk a fixture model ref names, seen from `bundle`: a
+/// `self://` path under its root, a `dep://<id>/` path under that bundle's.
+/// `None` for a ref the walk cannot place; the reference checks report it.
+fn fixture_model_file(bundle: &WalkedBundle, all: &[WalkedBundle], path: &str) -> Option<PathBuf> {
+    let path = path.split('#').next()?;
+    if let Some(rest) = path.strip_prefix("self://") {
+        return Some(bundle.dir.join(rest));
+    }
+    let rest = path.strip_prefix("dep://")?;
+    let (id, rest) = rest.split_once('/')?;
+    let owner = all
+        .iter()
+        .chain(std::iter::once(bundle))
+        .find(|walked| walked.id == id)?;
+    Some(owner.dir.join(rest))
+}
+
+/// Every fixture of `style` whose model's key slots and `tint` disagree: a
+/// keyed model with no tint source renders magenta, and a hull tint on a
+/// model with no key slot tints nothing.
+fn fixture_tint_faults(
+    bundle: &WalkedBundle,
+    all: &[WalkedBundle],
+    style: &ShipStyleConfig,
+) -> Vec<String> {
+    let mut faults = Vec::new();
+    for fixture in &style.fixtures {
+        let Some(file) = fixture
+            .model
+            .path()
+            .and_then(|path| fixture_model_file(bundle, all, path))
+        else {
+            continue;
+        };
+        let Ok(bytes) = std::fs::read(&file) else {
+            continue;
+        };
+        match (glb_carries_key(&bytes), fixture.tint) {
+            (Err(error), _) => faults.push(format!(
+                "fixture '{}': model {} {error}",
+                fixture.id,
+                file.display()
+            )),
+            (Ok(true), DecorTintType::Baked) => faults.push(format!(
+                "fixture '{}' carries the key magenta but its tint is Baked: it would render \
+                 magenta; set tint: Hull",
+                fixture.id
+            )),
+            (Ok(false), DecorTintType::Hull) => faults.push(format!(
+                "fixture '{}' has tint: Hull but its model has no key magenta material to tint",
+                fixture.id
+            )),
+            (Ok(_), _) => {}
+        }
+    }
+    faults
+}
+
 fn ship_part_packs(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<ShipPartPack> {
     effective_bundles(bundle, all)
         .into_iter()
@@ -1069,11 +1204,20 @@ fn build_report(
     let base_id = BASE_MOD_ID.to_string();
     let base_ship_part_faults = by_id
         .get(BASE_MOD_ID)
-        .and_then(|base| ShipPartSnapshot::build(&ship_part_packs(base, all)).err())
+        .and_then(|base| {
+            ShipPartSnapshot::build(
+                &ship_part_packs(base, all),
+                &visible_catalog(base, all).palettes,
+            )
+            .err()
+        })
         .unwrap_or_default();
     let mut ship_part_faults: BTreeSet<(String, String, String)> = BTreeSet::new();
     for bundle in all.iter().filter(|b| report_ids.contains(&b.id)) {
-        let Err(faults) = ShipPartSnapshot::build(&ship_part_packs(bundle, all)) else {
+        let Err(faults) = ShipPartSnapshot::build(
+            &ship_part_packs(bundle, all),
+            &visible_catalog(bundle, all).palettes,
+        ) else {
             continue;
         };
         for fault in faults {
@@ -1095,6 +1239,10 @@ fn build_report(
                     (&base_id, "ship parts")
                 }
                 ShipPartFault::MissingFamily(_) => (&bundle.id, "ship parts"),
+                ShipPartFault::TooFewPalettes { .. } if base_ship_part_faults.contains(&fault) => {
+                    (&base_id, "palettes")
+                }
+                ShipPartFault::TooFewPalettes { .. } => (&bundle.id, "palettes"),
                 ShipPartFault::MissingRoleStyle { .. }
                 | ShipPartFault::MissingStationStyle { .. }
                 | ShipPartFault::MissingStationPart { .. } => {
@@ -1390,6 +1538,48 @@ mod tests {
         ron::from_str(&ron).expect("section parses")
     }
 
+    /// A greeble whose model carries the key magenta renders magenta unless
+    /// its fixture takes a hull tint, and a hull tint on a model with no key
+    /// slot tints nothing: lint refuses both, and passes the base kit.
+    #[test]
+    fn a_keyed_greeble_with_no_tint_source_is_refused() {
+        use nova_ship::prelude::{DecorTintType, ShipStyleConfig, StyleFixtureConfig};
+
+        let mut base = walked("base", &[], &[], Vec::new());
+        base.dir = super::workspace_root().join("assets/base");
+        let fixture = |id: &str, tint| StyleFixtureConfig {
+            id: id.to_string(),
+            model: AssetRef::from(format!("self://gltf/greebles/{id}.glb#Scene0")),
+            tint,
+            ..Default::default()
+        };
+        let style = |fixtures| ShipStyleConfig {
+            id: "probe".to_string(),
+            fixtures,
+            ..Default::default()
+        };
+        let faults = super::fixture_tint_faults(
+            &base,
+            &[],
+            &style(vec![
+                fixture("civilian_door", DecorTintType::Baked),
+                fixture("industrial_stack", DecorTintType::Hull),
+            ]),
+        );
+        assert_eq!(faults.len(), 2, "{faults:?}");
+        assert!(faults[0].contains("'civilian_door' carries the key magenta"));
+        assert!(faults[1].contains("'industrial_stack' has tint: Hull"));
+        let clean = super::fixture_tint_faults(
+            &base,
+            &[],
+            &style(vec![
+                fixture("civilian_door", DecorTintType::Hull),
+                fixture("industrial_stack", DecorTintType::Baked),
+            ]),
+        );
+        assert!(clean.is_empty(), "{clean:?}");
+    }
+
     /// A walked bundle from its id, declared deps, declared resources, and
     /// content items (its scenario/section views are derived, as `read_bundle`
     /// does).
@@ -1445,6 +1635,7 @@ mod tests {
             .collect();
         WalkedBundle {
             id: id.to_string(),
+            dir: std::path::PathBuf::new(),
             manifest: BundleManifest {
                 content: Vec::new(),
                 resources: resources.iter().map(|s| s.to_string()).collect(),
@@ -1470,6 +1661,7 @@ mod tests {
             lessons,
             ui_themes,
             styles: Vec::new(),
+            palettes: Vec::new(),
             // The tests do not exercise multi-file provenance; a single
             // synthetic file name carries every item.
             content: content

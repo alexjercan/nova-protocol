@@ -59,7 +59,11 @@
 //!   `DerelictShipMarker`. A caption in the frame prints what was read off
 //!   the live ship beside its manifest entry, and the run logs each pick. A
 //!   role and condition with no ship in reach is logged as missing and shot
-//!   as nothing.
+//!   as nothing. Every planned and live ship must wear its civilization's
+//!   palette.
+//! - `NOVA_CAPTURE=1` also writes `world-features-two-civilizations-1.png`
+//!   and `-2.png`: the nearest two ships in reach that two civilizations built
+//!   in two palettes, one picture each, each checked live for its palette.
 
 #[path = "../shared/world_fixture/mod.rs"]
 pub mod world_fixture;
@@ -608,7 +612,75 @@ fn observer_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
                 .add();
         }
     }
+    // The two civilizations: one picture per ship of the pair, each re-aimed
+    // at the live hull, since an intact ship patrols off its planned point.
+    for (k, shot) in PAIR_SHOTS.into_iter().enumerate() {
+        let pick = move |world: &World| {
+            let (first, second) = world.resource::<PairShot>().0.clone().expect(
+                "world features: two civilizations in two palettes must field ships in reach",
+            );
+            if k == 0 {
+                first
+            } else {
+                second
+            }
+        };
+        script = script
+            .step(format!("frame two civilizations, ship {}", k + 1))
+            .on_enter(move |world: &mut World| {
+                let ship = pick(world);
+                let distance = Meters(ship.clearance.get() * SHIP_STANDOFF_CLEARANCES);
+                pose_camera(world, standoff(ship.position, distance), ship.position);
+            })
+            .until(and(window_is_settled(), frames(SETTLE_FRAMES)))
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+            .step(format!("aim at two civilizations, ship {}", k + 1))
+            .on_enter(move |world: &mut World| {
+                let ship = pick(world);
+                let live = live_ship_position(world, &ship.id);
+                let distance = Meters(ship.clearance.get() * SHIP_STANDOFF_CLEARANCES);
+                pose_camera(world, standoff(live, distance), live);
+                let caption = check_live_ship(world, &ship);
+                set_caption(world, caption);
+            })
+            .until(frames(CAPTION_FRAMES))
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+            .step(format!("shoot {shot}"))
+            .on_enter(move |world: &mut World| shoot(world, shot))
+            .until(shot_written(shot))
+            .deadline(SHOT_DEADLINE_SECS)
+            .add();
+    }
     script
+}
+
+/// The pictures of two ships of two civilizations in two palettes, one per
+/// ship: the nearest such pair in reach stands kilometres apart, too far for
+/// one frame to show either hull's colour.
+#[cfg(feature = "debug")]
+const PAIR_SHOTS: [&str; 2] = [
+    "world-features-two-civilizations-1.png",
+    "world-features-two-civilizations-2.png",
+];
+
+/// Where the live ship `id` stands.
+///
+/// # Panics
+///
+/// When it is not live.
+#[cfg(feature = "debug")]
+fn live_ship_position(world: &mut World, id: &str) -> Meters3 {
+    let mut ships =
+        world.query_filtered::<(&EntityId, &GlobalTransform), With<SpaceshipRootMarker>>();
+    ships
+        .iter(world)
+        .find(|(entity_id, _)| entity_id.0 == id)
+        .map(|(_, transform)| Meters3::from_engine(transform.translation()))
+        .unwrap_or_else(|| {
+            panic!("world features: ship {id} must be live in the window its shot frames")
+        })
 }
 
 /// The picture of the cluster anchored nearest the home cell.
@@ -771,6 +843,8 @@ struct ShipShot {
     position: Meters3,
     /// Its manifest clearance radius, which sizes its shot.
     clearance: Meters,
+    /// The palette its civilization dresses it in.
+    palette: FactionPaletteDesignId,
 }
 
 #[cfg(feature = "debug")]
@@ -796,6 +870,13 @@ impl ShipShot {
 #[cfg(feature = "debug")]
 #[derive(Resource)]
 struct ShipShots([[Option<ShipShot>; 2]; 4]);
+
+/// The two ships the two-civilization shot frames: the nearest two in reach
+/// whose civilizations dress them in two palettes. `None` when no such pair
+/// is planned.
+#[cfg(feature = "debug")]
+#[derive(Resource)]
+struct PairShot(Option<(ShipShot, ShipShot)>);
 
 /// What a ship caption reads off a live ship root.
 #[cfg(feature = "debug")]
@@ -836,6 +917,7 @@ fn search_ship_shots(world: &mut World) {
     let home = FEATURE_HOME.centre(config.sector_edge);
     let reach = -SHIP_SEARCH_RADIUS..=SHIP_SEARCH_RADIUS;
     let mut shots: [[Option<ShipShot>; 2]; 4] = Default::default();
+    let mut every: Vec<ShipShot> = Vec::new();
     let mut planned = 0;
     for x in reach.clone() {
         for y in reach.clone() {
@@ -853,6 +935,28 @@ fn search_ship_shots(world: &mut World) {
                         "world features: ship {} is planned in another style",
                         ship.id
                     );
+                    let palette = config.generator.parts().palette(ship.civilization).clone();
+                    assert_eq!(
+                        ship.design()
+                            .presentation
+                            .palette
+                            .as_ref()
+                            .map(|worn| &worn.id),
+                        Some(&palette),
+                        "world features: ship {} is planned in another palette than {}'s",
+                        ship.id,
+                        ship.civilization
+                    );
+                    let found = ShipShot {
+                        id: ship.id.to_string(),
+                        cell,
+                        civilization: ship.civilization,
+                        role: ship.role,
+                        condition: ship.condition,
+                        position: ship.position,
+                        clearance: ship.clearance,
+                        palette,
+                    };
                     let r = ShipRoleType::ALL
                         .iter()
                         .position(|role| *role == ship.role)
@@ -867,16 +971,9 @@ fn search_ship_shots(world: &mut World) {
                             .is_lt()
                     });
                     if nearer {
-                        shots[r][c] = Some(ShipShot {
-                            id: ship.id.to_string(),
-                            cell,
-                            civilization: ship.civilization,
-                            role: ship.role,
-                            condition: ship.condition,
-                            position: ship.position,
-                            clearance: ship.clearance,
-                        });
+                        shots[r][c] = Some(found.clone());
                     }
+                    every.push(found);
                 }
             }
         }
@@ -910,6 +1007,31 @@ fn search_ship_shots(world: &mut World) {
         }
     }
     world.insert_resource(ShipShots(shots));
+
+    // The nearest two ships in two palettes, ties broken by id, so a run of
+    // the same seed frames the same pair.
+    every.sort_by(|a, b| a.id.cmp(&b.id));
+    let mut pair: Option<(f32, usize, usize)> = None;
+    for (i, a) in every.iter().enumerate() {
+        for (j, b) in every.iter().enumerate().skip(i + 1) {
+            if a.palette == b.palette {
+                continue;
+            }
+            let apart = a.position.distance(b.position).get();
+            if pair.is_none_or(|(best, ..)| apart < best) {
+                pair = Some((apart, i, j));
+            }
+        }
+    }
+    let pair = pair.map(|(apart, i, j)| {
+        let (a, b) = (every[i].clone(), every[j].clone());
+        info!(
+            "world features: two civilizations: {} ({}, {}) and {} ({}, {}), {apart:.0} m apart",
+            a.id, a.civilization, a.palette, b.id, b.civilization, b.palette
+        );
+        (a, b)
+    });
+    world.insert_resource(PairShot(pair));
 }
 
 /// Find `shot`'s ship live by its `EntityId`, check that it is the ship its
@@ -921,14 +1043,29 @@ fn search_ship_shots(world: &mut World) {
 /// what its manifest entry gives it.
 #[cfg(feature = "debug")]
 fn caption_live_ship(world: &mut World, shot: &ShipShot) {
+    let caption = check_live_ship(world, shot);
+    set_caption(world, caption);
+}
+
+/// Find `shot`'s ship live by its `EntityId`, check that it is the ship its
+/// manifest planned, wearing its civilization's palette, and return what it
+/// carries as caption text.
+///
+/// # Panics
+///
+/// When the ship is not live, or its `Name`, style, palette or derelict
+/// marker is not what its manifest entry gives it.
+#[cfg(feature = "debug")]
+fn check_live_ship(world: &mut World, shot: &ShipShot) -> String {
     let mut ships = world.query_filtered::<ShipRow, With<SpaceshipRootMarker>>();
-    let (name, style, derelict, at) = ships
+    let (name, style, palette, derelict, at) = ships
         .iter(world)
         .find(|(id, ..)| id.0 == shot.id)
         .map(|(_, name, style, derelict, transform)| {
             (
                 name.to_string(),
-                style.0.clone(),
+                style.style.clone(),
+                style.palette.as_ref().map(|worn| worn.id.clone()),
                 derelict,
                 Meters3::from_engine(transform.translation()),
             )
@@ -947,16 +1084,23 @@ fn caption_live_ship(world: &mut World, shot: &ShipShot) {
         shot.id
     );
     assert_eq!(
+        palette.as_ref(),
+        Some(&shot.palette),
+        "world features: ship {} palette",
+        shot.id
+    );
+    assert_eq!(
         derelict,
         shot.condition == SectorShipConditionType::Derelict,
         "world features: ship {} derelict marker",
         shot.id
     );
     let caption = format!(
-        "live EntityId {}\nName \"{name}\"\nShipStyle {}  DerelictShipMarker {}\n\
+        "live EntityId {}\nName \"{name}\"\nShipStyle {} palette {}  DerelictShipMarker {}\n\
          manifest {} {} {} {} clearance {:.0} m\nlive {:.0} m from planned",
         shot.id,
         style.as_deref().unwrap_or("none"),
+        shot.palette,
         if derelict { "yes" } else { "no" },
         shot.cell,
         shot.civilization,
@@ -970,6 +1114,12 @@ fn caption_live_ship(world: &mut World, shot: &ShipShot) {
         shot.id,
         caption.replace('\n', " | ")
     );
+    caption
+}
+
+/// Print `caption` over the next picture, in the one caption box.
+#[cfg(feature = "debug")]
+fn set_caption(world: &mut World, caption: String) {
     let mut captions = world.query_filtered::<&mut Text, With<ShipShotCaption>>();
     if let Some(mut text) = captions.iter_mut(world).next() {
         text.0 = caption;

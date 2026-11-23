@@ -48,6 +48,7 @@ use crate::sections::{
     base_section::prelude::SectionFootprint,
     clearance::prelude::SectionExit,
     design_sections::SectionRemoveRequest,
+    faction_palette::SkinLook,
     fixture::{
         prelude::{SectionFixture, ShedFixtureMarker},
         refill_shed_budget, shed_dead_fixtures, ShedBudget,
@@ -56,11 +57,12 @@ use crate::sections::{
     link_points::prelude::{LinkPoint, SectionLinkPoints},
     shell_shape::{ShellEdgeType, ShellShape, ShellSurface, FULL, HALF, REACH},
     skin_decor::{
-        decor_body, decor_pose, decor_tally, dress_skin_decor, solve_decor, ShipDecorMarker,
+        decor_body, decor_pose, decor_tally, dress_skin_decor, solve_decor, tint_decor_keys,
+        ShipDecorMarker,
     },
     skin_reading::{read_plates, relief_tally},
     skin_report::{skin_report, skin_summary},
-    skin_style::{GameStyles, ShipStyle, ShipStyleConfig},
+    skin_style::{GameStyles, ShipStyle},
 };
 
 /// The prelude: `SkinStructure`, `SkinPlate`, `PlacedPart`, `derive_skin`,
@@ -970,7 +972,7 @@ fn spawn_ship_skin(
                 .map(|(part, _)| part.clone())
                 .collect()
         });
-        let style = worn
+        let look = worn
             .zip(styles.as_deref())
             .and_then(|(worn, styles)| worn.resolve(styles));
         lay_skin(
@@ -981,7 +983,7 @@ fn spawn_ship_skin(
                 placed: &placed,
                 before: before.as_deref(),
                 phase,
-                style,
+                look,
             },
             &q_children,
             &q_sections,
@@ -1025,7 +1027,7 @@ pub(crate) fn reclad_round_removal(
     if kept.is_empty() {
         return;
     }
-    let style = worn
+    let look = worn
         .zip(styles.as_deref())
         .and_then(|(worn, styles)| worn.resolve(styles));
     lay_skin(
@@ -1036,7 +1038,7 @@ pub(crate) fn reclad_round_removal(
             placed: &kept_placed,
             before: Some(&placed),
             phase,
-            style,
+            look,
         },
         &q_children,
         &q_sections,
@@ -1046,7 +1048,7 @@ pub(crate) fn reclad_round_removal(
 
 /// What [`lay_skin`] clads: the root, its live sections (each entity beside
 /// its part), the hull it wore before when only the change is re-clad, the
-/// lattice phase and the decoration style.
+/// lattice phase and the look the decoration is solved from.
 struct SkinLayout<'a> {
     root: Entity,
     entities: &'a [Entity],
@@ -1054,7 +1056,7 @@ struct SkinLayout<'a> {
     /// The hull before a change, or `None` to clad the whole ship.
     before: Option<&'a [PlacedPart<'a>]>,
     phase: Vec3,
-    style: Option<&'a ShipStyleConfig>,
+    look: Option<SkinLook<'a>>,
 }
 
 /// Lay the skin of `layout.placed`: every plate, or with a `before` hull
@@ -1083,12 +1085,16 @@ fn lay_skin(
         placed,
         before,
         phase,
-        style,
+        look,
     } = layout;
     let (structure, cells) = read_cells(placed, phase);
     if structure.is_empty() {
         return;
     }
+    // The style as this hull wears it, palette habit applied: the solve's
+    // fixture indices index ITS fixtures.
+    let worn = look.map(|look| look.worn_style());
+    let style = worn.as_deref();
     let mut plates = derive_skin(&structure);
     let decor = style.map_or_else(Vec::new, |style| {
         solve_decor(&structure, &mut plates, style)
@@ -1370,24 +1376,26 @@ const SKIN_METALLIC: f32 = 0.15;
 /// filled, which is what makes the size of the shape space irrelevant: a whole
 /// ship touches a couple of dozen of them.
 ///
-/// The MATERIALS are keyed by style and then by role. A style can only change
-/// what a plate is made OF - the mesh is a function of the hull and cannot be
-/// authored - so two ships wearing the same style share their materials whatever
-/// shapes they came out as, and the undressed derivation is just the style keyed
-/// by the empty id.
+/// The MATERIALS are keyed by look - the style and the faction palette over it
+/// ([`ShipStyle`]) - and then by role. A look can only change what a plate is
+/// made OF - the mesh is a function of the hull and cannot be authored - so two
+/// ships wearing the same style in the same palette share their materials
+/// whatever shapes they came out as, and the undressed derivation is just the
+/// empty look. Two palettes of one style are two material sets, so their
+/// plates do not share a draw.
 #[derive(Resource, Default)]
 pub struct SkinAssets {
     meshes: HashMap<ShellShape, Vec<(ShellSurface, Handle<Mesh>)>>,
-    materials: HashMap<String, HashMap<ShellSurface, Handle<StandardMaterial>>>,
+    materials: HashMap<ShipStyle, HashMap<ShellSurface, Handle<StandardMaterial>>>,
 }
 
 impl SkinAssets {
     /// The mesh and material of every surface role `shape` is cut into, dressed
-    /// by `style`, building whatever this pair is the first to need.
+    /// by `look`, building whatever this pair is the first to need.
     pub fn surfaces(
         &mut self,
         shape: ShellShape,
-        style: Option<&ShipStyleConfig>,
+        look: Option<SkinLook>,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<StandardMaterial>,
     ) -> Vec<(Handle<Mesh>, Handle<StandardMaterial>)> {
@@ -1402,30 +1410,36 @@ impl SkinAssets {
                     .collect()
             })
             .clone();
-        let key = style.map(|style| style.id.as_str()).unwrap_or_default();
-        let dressed = match self.materials.get_mut(key) {
-            Some(dressed) => dressed,
-            None => self.materials.entry(key.to_string()).or_default(),
-        };
         surfaces
             .into_iter()
-            .map(|(role, mesh)| {
-                let material = dressed
-                    .entry(role)
-                    .or_insert_with(|| {
-                        let dress = style.and_then(|style| style.finish(role));
-                        materials.add(StandardMaterial {
-                            base_color: dress.map_or_else(|| role.colour(), |dress| dress.color),
-                            perceptual_roughness: dress
-                                .map_or(SKIN_ROUGHNESS, |dress| dress.roughness),
-                            metallic: dress.map_or(SKIN_METALLIC, |dress| dress.metallic),
-                            ..default()
-                        })
-                    })
-                    .clone();
-                (mesh, material)
-            })
+            .map(|(role, mesh)| (mesh, self.material(look, role, materials)))
             .collect()
+    }
+
+    /// The material `look` dresses surface `role` in, building it the first
+    /// time. A tinted greeble's key slots wear the `Top` one, so they share the
+    /// plate's material.
+    pub fn material(
+        &mut self,
+        look: Option<SkinLook>,
+        role: ShellSurface,
+        materials: &mut Assets<StandardMaterial>,
+    ) -> Handle<StandardMaterial> {
+        let key = look.map(|look| look.key()).unwrap_or_default();
+        self.materials
+            .entry(key)
+            .or_default()
+            .entry(role)
+            .or_insert_with(|| {
+                let dress = look.and_then(|look| look.finish(role));
+                materials.add(StandardMaterial {
+                    base_color: dress.map_or_else(|| role.colour(), |dress| dress.color),
+                    perceptual_roughness: dress.map_or(SKIN_ROUGHNESS, |dress| dress.roughness),
+                    metallic: dress.map_or(SKIN_METALLIC, |dress| dress.metallic),
+                    ..default()
+                })
+            })
+            .clone()
     }
 }
 
@@ -1454,7 +1468,7 @@ fn dress_skin_plate(
     let Ok(ShipSkinMarker(shape)) = q_plate.get(plate) else {
         return;
     };
-    let style = styles
+    let look = styles
         .as_ref()
         .zip(worn_style(plate, &q_child_of, &q_style))
         .and_then(|(styles, worn)| worn.resolve(styles));
@@ -1462,7 +1476,7 @@ fn dress_skin_plate(
         &mut commands,
         plate,
         *shape,
-        style,
+        look,
         &mut assets,
         &mut meshes,
         &mut materials,
@@ -1485,12 +1499,12 @@ pub(crate) fn hang_surfaces(
     commands: &mut Commands,
     plate: Entity,
     shape: ShellShape,
-    style: Option<&ShipStyleConfig>,
+    look: Option<SkinLook>,
     assets: &mut SkinAssets,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
 ) {
-    for (mesh, material) in assets.surfaces(shape, style, meshes, materials) {
+    for (mesh, material) in assets.surfaces(shape, look, meshes, materials) {
         commands.spawn((
             Name::new("Skin Surface"),
             SkinSurfaceMarker,
@@ -1501,8 +1515,9 @@ pub(crate) fn hang_surfaces(
     }
 }
 
-/// The style the ship a plate hangs on wears, found by walking its ancestors.
-fn worn_style<'a>(
+/// The look the ship a plate or a greeble hangs on wears, found by walking
+/// its ancestors.
+pub(crate) fn worn_style<'a>(
     plate: Entity,
     q_child_of: &Query<&ChildOf>,
     q_style: &'a Query<&ShipStyle>,
@@ -1597,6 +1612,7 @@ impl Plugin for ShipSkinPlugin {
             app.init_resource::<SkinAssets>();
             app.add_observer(dress_skin_plate);
             app.add_observer(dress_skin_decor);
+            app.add_observer(tint_decor_keys);
         }
     }
 }
@@ -1610,7 +1626,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::sections::link_points::unit_cube_link_points;
+    use crate::sections::{link_points::unit_cube_link_points, skin_style::ShipStyleConfig};
 
     /// How close two floats have to be to count as the same number of cells.
     const EPSILON: f32 = 1e-5;
@@ -2443,7 +2459,10 @@ mod tests {
             .spawn((
                 SpaceshipRootMarker,
                 ShipSkin(clad),
-                ShipStyle(style.map(str::to_string)),
+                ShipStyle {
+                    style: style.map(str::to_string),
+                    palette: None,
+                },
             ))
             .id();
         let sections = parts
@@ -2728,7 +2747,7 @@ mod tests {
     #[test]
     fn a_styled_ship_grows_decoration_bolted_to_its_plates() {
         let mut app = skin_app();
-        app.insert_resource(GameStyles(vec![test_style()]));
+        app.insert_resource(GameStyles::new(vec![test_style()], Vec::new()));
         let ship = spawn_styled_ship(
             &mut app,
             true,
@@ -2808,7 +2827,7 @@ mod tests {
         };
         let cladding = |skin: LinkPointSkinType| {
             let mut app = skin_app();
-            app.insert_resource(GameStyles(vec![test_style()]));
+            app.insert_resource(GameStyles::new(vec![test_style()], Vec::new()));
             let (ship, sections) = spawn_styled_parts(
                 &mut app,
                 true,
@@ -2890,6 +2909,107 @@ mod tests {
     /// tests.
     fn test_style() -> ShipStyleConfig {
         crate::sections::skin_style::block_style(Vec3::new(0.2, 0.05, 0.2))
+    }
+
+    /// Plate materials are keyed by look: two ships in one style and palette
+    /// share every plate material, a ship in another palette gets its own,
+    /// and the top surface wears the palette's colour, not the style's.
+    #[test]
+    fn plate_materials_are_shared_within_a_palette_and_differ_between_palettes() {
+        use std::collections::HashSet;
+
+        use crate::sections::{
+            faction_palette::{
+                FactionPaletteConfig, PaletteRoleType, PaletteRolesConfig, ShipPaletteConfig,
+            },
+            skin_style::{StylePalette, SurfaceFinish},
+        };
+
+        let palette = |id: &str, top: Color| {
+            let finish = StylePalette {
+                top: SurfaceFinish {
+                    color: top,
+                    ..default()
+                },
+                wall: SurfaceFinish::default(),
+            };
+            FactionPaletteConfig {
+                id: id.into(),
+                name: id.to_string(),
+                roles: PaletteRolesConfig {
+                    civilian: finish.clone(),
+                    industrial: finish.clone(),
+                    scavenger: finish.clone(),
+                    armored: finish.clone(),
+                    station: finish,
+                },
+                greeble_density: 1.0,
+                accents: Vec::new(),
+            }
+        };
+        let teal = Color::linear_rgb(0.05, 0.3, 0.3);
+        let ochre = Color::linear_rgb(0.4, 0.25, 0.05);
+        let mut app = skin_app();
+        app.init_resource::<SkinAssets>();
+        app.add_observer(dress_skin_plate);
+        app.insert_resource(GameStyles::new(
+            vec![test_style()],
+            vec![palette("teal", teal), palette("ochre", ochre)],
+        ));
+        let mut ship = |palette: &str| {
+            let ship = spawn_styled_ship(
+                &mut app,
+                true,
+                Some("test"),
+                &[(Vec3::ZERO, Quat::IDENTITY)],
+            );
+            app.world_mut().entity_mut(ship).insert(ShipStyle {
+                style: Some("test".to_string()),
+                palette: Some(ShipPaletteConfig {
+                    id: palette.into(),
+                    role: PaletteRoleType::Civilian,
+                }),
+            });
+            ship
+        };
+        let ships = [ship("teal"), ship("teal"), ship("ochre")];
+        app.update();
+
+        let world = app.world();
+        let materials_of = |ship: Entity| -> HashSet<AssetId<StandardMaterial>> {
+            plates_of(&app, ship)
+                .into_iter()
+                .flat_map(|(plate, _)| {
+                    world
+                        .get::<Children>(plate)
+                        .map(|children| children.iter().collect::<Vec<_>>())
+                        .unwrap_or_default()
+                })
+                .filter_map(|surface| world.get::<MeshMaterial3d<StandardMaterial>>(surface))
+                .map(|material| material.0.id())
+                .collect()
+        };
+        let [first, second, other] = ships.map(materials_of);
+        assert!(!first.is_empty(), "no plate was dressed");
+        assert_eq!(first, second, "one palette dressed two ships apart");
+        assert!(
+            first.is_disjoint(&other),
+            "two palettes share a plate material"
+        );
+        let colours = |set: &HashSet<AssetId<StandardMaterial>>| -> Vec<Color> {
+            let assets = world.resource::<Assets<StandardMaterial>>();
+            set.iter()
+                .map(|id| assets.get(*id).expect("the material exists").base_color)
+                .collect()
+        };
+        assert!(
+            colours(&first).contains(&teal),
+            "the teal ship wears no teal"
+        );
+        assert!(
+            colours(&other).contains(&ochre),
+            "the ochre ship wears no ochre"
+        );
     }
 
     /// The render half dresses a plate the moment it appears.

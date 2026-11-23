@@ -78,8 +78,9 @@ impl NovaLayeredWorld {
     /// Pin the ship parts of `loaded` and the digest of the catalog they came
     /// from. Builds the snapshot once; a clone shares it.
     ///
-    /// `styles` is only checked: the digest already covers them, so the
-    /// arming check refuses a style change like any other content change.
+    /// `styles` is only checked, and its palette ids pinned: the digest
+    /// already covers them, so the arming check refuses a style or palette
+    /// change like any other content change.
     ///
     /// # Errors
     ///
@@ -89,7 +90,9 @@ impl NovaLayeredWorld {
     /// [`ShipPartFault::MissingStationStyle`] for each station archetype
     /// whose [`StationArchetypeType::style_id`] it does not hold, and
     /// [`ShipPartFault::MissingStationPart`] for each family a station
-    /// carries with no part usable at advancement 0.
+    /// carries with no part usable at advancement 0, and
+    /// [`ShipPartFault::TooFewPalettes`] for a palette catalog too small to
+    /// keep neighbours apart.
     pub fn from_loaded(
         loaded: &LoadedSectionPacks,
         styles: &GameStyles,
@@ -123,7 +126,7 @@ impl NovaLayeredWorld {
                     style: archetype.style_id(),
                 }),
         );
-        match ShipPartSnapshot::build(&packs) {
+        match ShipPartSnapshot::build(&packs, &styles.palettes) {
             Ok(parts) => {
                 faults.extend(
                     STATION_FAMILIES

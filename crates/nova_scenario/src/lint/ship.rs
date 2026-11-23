@@ -215,6 +215,25 @@ pub(super) fn check_design_sections(
             ));
         }
     }
+    // `ShipStyle::resolve` panics on a palette the catalog lacks, and a
+    // palette with no style dresses nothing.
+    if let Some(palette) = &design.presentation.palette {
+        if styles.get_palette(&palette.id).is_none() {
+            issues.push(LintIssue::error(
+                source,
+                format!("{what} '{ship_id}': unknown palette '{}'", palette.id),
+            ));
+        }
+        if design.presentation.style.is_none() {
+            issues.push(LintIssue::error(
+                source,
+                format!(
+                    "{what} '{ship_id}': names palette '{}' but no style for it to dress",
+                    palette.id
+                ),
+            ));
+        }
+    }
 
     check_section_overlaps(ship_id, &design.sections, source, sections, issues);
     check_link_point_graph(ship_id, &design.sections, source, sections, issues);
@@ -1567,10 +1586,13 @@ mod tests {
                 ..default()
             },
         };
-        let styles = GameStyles(vec![ShipStyleConfig {
-            id: "armoured".into(),
-            ..default()
-        }]);
+        let styles = GameStyles::new(
+            vec![ShipStyleConfig {
+                id: "armoured".into(),
+                ..default()
+            }],
+            Vec::new(),
+        );
 
         let mut design = ship("hull");
         design.design.presentation.style = Some("nothing_authored".into());
@@ -1600,6 +1622,65 @@ mod tests {
             !issues
                 .iter()
                 .any(|issue| issue.message.contains("unknown style")),
+            "{issues:?}"
+        );
+    }
+
+    /// A design naming a palette the catalog lacks is refused, so the spawn
+    /// never resolves a look that panics; a known palette over a style passes.
+    #[test]
+    fn a_design_naming_an_unknown_palette_is_refused() {
+        use nova_ship::prelude::{
+            FactionPaletteConfig, PaletteRoleType, ShipPaletteConfig, ShipStyleConfig,
+        };
+        let ship = |proto: &str| ShipDesignPrototype {
+            id: "interceptor".into(),
+            name: "Gunship".to_string(),
+            design: ShipDesign {
+                sections: vec![SpaceshipSectionConfig {
+                    id: "fuselage".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::prototype(proto),
+                }],
+                ..default()
+            },
+        };
+        let styles = GameStyles::new(
+            vec![ShipStyleConfig {
+                id: "armoured".into(),
+                ..default()
+            }],
+            vec![FactionPaletteConfig {
+                id: "teal".into(),
+                ..default()
+            }],
+        );
+        let lint = |palette: &str| {
+            let mut design = ship("hull");
+            design.design.presentation.style = Some("armoured".into());
+            design.design.presentation.palette = Some(ShipPaletteConfig {
+                id: palette.into(),
+                role: PaletteRoleType::Armored,
+            });
+            lint_ship_design_config(
+                &design,
+                &sections(&["hull"]),
+                &GameItems::default(),
+                &styles,
+                "base",
+            )
+        };
+        let issues = lint("nowhere");
+        assert!(
+            errors(&issues)
+                .iter()
+                .any(|issue| issue.message.contains("unknown palette 'nowhere'")),
+            "{issues:?}"
+        );
+        let issues = lint("teal");
+        assert!(
+            !issues.iter().any(|issue| issue.message.contains("palette")),
             "{issues:?}"
         );
     }

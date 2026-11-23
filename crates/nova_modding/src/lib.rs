@@ -12,6 +12,8 @@
 //!   mapping the Scenarios picker groups and launches by,
 //! - [`Content::Style`] - a [`ShipStyleConfig`], the look a ship's derived skin
 //!   wears: materials per surface role plus the decoration it scatters,
+//! - [`Content::Palette`] - a [`FactionPaletteConfig`], one civilization's hull
+//!   colours per role and its greeble habit,
 //! - [`Content::Ship`] - a [`ShipDesignPrototype`], a whole hull a scenario spawns by id,
 //! - [`Content::Lesson`] - a [`Lesson`], one screen of the training handbook,
 //! - [`Content::UiTheme`] - a [`UiThemeConfig`], one look the whole UI paints in,
@@ -60,7 +62,7 @@ use nova_scenario::prelude::{
     CampaignConfig, MusicTrackDesign, ScenarioConfig, ShipDesignPrototype, StartRole,
     StationDesignPrototype,
 };
-use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
+use nova_ship::prelude::{FactionPaletteConfig, SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
 use nova_ui::theme::UiThemeConfig;
 use serde::{Deserialize, Serialize};
@@ -101,6 +103,15 @@ pub enum Content {
     /// ship names one and its derived skin wears it, so a mod can ship a look
     /// and a scenario can put it on the enemies without any code changing.
     Style(ShipStyleConfig),
+    /// A [`FactionPaletteConfig`] - registers into `GameStyles` keyed by its
+    /// id. One civilization's hull colours per role and its greeble habit;
+    /// the world generator deals one to each civilization.
+    ///
+    /// A mod adds a palette by declaring a new id and recolours a base one by
+    /// declaring its id. A hue in the HUD hostile-red band or in the greeble
+    /// key magenta band, a greeble density out of range and an unknown accent
+    /// piece fail at lint and drop the palette at load.
+    Palette(FactionPaletteConfig),
     /// A [`ShipDesignPrototype`] - registers into `GameShipDesigns` keyed by its id. A whole
     /// hull (its section list, its skin and style, its collapse threshold),
     /// authored once and spawned by id, so a scenario names a corvette instead
@@ -238,6 +249,7 @@ impl Content {
             Content::Scenario(_) => "scenario",
             Content::Campaign(_) => "campaign",
             Content::Style(_) => "style",
+            Content::Palette(_) => "palette",
             Content::Ship(_) => "ship",
             Content::Lesson(_) => "lesson",
             Content::UiTheme(_) => "ui theme",
@@ -261,6 +273,7 @@ impl Content {
             Content::Scenario(cfg) => &cfg.id,
             Content::Campaign(cfg) => &cfg.id,
             Content::Style(cfg) => &cfg.id,
+            Content::Palette(cfg) => cfg.id.as_str(),
             Content::Ship(cfg) => cfg.id.as_str(),
             Content::Lesson(lesson) => &lesson.id,
             Content::UiTheme(cfg) => &cfg.id,

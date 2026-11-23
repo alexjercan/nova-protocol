@@ -4356,12 +4356,13 @@ fn a_torpedo_tracking_a_torpedo_resumes_on_it() {
     );
 }
 
-/// A Load whose shed fixture or detached piece wears a style the pinned
-/// catalog does not have is refused by that style's name, before any
-/// transient spawns, and the clocks run. A piece with no style on a game
-/// with no render resources is refused by the missing resource's name.
+/// A Load whose shed fixture or detached piece wears a style or palette the
+/// pinned catalog does not have is refused by that id, read back from the
+/// written save, before any transient spawns, and the clocks run. A piece
+/// with no style on a game with no render resources is refused by the
+/// missing resource's name.
 #[test]
-fn a_load_whose_piece_wears_an_unknown_style_is_refused() {
+fn a_load_whose_piece_wears_an_unknown_style_or_palette_is_refused() {
     let root = tempfile::tempdir().unwrap();
     let (folder, lock) = create_world(root.path(), "Session").unwrap();
     drop(lock);
@@ -4377,7 +4378,7 @@ fn a_load_whose_piece_wears_an_unknown_style_is_refused() {
     let shed = |style: &str| {
         transient(format!(
             "ShedFixture((fixture: (kind: Decor(name: \"vent\", model: \"vent.glb\", \
-             collider_size: (1.0, 1.0, 1.0)), pose: {pose}, health: (current: 5.0, max: 5.0), \
+             tint: Hull, collider_size: (1.0, 1.0, 1.0)), pose: {pose}, health: (current: 5.0, max: 5.0), \
              children: []), style: {style}, translation: {zero}, rotation: {identity}, \
              linear: {zero}, angular: {zero}))"
         ))
@@ -4389,17 +4390,27 @@ fn a_load_whose_piece_wears_an_unknown_style_is_refused() {
              collider: Cuboid(size: (1.0, 1.0, 1.0)), grace: None, style: {style}, nodes: []))"
         ))
     };
+    let lost_style = "(style: Some(\"lost_style\"), palette: None)";
+    let lost_palette = "(style: None, palette: Some((id: \"lost_palette\", role: Industrial)))";
     let cases = [
         (
-            shed("Some(\"lost_style\")"),
+            shed(lost_style),
             "transient 1 wears the style 'lost_style', which is not loaded",
         ),
         (
-            piece("Some(\"lost_style\")"),
+            piece(lost_style),
             "transient 1 wears the style 'lost_style', which is not loaded",
         ),
         (
-            piece("None"),
+            shed(lost_palette),
+            "transient 1 wears the palette 'lost_palette', which is not loaded",
+        ),
+        (
+            piece(lost_palette),
+            "transient 1 wears the palette 'lost_palette', which is not loaded",
+        ),
+        (
+            piece("(style: None, palette: None)"),
             "this game has no AssetServer to rebuild the saved transients with",
         ),
     ];

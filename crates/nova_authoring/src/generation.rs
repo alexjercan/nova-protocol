@@ -19,7 +19,7 @@ use nova_scenario::prelude::{
     CampaignConfig, MusicTrackDesign, ScenarioConfig, ShipDesignPrototype, ShipDesignSource,
     SpaceshipConfig, SpaceshipSectionConfig, StartRole, StationDesignPrototype,
 };
-use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
+use nova_ship::prelude::{FactionPaletteConfig, SectionConfig, ShipStyleConfig};
 use nova_training::prelude::Lesson;
 use nova_ui::theme::UiThemeConfig;
 
@@ -32,12 +32,13 @@ pub mod prelude {
     pub use super::{
         build_campaign_content, build_campaigns, build_consumable_content, build_consumables,
         build_encounter_content, build_encounters, build_item_content, build_items,
-        build_lesson_content, build_lessons, build_price_table, build_price_table_content,
-        build_recipe_content, build_recipes, build_scenario_contents, build_scenarios,
-        build_section_catalog, build_section_content, build_ship_content, build_ships,
-        build_start_role_content, build_start_roles, build_station_content, build_stations,
-        build_style_content, build_styles, build_trade_profile_content, build_trade_profiles,
-        content_files, serialize_content, spawned_ship_sections,
+        build_lesson_content, build_lessons, build_palette_content, build_palettes,
+        build_price_table, build_price_table_content, build_recipe_content, build_recipes,
+        build_scenario_contents, build_scenarios, build_section_catalog, build_section_content,
+        build_ship_content, build_ships, build_start_role_content, build_start_roles,
+        build_station_content, build_stations, build_style_content, build_styles,
+        build_trade_profile_content, build_trade_profiles, content_files, serialize_content,
+        spawned_ship_sections,
     };
 }
 
@@ -97,6 +98,12 @@ pub fn build_styles() -> Vec<ShipStyleConfig> {
     base_content::build().styles
 }
 
+/// The base game's faction palettes, in a stable order - the hull colours the
+/// world generator deals to its civilizations.
+pub fn build_palettes() -> Vec<FactionPaletteConfig> {
+    base_content::build().palettes
+}
+
 /// The base game's ships, in a stable order - the whole hulls the scenarios
 /// spawn by id.
 pub fn build_ships() -> Vec<ShipDesignPrototype> {
@@ -120,6 +127,13 @@ pub fn build_section_content() -> Vec<Content> {
 /// style is small, the set is short, and a look is read against the others.
 pub fn build_style_content() -> Vec<Content> {
     build_styles().into_iter().map(Content::Style).collect()
+}
+
+/// The palette catalog wrapped as one `Vec<Content>` of `Content::Palette`
+/// items - the shape the committed `assets/base/palettes/base.content.ron`
+/// file carries. One file for every palette, like the styles.
+pub fn build_palette_content() -> Vec<Content> {
+    build_palettes().into_iter().map(Content::Palette).collect()
 }
 
 /// The section list one authored spawn flies: its inline design's, or that of
@@ -345,6 +359,10 @@ pub fn content_files() -> Vec<(String, String)> {
         (
             "base/styles/base.content.ron".to_string(),
             serialize_content(&build_style_content()),
+        ),
+        (
+            "base/palettes/base.content.ron".to_string(),
+            serialize_content(&build_palette_content()),
         ),
         (
             "base/ships/base.content.ron".to_string(),

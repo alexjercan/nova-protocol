@@ -845,7 +845,10 @@ fn role_hull_preview(
             })
             .collect(),
         skin: resolved.presentation.skin,
-        style: ShipStyle(resolved.presentation.style),
+        style: ShipStyle {
+            style: resolved.presentation.style,
+            palette: resolved.presentation.palette,
+        },
     })
 }
 

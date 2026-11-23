@@ -1108,7 +1108,10 @@ mod tests {
                 }],
                 digest: ContentCatalogDigest(0),
             },
-            &GameStyles(nova_authoring::generation::build_styles()),
+            &GameStyles::new(
+                nova_authoring::generation::build_styles(),
+                nova_authoring::generation::build_palettes(),
+            ),
             &GameItems::new(nova_authoring::generation::build_items()),
         )
     }

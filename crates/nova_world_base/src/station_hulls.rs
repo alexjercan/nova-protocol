@@ -178,7 +178,8 @@ mod tests {
     /// but one.
     #[test]
     fn a_first_ring_station_sells_small_hulls_and_the_same_catalogue_for_a_seed() {
-        let parts = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let parts = ShipPartSnapshot::build(&packs(), &crate::ship_layout::fixture::palettes())
+            .expect("the packs build");
         let medium = ceiling(1.0 / 3.0);
         let mut stations = 0;
         for seed in 0..4 {
@@ -248,7 +249,8 @@ mod tests {
     /// station.
     #[test]
     fn a_station_hires_out_armed_escorts_after_its_sales_and_the_same_roster_for_a_seed() {
-        let parts = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let parts = ShipPartSnapshot::build(&packs(), &crate::ship_layout::fixture::palettes())
+            .expect("the packs build");
         let mut hiring = 0;
         for seed in 0..4 {
             let field = CivilizationField::new(seed);

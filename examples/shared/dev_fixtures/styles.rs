@@ -125,5 +125,6 @@ fn fixture(id: &str, health: f32, collider: Vec3) -> StyleFixtureConfig {
         model: AssetRef::from(format!("base/gltf/greebles/{id}.glb#Scene0")),
         health,
         collider,
+        tint: DecorTintType::Baked,
     }
 }

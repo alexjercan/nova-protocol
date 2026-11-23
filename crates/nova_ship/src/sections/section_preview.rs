@@ -91,18 +91,20 @@ pub fn insert_preview_section(
 /// The same reading, derivation and greeble solve as the spawn's `lay_skin`,
 /// so the menu's hull view shows the plates the flown hull wears. Each plate
 /// and piece is a picture only: a marker, a pose and a visibility, with no
-/// collider, health or [`SectionFixture`]. The style goes on `parent` as a
+/// collider, health or [`SectionFixture`]. The look goes on `parent` as a
 /// [`ShipStyle`], where the dressing observers' ancestor walk finds it, as
 /// they find a flown ship's on its root.
 pub fn spawn_display_skin(
     commands: &mut Commands,
     parent: Entity,
     sections: &[DesignSection],
-    style: Option<&ShipStyleConfig>,
+    look: Option<SkinLook>,
 ) {
     commands
         .entity(parent)
-        .insert(ShipStyle(style.map(|style| style.id.clone())));
+        .insert(look.map(|look| look.key()).unwrap_or_default());
+    let worn = look.map(|look| look.worn_style());
+    let style = worn.as_deref();
     let placed: Vec<PlacedPart> = sections
         .iter()
         .map(|section| {
@@ -139,7 +141,10 @@ pub fn spawn_display_skin(
         for placement in decor {
             commands.spawn((
                 Name::new("Display Skin Decor"),
-                ShipDecorMarker(style.fixtures[placement.fixture].model.clone()),
+                ShipDecorMarker {
+                    model: style.fixtures[placement.fixture].model.clone(),
+                    tint: style.fixtures[placement.fixture].tint,
+                },
                 decor_pose(&plates[placement.plate], placement.turns),
                 Visibility::Inherited,
                 ChildOf(laid[placement.plate]),

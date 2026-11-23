@@ -4898,6 +4898,7 @@ dependencies = [
  "nova_world_base",
  "ron",
  "serde",
+ "serde_json",
  "tempfile",
 ]
 

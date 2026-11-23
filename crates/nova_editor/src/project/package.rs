@@ -27,7 +27,7 @@ use nova_gameplay::prelude::{
 };
 use nova_modding::prelude::{Content, BASE_MOD_ID};
 use nova_scenario::prelude::*;
-use nova_ship::prelude::{GameStyles, SectionConfig};
+use nova_ship::prelude::{FactionPaletteConfig, GameStyles, SectionConfig};
 use nova_training::prelude::{lint_lessons, LessonSeverity};
 use nova_ui::theme::lint_theme;
 use nova_world_base::prelude::{ShipPartPack, ShipPartSnapshot};
@@ -176,7 +176,7 @@ fn lint_judged(
         .map(|(id, _)| id.clone())
         .collect();
     let items = GameItems::new(outcome.items.iter().cloned());
-    let styles = GameStyles(outcome.styles.clone());
+    let styles = GameStyles::new(outcome.styles.clone(), outcome.palettes.clone());
     let profiles = GameTradeProfiles(
         outcome
             .trade_profiles
@@ -213,6 +213,12 @@ fn lint_judged(
                     );
                 }
             }
+            Content::Palette(palette) => found.extend(
+                palette
+                    .faults(&styles)
+                    .iter()
+                    .map(|fault| error(format!("palette {}: {fault}", palette.id))),
+            ),
             Content::Ship(ship) => issues.extend(lint_ship_design_config(
                 ship,
                 &sections,
@@ -313,21 +319,39 @@ fn ship_part_findings(own: &str, data: &ProjectData, packs: &[VisiblePack]) -> V
             sections: sections_of(&pack.items),
         })
         .collect();
-    let faults = |parts: &[ShipPartPack]| -> Vec<String> {
-        ShipPartSnapshot::build(parts)
+    // The palettes the merge would hold, overlaid last-wins by id: the world
+    // arms only over enough of them.
+    let overlay = |palettes: &mut Vec<FactionPaletteConfig>, items: &[&Content]| {
+        for item in items {
+            if let Content::Palette(palette) = item {
+                match palettes.iter_mut().find(|held| held.id == palette.id) {
+                    Some(held) => *held = palette.clone(),
+                    None => palettes.push(palette.clone()),
+                }
+            }
+        }
+    };
+    let mut palettes = Vec::new();
+    for pack in packs {
+        overlay(&mut palettes, &pack.items);
+    }
+    let faults = |parts: &[ShipPartPack], palettes: &[FactionPaletteConfig]| -> Vec<String> {
+        ShipPartSnapshot::build(parts, palettes)
             .err()
             .into_iter()
             .flatten()
             .map(|fault| fault.to_string())
             .collect()
     };
-    let before = faults(&parts);
+    let before = faults(&parts, &palettes);
+    let own_items: Vec<&Content> = data.items().collect();
     parts.push(ShipPartPack {
         id: own.to_string(),
         dependencies: with_base(&data.meta.dependencies, own),
-        sections: sections_of(&data.items().collect::<Vec<_>>()),
+        sections: sections_of(&own_items),
     });
-    faults(&parts)
+    overlay(&mut palettes, &own_items);
+    faults(&parts, &palettes)
         .into_iter()
         .filter(|fault| !before.contains(fault))
         .map(error)

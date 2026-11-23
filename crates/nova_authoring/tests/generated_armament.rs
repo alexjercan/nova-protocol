@@ -5,7 +5,10 @@
 
 use std::collections::BTreeSet;
 
-use nova_authoring::{generation::build_items, lint_walk::repo_ship_part_packs};
+use nova_authoring::{
+    generation::{build_items, build_palettes},
+    lint_walk::repo_ship_part_packs,
+};
 use nova_gameplay::prelude::{
     escort_raider_size, CivilizationId, GameItems, ItemCategoryType, ItemRoleType, ShipRoleType,
     ShipSizeType,
@@ -76,7 +79,7 @@ fn census(snapshot: &ShipPartSnapshot, advancement: f32, seeds: u32) -> (usize, 
 /// lance.
 #[test]
 fn early_ships_carry_rare_torpedoes_and_no_lance_and_late_ships_carry_lances() {
-    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]), &build_palettes())
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
 
     let (turrets, bays, lances) = census(&snapshot, 0.0, 32);
@@ -99,7 +102,7 @@ fn early_ships_carry_rare_torpedoes_and_no_lance_and_late_ships_carry_lances() {
 /// draw, and some of them hold some.
 #[test]
 fn a_generated_hold_carries_only_the_ammunition_its_weapons_reload_from() {
-    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]), &build_palettes())
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
     let items = GameItems::new(build_items());
     let mut stocked = BTreeSet::new();
@@ -176,7 +179,7 @@ fn a_generated_hold_carries_only_the_ammunition_its_weapons_reload_from() {
 /// can be four times that with two turrets.
 #[test]
 fn an_escort_raider_below_advancement_a_quarter_stays_within_the_small_budget_with_one_turret() {
-    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]), &build_palettes())
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
     for advancement in [0.0, 0.008, 0.12, 0.249] {
         let size = escort_raider_size(advancement);

@@ -595,7 +595,7 @@ pub fn register_bundles(
     // The same compiled catalog the game runs with: a style dropped here for
     // bad greebles must show up as an unknown-style content issue below, not
     // just panic later at `ShipStyle::resolve`.
-    let merged_styles = GameStyles(compiled_styles(outcome.styles));
+    let merged_styles = compiled_catalog(outcome.styles, outcome.palettes);
     let mut content_issues = nova_scenario::prelude::ContentIssues::default();
     // Every MERGED ship, checked where it is authored: a scenario referencing
     // one only checks that the id resolves, so this is the pass that sees the
@@ -1093,6 +1093,9 @@ pub struct MergeOutcome {
     /// Skin styles in registration order, overlaid last-wins by id - so a mod
     /// restyles a base look by declaring the same id.
     pub styles: Vec<ShipStyleConfig>,
+    /// Faction palettes in registration order, overlaid last-wins by id - so a
+    /// mod recolours a base civilization's palette by declaring the same id.
+    pub palettes: Vec<FactionPaletteConfig>,
     /// Ships in registration order, overlaid last-wins by id - so a mod
     /// rebuilds a base hull by declaring the same id.
     pub ships: Vec<ShipDesignPrototype>,
@@ -1207,6 +1210,28 @@ fn compiled_styles(styles: Vec<ShipStyleConfig>) -> Vec<ShipStyleConfig> {
         .collect()
 }
 
+/// The compiled style catalog with every merged palette that dresses it
+/// cleanly. A palette with a fault is logged and dropped, as a style is; a
+/// generated world refuses a catalog left with too few, and a ship that names
+/// a dropped palette panics at `ShipStyle::resolve`.
+fn compiled_catalog(
+    styles: Vec<ShipStyleConfig>,
+    palettes: Vec<FactionPaletteConfig>,
+) -> GameStyles {
+    let styles = GameStyles::new(compiled_styles(styles), Vec::new());
+    let palettes = palettes
+        .into_iter()
+        .filter(|palette| {
+            let faults = palette.faults(&styles);
+            for fault in &faults {
+                error!("register_bundles: palette '{}': {fault}", palette.id);
+            }
+            faults.is_empty()
+        })
+        .collect();
+    GameStyles::new(styles.styles, palettes)
+}
+
 /// Route one content item into the accumulating registries with last-wins
 /// overlay by id. All kinds overlay identically: a later item (from a later
 /// bundle) with the same id replaces the earlier one rather than appending a
@@ -1234,6 +1259,10 @@ fn merge_content_item(item: &Content, into: &mut MergeOutcome) {
         Content::Style(cfg) => match into.styles.iter_mut().find(|s| s.id == cfg.id) {
             Some(existing) => *existing = cfg.clone(),
             None => into.styles.push(cfg.clone()),
+        },
+        Content::Palette(cfg) => match into.palettes.iter_mut().find(|p| p.id == cfg.id) {
+            Some(existing) => *existing = cfg.clone(),
+            None => into.palettes.push(cfg.clone()),
         },
         // A Vec for the same reason again: the ship catalog has an order a
         // picker reads, and overlaying in place keeps a mod's rebuild where the

@@ -71,6 +71,11 @@ Rocks are the other exception, and they carve for real - see [Shooting rock](../
      the loaded section catalog, including an industrial ship's seeded
      mining beams: crates/nova_world_base/src/ship_layout.rs `generate_ship`
      and `generate_wreck`; role style: civilizations.rs `role_style_id`.
+     Palette per civilization: crates/nova_world_base/src/ship_parts.rs
+     `ShipPartSnapshot::palette`; base palettes and role tones:
+     crates/nova_authoring/src/base_content/palettes.rs; station finish:
+     station_layout.rs; greeble habit: crates/nova_ship/src/sections/
+     faction_palette.rs `SkinLook::worn_style`.
      Name, controller, allegiance, crew and lootable wreck:
      crates/nova_world/src/streaming.rs `spawn_sector_ship`. Window:
      crates/nova_world_base/src/lib.rs `OPEN_WORLD_SECTOR_EDGE`,
@@ -86,7 +91,9 @@ In a **New Game** world, the ships you meet are generated, not picked from a lis
 <p>Four roles: a civilian is unarmed traffic, an industrial is unarmed with a cargo intake and a chance of one or two mining beams, a scavenger is a rough, low-tier armed ship, and an armored is an equipped armed ship. The role and the civilization's status are drawn apart, so each role can be met intact from a living civilization or as a wreck from an extinct one. A wreck comes from an extinct civilization, not from damage.</p>
 </div>
 
-Each role wears its own skin style, intact or wrecked. Every civilization is **living** or **extinct**. A living civilization's ships are intact. An extinct civilization leaves **derelict wrecks**: hulls at any orientation, with every section switched off except the hull and the docking ports. Dock with one and you can [strip](../interface/#the-ship) its sections into parts.
+Each role wears its own skin style, intact or wrecked, and each civilization paints its hulls in its own **palette**: one hue across its civilians, industrials, scavengers, armored ships, wrecks and stations. The role sets the tone: a civilian is light, an industrial matte, a scavenger dull, an armored ship dark. Two neighbouring civilizations never share a palette, so a hull's colour tells you whose it is before the viewfinder does. A palette also sets how busy a civilization's hulls are with greebles, and some add their own accent pieces. A wreck keeps its builder's colours, a hull you buy keeps the colours of the station that sold it, and the start hulls keep their own.
+
+Every civilization is **living** or **extinct**. A living civilization's ships are intact. An extinct civilization leaves **derelict wrecks**: hulls at any orientation, with every section switched off except the hull and the docking ports. Dock with one and you can [strip](../interface/#the-ship) its sections into parts.
 
 Every ship, intact or wrecked, starts with goods and credits scaled by its civilization's advancement: an industrial hold favors ore and parts, a civilian's rations, parts and the odd medkit, and a scavenger's or armored ship's ammunition, hull plates and parts. Half the intact scavengers also carry one unit of contraband; a wreck carries none. A ship carries only ammunition its own weapons reload from: no torpedoes without a torpedo bay. Its goods are drawn apart from its credit balance. A wreck's hold and balance are drawn the same way, independently, against what is left of its hull: roughly half the cargo and 10-25% of the credits an intact ship of the same standing would carry, with at least one credit kept. A wreck may hold no hull plates at all. A low-advancement ship still carries something of each kind, nonzero. Some industrial ships, living or wrecked, also mount one or two real mining beams; a wrecked beam stays mounted but inert, like every other system a derelict carries.
 

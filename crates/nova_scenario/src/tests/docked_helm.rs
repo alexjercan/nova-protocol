@@ -75,7 +75,7 @@ fn catalogs() -> (GameSections, GameShipDesigns, GameStyles) {
     (
         GameSections(sections),
         GameShipDesigns(ships),
-        GameStyles(styles),
+        GameStyles::new(styles, Vec::new()),
     )
 }
 
