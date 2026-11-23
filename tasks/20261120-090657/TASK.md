@@ -52,8 +52,7 @@ Planned 2026-11-20 from the owner sign-off of the start hull looks
 - Greeble habit: the palette record (or a sibling record) carries a
   density factor and an accent piece list. Lint: pieces exist, factor in
   range.
-- Open: tint replaces the key or multiplies a base colour (agent rec:
-  replace; recipes are flat colour).
+- The tint replaces the magenta key colour outright (owner, 2026-11-23).
 
 ## Delivery
 - Slice 1 (palettes) and slice 2 (greeble habit) as on the design page,
@@ -92,6 +91,6 @@ Planned 2026-11-20 from the owner sign-off of the start hull looks
 ## Owner check (2026-11-23)
 - Greebles: recipe slots that follow the hull use a magenta key colour;
   the greeble takes a tint input (faction palette) that replaces the key.
-  Open: replace or multiply (agent rec: replace).
+  Owner picked replace.
 - Old saves are not a cost: no compatibility for them; delete old saves.
 - New shapes (thin parts, wedges, wings): owner agrees, not now; future work.
